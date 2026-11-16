@@ -2,6 +2,7 @@ import { roomSchema, tournamentRules } from "@tetraboard/protocol";
 import { playerTokenHash, readRoom } from "../../adapters/room/state";
 import { withIndexTransaction } from "../../adapters/room/transaction";
 import { startAnalyticsMatch } from "../../adapters/room/usage";
+import { closeRoom } from "../../adapters/room/useCases";
 import { closeSockets } from "../../durableObjects/gameRoom/connections";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { broadcastRoom } from "../../durableObjects/gameRoom/snapshots";
@@ -95,7 +96,7 @@ async function startReservedTournamentRoom(
     const closed = withIndexTransaction(runtime, () => {
       const room = readRoom(runtime);
       if (!room || room.instanceId !== reservation.instanceId) return false;
-      runtime.closeRoom();
+      closeRoom(runtime);
       return true;
     });
     if (closed) closeSockets(runtime);
@@ -166,7 +167,7 @@ function startTournamentGame(
       Date.now() >= reservation.context.endsAtMs ||
       Date.now() >= reservation.preparedAtMs + tournamentRules.connectionGraceMs
     ) {
-      runtime.closeRoom();
+      closeRoom(runtime);
       return;
     }
     const started = runtime.gameAdapter(room).start(room, {

@@ -19,6 +19,7 @@
     "typescript": "^5.5.2"
   },
   "dependencies": {
-    "@tetraboard/game-contract": "workspace:*"
+    "@tetraboard/game-contract": "workspace:*",
+    "@tetraboard/protocol": "workspace:*"
   }
 }

@@ -3,12 +3,12 @@ import type {
   Room,
   RoomSocketClientMessage,
   RoomSocketMessage,
-  RoomTimeControl,
 } from "@tetraboard/protocol";
+import type { TransactionRoomEffects } from "../../adapters/room/effects";
 import type { RoomJobs } from "../../adapters/room/jobs";
 import type { AiServiceBindings } from "../../rooms/aiService";
 import type { CpuCapacityGame } from "../../rooms/cpuCapacity";
-import type { ActionCommand, GameAdapter, SettingsCommand } from "../../rooms/gameAdapters/types";
+import type { GameAdapter } from "../../rooms/gameAdapters/types";
 import type { RoomAlarmEvents } from "../../rooms/roomAlarmEvents";
 import type { TransactionUsageEvents } from "../../usageEvents/transactionEvents";
 
@@ -41,26 +41,9 @@ export type RoomRuntime = {
   accountBindings: Env;
   db: D1Database;
   aiService: () => AiServiceBindings & { AI_WARMUP_ENABLED?: string };
-  closeRoom: () => void;
+  effects: TransactionRoomEffects;
   ctx: DurableObjectState;
   chat: { dirty: boolean };
   reconcileDeadlines: (applyCpu?: boolean) => Promise<void>;
   gameAdapter: <G extends GameId>(room: { settings: { game: G } }) => GameAdapter<G>;
-  setReady: (hash: string, ready: boolean) => RoomUpdateResult;
-  applySettings: (hash: string, command: SocketCommand<"room.settings.apply">) => RoomUpdateResult;
-  updateGameSettings: (hash: string, command: SettingsCommand) => RoomUpdateResult;
-  setTimeControl: (hash: string, timeControl: RoomTimeControl) => RoomUpdateResult;
-  startGame: (
-    hash: string,
-  ) => Promise<{ status: "started"; room: Room } | { status: RoomSocketError }>;
-  setShogiDrawProposal: (
-    hash: string,
-    command: SocketCommand<"room.game.draw.set">,
-  ) => GameActionResult<"updated" | "unchanged">;
-  declareShogi: (
-    hash: string,
-    command: SocketCommand<"room.game.declare">,
-  ) => GameActionResult<"updated">;
-  resign: (hash: string) => GameActionResult<"resigned">;
-  play: (hash: string, command: ActionCommand) => GameActionResult<"placed">;
 };

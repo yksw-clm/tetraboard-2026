@@ -1,6 +1,7 @@
 import { isRatedMatchmakingGame, matchmakingRules } from "@tetraboard/protocol";
 import { readRoom } from "../../adapters/room/state";
 import { withIndexTransaction } from "../../adapters/room/transaction";
+import { closeRoom } from "../../adapters/room/useCases";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import type { MatchmakingRoomReservation } from "../../matchmaking/coordinator";
 import { requestRatedAiWarmup, type RatedAiGame } from "../../rooms/aiService";
@@ -23,7 +24,7 @@ export function startMatchmakingAiWarmup(
   if (now >= latest || (warmup.attempts >= aiWarmupMaxAttempts && now >= warmup.nextAtMs)) {
     withIndexTransaction(runtime, () => {
       runtime.ctx.storage.kv.put(key, { ...reservation, aiWarmup: { state: "failed" } });
-      runtime.closeRoom();
+      closeRoom(runtime);
     });
     console.info({
       event: "rated_ai_warmup_unavailable",

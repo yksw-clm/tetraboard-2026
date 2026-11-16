@@ -1,5 +1,6 @@
 import { playerTokenHash, readRoom } from "../../adapters/room/state";
 import { withIndexTransaction } from "../../adapters/room/transaction";
+import { closeRoom } from "../../adapters/room/useCases";
 import { closeSockets } from "../../durableObjects/gameRoom/connections";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { hasOpenConnection } from "../../durableObjects/gameRoom/socket/membership";
@@ -94,7 +95,7 @@ export async function abortTournamentRoom(
           ...new Set([...(reservation.excludedPlayerIds ?? []), ...excludedPlayerIds]),
         ],
       });
-      runtime.closeRoom();
+      closeRoom(runtime);
       closed = true;
     }
   });

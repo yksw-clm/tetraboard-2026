@@ -1,40 +1,28 @@
-import type {
-  FourGomokuRoom,
-  GameId,
-  GomokuRoom,
-  ProfileRatings,
-  ReversiRoom,
-  ShogiRoom,
-} from "@tetraboard/protocol";
+import * as roomUseCases from "@tetraboard/context-room";
+import type { GameId, ProfileRatings } from "@tetraboard/protocol";
 import {
   joinRoomContract,
-  roomMembershipSchema,
   roomSchema,
   tournamentRules,
-  type FourReversiRoom,
-  type FourShogiRoom,
   type Room,
   type RoomMembership,
-  type RoomSocketClientMessage,
-  type RoomTimeControl,
 } from "@tetraboard/protocol";
-import { gameCapacity } from "@tetraboard/protocol/games";
 import { DurableObject } from "cloudflare:workers";
-import { profileAvatarUrl } from "../../accounts/auth";
 import { hasProfileRating, profileRatingsKey } from "../../accounts/profileRatings";
 import { type AccountAdmission } from "../../accounts/roomAccounts";
 import { nextAlarmAt } from "../../adapters/room/alarm";
 import {
-  hasCpuCapacity,
-  recoverPlayingCpuCapacity,
-  reserveCpuCapacity,
-} from "../../adapters/room/cpuCapacity";
+  applyProgress,
+  closeIfNoHumanParticipants,
+  removeWaitingPlayer,
+} from "../../adapters/room/commands";
+import { hasCpuCapacity, recoverPlayingCpuCapacity } from "../../adapters/room/cpuCapacity";
+import { TransactionRoomEffects, executeRoomEffect } from "../../adapters/room/effects";
 import { refreshLobbyIndex } from "../../adapters/room/indexJob";
 import { createRoomJobs } from "../../adapters/room/jobs";
 import { publicMetadata } from "../../adapters/room/metadata";
 import {
   currentRoomMembership,
-  departedKey,
   isHumanParticipant,
   playerTokenHash,
   purgeLegacyAnalytics,
@@ -42,7 +30,13 @@ import {
   readRoom,
 } from "../../adapters/room/state";
 import { withIndexTransaction } from "../../adapters/room/transaction";
-import { endAnalyticsMatch, startAnalyticsMatch } from "../../adapters/room/usage";
+import {
+  appendRoomSystem,
+  closeRoom,
+  invokeRoomUseCase,
+  recordDeparture,
+  roomAdmission,
+} from "../../adapters/room/useCases";
 import { purgeAccount } from "../../flows/accountPurge/purge";
 import { withAccountAdmission } from "../../flows/accountSeats/admission";
 import {
@@ -58,14 +52,12 @@ import {
   endRegistration,
   getGuestRegistration,
   registrationForPlayer,
-  releaseRegistration,
   validateGuestRegistrationAccount,
 } from "../../flows/guestRegistration/records";
 import { prepareMatchmakingRoom } from "../../flows/matchmakingRoom/prepare";
 import { rekeyMatchmakingPlayer } from "../../flows/matchmakingRoom/rekey";
 import {
   abortMatchmakingRoom,
-  clearMatchmakingSearches,
   getMatchmakingState,
 } from "../../flows/matchmakingRoom/reservations";
 import { advanceMatchmakingStart } from "../../flows/matchmakingRoom/start";
@@ -74,7 +66,6 @@ import { rekeyTournamentPlayer } from "../../flows/tournamentRoom/rekey";
 import {
   abortTournamentRoom,
   getTournamentReservationState,
-  recordTournamentState,
   tournamentReservation,
 } from "../../flows/tournamentRoom/reservations";
 import {
@@ -86,25 +77,17 @@ import type {
   MatchmakingRoomInput,
   MatchmakingRoomReservation,
 } from "../../matchmaking/coordinator";
-import { prepareRoomSettings } from "../../rooms/applyRoomSettings";
 import { isClockExpired } from "../../rooms/clock";
-import { fourGomokuCpuJobKey } from "../../rooms/fourGomokuProgress";
-import { fourReversiAiJobKey, fourReversiCpuJobKey } from "../../rooms/fourReversiProgress";
 import { roomFormationAnalysis } from "../../rooms/fourShogiFormationAnalysis";
-import { fourShogiAiJobKey, shogiEliminatedHandsKey } from "../../rooms/fourShogiProgress";
 import { createGameAdapters } from "../../rooms/gameAdapters";
 import type { ExternalCpuRequest } from "../../rooms/gameAdapters/cpuTypes";
-import type { ActionCommand, GameAdapter, SettingsCommand } from "../../rooms/gameAdapters/types";
-import { unreachable, type ProgressFor } from "../../rooms/gameProgress";
-import { gomokuCpuJobKey } from "../../rooms/gomokuProgress";
-import { matchStartKey } from "../../rooms/matchStore";
+import type { GameAdapter } from "../../rooms/gameAdapters/types";
+import { unreachable } from "../../rooms/gameProgress";
 import {
   cpuMoveDelayMs,
   nextPublicUpdateAt,
-  playerLabel,
   replayKey,
   roomStorageKey,
-  shogiCpuJobKey,
 } from "../../rooms/progressHelpers";
 import {
   type BeginGuestRegistrationResult,
@@ -119,40 +102,21 @@ import {
   migrateRoomStateV0ToV1,
   roomStateVersionKey,
 } from "../../rooms/roomStateVersion";
-import { shogiMatchStartKey, standardShogiMatchStartKey } from "../../rooms/shogiMatchStore";
 import {
   isTournamentGameRoom,
-  tournamentCredentialVersionKey,
-  tournamentReservationKey,
-  tournamentReturnKey,
-  tournamentRoomKey,
   type PrepareTournamentRoomInput,
   type RekeyTournamentPlayerInput,
-  type TournamentReturn,
 } from "../../rooms/tournamentRoom";
-import { analyticsPlayerKey, type AnalyticsIdentity } from "../../usageEvents/matches";
-import { matchEndFacts } from "../../usageEvents/matchLifecycle";
+import { type AnalyticsIdentity } from "../../usageEvents/matches";
 import { TransactionUsageEvents } from "../../usageEvents/transactionEvents";
-import { appendSystem } from "./chat";
 import { closeSockets, webSocketClose, webSocketError } from "./connections";
 import { fetch } from "./fetch";
 import { inspectReport, moderateMessage } from "./reports";
-import type { RoomRuntime, RoomSocketError } from "./runtime";
+import type { RoomRuntime } from "./runtime";
 import { broadcastRoom, presence } from "./snapshots";
 import { hasOpenConnection, sendCurrentMembership } from "./socket/membership";
 import { webSocketMessage } from "./socket/message";
-import {
-  accountKey,
-  chatKey,
-  cpuCapacityKey,
-  disconnectedAtKey,
-  lastChatAtKey,
-  membershipStorageKey,
-  mutedKey,
-  playerTokenKey,
-  reconnectGraceMs,
-  viewerSecretKey,
-} from "./storageKeys";
+import { disconnectedAtKey, reconnectGraceMs } from "./storageKeys";
 import { issueViewerToken } from "./viewerTokens";
 
 const idleMs = 24 * 60 * 60 * 1000;
@@ -170,6 +134,9 @@ export class GameRoom extends DurableObject<Env> {
     () => nextAlarmAt(this.runtime),
     (task) => this.ctx.waitUntil(task),
   );
+  private readonly effects = new TransactionRoomEffects((effect) =>
+    executeRoomEffect(this.runtime, effect),
+  );
   private readonly chat = { dirty: false };
   private readonly usageEvents = new TransactionUsageEvents(() => this.env.USAGE_EVENTS);
   private readonly progressDependencies = {
@@ -180,8 +147,8 @@ export class GameRoom extends DurableObject<Env> {
   private readonly adapters = createGameAdapters({
     ...this.progressDependencies,
     aiService: () => this.env,
-    appendSystem: (event, text) => appendSystem(this.runtime, event, text),
-    recordDeparture: (player) => this.recordDeparture(player),
+    appendSystem: (event, text) => appendRoomSystem(this.runtime, event, text),
+    recordDeparture: (player) => recordDeparture(this.runtime, player),
     logFourShogiDiagnostic: (event, fields) => logFourShogiDiagnostic(this.env, event, fields),
   });
 
@@ -223,19 +190,10 @@ export class GameRoom extends DurableObject<Env> {
         return getEnv().APP_DB;
       },
       aiService: () => this.env,
-      closeRoom: () => this.closeRoom(),
+      effects: this.effects,
       chat: this.chat,
       reconcileDeadlines: (applyCpu) => this.reconcileDeadlines(applyCpu),
       gameAdapter: (room) => this.gameAdapter(room),
-      setReady: (hash, ready) => this.setReady(hash, ready),
-      applySettings: (hash, command) => this.applySettings(hash, command),
-      updateGameSettings: (hash, command) => this.updateGameSettings(hash, command),
-      setTimeControl: (hash, timeControl) => this.setTimeControl(hash, timeControl),
-      startGame: (hash) => this.startGame(hash),
-      setShogiDrawProposal: (hash, command) => this.setShogiDrawProposal(hash, command),
-      declareShogi: (hash, command) => this.declareShogi(hash, command),
-      resign: (hash) => this.resign(hash),
-      play: (hash, command) => this.play(hash, command),
     };
   }
 
@@ -290,254 +248,6 @@ export class GameRoom extends DurableObject<Env> {
 
   async cancelAccountReservation(admission: AccountAdmission) {
     return cancelAccountReservation(this.runtime, admission);
-  }
-
-  private closeIfNoHumanParticipants<T extends Room>(room: T | null): T | null {
-    if (
-      room === null ||
-      this.gameAdapter(room).cpu.keepsPlayingWithoutHumans(room) ||
-      room.players.some((player) => isHumanParticipant(this.runtime, player))
-    )
-      return room;
-    this.closeRoom();
-    return null;
-  }
-
-  private recordDeparture(player: Room["players"][number]): void {
-    if (this.ctx.storage.kv.get(departedKey(player.id))) return;
-    this.ctx.storage.kv.delete(analyticsPlayerKey(player.id));
-    if (readRoom(this.runtime)?.status === "playing")
-      this.ctx.storage.kv.put(departedKey(player.id), true);
-    appendSystem(this.runtime, "left", `${playerLabel(player)}が退室しました`);
-  }
-
-  private releaseResultAvatars(room: Room, retainedIds: Set<string>): void {
-    for (const player of room.lastRound?.players ?? []) {
-      if (!retainedIds.has(player.id)) releaseAccount(this.runtime, player.id, true);
-    }
-  }
-
-  private closeRoom(): void {
-    const room = readRoom(this.runtime);
-    if (room && "matchmaking" in room && room.matchmaking) {
-      const key = `matchmaking:${room.matchmaking.id}`;
-      const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(key);
-      if (saved && saved.phase !== "playing")
-        this.ctx.storage.kv.put(key, {
-          ...clearMatchmakingSearches(this.runtime, saved),
-          phase: "closed",
-          connectedPlayerIds: room.players
-            .filter(
-              (p) =>
-                p.kind === "human" &&
-                hasOpenConnection(this.runtime, playerTokenHash(this.runtime, p.id) ?? ""),
-            )
-            .map((p) => p.id),
-        });
-    }
-    const tournament = tournamentReservation(this.runtime, room);
-    if (tournament) {
-      const excluded = tournament.excludedPlayerIds ?? [];
-      const connectedPlayerIds =
-        room?.players
-          .filter((player) => {
-            const hash = playerTokenHash(this.runtime, player.id);
-            return (
-              !excluded.includes(player.id) &&
-              hash !== null &&
-              hasOpenConnection(this.runtime, hash)
-            );
-          })
-          .map((player) => player.id) ?? [];
-      const closed = { ...tournament, status: "closed" as const, connectedPlayerIds };
-      this.ctx.storage.kv.put(tournamentReservationKey(tournament.context.matchId), closed);
-      if (tournament.status === "waiting") {
-        const returns: Record<string, TournamentReturn> = {};
-        for (const player of room?.players ?? []) {
-          const hash = playerTokenHash(this.runtime, player.id);
-          if (hash)
-            returns[hash] = {
-              type: "room.tournament.return",
-              tournamentId: tournament.context.tournamentId,
-              matchId: tournament.context.matchId,
-              instanceId: tournament.instanceId,
-              reason: excluded.includes(player.id) ? "left" : "unavailable",
-            };
-        }
-        this.ctx.storage.kv.put(tournamentReturnKey, returns);
-      }
-      if (tournament.status !== "closed") recordTournamentState(this.runtime, closed, "aborted");
-      this.ctx.storage.kv.delete(tournamentRoomKey);
-    }
-    if (room) this.releaseResultAvatars(room, new Set());
-    endAnalyticsMatch(this.runtime, "abandoned", Date.now());
-    for (const player of room?.players ?? []) {
-      this.ctx.storage.kv.delete(analyticsPlayerKey(player.id));
-      if (player.kind !== "human") continue;
-      releaseRegistration(this.runtime, player.id);
-      releaseAccount(this.runtime, player.id, true);
-      const tokenHash = playerTokenHash(this.runtime, player.id);
-      if (tokenHash !== null) this.ctx.storage.kv.delete(membershipStorageKey(tokenHash));
-      this.ctx.storage.kv.delete(playerTokenKey(player.id));
-      this.ctx.storage.kv.delete(tournamentCredentialVersionKey(player.id));
-      this.ctx.storage.kv.delete(disconnectedAtKey(player.id));
-      this.ctx.storage.kv.delete(lastChatAtKey(player.id));
-      this.ctx.storage.kv.delete(departedKey(player.id));
-    }
-    this.ctx.storage.kv.delete(roomStorageKey);
-    this.ctx.storage.kv.delete(roomStateVersionKey);
-    this.ctx.storage.kv.delete(replayKey);
-    this.ctx.storage.kv.delete(matchStartKey);
-    this.ctx.storage.kv.delete(shogiMatchStartKey);
-    this.ctx.storage.kv.delete(shogiEliminatedHandsKey);
-    this.ctx.storage.kv.delete(standardShogiMatchStartKey);
-    this.ctx.storage.kv.delete(chatKey);
-    this.ctx.storage.kv.delete(mutedKey);
-    this.ctx.storage.kv.delete(viewerSecretKey);
-    this.ctx.storage.kv.delete(shogiCpuJobKey);
-    this.ctx.storage.kv.delete("standard-shogi-cpu-job");
-    this.ctx.storage.kv.delete(gomokuCpuJobKey);
-    this.ctx.storage.kv.delete(fourGomokuCpuJobKey);
-    this.ctx.storage.kv.delete(fourReversiCpuJobKey);
-    this.ctx.storage.kv.delete(fourReversiAiJobKey);
-    this.ctx.storage.kv.delete(fourShogiAiJobKey);
-    if (room) this.gameAdapter(room).close();
-  }
-
-  private applyProgress(result: ProgressFor<"four-gomoku">): FourGomokuRoom | null;
-  private applyProgress(result: ProgressFor<"gomoku">): GomokuRoom | null;
-  private applyProgress(result: ProgressFor<"shogi">): ShogiRoom | null;
-  private applyProgress(result: ProgressFor<"reversi">): ReversiRoom | null;
-  private applyProgress(result: ProgressFor<"four-reversi">): FourReversiRoom | null;
-  private applyProgress(result: ProgressFor<"four-shogi">): FourShogiRoom | null;
-  private applyProgress(result: ProgressFor<GameId>): Room | null;
-  private applyProgress(result: ProgressFor<GameId>): Room | null {
-    switch (result.kind) {
-      case "rejected":
-        throw new Error(`Rejected progress: ${result.error}`);
-      case "unchanged":
-      case "playing":
-        return result.room;
-      case "finished": {
-        const tournament = tournamentReservation(this.runtime, result.room);
-        if (tournament) {
-          const closed = { ...tournament, status: "closed" as const };
-          this.ctx.storage.kv.put(tournamentReservationKey(tournament.context.matchId), closed);
-          recordTournamentState(this.runtime, closed, "saving");
-        }
-        endAnalyticsMatch(this.runtime, "completed", result.at, matchEndFacts(result.game));
-        return this.gameAdapter(result.room).finish(result, (players, at) =>
-          this.rematchPlayers(players, at),
-        );
-      }
-      default:
-        return unreachable(result);
-    }
-  }
-
-  private rematchPlayers<P extends Room["players"]>(seats: P, at: number): P | null {
-    const players = seats.filter((player) => {
-      if (player.kind === "cpu") return true;
-      if (!isHumanParticipant(this.runtime, player)) return false;
-      const hash = playerTokenHash(this.runtime, player.id);
-      if (hash === null || readMembership(this.runtime, hash) === null) return false;
-      if (hasOpenConnection(this.runtime, hash)) return true;
-      const disconnectedAt = this.ctx.storage.kv.get<number>(disconnectedAtKey(player.id));
-      return disconnectedAt !== undefined && disconnectedAt + reconnectGraceMs > at;
-    });
-    const humans = players.filter((player) => player.kind === "human");
-    if (humans.length === 0) {
-      this.closeRoom();
-      return null;
-    }
-    for (const player of seats) {
-      if (player.kind !== "human" || players.includes(player)) continue;
-      this.recordDeparture(player);
-      // 前局の結果が表示される間は、退室者の画像参照だけを保持します。
-      releaseAccount(this.runtime, player.id, false);
-      this.ctx.storage.kv.delete(departedKey(player.id));
-      const hash = playerTokenHash(this.runtime, player.id);
-      if (hash !== null) this.ctx.storage.kv.delete(membershipStorageKey(hash));
-      this.ctx.storage.kv.delete(playerTokenKey(player.id));
-      this.ctx.storage.kv.delete(disconnectedAtKey(player.id));
-      this.ctx.storage.kv.delete(lastChatAtKey(player.id));
-    }
-    const host = humans.find((player) => {
-      const hash = playerTokenHash(this.runtime, player.id);
-      return hash !== null && readMembership(this.runtime, hash)?.role === "host";
-    });
-    const nextHost = host ?? humans[0];
-    if (host === undefined) {
-      const hash = playerTokenHash(this.runtime, nextHost.id)!;
-      this.ctx.storage.kv.put(membershipStorageKey(hash), { playerId: nextHost.id, role: "host" });
-    }
-    const ordered = [nextHost, ...players.filter((player) => player.id !== nextHost.id)];
-    for (const player of ordered) this.ctx.storage.kv.delete(departedKey(player.id));
-    return ordered.map((player) => ({
-      ...player,
-      ready: player.kind === "cpu",
-      reconnectDeadline:
-        player.kind === "cpu" ||
-        hasOpenConnection(this.runtime, playerTokenHash(this.runtime, player.id)!)
-          ? null
-          : this.ctx.storage.kv.get<number>(disconnectedAtKey(player.id))! + reconnectGraceMs,
-    })) as P;
-  }
-
-  private play(
-    tokenHash: string,
-    command: ActionCommand,
-  ): { status: "placed"; room: Room | null } | { status: RoomSocketError } {
-    return withIndexTransaction(this.runtime, () => {
-      const room = readRoom(this.runtime);
-      if (!room) return { status: "not_found" };
-      const result = this.gameAdapter(room).play(room, tokenHash, command);
-      if (result.kind === "rejected") return { status: result.error };
-      const updated = this.applyProgress(result);
-      if (updated) this.ctx.storage.kv.put(roomStorageKey, updated);
-      return { status: "placed", room: updated };
-    });
-  }
-
-  private setShogiDrawProposal(
-    tokenHash: string,
-    command: Extract<RoomSocketClientMessage, { type: "room.game.draw.set" }>,
-  ): { status: "updated" | "unchanged"; room: Room | null } | { status: RoomSocketError } {
-    return withIndexTransaction(this.runtime, () => {
-      const room = readRoom(this.runtime);
-      if (!room) return { status: "not_found" };
-      const result = this.gameAdapter(room).draw(room, tokenHash, command);
-      if (result.kind === "rejected") return { status: result.error };
-      if (result.kind === "unchanged") return { status: "unchanged", room: result.room };
-      let updated = this.applyProgress(result);
-      if (updated) updated = this.applyProgress(this.gameAdapter(updated).afterDraw(updated));
-      if (updated) this.ctx.storage.kv.put(roomStorageKey, updated);
-      return { status: "updated", room: updated };
-    });
-  }
-
-  private declareShogi(
-    tokenHash: string,
-    command: Extract<RoomSocketClientMessage, { type: "room.game.declare" }>,
-  ): { status: "updated"; room: Room | null } | { status: RoomSocketError } {
-    return withIndexTransaction(this.runtime, () => {
-      const room = readRoom(this.runtime);
-      if (!room) return { status: "not_found" };
-      const result = this.gameAdapter(room).declare(room, tokenHash, command);
-      if (result.kind === "rejected") return { status: result.error };
-      const updated = this.applyProgress(result);
-      if (updated) this.ctx.storage.kv.put(roomStorageKey, updated);
-      return { status: "updated", room: updated };
-    });
-  }
-  private updateGameSettings(tokenHash: string, command: SettingsCommand) {
-    return withIndexTransaction(this.runtime, () => {
-      const room = readRoom(this.runtime);
-      if (!room) return { status: "not_found" as const };
-      const result = this.gameAdapter(room).settings(room, tokenHash, command);
-      if (result.status === "updated") this.ctx.storage.kv.put(roomStorageKey, result.room);
-      return result;
-    });
   }
 
   async getFourShogiAnalysisReplay(
@@ -627,61 +337,24 @@ export class GameRoom extends DurableObject<Env> {
       throw new Error("Room code does not match Durable Object name");
     }
 
-    const created = await withAccountAdmission(this.runtime, admission, () =>
+    return withAccountAdmission(this.runtime, admission, () =>
       withIndexTransaction(this.runtime, () => {
-        if (
-          this.ctx.storage.kv.get(roomStorageKey) !== undefined ||
-          this.ctx.storage.kv.get(membershipStorageKey(tokenHash)) !== undefined
-        ) {
-          return null;
-        }
-
-        const pendingRoom = roomSchema.parse({
-          ...initialRoom,
-          players: initialRoom.players.map((player) =>
-            player.kind === "human"
-              ? { ...player, reconnectDeadline: Date.now() + reconnectGraceMs }
-              : player,
-          ),
-        });
-        if (admission) {
-          if (
-            initialRoom.instanceId !== admission.instanceId ||
-            initialRoom.players[0].id !== admission.playerId ||
-            initialRoom.players[0].name !== admission.name ||
-            initialRoom.players[0].kind !== "human" ||
-            initialRoom.players[0].avatarUrl !==
-              profileAvatarUrl(admission.avatarKey, admission.avatarPresetId)
-          )
-            throw new Error("Admission does not match host");
-          this.ctx.storage.kv.put(accountKey(admission.playerId), {
-            ...admission,
-            occupying: true,
-          });
-        }
-        if (analytics)
-          this.ctx.storage.kv.put(analyticsPlayerKey(initialRoom.players[0].id), analytics);
-        this.ctx.storage.kv.put(roomStorageKey, pendingRoom);
-        this.ctx.storage.kv.put(roomStateVersionKey, currentRoomStateVersion);
-        this.ctx.storage.kv.put(
-          membershipStorageKey(tokenHash),
-          roomMembershipSchema.parse({ playerId: initialRoom.players[0].id, role: "host" }),
-        );
-        this.ctx.storage.kv.put(playerTokenKey(initialRoom.players[0].id), tokenHash);
-        this.ctx.storage.kv.put(disconnectedAtKey(initialRoom.players[0].id), Date.now());
-        for (const player of initialRoom.players) {
-          appendSystem(this.runtime, "joined", `${playerLabel(player)}が入室しました`);
-        }
         const secret = new Uint8Array(32);
         crypto.getRandomValues(secret);
-        this.ctx.storage.kv.put(
-          viewerSecretKey,
-          Array.from(secret, (byte) => byte.toString(16).padStart(2, "0")).join(""),
+        return invokeRoomUseCase(
+          this.runtime,
+          (op) =>
+            roomUseCases.createRoom(
+              op,
+              initialRoom,
+              tokenHash,
+              Array.from(secret, (byte) => byte.toString(16).padStart(2, "0")).join(""),
+              roomAdmission(admission),
+            ),
+          { admission, analytics },
         );
-        return pendingRoom;
       }),
     );
-    return created;
   }
 
   async getRoom(): Promise<Room | null> {
@@ -815,115 +488,23 @@ export class GameRoom extends DurableObject<Env> {
     await this.reconcileDeadlines();
     const playerName = joinRoomContract.request.parse({ name }).name!;
     const result = await withAccountAdmission(this.runtime, admission, () =>
-      withIndexTransaction(this.runtime, () => {
-        const room = readRoom(this.runtime);
-        if (room === null) {
-          return { status: "not_found" } as const;
-        }
-        if (instanceId !== undefined && room.instanceId !== instanceId) {
-          return { status: "room_changed" } as const;
-        }
-        if ("matchmaking" in room && room.matchmaking)
-          return { status: "matchmaking_required" } as const;
-        if (isTournamentGameRoom(room) && room.tournamentId !== undefined)
-          return { status: "tournament_required" } as const;
-        if (room.status !== "waiting") {
-          return { status: "room_started" } as const;
-        }
-        if (room.players.length >= gameCapacity(room.settings.game)) {
-          return { status: "room_full" } as const;
-        }
-        if (this.ctx.storage.kv.get(membershipStorageKey(tokenHash)) !== undefined) {
-          throw new Error("Membership token collision");
-        }
-
-        if (
-          admission &&
-          (room.instanceId !== admission.instanceId || playerName !== admission.name)
-        )
-          throw new Error("Admission does not match room");
-        const playerId = admission?.playerId ?? crypto.randomUUID();
-        const updatedRoom = roomSchema.parse({
-          ...room,
-          publicUpdatedAtMs: nextPublicUpdateAt(room),
-          lastActivityAtMs: Date.now(),
-          players: [
-            ...room.players,
-            {
-              id: playerId,
-              name: playerName,
-              kind: "human",
-              avatarUrl: admission
-                ? profileAvatarUrl(admission.avatarKey, admission.avatarPresetId)
-                : null,
-              ...(admission?.isGuest ? { isGuest: true } : {}),
-              ready: false,
-              ...this.gameAdapter(room).waitingSeat,
-              reconnectDeadline: Date.now() + reconnectGraceMs,
-            },
-          ],
-        });
-        const membership = roomMembershipSchema.parse({ playerId, role: "player" });
-        if (analytics) this.ctx.storage.kv.put(analyticsPlayerKey(playerId), analytics);
-        this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
-        if (admission)
-          this.ctx.storage.kv.put(accountKey(playerId), { ...admission, occupying: true });
-        this.ctx.storage.kv.put(membershipStorageKey(tokenHash), membership);
-        this.ctx.storage.kv.put(playerTokenKey(playerId), tokenHash);
-        this.ctx.storage.kv.put(disconnectedAtKey(playerId), Date.now());
-        appendSystem(this.runtime, "joined", `${playerName}が入室しました`);
-        return { status: "joined", room: updatedRoom, membership } as const;
-      }),
+      withIndexTransaction(this.runtime, () =>
+        invokeRoomUseCase(
+          this.runtime,
+          (op) =>
+            roomUseCases.joinRoom(
+              op,
+              playerName,
+              tokenHash,
+              admission?.playerId ?? crypto.randomUUID(),
+              instanceId,
+              roomAdmission(admission),
+            ),
+          { admission, analytics },
+        ),
+      ),
     );
-
-    if (result === null) return { status: "account_reservation_invalid" };
-    if (result.status === "joined") {
-      broadcastRoom(this.runtime, result.room);
-    }
-
-    return result;
-  }
-
-  private removeWaitingPlayer(
-    room: Extract<Room, { status: "waiting" }>,
-    playerId: string,
-  ): Room | null {
-    releaseRegistration(this.runtime, playerId);
-    const departing = room.players.find((player) => player.id === playerId);
-    if (departing) this.recordDeparture(departing);
-    releaseAccount(
-      this.runtime,
-      playerId,
-      !room.lastRound?.players.some((player) => player.id === playerId),
-    );
-    const tokenHash = playerTokenHash(this.runtime, playerId);
-    if (tokenHash !== null) this.ctx.storage.kv.delete(membershipStorageKey(tokenHash));
-    this.ctx.storage.kv.delete(playerTokenKey(playerId));
-
-    let remaining = room.players.filter((player) => player.id !== playerId);
-    const successor = remaining.find((player) => player.kind === "human");
-    if (successor === undefined) {
-      this.closeRoom();
-      return null;
-    }
-
-    if (room.players[0].id === playerId) {
-      remaining = [successor, ...remaining.filter((player) => player.id !== successor.id)];
-      const nextHash = playerTokenHash(this.runtime, successor.id);
-      if (nextHash === null) throw new Error("Host successor has no membership");
-      this.ctx.storage.kv.put(
-        membershipStorageKey(nextHash),
-        roomMembershipSchema.parse({ playerId: remaining[0].id, role: "host" }),
-      );
-    }
-    const updated = roomSchema.parse({
-      ...room,
-      publicUpdatedAtMs: nextPublicUpdateAt(room),
-      lastActivityAtMs: Date.now(),
-      players: remaining,
-    });
-    this.ctx.storage.kv.put(roomStorageKey, updated);
-    return updated;
+    return result ?? { status: "account_reservation_invalid" };
   }
 
   private async reconcileDeadlines(applyCpu = false): Promise<void> {
@@ -987,15 +568,15 @@ export class GameRoom extends DurableObject<Env> {
             ) ||
             room.players.length !== 4)
         ) {
-          this.closeRoom();
+          closeRoom(this.runtime);
           changed = true;
           return null;
         }
         const idle =
           this.gameAdapter(room).cpu.usesIdleDeadline(room) &&
           room.lastActivityAtMs + idleMs <= now;
-        if (idle || this.closeIfNoHumanParticipants(room) === null) {
-          if (idle) this.closeRoom();
+        if (idle || closeIfNoHumanParticipants(this.runtime, room) === null) {
+          if (idle) closeRoom(this.runtime);
           changed = true;
           return null;
         }
@@ -1045,7 +626,10 @@ export class GameRoom extends DurableObject<Env> {
           );
           if (!deadline) break;
           if (room.status === "playing" && deadline.type === "timeout") {
-            room = this.applyProgress(this.gameAdapter(room).cpu.timeout(room, deadline.at));
+            room = applyProgress(
+              this.runtime,
+              this.gameAdapter(room).cpu.timeout(room, deadline.at),
+            );
           } else if (deadline.type === "disconnect") {
             const player: Room["players"][number] | undefined = room.players.find(
               (p) => p.id === deadline.playerId,
@@ -1053,24 +637,25 @@ export class GameRoom extends DurableObject<Env> {
             if (!player) throw new Error("Deadline player is missing");
             if (room.status === "waiting") {
               const wasHost = room.players[0].id === player.id;
-              room = this.removeWaitingPlayer(room, player.id);
+              room = removeWaitingPlayer(this.runtime, room, player.id);
               if (wasHost && room) {
                 const hash = playerTokenHash(this.runtime, room.players[0].id);
                 if (hash) promoted.push(hash);
               }
             } else {
-              this.recordDeparture(player);
+              recordDeparture(this.runtime, player);
               releaseAccount(this.runtime, player.id, false);
-              room = this.applyProgress(
+              room = applyProgress(
+                this.runtime,
                 this.gameAdapter(room).cpu.disconnect(room, player.id, deadline.at),
               );
             }
           }
-          room = this.closeIfNoHumanParticipants(room);
+          room = closeIfNoHumanParticipants(this.runtime, room);
           changed = true;
           if (room) this.ctx.storage.kv.put(roomStorageKey, room);
         }
-        const retained = this.closeIfNoHumanParticipants(room);
+        const retained = closeIfNoHumanParticipants(this.runtime, room);
         if (retained !== room) changed = true;
         room = retained;
         if (
@@ -1083,7 +668,7 @@ export class GameRoom extends DurableObject<Env> {
               now,
               hasCapacity: (current) => hasCpuCapacity(this.runtime, current),
               applyProgress: (progress) => {
-                const current = this.applyProgress(progress);
+                const current = applyProgress(this.runtime, progress);
                 if (current) this.ctx.storage.kv.put(roomStorageKey, current);
                 changed = true;
                 return current;
@@ -1131,60 +716,14 @@ export class GameRoom extends DurableObject<Env> {
 
   async leaveRoom(tokenHash: string): Promise<"left" | "not_found" | "unauthorized"> {
     await this.reconcileDeadlines();
-    let promoted: string | null = null;
-    const result = withIndexTransaction(this.runtime, () => {
-      const room = readRoom(this.runtime);
-      if (room === null) return { status: "not_found" as const, room: null };
-      if (room.status === "playing" && isClockExpired(room.clock, Date.now())) {
-        return { status: "time_expired" as const, room };
-      }
-      const membership = readMembership(this.runtime, tokenHash);
-      if (membership === null) return { status: "unauthorized" as const, room };
-      const player = room.players.find((entry) => entry.id === membership.playerId);
-      if (player === undefined) return { status: "unauthorized" as const, room };
-
-      let updated: Room | null;
-      if (room.status === "waiting") {
-        const tournament = tournamentReservation(this.runtime, room);
-        if (tournament?.status === "waiting") {
-          this.ctx.storage.kv.put(tournamentReservationKey(tournament.context.matchId), {
-            ...tournament,
-            excludedPlayerIds: [...new Set([...(tournament.excludedPlayerIds ?? []), player.id])],
-          });
-          this.closeRoom();
-          return { status: "left" as const, room: null };
-        }
-        const hostLeaving = room.players[0].id === player.id;
-        updated = this.removeWaitingPlayer(room, player.id);
-        if (hostLeaving && updated !== null)
-          promoted = playerTokenHash(this.runtime, updated.players[0].id);
-      } else {
-        this.recordDeparture(player);
-        releaseAccount(this.runtime, player.id, false);
-        const adapter = this.gameAdapter(room);
-        const leave = adapter.prepareLeave(room, player.id);
-        this.ctx.storage.kv.delete(membershipStorageKey(tokenHash));
-        this.ctx.storage.kv.delete(playerTokenKey(player.id));
-        const at = Date.now();
-        updated = this.applyProgress(leave(at, membership.role === "host"));
-        if (updated) {
-          updated = adapter.afterLeave(updated, room, at, membership.role === "host");
-          this.ctx.storage.kv.put(roomStorageKey, updated);
-        }
-      }
-      updated = this.closeIfNoHumanParticipants(updated);
-      return { status: "left" as const, room: updated };
-    });
+    const result = withIndexTransaction(this.runtime, () =>
+      invokeRoomUseCase(this.runtime, (op) => roomUseCases.leaveRoom(op, tokenHash)),
+    );
     if (result.status === "time_expired") {
       await this.reconcileDeadlines();
       return this.leaveRoom(tokenHash);
     }
-    if (result.status !== "left") return result.status;
-    if (result.room === null) closeSockets(this.runtime);
-    else broadcastRoom(this.runtime, result.room);
-    if (promoted !== null) sendCurrentMembership(this.runtime, promoted);
-    closeSockets(this.runtime, tokenHash);
-    return "left";
+    return result.status;
   }
 
   async issueViewerToken(): Promise<string | null> {
@@ -1203,162 +742,6 @@ export class GameRoom extends DurableObject<Env> {
     mute: boolean,
   ): Promise<"applied" | "room_changed"> {
     return moderateMessage(this.runtime, instanceId, messageId, senderId, remove, mute);
-  }
-
-  private setReady(
-    tokenHash: string,
-    ready: boolean,
-  ):
-    | { status: "updated"; room: Room }
-    | { status: "unchanged" }
-    | { status: "not_found" }
-    | { status: "unauthorized" }
-    | { status: "registration_pending" }
-    | { status: "already_started" } {
-    return withIndexTransaction(this.runtime, () => {
-      const room = readRoom(this.runtime);
-      if (room === null) return { status: "not_found" };
-      if (room.status !== "waiting") return { status: "already_started" };
-
-      const membership = readMembership(this.runtime, tokenHash);
-      if (membership === null) return { status: "unauthorized" };
-      const player = room.players.find((entry) => entry.id === membership.playerId);
-      if (player === undefined) return { status: "unauthorized" };
-      if (registrationForPlayer(this.runtime, player.id)) return { status: "registration_pending" };
-      if (player.ready === ready) return { status: "unchanged" };
-
-      const updatedRoom = roomSchema.parse({
-        ...room,
-        lastActivityAtMs: Date.now(),
-        players: room.players.map((entry) =>
-          entry.id === player.id ? { ...entry, ready } : entry,
-        ),
-      });
-      this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
-      return { status: "updated", room: updatedRoom };
-    });
-  }
-
-  private applySettings(
-    tokenHash: string,
-    command: Extract<RoomSocketClientMessage, { type: "room.settings.apply" }>,
-  ) {
-    return withIndexTransaction(this.runtime, () => {
-      const room = readRoom(this.runtime);
-      if (!room) return { status: "not_found" as const };
-      if (readMembership(this.runtime, tokenHash)?.role !== "host")
-        return { status: "forbidden" as const };
-      const result = prepareRoomSettings(room, command);
-      if (result.status !== "updated") return result;
-      if (command.mode !== undefined && command.mode !== room.settings.mode)
-        appendSystem(
-          this.runtime,
-          "mode_changed",
-          `対局形式が${command.mode === "singles" ? "シングルス" : "ダブルス"}に変更されました`,
-        );
-      for (const player of room.players)
-        if (
-          player.kind === "cpu" &&
-          !result.room.players.some((current) => current.id === player.id)
-        )
-          this.recordDeparture(player);
-      for (const player of result.room.players)
-        if (player.kind === "cpu" && !room.players.some((previous) => previous.id === player.id))
-          appendSystem(this.runtime, "joined", `CPU Lv${player.level}が入室しました`);
-      this.ctx.storage.kv.put(roomStorageKey, result.room);
-      return result;
-    });
-  }
-
-  private setTimeControl(
-    tokenHash: string,
-    timeControl: RoomTimeControl,
-  ):
-    | { status: "updated"; room: Room }
-    | { status: "unchanged" | "not_found" | "forbidden" | "already_started" } {
-    return withIndexTransaction(this.runtime, () => {
-      const room = readRoom(this.runtime);
-      if (!room) return { status: "not_found" };
-      if (room.status !== "waiting") return { status: "already_started" };
-      if (readMembership(this.runtime, tokenHash)?.role !== "host") return { status: "forbidden" };
-      if (
-        room.settings.timeControl.mainTimeMs === timeControl.mainTimeMs &&
-        room.settings.timeControl.byoyomiMs === timeControl.byoyomiMs
-      )
-        return { status: "unchanged" };
-      const updated = roomSchema.parse({
-        ...room,
-        settings: { ...room.settings, timeControl },
-        players: room.players.map((player) =>
-          player.kind === "human" ? { ...player, ready: false } : player,
-        ),
-        lastActivityAtMs: Date.now(),
-        publicUpdatedAtMs: nextPublicUpdateAt(room),
-      });
-      this.ctx.storage.kv.put(roomStorageKey, updated);
-      return { status: "updated", room: updated };
-    });
-  }
-
-  private async startGame(tokenHash: string): Promise<
-    | { status: "started"; room: Room }
-    | {
-        status:
-          | "not_found"
-          | "unauthorized"
-          | "forbidden"
-          | "not_ready"
-          | "already_started"
-          | "registration_pending"
-          | "cpu_capacity_full"
-          | "internal_error";
-      }
-  > {
-    return this.ctx.blockConcurrencyWhile(async () => {
-      const room = readRoom(this.runtime);
-      if (room === null) return { status: "not_found" };
-      if (room.status !== "waiting") return { status: "already_started" };
-
-      const membership = readMembership(this.runtime, tokenHash);
-      if (membership === null) return { status: "unauthorized" };
-      if (membership.role !== "host") return { status: "forbidden" };
-      if (room.players.some((player) => registrationForPlayer(this.runtime, player.id)))
-        return { status: "registration_pending" };
-      if (
-        room.players.length !== gameCapacity(room.settings.game) ||
-        room.players.some((player) => {
-          if (player.kind === "cpu") return false;
-          const hash = playerTokenHash(this.runtime, player.id);
-          return !player.ready || hash === null || !hasOpenConnection(this.runtime, hash);
-        })
-      ) {
-        return { status: "not_ready" };
-      }
-
-      const capacity = await reserveCpuCapacity(this.runtime, room);
-      if (typeof capacity === "string") return { status: capacity };
-      return withIndexTransaction(this.runtime, () => {
-        if (capacity) this.ctx.storage.kv.put(cpuCapacityKey, capacity);
-        const started = this.gameAdapter(room).start(room, { kind: "normal" });
-        this.releaseResultAvatars(room, new Set(started.room.players.map((player) => player.id)));
-        startAnalyticsMatch(this.runtime, started.roundId, started.room, started.at);
-        return { status: "started", room: started.room };
-      });
-    });
-  }
-
-  private resign(
-    tokenHash: string,
-  ): { status: "resigned"; room: Room | null } | { status: RoomSocketError } {
-    return withIndexTransaction(this.runtime, () => {
-      const room = readRoom(this.runtime);
-      if (!room) return { status: "not_found" };
-      const result = this.gameAdapter(room).resign(room, tokenHash);
-      if (result.kind === "rejected") return { status: result.error };
-      const updated = this.applyProgress(result);
-      if (updated) this.ctx.storage.kv.put(roomStorageKey, updated);
-      return { status: "resigned", room: updated };
-    });
   }
 
   async fetch(request: Request): Promise<Response> {

@@ -1,10 +1,10 @@
 import { roomSchema, type Room, type RoomSettingsApplyCommand } from "@tetraboard/protocol";
 import { gameCatalog } from "@tetraboard/protocol/games";
-import { nextPublicUpdateAt } from "./progressHelpers";
 
 export function prepareRoomSettings(
   room: Room,
   command: RoomSettingsApplyCommand,
+  now = Date.now(),
 ):
   | { status: "updated"; room: Room }
   | {
@@ -81,8 +81,8 @@ export function prepareRoomSettings(
     ...room,
     settings,
     players,
-    lastActivityAtMs: Date.now(),
-    publicUpdatedAtMs: nextPublicUpdateAt(room),
+    lastActivityAtMs: now,
+    publicUpdatedAtMs: Math.max(now, room.publicUpdatedAtMs + 1),
   });
   return updated.success
     ? { status: "updated", room: updated.data }

@@ -1,2 +1,17 @@
 export { checkGameCommand } from "./domain";
 export type { GameCommandInput, GameCommandRejection } from "./domain";
+export * from "./use-cases/close";
+export * from "./use-cases/create";
+export type * from "./use-cases/effects";
+export * from "./use-cases/game";
+export type * from "./use-cases/gamePort";
+export type * from "./use-cases/gameProgress";
+export * from "./use-cases/join";
+export * from "./use-cases/leave";
+export * from "./use-cases/participants";
+export * from "./use-cases/ports";
+export * from "./use-cases/progress";
+export * from "./use-cases/rematch";
+export * from "./use-cases/removeWaitingPlayer";
+export * from "./use-cases/settings";
+export * from "./use-cases/start";
