@@ -27,16 +27,18 @@ export function appendSystem(
   runtime: RoomRuntime,
   event: SystemChatMessage["event"],
   text: string,
+  at = Date.now(),
+  markDirty = true,
 ): void {
   const message = systemChatMessageSchema.parse({
     id: crypto.randomUUID(),
     kind: "system",
     event,
     text,
-    sentAtMs: Date.now(),
+    sentAtMs: at,
   });
   runtime.ctx.storage.kv.put(chatKey, [...readChat(runtime), message].slice(-chatHistoryLimit));
-  runtime.chat.dirty = true;
+  if (markDirty) runtime.chat.dirty = true;
 }
 
 export function chatSnapshot(runtime: RoomRuntime): RoomSocketMessage {

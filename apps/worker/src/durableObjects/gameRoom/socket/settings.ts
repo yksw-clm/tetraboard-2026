@@ -1,11 +1,17 @@
+import {
+  applySettings,
+  setReady,
+  setTimeControl,
+  updateGameSettings,
+} from "../../../adapters/room/commands";
 import { readRoom } from "../../../adapters/room/state";
 import type { SettingsCommand } from "../../../rooms/gameAdapters/types";
 import type { RoomRuntime, RoomUpdateResult, SocketCommand } from "../runtime";
-import { broadcastRoom, rejectAction, sendRoomSnapshot } from "../snapshots";
+import { rejectAction, sendRoomSnapshot } from "../snapshots";
 
 function sendUpdate(runtime: RoomRuntime, socket: WebSocket, result: RoomUpdateResult): void {
-  if (result.status === "updated") broadcastRoom(runtime, result.room);
-  else if (result.status === "unchanged") {
+  if (result.status === "updated") return;
+  if (result.status === "unchanged") {
     const room = readRoom(runtime);
     if (room !== null) sendRoomSnapshot(runtime, socket, room);
   } else rejectAction(runtime, socket, result.status);
@@ -17,7 +23,7 @@ export function handleReady(
   command: SocketCommand<"room.ready.set">,
   tokenHash: string,
 ): void {
-  sendUpdate(runtime, socket, runtime.setReady(tokenHash, command.ready));
+  sendUpdate(runtime, socket, setReady(runtime, tokenHash, command.ready));
 }
 
 export function handleSettings(
@@ -26,7 +32,7 @@ export function handleSettings(
   command: SocketCommand<"room.settings.apply">,
   tokenHash: string,
 ): void {
-  sendUpdate(runtime, socket, runtime.applySettings(tokenHash, command));
+  sendUpdate(runtime, socket, applySettings(runtime, tokenHash, command));
 }
 
 export function handleGameSettings(
@@ -35,7 +41,7 @@ export function handleGameSettings(
   command: SettingsCommand,
   tokenHash: string,
 ): void {
-  sendUpdate(runtime, socket, runtime.updateGameSettings(tokenHash, command));
+  sendUpdate(runtime, socket, updateGameSettings(runtime, tokenHash, command));
 }
 
 export function handleTimeControl(
@@ -44,5 +50,5 @@ export function handleTimeControl(
   command: SocketCommand<"room.time-control.set">,
   tokenHash: string,
 ): void {
-  sendUpdate(runtime, socket, runtime.setTimeControl(tokenHash, command.timeControl));
+  sendUpdate(runtime, socket, setTimeControl(runtime, tokenHash, command.timeControl));
 }

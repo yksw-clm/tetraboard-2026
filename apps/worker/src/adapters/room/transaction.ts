@@ -17,40 +17,44 @@ export function withIndexTransaction<T>(
 ): T {
   let changed = false;
   let releaseCpu = false;
-  const result = runtime.usageEvents.run(() =>
-    runtime.ctx.storage.transactionSync(() => {
-      const before = previousRoom === undefined ? readRoom(runtime) : previousRoom;
-      const previous = before === null ? null : publicMetadata(runtime, before);
-      const value = action();
-      const after = readRoom(runtime);
-      if (
-        after?.instanceId !== before?.instanceId ||
-        (before?.status === "playing" && after?.status !== "playing")
-      ) {
-        const reservation = runtime.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
-        if (reservation?.releaseAtMs === null && reservation.instanceId === before?.instanceId) {
-          runtime.ctx.storage.kv.put(cpuCapacityKey, { ...reservation, releaseAtMs: Date.now() });
-          releaseCpu = true;
+  const result = runtime.effects.run(() =>
+    runtime.usageEvents.run(() =>
+      runtime.ctx.storage.transactionSync(() => {
+        const before = previousRoom === undefined ? readRoom(runtime) : previousRoom;
+        const previous = before === null ? null : publicMetadata(runtime, before);
+        const value = action();
+        const after = readRoom(runtime);
+        if (
+          after?.instanceId !== before?.instanceId ||
+          (before?.status === "playing" && after?.status !== "playing")
+        ) {
+          const reservation = runtime.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
+          if (reservation?.releaseAtMs === null && reservation.instanceId === before?.instanceId) {
+            runtime.ctx.storage.kv.put(cpuCapacityKey, { ...reservation, releaseAtMs: Date.now() });
+            releaseCpu = true;
+          }
         }
-      }
-      changed =
-        (before === null && after !== null) ||
-        (before !== null && after === null) ||
-        (before !== null && after !== null && after.publicUpdatedAtMs !== before.publicUpdatedAtMs);
-      if (changed) {
-        const revision = (runtime.ctx.storage.kv.get<number>(indexRevisionKey) ?? 0) + 1;
-        const metadata = after === null ? previous : publicMetadata(runtime, after);
-        if (metadata === null) throw new Error("Missing room metadata for index update");
-        runtime.ctx.storage.kv.put(indexRevisionKey, revision);
-        runtime.ctx.storage.kv.put(pendingIndexKey, {
-          revision,
-          closed: after === null,
-          metadata,
-          retryAtMs: Date.now(),
-        } satisfies PendingRoomIndex);
-      }
-      return value;
-    }),
+        changed =
+          (before === null && after !== null) ||
+          (before !== null && after === null) ||
+          (before !== null &&
+            after !== null &&
+            after.publicUpdatedAtMs !== before.publicUpdatedAtMs);
+        if (changed) {
+          const revision = (runtime.ctx.storage.kv.get<number>(indexRevisionKey) ?? 0) + 1;
+          const metadata = after === null ? previous : publicMetadata(runtime, after);
+          if (metadata === null) throw new Error("Missing room metadata for index update");
+          runtime.ctx.storage.kv.put(indexRevisionKey, revision);
+          runtime.ctx.storage.kv.put(pendingIndexKey, {
+            revision,
+            closed: after === null,
+            metadata,
+            retryAtMs: Date.now(),
+          } satisfies PendingRoomIndex);
+        }
+        return value;
+      }),
+    ),
   );
   runtime.alarms.mark();
   if (changed) runtime.ctx.waitUntil(runtime.jobs.roomIndexJob.flush());

@@ -2,6 +2,7 @@ import type { RoomPublicMetadata } from "@tetraboard/protocol";
 import { publicMetadata } from "../../adapters/room/metadata";
 import { playerTokenHash, readRoom } from "../../adapters/room/state";
 import { withIndexTransaction } from "../../adapters/room/transaction";
+import { closeRoom } from "../../adapters/room/useCases";
 import { closeSockets } from "../../durableObjects/gameRoom/connections";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { hasOpenConnection } from "../../durableObjects/gameRoom/socket/membership";
@@ -84,7 +85,7 @@ export async function abortMatchmakingRoom(
       room.matchmaking?.id === matchId &&
       room.instanceId === instanceId
     ) {
-      runtime.closeRoom();
+      closeRoom(runtime);
       return true;
     }
     return false;

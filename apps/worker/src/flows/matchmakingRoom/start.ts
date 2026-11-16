@@ -3,6 +3,7 @@ import { gameCapacity } from "@tetraboard/protocol/games";
 import { playerTokenHash, readRoom } from "../../adapters/room/state";
 import { withIndexTransaction } from "../../adapters/room/transaction";
 import { startAnalyticsMatch } from "../../adapters/room/usage";
+import { closeRoom } from "../../adapters/room/useCases";
 import { closeSockets } from "../../durableObjects/gameRoom/connections";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { broadcastRoom } from "../../durableObjects/gameRoom/snapshots";
@@ -83,7 +84,7 @@ function startConnectedMatchmakingRoom(
     Date.now() >= readyReservation.expiresAtMs ||
     room.players.length !== gameCapacity(room.settings.game)
   ) {
-    runtime.closeRoom();
+    closeRoom(runtime);
     return;
   }
   const connected = room.players

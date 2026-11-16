@@ -1,55 +1,29 @@
+import type { RoomGamePort } from "@tetraboard/context-room";
 import type {
+  FourShogiAnalysisReplayPage,
+  FourShogiEliminatedHands,
+  FourShogiReplayEvent,
+  FourShogiReplayPage,
   GameId,
   Room,
   RoomFor,
-  RoomSocketClientMessage,
-  FourShogiEliminatedHands,
-  FourShogiReplayPage,
-  FourShogiAnalysisReplayPage,
-  ShogiReplayPage,
-  FourShogiReplayEvent,
   ShogiReplayEvent,
+  ShogiReplayPage,
   SystemChatMessage,
 } from "@tetraboard/protocol";
-import type {
-  ProgressDependencies,
-  ProgressFor,
-  FinishedProgress,
-  PlayingFor,
-  WaitingFor,
-  ProgressError,
-} from "../gameProgress";
-import type { TournamentRoomContext } from "../tournamentRoom";
 import type { QueueRatingSource } from "../../matchmaking/ratedMatchmaking";
 import type { AiServiceBindings } from "../aiService";
+import type { PlayingFor, ProgressDependencies, ProgressError, WaitingFor } from "../gameProgress";
+import type { TournamentRoomContext } from "../tournamentRoom";
 import type { GameCpuAdapter } from "./cpuTypes";
 
-export type ActionCommand = Extract<RoomSocketClientMessage, { type: "room.game.action" }>;
-export type DrawCommand = Extract<RoomSocketClientMessage, { type: "room.game.draw.set" }>;
-export type DeclareCommand = Extract<RoomSocketClientMessage, { type: "room.game.declare" }>;
-export type SettingsCommand = Extract<
-  RoomSocketClientMessage,
-  {
-    type:
-      | "room.mode.set"
-      | "room.cpu.add"
-      | "room.cpu.remove"
-      | "room.cpu.level.set"
-      | "room.gomoku-forbidden.set"
-      | "room.three-player-attack.set";
-  }
->;
-export type SettingsResult =
-  | { status: "updated"; room: Room }
-  | {
-      status:
-        | "unchanged"
-        | "already_started"
-        | "forbidden"
-        | "invalid_request"
-        | "room_full"
-        | "cpu_not_found";
-    };
+export type {
+  ActionCommand,
+  DeclareCommand,
+  DrawCommand,
+  SettingsCommand,
+  SettingsResult,
+} from "@tetraboard/context-room";
 export type StartContext =
   | { kind: "normal" }
   | { kind: "tournament"; tournament: TournamentRoomContext }
@@ -70,36 +44,15 @@ export interface AdapterDependencies extends ProgressDependencies {
   ) => void;
 }
 
-export interface GameAdapter<G extends GameId> {
+export interface GameAdapter<G extends GameId> extends Omit<
+  RoomGamePort<G>,
+  "start" | "keepsPlayingWithoutHumans" | "capacity" | "prepareSettings"
+> {
   cpu: GameCpuAdapter<G>;
   start(
     room: WaitingFor<G>,
     context: StartContext,
-  ): {
-    room: PlayingFor<G>;
-    roundId: string;
-    at: number;
-  };
-  play(room: RoomFor<G>, hash: string, command: ActionCommand): ProgressFor<G>;
-  draw(room: RoomFor<G>, hash: string, command: DrawCommand): ProgressFor<G>;
-  afterDraw(room: RoomFor<G>): ProgressFor<G>;
-  declare(room: RoomFor<G>, hash: string, command: DeclareCommand): ProgressFor<G>;
-  settings(room: RoomFor<G>, hash: string, command: SettingsCommand): SettingsResult;
-  resign(room: RoomFor<G>, hash: string): ProgressFor<G>;
-  prepareLeave(
-    room: PlayingFor<G>,
-    playerId: string,
-  ): (at: number, hostLeaving: boolean) => ProgressFor<G>;
-  afterLeave(
-    room: RoomFor<G>,
-    original: PlayingFor<G>,
-    at: number,
-    hostLeaving: boolean,
-  ): RoomFor<G>;
-  finish(
-    result: FinishedProgress<G>,
-    retainPlayers: (players: RoomFor<G>["players"], at: number) => RoomFor<G>["players"] | null,
-  ): RoomFor<G> | null;
+  ): { room: PlayingFor<G>; roundId: string; at: number };
   migrateLegacy(room: RoomFor<G>, saved: object, readReplay: () => unknown): void;
   close(): void;
   waitingSeat: { side: null } | { color: null };

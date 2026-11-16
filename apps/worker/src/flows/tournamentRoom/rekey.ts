@@ -1,6 +1,7 @@
 import { roomSchema, tournamentRules } from "@tetraboard/protocol";
 import { playerTokenHash, readMembership, readRoom } from "../../adapters/room/state";
 import { withIndexTransaction } from "../../adapters/room/transaction";
+import { closeRoom } from "../../adapters/room/useCases";
 import { closeSockets } from "../../durableObjects/gameRoom/connections";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { broadcastRoom } from "../../durableObjects/gameRoom/snapshots";
@@ -108,7 +109,7 @@ async function rekeyEligibleTournamentPlayer(
         reservation.context.endsAtMs,
       )
   ) {
-    withIndexTransaction(runtime, () => runtime.closeRoom());
+    withIndexTransaction(runtime, () => closeRoom(runtime));
     closeSockets(runtime);
     return { status: "not_found" as const };
   }
