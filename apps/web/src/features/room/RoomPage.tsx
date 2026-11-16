@@ -7,10 +7,15 @@ import { fourReversiLobbyPath } from "../../app/paths";
 import type { RoomLoaderData } from "./roomLoader";
 import { AppPageLoading, AppPageState } from "../../shared/ui/AppPageState";
 import { gameThemes } from "../../shared/ui/appTheme";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { preloadRecovery } from "../../shared/preloadRecovery";
 import { AppErrorPage } from "../../shared/ui/AppErrorPage";
 import { assertNever } from "@tetraboard/protocol";
+import {
+  requestRoomReload,
+  RoomResponseValidationError,
+} from "../../shared/roomResponseValidation";
+import { RoomReloadNotice } from "./RoomReloadNotice";
 function LiveRoom({ data }: { data: RoomLoaderData }) {
   const common = {
     initialMembership: data.membership,
@@ -71,6 +76,15 @@ export function RoomPage() {
 
 export function RoomErrorPage() {
   const error = useRouteError();
+  useEffect(() => {
+    if (error instanceof RoomResponseValidationError) requestRoomReload(error.responseType);
+  }, [error]);
+  if (error instanceof RoomResponseValidationError)
+    return (
+      <AppPageState>
+        <RoomReloadNotice />
+      </AppPageState>
+    );
   if (preloadRecovery.isPreloadError(error)) return <AppErrorPage error={error} />;
   const message = isRouteErrorResponse(error)
     ? error.status === 404

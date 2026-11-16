@@ -13,6 +13,7 @@ import {
 } from "./roomMembership";
 import { saveGuestName } from "./guestName";
 import { roomSharePath } from "@tetraboard/protocol/room-sharing";
+import { parseRoomResponse } from "./roomResponseValidation";
 
 export const roomChangedMessage =
   "このルームは閉鎖されています。新しい招待リンクを確認するか、ロビーへ戻ってください。";
@@ -56,10 +57,9 @@ export async function fetchRoom(id: string, signal?: AbortSignal, instanceId?: s
     }
     throw new Response(null, { status: response.status });
   }
-  const snapshot = getRoomContract.response.safeParse(body);
-  if (!snapshot.success) throw new Response("ルーム情報の応答が不正です。", { status: 502 });
-  assertRoomIdentity(snapshot.data.room, id, instanceId);
-  return snapshot.data;
+  const snapshot = parseRoomResponse(getRoomContract.response, body, "room.get", id, signal);
+  assertRoomIdentity(snapshot.room, id, instanceId);
+  return snapshot;
 }
 
 export class RoomEntryError extends Error {}

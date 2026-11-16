@@ -38,6 +38,11 @@ import { fetchRoom, leaveRoom } from "./roomApi";
 import { roomSounds, useSoundEffects } from "../../shared/soundEffects";
 import { RoomSoundTracker, type SoundGameState } from "./roomSoundEvents";
 import { ClockWarningTracker, roomClockCount } from "./clockWarning";
+import {
+  requestRoomReload,
+  roomSocketResponseType,
+  subscribeRoomResponseValidation,
+} from "../../shared/roomResponseValidation";
 
 const responseTimeoutMs = 10_000;
 type ResponseWait = "fetch" | "connection" | "ready" | "settings" | "game" | "chat" | "stamp";
@@ -150,6 +155,8 @@ export function useRoomTransport<T extends Room>({
   const [membership, setMembership] = useState(initialMembership);
   const [connection, setConnection] = useState("接続中");
   const [unavailable, setUnavailable] = useState<string | null>(null);
+  const [reloadRequired, setReloadRequired] = useState(false);
+  const reloadRequiredRef = useRef(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [pendingReady, setPendingReady] = useState<boolean | null>(null);
   const [pendingSettings, setPendingSettings] = useState(false);
@@ -249,7 +256,7 @@ export function useRoomTransport<T extends Room>({
 
   useEffect(() => {
     serverOffsetRef.current = initialServerNowMs - Date.now();
-    let active = true;
+    let active = !reloadRequiredRef.current;
     let suspended = false;
     let generation = 0;
     let synchronizing = false;
@@ -439,6 +446,19 @@ export function useRoomTransport<T extends Room>({
       setUnavailable(message);
     }
 
+    function requireReload(responseType: string): void {
+      if (!active) return;
+      reloadRequiredRef.current = true;
+      active = false;
+      stopTransport();
+      setConnection("更新が必要です");
+      setReloadRequired(true);
+      requestRoomReload(responseType);
+    }
+    const unsubscribeValidation = subscribeRoomResponseValidation((roomId, error) => {
+      if (roomId === undefined || roomId === initialRoom.id) requireReload(error.responseType);
+    });
+
     function scheduleReconnect(): void {
       if (!active || suspended || timer !== null) return;
       setConnection("再接続中");
@@ -623,6 +643,7 @@ export function useRoomTransport<T extends Room>({
     document.addEventListener("visibilitychange", visibilityChanged);
 
     function connect(): void {
+      if (!active || suspended) return;
       pauseClock();
       soundTracker.reset();
       soundReady = true;
@@ -696,7 +717,7 @@ export function useRoomTransport<T extends Room>({
         }
         const message = roomSocketContract.message.safeParse(body);
         if (!message.success) {
-          recover();
+          requireReload(roomSocketResponseType(body));
           return;
         }
 
@@ -921,6 +942,7 @@ export function useRoomTransport<T extends Room>({
     connect();
     return () => {
       active = false;
+      unsubscribeValidation();
       window.removeEventListener("pagehide", pageHidden);
       window.removeEventListener("pageshow", pageShown);
       document.removeEventListener("visibilitychange", visibilityChanged);
@@ -1213,6 +1235,7 @@ export function useRoomTransport<T extends Room>({
     : null;
   return {
     room,
+    reloadRequired,
     eliminatedHands: eliminatedHands?.roundId === displayedRoundId ? eliminatedHands : null,
     unavailable,
     presence,

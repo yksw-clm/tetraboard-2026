@@ -3,6 +3,7 @@ import {
   membershipTokenSchema,
   type RoomMembership,
 } from "@tetraboard/protocol";
+import { parseRoomResponse } from "./roomResponseValidation";
 
 function storageKey(roomId: string): string {
   return `tetraboard:room:${roomId}:membership`;
@@ -96,11 +97,11 @@ export async function fetchRoomMembership(
     throw new Response(null, { status: response.status });
   }
 
-  const membership = getRoomMembershipContract.response.safeParse(
+  return parseRoomResponse(
+    getRoomMembershipContract.response,
     await readMembershipBody(response),
+    "room.membership",
+    roomId,
+    signal,
   );
-  if (!membership.success) {
-    throw new Response("本人確認の応答が不正です。", { status: 503 });
-  }
-  return membership.data;
 }
