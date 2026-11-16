@@ -38,6 +38,5 @@ export function createReversiAdapter(dependencies: AdapterDependencies) {
       const prepared = progress.prepareLeave(room, playerId);
       return (at, hostLeaving) => progress.leave(room, playerId, prepared, at, hostLeaving);
     },
-    normalize: (room, saved) => progress.normalize(room, saved),
   } satisfies AdapterInstance<"reversi">;
 }

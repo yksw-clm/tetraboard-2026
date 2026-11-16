@@ -1,3 +1,4 @@
+import { migrateLegacyFourGomokuRoom } from "./legacyRoomMigrations";
 import type { TournamentRoomContext } from "./tournamentRoom";
 import { checkGameCommand } from "@tetraboard/context-room";
 import { gameDefinitions } from "./gameDefinitions";
@@ -11,7 +12,6 @@ import {
   fourGomokuRoomSchema,
   type FourGomokuRoom,
   type FourGomokuLastRound as LastRound,
-  type FourGomokuReplay as RoundReplay,
   type GameActionCommandFor,
 } from "@tetraboard/protocol";
 import {
@@ -22,7 +22,7 @@ import {
   type Position,
 } from "@tetraboard/four-gomoku";
 import { advanceClock, isClockExpired } from "./clock";
-import { replayKey, nextPublicUpdateAt, cpuMoveDelayMs } from "./progressHelpers";
+import { nextPublicUpdateAt, cpuMoveDelayMs } from "./progressHelpers";
 import type {
   ProgressDependencies,
   ProgressFor,
@@ -52,15 +52,8 @@ export class FourGomokuProgress {
     this.accountId = dependencies.accountId;
   }
 
-  normalize(room: FourGomokuRoom): void {
-    if (room.status !== "playing" || room.game.lastMoves) return;
-    // 旧局面には表示用の履歴がないため、永続棋譜の確定着手から復元します。
-    const replay = this.storage.kv.get<RoundReplay>(replayKey);
-    if (!replay || replay.id !== room.roundId) return;
-    const lastMoves: Partial<Record<Color, Position>> = {};
-    for (const { action } of replay.steps)
-      if (action.type === "place") lastMoves[action.color] = action.position;
-    room.game.lastMoves = lastMoves;
+  migrateLegacy(room: FourGomokuRoom, readReplay: () => unknown): void {
+    migrateLegacyFourGomokuRoom(room, readReplay);
   }
 
   start(

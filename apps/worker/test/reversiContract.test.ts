@@ -100,18 +100,29 @@ test("局ID・版の古い着手を手番・時計より先に拒否し、受理
   ).toMatchObject({ positionRevision: 2 });
 });
 
-test("版のない保存状態は棋譜IDと版0で読み込み、次の着手で保存する", async () => {
+test("版のない保存状態は棋譜IDと版0で読み込み、移行を保存する", async () => {
   const { entry, room, black, host, stub } = await setup();
   await runInDurableObject(stub, (_instance, state) => {
     const saved = state.storage.kv.get<Record<string, unknown>>("room")!;
     delete saved.roundId;
     delete saved.positionRevision;
+    state.storage.kv.delete("room-state-version");
     state.storage.kv.put("room", saved);
+    expect(state.storage.kv.get("room")).not.toHaveProperty("roundId");
+  });
+  expect(await stub.getShareMetadata(room.instanceId)).not.toBeNull();
+  await runInDurableObject(stub, (_, state) => {
+    expect(state.storage.kv.get("room")).not.toHaveProperty("roundId");
+    expect(state.storage.kv.get("room-state-version")).toBeUndefined();
   });
   const loaded = reversiRoomSchema.parse(await stub.getRoom());
   expect(loaded).toMatchObject({ roundId: room.roundId, positionRevision: 0 });
   await runInDurableObject(stub, (_instance, state) => {
-    expect(state.storage.kv.get("room")).not.toHaveProperty("roundId");
+    expect(state.storage.kv.get("room")).toMatchObject({
+      roundId: room.roundId,
+      positionRevision: 0,
+    });
+    expect(state.storage.kv.get("room-state-version")).toBe(1);
   });
   black.send({
     type: "room.game.action",

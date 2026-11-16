@@ -30,7 +30,7 @@ export function createFourReversiAdapter(dependencies: AdapterDependencies) {
       const prepared = progress.prepareLeave(room, playerId);
       return (at, hostLeaving) => progress.leave(room, playerId, prepared, at, hostLeaving);
     },
-    normalize: (room, saved) => progress.normalize(room, saved),
+    migrateLegacy: (room, saved, readReplay) => progress.migrateLegacy(room, saved, readReplay),
     lastRoundId: (room) => room.lastRound?.replay?.id,
   } satisfies AdapterInstance<"four-reversi">;
 }

@@ -389,6 +389,7 @@ test("各色の最終手を配信し、旧進行局の再読込でも永続棋�
     const saved = state.storage.kv.get<FourGomokuRoom>("room")!;
     if (saved.status !== "playing") throw Error();
     delete saved.game.lastMoves;
+    state.storage.kv.delete("room-state-version");
     state.storage.kv.put("room", saved);
   });
   const restored = gameRoom((await fixtures.snapshot(entry.room.id)).room);

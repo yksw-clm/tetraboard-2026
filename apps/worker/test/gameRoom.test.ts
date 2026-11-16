@@ -723,12 +723,17 @@ test.each(["resigned", "left", "timeout", "disconnected"] as const)(
       const saved = state.storage.kv.get<Room>("room")!;
       expect(saved.eliminations).toEqual(expected);
       Reflect.deleteProperty(saved, "eliminations");
+      state.storage.kv.delete("room-state-version");
       state.storage.kv.put("room", saved);
     });
     expect((await getRoom(setup.id)).eliminations).toEqual(expected);
     expect((await openRoom(setup.id)).initialSnapshot?.room.eliminations).toEqual(expected);
     await runInDurableObject(env.GAME_ROOM.getByName(setup.id), (_instance, state) => {
       state.storage.kv.delete("round-replay");
+      const saved = state.storage.kv.get<Room>("room")!;
+      Reflect.deleteProperty(saved, "eliminations");
+      state.storage.kv.put("room", saved);
+      state.storage.kv.delete("room-state-version");
     });
     const legacy = await getRoom(setup.id);
     expect(legacy.eliminations).toEqual([]);

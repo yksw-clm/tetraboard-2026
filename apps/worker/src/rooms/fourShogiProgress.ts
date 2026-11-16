@@ -1,3 +1,4 @@
+import { migrateLegacyFourShogiRoom } from "./legacyRoomMigrations";
 import {
   fourShogiRoomSchema,
   isFourShogiRoom,
@@ -280,9 +281,8 @@ export class FourShogiProgress {
     return waitingFourShogiRoom(data, players);
   }
 
-  normalize(room: FourShogiRoom, saved: object): void {
-    if (room.status === "playing" && !Object.hasOwn(saved, "threePlayerAttackForbiddenActions"))
-      Object.assign(room, getActionAvailability({ ...room.game, repetitions: {} }));
+  migrateLegacy(room: FourShogiRoom, saved: object): void {
+    migrateLegacyFourShogiRoom(room, saved);
   }
 
   settings(room: WaitingFor<"four-shogi">, prohibited: boolean): WaitingFor<"four-shogi"> {
