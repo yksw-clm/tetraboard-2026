@@ -7,7 +7,7 @@ import {
 } from "@tetraboard/protocol";
 import { ratedMatchmakingPolicy, type QueueRatingSource } from "../matchmaking/ratedMatchmaking";
 import { publicRatingForMu } from "../rooms/fourReversiRating";
-import type { DecodedMatch } from "./matchDataContracts";
+import type { ReadableMatch } from "./matchDataContracts";
 
 export function hasProfileRating(game: GameId): game is RatedMatchmakingGame {
   return game === "shogi" || game === "reversi" || game === "four-shogi" || game === "four-reversi";
@@ -60,7 +60,7 @@ export function savedProfileRatings(storage: DurableObjectStorage, matchId: stri
 
 export async function readMatchProfileRating(
   db: D1Database,
-  match: DecodedMatch,
+  match: ReadableMatch,
   playerId: string,
 ): Promise<ProfileRating | undefined> {
   if (match.game === "gomoku" || match.game === "four-gomoku") return;

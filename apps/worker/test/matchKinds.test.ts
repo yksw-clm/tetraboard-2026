@@ -1,3 +1,4 @@
+import { prepareStoredMatchFixture } from "./snapshotMatchFixtures";
 import { applyD1Migrations } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeAll, expect, test } from "vitest";
@@ -45,6 +46,7 @@ afterEach(async () => {
     await db.batch([
       db.prepare("DELETE FROM tournament_matches WHERE id=?").bind(id),
       db.prepare("DELETE FROM account_match_history WHERE match_id=?").bind(id),
+      db.prepare("DELETE FROM match_event_chunks WHERE match_id=?").bind(id),
       db.prepare("DELETE FROM matches WHERE id=?").bind(id),
     ]);
   for (const key of tournaments.splice(0))
@@ -105,8 +107,7 @@ async function seed(
         ? { kind: "cpu", profileId: "fixture", referenceRating: 1500, usedFallback: true }
         : { kind: "human" };
   }
-  // 公開読取りの正規パーサーで、保存形式として有効な固定データだけを投入します。
-  readStoredMatch(JSON.stringify(record), game);
+  const storedJson = await prepareStoredMatchFixture(db, JSON.stringify(record));
   await db
     .prepare(
       "INSERT INTO matches(id,game,mode,started_at_ms,ended_at_ms,record_json) VALUES (?,?,?,?,?,?)",
@@ -117,7 +118,7 @@ async function seed(
       record.settings.mode ?? "standard",
       record.startedAtMs,
       record.endedAtMs,
-      JSON.stringify(record),
+      storedJson,
     )
     .run();
   await db
@@ -127,7 +128,7 @@ async function seed(
     .bind(user.id, record.id, record.settings.mode ?? "standard", record.startedAtMs, game)
     .run();
   if (kind === "tournament") await linkTournament(record.id, game);
-  return { id: record.id as string, user, record };
+  return { id: record.id as string, user, record: JSON.parse(storedJson) as FixtureRecord };
 }
 async function linkTournament(id: string, game: GameId = "four-reversi") {
   const key = crypto.randomUUID();

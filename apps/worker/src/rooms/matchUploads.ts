@@ -1,6 +1,5 @@
 import { redactParticipants } from "../privacy/identity";
 import { readStoredMatch } from "../accounts/matchDataContracts";
-import { normalizeLegacyShogiState } from "./normalizeLegacyShogiState";
 
 type UploadRecord = {
   id: string;
@@ -44,7 +43,6 @@ export async function ensureMatchUpload(
 }
 
 async function redactUpload(db: D1Database, record: UploadRecord): Promise<UploadRecord> {
-  const restored = normalizeLegacyShogiState(record) as UploadRecord;
-  readStoredMatch(JSON.stringify(restored), restored.settings.game);
-  return redactParticipants(db, restored);
+  readStoredMatch(JSON.stringify(record), record.settings.game);
+  return redactParticipants(db, record);
 }

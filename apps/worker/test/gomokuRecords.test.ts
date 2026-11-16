@@ -12,7 +12,7 @@ import { createInitialState, eliminateColor, applyAction } from "@tetraboard/gom
 import archive from "../../../test-fixtures/matches/gomoku-on-five.json";
 import { writeMatch } from "../src/rooms/matchStore";
 import type { MatchRecord } from "../src/rooms/gomokuMatchStore";
-import { readStoredMatch, publicMatchDetail } from "../src/accounts/matchDataContracts";
+import { readMatchRecord, publicMatchDetail } from "../src/accounts/matchDataContracts";
 import { accountFixture } from "./accountFixtures";
 import { boundaryRequest } from "./roomBoundaryFixtures";
 import { humanFixtureRecord } from "./matchFixtures";
@@ -140,7 +140,7 @@ test("固定棋譜は保存契約・公開契約を通り、ゲーム取り違�
   const user = await accountFixture();
   const item = record(user.id, "draw");
   const json = JSON.stringify(item);
-  const decoded = readStoredMatch(json, "gomoku");
+  const decoded = readMatchRecord(json, "gomoku");
   expect(decoded.game).toBe("gomoku");
   const detail = publicGomokuMatchDetailSchema.parse(publicMatchDetail(decoded, new Map()));
   expect(detail.game.result).toEqual({
@@ -153,9 +153,9 @@ test("固定棋譜は保存契約・公開契約を通り、ゲーム取り違�
   expect(JSON.stringify(detail)).not.toContain(user.id);
   expect(JSON.stringify(detail)).not.toContain("accountId");
   expect(JSON.stringify(detail)).not.toContain("instanceId");
-  expect(() => readStoredMatch(json, "four-gomoku")).toThrow();
+  expect(() => readMatchRecord(json, "four-gomoku")).toThrow();
   expect(() =>
-    readStoredMatch(
+    readMatchRecord(
       JSON.stringify({ ...item, participants: item.participants.slice(0, 1) }),
       "gomoku",
     ),

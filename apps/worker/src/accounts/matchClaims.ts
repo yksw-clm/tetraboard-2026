@@ -1,5 +1,5 @@
 import { badgeAwardStatements } from "./badgeAwards";
-import { readStoredMatch, type DecodedMatch } from "./matchDataContracts";
+import { readStoredMatch, type ReadableMatch } from "./matchDataContracts";
 import { isDeleted, redactRetiredParticipants } from "../privacy/identity";
 
 export type MatchClaimInput = {
@@ -33,7 +33,7 @@ async function storedMatch(db: D1Database, matchId: string) {
   return row ? readStoredMatch(row.record_json, row.game) : null;
 }
 
-function validateParticipant(record: DecodedMatch, input: MatchClaimInput) {
+function validateParticipant(record: ReadableMatch, input: MatchClaimInput) {
   const data = record.record;
   const player = data.participants.find((p) => p.id === input.playerId);
   if (
@@ -212,7 +212,7 @@ export async function retryPendingMatchClaims(db: D1Database, roomId?: string): 
 /** 保存済みJSONは変えず、読取り用の本人関係と退会状態だけを重ねます。 */
 export async function resolveMatchParticipants(
   db: D1Database,
-  record: DecodedMatch,
+  record: ReadableMatch,
 ): Promise<void> {
   await resolveMatchParticipantList(db, [record]);
 }
@@ -220,7 +220,7 @@ export async function resolveMatchParticipants(
 /** 一覧の最大20局をまとめて解決し、参加者IDは対局IDと組にして扱います。 */
 export async function resolveMatchParticipantList(
   db: D1Database,
-  records: DecodedMatch[],
+  records: ReadableMatch[],
 ): Promise<void> {
   const matchIds = [...new Set(records.map((record) => record.record.id))];
   if (!matchIds.length) return;
@@ -253,7 +253,7 @@ export async function resolveMatchParticipantList(
           throw new Error("Conflicting match participant identity");
         return { ...player, accountId: claimedId };
       }),
-    } as DecodedMatch["record"];
+    } as ReadableMatch["record"];
   }
   const accountIds = [
     ...new Set(

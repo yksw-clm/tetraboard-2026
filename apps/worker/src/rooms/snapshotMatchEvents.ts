@@ -15,7 +15,6 @@ import type { MatchRecord as Gomoku } from "./gomokuMatchStore";
 import type { MatchRecord as FourGomoku } from "./fourGomokuMatchStore";
 import type { StoredRecord, EventReplay } from "./eventRecord";
 import type { DecodedMatch } from "../accounts/matchDataContracts";
-import { isEventReplay } from "./eventRecord";
 import { readMatchChunk, matchChunkSize, type ChunkRow } from "./matchChunks";
 
 export type SnapshotMatch = Reversi | FourReversi | Gomoku | FourGomoku;
@@ -65,7 +64,6 @@ function rebuild<R extends SnapshotMatch, E>(
   replay: (initial: R["replay"]["initial"], events: E[]) => unknown[],
   parse: (event: unknown) => E,
 ) {
-  if (!isEventReplay(record.replay)) return record;
   const {
     format: _format,
     version: _version,
@@ -113,8 +111,7 @@ export function rebuildSnapshotMatch(match: DecodedMatch, events: unknown[]) {
   }
 }
 export async function readSnapshotMatchEvents(db: D1Database, match: DecodedMatch) {
-  if (match.game === "shogi" || match.game === "four-shogi" || !isEventReplay(match.record.replay))
-    return null;
+  if (match.game === "shogi" || match.game === "four-shogi") return null;
   const count = match.record.replay.eventCount;
   const rows = await db
     .prepare(`SELECT chunk_index, start_index, event_count, events_json
