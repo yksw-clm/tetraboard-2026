@@ -20,7 +20,7 @@ import { accountIdentity, withAccountSessionCookies } from "../src/accounts/auth
 import { createGuestAccount, guestTokenHash, guestLifetimeMs } from "../src/accounts/guestAccounts";
 import { completeGuestLink, rememberGuestLink } from "../src/accounts/guestLinking";
 import { humanFixtureRecord, fixtureRecord } from "./matchFixtures";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { requestDeletion } from "../src/privacy/deletion";
 import worker from "../src/worker";
 import { lobbyChatSchema, lobbyPostResultSchema } from "@tetraboard/protocol/general-lobby";

@@ -9,10 +9,10 @@ import {
 } from "@tetraboard/shogi";
 import { finishedShogiStateSchema, type ShogiReplayEvent } from "@tetraboard/protocol";
 import {
-  advanceShogiMatchSave,
   type StandardShogiMatchRecord,
   type ShogiSaveProgress,
 } from "../src/rooms/shogiMatchStore";
+import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 
 export const goldCycle: ShogiAction[] = [
   { type: "movePiece", from: { x: 3, y: 8 }, to: { x: 3, y: 7 }, promote: false },

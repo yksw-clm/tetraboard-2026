@@ -9,7 +9,7 @@ import {
 import { accountFixture } from "./accountFixtures";
 import { humanFixtureRecord, matchRequest, writeOutcomeFixture } from "./matchFixtures";
 import { humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { readGameRankings } from "../src/rooms/rankingRoutes";
 
 beforeEach(async () => {

@@ -11,7 +11,7 @@ import {
   matchSetup,
   matchStart,
 } from "./matchFixtures";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 
 const emptyStats: AccountStats = {
   singles: { total: 0, first: 0, second: 0, third: 0, fourth: 0 },

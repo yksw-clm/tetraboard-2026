@@ -13,7 +13,7 @@ import {
 import { accountFixture } from "./accountFixtures";
 import { humanFixtureRecord } from "./matchFixtures";
 import { humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { boundaryJson, boundaryRequest, RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 
 const selectors = [

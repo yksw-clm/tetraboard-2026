@@ -8,11 +8,11 @@ import { reversiArchives, shogiArchives } from "../../../test-fixtures/matches";
 import { accountFixture, origin } from "./accountFixtures";
 import worker from "../src/worker";
 import {
-  advanceShogiMatchSave,
   readShogiMatchRecord,
   type ShogiMatchRecord,
   type ShogiSaveProgress,
 } from "../src/rooms/shogiMatchStore";
+import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { fourShogiReplayEventSchema } from "@tetraboard/protocol";
 import { migratedShogiArchiveJson } from "./legacyDataFixtures";
 // 不正JSONの保存テストが、別の部屋のAlarmによる退会処理へ干渉しない実D1を使います。

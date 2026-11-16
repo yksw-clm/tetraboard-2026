@@ -34,7 +34,7 @@
 | tournament（大会） | 大会の定義、エントリー、対局の割り当て、勝ち点と順位 | `tournaments/` の全部、`rooms/tournamentRoom` |
 | account（アカウント） | 認証、ゲスト、登録の流れ、ゲストの引き継ぎ、プロフィール | `accounts/` の `auth`、`guest*`、`registration*`、`accountRoutes`、`currentProfiles`、`playerProfileRoutes`、`profileDetails`、`timestamps`。`rooms/registrationTypes` |
 | rating（レート） | Elo と skill の計算、保留、ランキング | `rooms/` の `*Rating`、`eloRating`、`rankingRoutes`、`ratedTimeControls`。`accounts/profileRatings`、`matchmaking/ratingStore` |
-| record（棋譜） | 棋譜の保存と再送、読み取り、本人の履歴と戦績、使用戦型、バッジ | `rooms/` の `*MatchStore`、`matchStore`、`snapshotMatch*`、`eventRecord`、`matchChunks`、`matchUploads`、`publicMatchRoutes`、`shogiFormationUsage`、`fourShogiFormationAnalysis`。`accounts/` の `*MatchData`、`matchDataContracts`、`matchRoutes`、`matchClaims`、`matchKinds`、`matchOutcomes`、`matchProfiles`、`statsRoutes`、`formationStatsRoutes`、`badge*` |
+| record（棋譜） | 棋譜の保存と再送、読み取り、本人の履歴と戦績、使用戦型、バッジ | `rooms/` の `*MatchStore`、`matchStore`、`snapshotMatch*`、`eventRecord`、`publicMatchRoutes`、`shogiFormationUsage`、`fourShogiFormationAnalysis`。`accounts/` の `*MatchData`、`matchDataContracts`、`matchRoutes`、`matchClaims`、`matchKinds`、`matchOutcomes`、`matchProfiles`、`statsRoutes`、`formationStatsRoutes`、`badge*` |
 | community（コミュニティ） | ロビーと大会のチャット、通報、お知らせ、フィードバック、通知 | `lobby/`、`announcements/`、`feedback/`、`notifications/` の全部、`rooms/reportStore` |
 | privacy（プライバシー） | 退会、同意、規約の表示、画像の削除 | `privacy/` の全部 |
 

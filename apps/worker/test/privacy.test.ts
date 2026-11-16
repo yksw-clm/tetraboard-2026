@@ -24,8 +24,9 @@ import {
   responseCookies,
 } from "../src/privacy/deletion";
 import { authSecret, unsealToken } from "../src/privacy/tokens";
-import { writeMatch } from "../src/rooms/matchStore";
-import { advanceShogiMatchSave, type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
+import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
+import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import type { AnalyticsMatch } from "../src/usageEvents/matches";
 import worker from "../src/worker";
 import { accountFixture, origin } from "./accountFixtures";

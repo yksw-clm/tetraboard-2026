@@ -1,12 +1,12 @@
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { RoomJob } from "../../rooms/roomJobs";
 import {
-  advanceShogiMatchSave,
   pendingShogiMatchPrefix,
   pendingStandardShogiMatchPrefix,
   type PendingShogiMatch,
   type PendingStandardShogiMatch,
 } from "../../rooms/shogiMatchStore";
+import { advanceShogiMatchSave } from "../../flows/matchSave/shogi";
 import { readRoom } from "./state";
 
 export function pendingShogiMatches(runtime: RoomRuntime) {

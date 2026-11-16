@@ -4,10 +4,10 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import { shogiRoomSchema } from "@tetraboard/protocol";
 import { ShogiProgress, type ShogiCpuJob } from "../src/rooms/standardShogiProgress";
 import {
-  advanceShogiMatchSave,
   pendingStandardShogiMatchPrefix,
   type PendingStandardShogiMatch,
 } from "../src/rooms/shogiMatchStore";
+import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { accountFixture } from "./accountFixtures";
 import { boundaryRequest, RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 import { saveStandardShogiFixture, standardShogiRecord } from "./standardShogiFixtures";

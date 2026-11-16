@@ -2,7 +2,8 @@ import { prepareStoredMatchFixture } from "./snapshotMatchFixtures";
 import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { createInitialState, eliminateColor } from "@tetraboard/four-reversi";
-import { writeMatch, type MatchRecord } from "../src/rooms/matchStore";
+import { type MatchRecord } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { env, exports } from "cloudflare:workers";
 import {
   createRoomContract,
