@@ -9,3 +9,4 @@ export const accountKey = (playerId: string) => `seat-account:${playerId}`;
 export const cancelledAdmissionKey = (operationId: string) => `cancelled-admission:${operationId}`;
 export const membershipStorageKey = (tokenHash: string) => `membership:${tokenHash}`;
 export const playerTokenKey = (playerId: string) => `player-token:${playerId}`;
+export const cpuCapacityKey = "external-cpu-capacity";

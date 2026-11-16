@@ -1,3 +1,11 @@
+import { prepareMatchmakingRoom } from "../../flows/matchmakingRoom/prepare";
+import { rekeyMatchmakingPlayer } from "../../flows/matchmakingRoom/rekey";
+import { advanceMatchmakingStart } from "../../flows/matchmakingRoom/start";
+import {
+  clearMatchmakingSearches,
+  getMatchmakingState,
+  abortMatchmakingRoom,
+} from "../../flows/matchmakingRoom/reservations";
 import {
   tournamentReservation,
   recordTournamentState,
@@ -12,8 +20,9 @@ import {
   advanceTournamentStart,
 } from "../../flows/tournamentRoom/start";
 import { hasOpenConnection, sendCurrentMembership } from "./socket/membership";
-import type { RoomRuntime, RoomSocketError } from "./runtime";
+import type { RoomRuntime, RoomSocketError, RoomCpuCapacity } from "./runtime";
 import {
+  cpuCapacityKey,
   accountKey,
   cancelledAdmissionKey,
   membershipStorageKey,
@@ -25,7 +34,6 @@ import {
   lastChatAtKey,
   reconnectGraceMs,
 } from "./storageKeys";
-import { bytesToHex } from "./tokenCrypto";
 import { appendSystem, broadcastChat } from "./chat";
 import { presence, broadcastRoom } from "./snapshots";
 import { closeSockets, webSocketClose, webSocketError } from "./connections";
@@ -33,11 +41,6 @@ import { issueViewerToken } from "./viewerTokens";
 import { inspectReport, moderateMessage } from "./reports";
 import { fetch } from "./fetch";
 import { webSocketMessage } from "./socket/message";
-import {
-  matchmakingRoomConfiguration,
-  matchmakingCpuAppearance,
-  matchmakingRoomMetadata,
-} from "../../rooms/gameAdapters/matchmaking";
 import {
   currentRoomStateVersion,
   roomStateVersionKey,
@@ -48,18 +51,9 @@ import { roomMatchKind, type MatchKind } from "@tetraboard/protocol";
 import { logFourShogiDiagnostic } from "../../fourShogiDiagnostics";
 import { TransactionUsageEvents } from "../../usageEvents/transactionEvents";
 import { RoomJob } from "../../rooms/roomJobs";
-import {
-  cpuReferenceRating,
-  hasProfileRating,
-  profileRatingsKey,
-  readProfileRating,
-} from "../../accounts/profileRatings";
+import { hasProfileRating, profileRatingsKey } from "../../accounts/profileRatings";
 import type { ProfileRatings } from "@tetraboard/protocol";
-import {
-  cpuPlayerAppearance,
-  isRatedMatchmakingGame,
-  matchmakingRules,
-} from "@tetraboard/protocol";
+import { cpuPlayerAppearance } from "@tetraboard/protocol";
 import type {
   MatchmakingRoomInput,
   MatchmakingRoomReservation,
@@ -114,8 +108,6 @@ import type { GameAdapter, SettingsCommand, ActionCommand } from "../../rooms/ga
 import type { GameId } from "@tetraboard/protocol";
 import type { ExternalCpuRequest } from "../../rooms/gameAdapters/cpuTypes";
 import { fourReversiCpuJobKey, fourReversiAiJobKey } from "../../rooms/fourReversiProgress";
-import { requestRatedAiWarmup, type RatedAiGame } from "../../rooms/aiService";
-import type { CpuCapacityGame } from "../../rooms/cpuCapacity";
 import {
   roomStorageKey,
   replayKey,
@@ -135,7 +127,6 @@ import { retryPendingMatchClaims } from "../../accounts/matchClaims";
 import { readStoredMatch } from "../../accounts/matchDataContracts";
 import { releaseReservation, type AccountAdmission } from "../../accounts/roomAccounts";
 import { DurableObject } from "cloudflare:workers";
-import { waitingRoomFactories } from "../../rooms/waitingRoomFactories";
 import {
   tournamentRoomKey,
   tournamentReservationKey,
@@ -176,20 +167,7 @@ import {
   type StoredGuestRegistration,
 } from "../../rooms/registrationTypes";
 
-const aiWarmupAttemptMs = 8000;
-const aiWarmupRetryMs = 2000;
-const aiWarmupMaxAttempts = 2;
-const cpuCapacityKey = "external-cpu-capacity";
 const cpuCapacitySequenceKey = "external-cpu-capacity-sequence";
-type RoomCpuCapacity = {
-  roomId: string;
-  sequence: number;
-  game: CpuCapacityGame;
-  instanceId: string;
-  // nullは準備済み・進行中の予約です。時刻がある予約は解放を再試行します。
-  releaseAtMs: number | null;
-};
-
 const accountCleanupKey = "account-cleanups";
 const guestClaimsKey = "guest-match-claims-pending";
 type PendingGuestClaims = { generation: string; retryAtMs: number };
@@ -254,6 +232,11 @@ export class GameRoom extends DurableObject<Env> {
   private readonly runtime: RoomRuntime = {
     ctx: this.ctx,
     db: this.env.APP_DB,
+    aiService: () => this.env,
+    markAlarm: () => this.alarmEvents.mark(),
+    reserveCpuCapacity: (room) => this.reserveCpuCapacity(room),
+    flushCpuCapacity: () => this.cpuCapacityJob.flush(),
+    publicMetadata: (room) => this.publicMetadata(room),
     syncAlarm: () => this.alarmEvents.sync(),
     closeRoom: () => this.closeRoom(),
     storedAccount: (playerId) => this.storedAccount(playerId),
@@ -268,7 +251,7 @@ export class GameRoom extends DurableObject<Env> {
     reconcileDeadlines: (applyCpu) => this.reconcileDeadlines(applyCpu),
     currentRoomMembership: (hash) => this.currentRoomMembership(hash),
     advanceTournamentStart: () => advanceTournamentStart(this.runtime),
-    advanceMatchmakingStart: () => this.advanceMatchmakingStart(),
+    advanceMatchmakingStart: () => advanceMatchmakingStart(this.runtime),
     gameAdapter: (room) => this.gameAdapter(room),
     setReady: (hash, ready) => this.setReady(hash, ready),
     applySettings: (hash, command) => this.applySettings(hash, command),
@@ -280,13 +263,6 @@ export class GameRoom extends DurableObject<Env> {
     resign: (hash) => this.resign(hash),
     play: (hash, command) => this.play(hash, command),
   };
-
-  private clearMatchmakingSearches(reservation: MatchmakingRoomReservation) {
-    return {
-      ...reservation,
-      players: reservation.players.map(({ search: _search, ...player }) => player),
-    };
-  }
 
   private startAnalyticsMatch(id: string, room: Room, at: number) {
     const reservation =
@@ -367,7 +343,7 @@ export class GameRoom extends DurableObject<Env> {
     if (reservation)
       this.ctx.storage.kv.put(
         `matchmaking:${reservation.matchId}`,
-        this.clearMatchmakingSearches(reservation),
+        clearMatchmakingSearches(this.runtime, reservation),
       );
     this.ctx.storage.kv.put(analyticsActiveKey, record);
   }
@@ -1345,7 +1321,7 @@ export class GameRoom extends DurableObject<Env> {
       const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(key);
       if (saved && saved.phase !== "playing")
         this.ctx.storage.kv.put(key, {
-          ...this.clearMatchmakingSearches(saved),
+          ...clearMatchmakingSearches(this.runtime, saved),
           phase: "closed",
           connectedPlayerIds: room.players
             .filter(
@@ -1878,229 +1854,17 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   async prepareMatchmakingRoom(input: MatchmakingRoomInput) {
-    await this.reconcileDeadlines();
-    return this.ctx.blockConcurrencyWhile(async () => {
-      const rating = input.rating;
-      const { game, legacy, rules, policy } = matchmakingRoomConfiguration(input);
-      if (
-        (input.matchSequence !== undefined &&
-          (!Number.isSafeInteger(input.matchSequence) || input.matchSequence < 1 || !rating)) ||
-        input.roomId !== this.ctx.id.name ||
-        input.players.length < 1 ||
-        input.players.length > rules.seats ||
-        (rating
-          ? !policy?.validParticipants(rating, input.players.length)
-          : policy !== undefined) ||
-        new Set(input.players.map((p) => p.admission.accountId)).size !== input.players.length ||
-        Date.now() >= input.expiresAtMs ||
-        input.expiresAtMs !== input.preparedAtMs + rules.connectionGraceMs
-      )
-        return { status: "invalid" as const };
-      const existing = this.ctx.storage.kv.get<MatchmakingRoomReservation>(
-        `matchmaking:${input.matchId}`,
-      );
-      if (existing)
-        return existing.phase === "closed"
-          ? { status: "cancelled" as const }
-          : { status: "prepared" as const };
-      if (this.ctx.storage.kv.get(`matchmaking-cancelled:${input.matchId}`))
-        return { status: "cancelled" as const };
-      if (this.readRoom()) return { status: "room_in_use" as const };
-      for (const { admission: a } of input.players) {
-        await this.alarmEvents.sync();
-        const valid = await this.env.APP_DB.prepare(
-          `SELECT 1 FROM account_room_seats s JOIN user u ON u.id=s.account_id JOIN matchmaking_wait_reservations w ON w.account_id=s.account_id WHERE s.account_id=? AND s.operation_id=? AND s.room_id=? AND s.instance_id=? AND s.player_id=? AND w.match_operation_id=s.operation_id AND w.queue_key=? AND u.profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=u.id)
-            ${
-              policy
-                ? `AND COALESCE(u.isAnonymous,0)=0 AND EXISTS (
-              SELECT 1 FROM ${policy.store.pendingTable} p WHERE p.account_id=s.account_id AND p.match_id=?
-            )`
-                : ""
-            }`,
-        )
-          .bind(
-            a.accountId,
-            a.operationId,
-            input.roomId,
-            input.instanceId,
-            a.playerId,
-            rules.key,
-            ...(policy ? [input.matchId] : []),
-          )
-          .first();
-        if (!valid || this.ctx.storage.kv.get(cancelledAdmissionKey(a.operationId)))
-          return { status: "invalid" as const };
-      }
-      const entry = { code: input.roomId, name: input.players[0]!.admission.name };
-      const base = waitingRoomFactories[game]({
-        ...entry,
-        request: { game, mode: "singles", quickPlay: false, timeControl: rules.timeControl },
-      });
-      const { profile, cpuName } = matchmakingCpuAppearance(game, rating, legacy);
-      const seat = this.gameAdapter(base).waitingSeat;
-      const cpuCount = rules.seats - input.players.length;
-      const room = roomSchema.parse({
-        ...base,
-        instanceId: input.instanceId,
-        matchmaking: matchmakingRoomMetadata(input),
-        players: [
-          ...input.players.map(({ admission: a }) => ({
-            id: a.playerId,
-            name: a.name,
-            kind: "human",
-            avatarUrl: profileAvatarUrl(a.avatarKey, a.avatarPresetId),
-            ...(a.isGuest ? { isGuest: true } : {}),
-            ready: true,
-            ...seat,
-            reconnectDeadline: input.expiresAtMs,
-          })),
-          ...Array.from({ length: cpuCount }, (_, i) => ({
-            id: crypto.randomUUID(),
-            name: profile
-              ? `${profile.name}${i + 1}`
-              : cpuCount > 1 && cpuName
-                ? `${cpuName}${i + 1}`
-                : (cpuName ?? "CPU"),
-            kind: "cpu",
-            level: 2,
-            ...(profile ? { cpuProfile: profile } : {}),
-            ready: true,
-            ...seat,
-            reconnectDeadline: null,
-          })),
-        ],
-      });
-      const profileRatings: ProfileRatings = {};
-      if (rating && hasProfileRating(game)) {
-        for (const { admission } of input.players) {
-          profileRatings[admission.playerId] = await readProfileRating(
-            this.env.APP_DB,
-            admission.accountId,
-            game,
-            "before",
-          );
-        }
-        const reference = cpuReferenceRating(rating);
-        if (reference)
-          for (const player of room.players)
-            if (player.kind === "cpu") profileRatings[player.id] = reference;
-      }
-      const capacity = await this.reserveCpuCapacity(room);
-      if (typeof capacity === "string") return { status: capacity };
-      if (Date.now() >= input.expiresAtMs) {
-        if (capacity) {
-          this.ctx.storage.kv.put(cpuCapacityKey, { ...capacity, releaseAtMs: Date.now() });
-          this.ctx.waitUntil(this.cpuCapacityJob.flush());
-        }
-        return { status: "invalid" as const };
-      }
-      this.withIndexTransaction(() => {
-        if (capacity) this.ctx.storage.kv.put(cpuCapacityKey, capacity);
-        this.ctx.storage.kv.put(roomStorageKey, room);
-        this.ctx.storage.kv.put(roomStateVersionKey, currentRoomStateVersion);
-        if (rating) this.ctx.storage.kv.put(profileRatingsKey(input.matchId), profileRatings);
-        this.ctx.storage.kv.put(`matchmaking:${input.matchId}`, {
-          ...input,
-          phase: "waiting",
-          ...(this.env.AI_WARMUP_ENABLED === "true" && cpuCount > 0 && rating
-            ? { aiWarmup: { state: "pending", attempts: 0, nextAtMs: Date.now() } }
-            : {}),
-        } satisfies MatchmakingRoomReservation);
-        for (const [
-          index,
-          { admission: a, tokenHash, version, search },
-        ] of input.players.entries()) {
-          this.ctx.storage.kv.put(accountKey(a.playerId), { ...a, occupying: true });
-          this.ctx.storage.kv.put(membershipStorageKey(tokenHash), {
-            playerId: a.playerId,
-            role: index === 0 ? "host" : "player",
-          });
-          this.ctx.storage.kv.put(playerTokenKey(a.playerId), tokenHash);
-          this.ctx.storage.kv.put(`matchmaking-version:${a.playerId}`, version);
-          this.ctx.storage.kv.put(disconnectedAtKey(a.playerId), Date.now());
-          this.ctx.storage.kv.put(analyticsPlayerKey(a.playerId), {
-            accountId: a.accountId,
-            visitorId: null,
-            isGuest: Boolean(a.isGuest),
-            isTest: search?.isTest ?? false,
-          });
-        }
-        for (const p of room.players)
-          appendSystem(this.runtime, "joined", `${playerLabel(p)}が入室しました`);
-        this.ctx.storage.kv.put(
-          viewerSecretKey,
-          bytesToHex(crypto.getRandomValues(new Uint8Array(32))),
-        );
-      });
-      return { status: "prepared" as const };
-    });
+    return prepareMatchmakingRoom(this.runtime, input);
   }
+
   async getMatchmakingState(matchId: string, instanceId: string) {
-    await this.reconcileDeadlines();
-    const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(`matchmaking:${matchId}`);
-    const room = this.readRoom();
-    const same = Boolean(
-      room &&
-      "matchmaking" in room &&
-      room.matchmaking?.id === matchId &&
-      room.instanceId === instanceId,
-    );
-    const occupiedPlayerIds = same
-      ? room!.players
-          .filter((p) => p.kind === "human" && this.storedAccount(p.id)?.occupying)
-          .map((p) => p.id)
-      : [];
-    const connectedPlayerIds = same
-      ? room!.players
-          .filter(
-            (p) =>
-              p.kind === "human" &&
-              hasOpenConnection(this.runtime, this.playerTokenHash(p.id) ?? ""),
-          )
-          .map((p) => p.id)
-      : (saved?.connectedPlayerIds ?? []);
-    let summary: (RoomPublicMetadata & { instanceId: string }) | undefined;
-    if (same) {
-      const {
-        hostPlayerId: _host,
-        participantPreviews: _players,
-        matchKind: _matchKind,
-        ...metadata
-      } = this.publicMetadata(room!);
-      summary = metadata;
-    }
-    return {
-      phase: same ? (saved?.phase ?? "closed") : "closed",
-      started: saved?.phase === "playing",
-      aiUnavailable: saved?.aiWarmup?.state === "failed",
-      occupiedPlayerIds,
-      connectedPlayerIds,
-      ...(summary ? { room: summary } : {}),
-    };
+    return getMatchmakingState(this.runtime, matchId, instanceId);
   }
+
   async abortMatchmakingRoom(matchId: string, instanceId: string) {
-    await this.reconcileDeadlines();
-    const reservation = this.ctx.storage.kv.get<MatchmakingRoomReservation>(
-      `matchmaking:${matchId}`,
-    );
-    if (reservation?.phase === "playing") return { status: "already_started" as const };
-    const closed = this.withIndexTransaction(() => {
-      this.ctx.storage.kv.put(`matchmaking-cancelled:${matchId}`, true);
-      const room = this.readRoom();
-      if (
-        room &&
-        "matchmaking" in room &&
-        room.matchmaking?.id === matchId &&
-        room.instanceId === instanceId
-      ) {
-        this.closeRoom();
-        return true;
-      }
-      return false;
-    });
-    if (closed) closeSockets(this.runtime);
-    return { status: "aborted" as const };
+    return abortMatchmakingRoom(this.runtime, matchId, instanceId);
   }
+
   async rekeyMatchmakingPlayer(
     matchId: string,
     instanceId: string,
@@ -2108,249 +1872,7 @@ export class GameRoom extends DurableObject<Env> {
     version: number,
     tokenHash: string,
   ) {
-    await this.reconcileDeadlines();
-    const room = this.readRoom();
-    if (
-      !room ||
-      !("matchmaking" in room) ||
-      room.matchmaking?.id !== matchId ||
-      room.instanceId !== instanceId ||
-      !this.storedAccount(playerId)?.occupying
-    )
-      return false;
-    const current = this.ctx.storage.kv.get<number>(`matchmaking-version:${playerId}`) ?? 0;
-    if (version < current) return false;
-    const old = this.playerTokenHash(playerId);
-    if (version === current) {
-      if (old !== tokenHash) return false;
-      await this.advanceMatchmakingStart();
-      this.alarmEvents.mark();
-      return true;
-    }
-    this.ctx.storage.transactionSync(() => {
-      const membership = old ? this.readMembership(old) : null;
-      if (old) this.ctx.storage.kv.delete(membershipStorageKey(old));
-      this.ctx.storage.kv.put(playerTokenKey(playerId), tokenHash);
-      this.ctx.storage.kv.put(membershipStorageKey(tokenHash), {
-        playerId,
-        role: membership?.role ?? "player",
-      });
-      this.ctx.storage.kv.put(`matchmaking-version:${playerId}`, version);
-      this.ctx.storage.kv.put(disconnectedAtKey(playerId), Date.now());
-      const updated = roomSchema.parse({
-        ...room,
-        players: room.players.map((p) =>
-          p.id === playerId
-            ? {
-                ...p,
-                reconnectDeadline:
-                  p.reconnectDeadline ??
-                  (room.status === "waiting" && !room.lastRound
-                    ? room.matchmaking!.preparedAtMs + matchmakingRules.connectionGraceMs
-                    : Date.now() + reconnectGraceMs),
-              }
-            : p,
-        ),
-      });
-      this.ctx.storage.kv.put(roomStorageKey, updated);
-    });
-    for (const socket of this.ctx.getWebSockets())
-      if (
-        old &&
-        (socket.deserializeAttachment() as { tokenHash?: string } | null)?.tokenHash === old
-      )
-        socket.close(1000, "操作元が変わりました");
-    await this.advanceMatchmakingStart();
-    this.alarmEvents.mark();
-    return true;
-  }
-  private startMatchmakingAiWarmup(reservation: MatchmakingRoomReservation) {
-    const warmup = reservation.aiWarmup;
-    const game = reservation.game ?? this.readRoom()?.settings.game;
-    if (warmup?.state !== "pending" || !game || !isRatedMatchmakingGame(game)) return;
-    const key = `matchmaking:${reservation.matchId}`;
-    const now = Date.now();
-    const latest = reservation.expiresAtMs - matchmakingRules.countdownMs;
-    if (now >= latest || (warmup.attempts >= aiWarmupMaxAttempts && now >= warmup.nextAtMs)) {
-      this.withIndexTransaction(() => {
-        this.ctx.storage.kv.put(key, { ...reservation, aiWarmup: { state: "failed" } });
-        this.closeRoom();
-      });
-      console.info({
-        event: "rated_ai_warmup_unavailable",
-        game,
-        matchId: reservation.matchId,
-        atMs: now,
-      });
-      return;
-    }
-    if (now < warmup.nextAtMs) return;
-    const attempt = warmup.attempts + 1;
-    const deadline = Math.min(now + aiWarmupAttemptMs, latest);
-    // 保存済みの期限で重複送信を防ぎ、処理が中断してもAlarmで再開します。
-    this.ctx.storage.kv.put(key, {
-      ...reservation,
-      aiWarmup: { state: "pending", attempts: attempt, nextAtMs: deadline + aiWarmupRetryMs },
-    } satisfies MatchmakingRoomReservation);
-    console.info({
-      event: "rated_ai_warmup_started",
-      game,
-      matchId: reservation.matchId,
-      attempt,
-      atMs: now,
-    });
-    this.alarmEvents.mark();
-    this.ctx.waitUntil(this.finishMatchmakingAiWarmup(key, game, attempt, deadline));
-  }
-
-  private async finishMatchmakingAiWarmup(
-    key: string,
-    game: RatedAiGame,
-    attempt: number,
-    deadline: number,
-  ) {
-    await this.alarmEvents.sync();
-    const failure = await requestRatedAiWarmup(this.env, game, deadline);
-    const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(key);
-    const room = this.readRoom();
-    if (
-      !saved ||
-      saved.phase !== "waiting" ||
-      saved.aiWarmup?.state !== "pending" ||
-      saved.aiWarmup.attempts !== attempt ||
-      room?.instanceId !== saved.instanceId
-    )
-      return;
-    const now = Date.now();
-    const reason = now >= deadline ? "timeout" : failure;
-    this.ctx.storage.kv.put(key, {
-      ...saved,
-      aiWarmup: reason
-        ? {
-            state: "pending",
-            attempts: attempt,
-            nextAtMs: attempt < aiWarmupMaxAttempts ? now + aiWarmupRetryMs : now,
-          }
-        : { state: "ready" },
-    } satisfies MatchmakingRoomReservation);
-    console.info({
-      event: reason ? "rated_ai_warmup_failed" : "rated_ai_warmup_ready",
-      game,
-      matchId: saved.matchId,
-      attempt,
-      atMs: now,
-      ...(reason ? { reason } : {}),
-    });
-    this.alarmEvents.mark();
-    await this.advanceMatchmakingStart();
-    await this.alarmEvents.sync();
-  }
-
-  private async advanceMatchmakingStart() {
-    const current = this.readRoom();
-    if (
-      !current ||
-      !("matchmaking" in current) ||
-      !current.matchmaking ||
-      current.status !== "waiting" ||
-      current.lastRound
-    )
-      return;
-    let reservation = this.ctx.storage.kv.get<MatchmakingRoomReservation>(
-      `matchmaking:${current.matchmaking.id}`,
-    );
-    if (!reservation || reservation.phase !== "waiting") return;
-    if (reservation.aiWarmup) {
-      const connected = current.players
-        .filter((p) => p.kind === "human")
-        .every((p) => hasOpenConnection(this.runtime, this.playerTokenHash(p.id) ?? ""));
-      if (connected !== Boolean(reservation.aiHumansConnected)) {
-        reservation = { ...reservation, aiHumansConnected: connected };
-        this.ctx.storage.kv.put(`matchmaking:${reservation.matchId}`, reservation);
-        if (connected)
-          console.info({
-            event: "rated_ai_all_connected",
-            game: current.settings.game,
-            matchId: reservation.matchId,
-            atMs: Date.now(),
-          });
-      }
-      if (reservation.aiWarmup?.state === "pending") {
-        this.startMatchmakingAiWarmup(reservation);
-        this.alarmEvents.mark();
-        if (!this.readRoom()) closeSockets(this.runtime);
-        return;
-      }
-    }
-    const readyReservation = reservation;
-    const diagnostic = this.withIndexTransaction(() => {
-      const room = this.readRoom();
-      if (
-        !room ||
-        !("matchmaking" in room) ||
-        !room.matchmaking ||
-        room.status !== "waiting" ||
-        room.lastRound
-      )
-        return;
-      if (
-        Date.now() >= readyReservation.expiresAtMs ||
-        room.players.length !== gameCapacity(room.settings.game)
-      ) {
-        this.closeRoom();
-        return;
-      }
-      const connected = room.players
-        .filter((p) => p.kind === "human")
-        .every((p) => hasOpenConnection(this.runtime, this.playerTokenHash(p.id) ?? ""));
-      if (!connected) {
-        if (room.matchmaking.startsAtMs !== undefined) {
-          const { startsAtMs: _deadline, ...metadata } = room.matchmaking;
-          this.ctx.storage.kv.put(roomStorageKey, {
-            ...room,
-            matchmaking: metadata,
-            publicUpdatedAtMs: nextPublicUpdateAt(room),
-          });
-          return { event: "four_shogi_countdown_reset", atMs: Date.now() };
-        }
-        return;
-      }
-      const deadline = room.matchmaking.startsAtMs;
-      if (deadline === undefined) {
-        const atMs = Date.now();
-        this.ctx.storage.kv.put(roomStorageKey, {
-          ...room,
-          matchmaking: {
-            ...room.matchmaking,
-            startsAtMs: atMs + matchmakingRules.countdownMs,
-          },
-          publicUpdatedAtMs: nextPublicUpdateAt(room),
-        });
-        return { event: "four_shogi_connected", atMs };
-      }
-      if (Date.now() < deadline) return;
-      const started = this.gameAdapter(room).start(room, {
-        kind: "matchmaking",
-        rating: readyReservation.rating,
-      });
-      this.ctx.storage.kv.put(`matchmaking:${room.matchmaking.id}`, {
-        ...readyReservation,
-        phase: "playing",
-      } satisfies MatchmakingRoomReservation);
-      this.startAnalyticsMatch(started.roundId, started.room, started.at);
-      return { event: "four_shogi_started", atMs: started.at };
-    });
-    if (diagnostic)
-      this.gameAdapter(current).matchmakingDiagnostic(
-        readyReservation.rating,
-        readyReservation.matchId,
-        diagnostic.event,
-        diagnostic.atMs,
-      );
-    const room = this.readRoom();
-    this.alarmEvents.mark();
-    if (room) broadcastRoom(this.runtime, room);
-    else closeSockets(this.runtime);
+    return rekeyMatchmakingPlayer(this.runtime, matchId, instanceId, playerId, version, tokenHash);
   }
 
   async createRoom(
@@ -2888,7 +2410,7 @@ export class GameRoom extends DurableObject<Env> {
     }
     for (const hash of promoted) sendCurrentMembership(this.runtime, hash);
     await advanceTournamentStart(this.runtime);
-    await this.advanceMatchmakingStart();
+    await advanceMatchmakingStart(this.runtime);
     if (cpuWork.current) {
       // transactionとDOの入力ゲートを保持せず、ネットワーク応答を待ちます。
       await this.alarmEvents.sync();

@@ -1,6 +1,11 @@
+import type { AiServiceBindings } from "../../rooms/aiService";
+import type { CpuCapacityGame } from "../../rooms/cpuCapacity";
+import type { IndexedRoomParticipant } from "../../rooms/roomIndex";
 import type { AccountAdmission } from "../../accounts/roomAccounts";
 import type {
   GameId,
+  RoomPublicMetadata,
+  MatchKind,
   Room,
   RoomMembership,
   RoomSocketClientMessage,
@@ -21,8 +26,30 @@ export type GameActionResult<T extends string> =
   | { status: T; room: Room | null }
   | { status: RoomSocketError };
 
+export type RoomCpuCapacity = {
+  roomId: string;
+  sequence: number;
+  game: CpuCapacityGame;
+  instanceId: string;
+  // nullは準備済み・進行中の予約です。時刻がある予約は解放を再試行します。
+  releaseAtMs: number | null;
+};
+
 export type RoomRuntime = {
   db: D1Database;
+  aiService: () => AiServiceBindings & { AI_WARMUP_ENABLED?: string };
+  markAlarm: () => void;
+  reserveCpuCapacity: (
+    room: Room,
+  ) => Promise<RoomCpuCapacity | null | "cpu_capacity_full" | "internal_error">;
+  flushCpuCapacity: () => Promise<void>;
+  publicMetadata: (room: Room) => RoomPublicMetadata & {
+    matchKind: MatchKind;
+    matchSequence?: number;
+    instanceId: string;
+    hostPlayerId: string | null;
+    participantPreviews: IndexedRoomParticipant[];
+  };
   syncAlarm: () => Promise<void>;
   closeRoom: () => void;
   storedAccount: (playerId: string) => (AccountAdmission & { occupying: boolean }) | null;
