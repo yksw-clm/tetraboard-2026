@@ -873,16 +873,53 @@ test("大会待機中の通常ルーム作成をaccount_busyで拒否し、退�
 });
 
 for (const game of ["four-reversi", "four-gomoku", "four-shogi"] as const) {
+  const settings: TournamentSettings =
+    game === "four-shogi"
+      ? {
+          game,
+          mode: "singles",
+          timeControl: { mainTimeMs: 180000, byoyomiMs: 10000 },
+          threePlayerAttackProhibited: false,
+        }
+      : { game, mode: "singles", timeControl: { mainTimeMs: 180000, byoyomiMs: 10000 } };
+
+  test(`${game}の大会で全員が接続していない開始待ちをAlarmで解除して待機を保つ`, async () => {
+    const prepared = await fixture(3600000, settings);
+    expect(await prepared.stub.prepareTournamentRoom(prepared.input)).toEqual({
+      status: "prepared",
+    });
+    for (const credential of prepared.tokens.slice(0, 3))
+      await connect(prepared.input.roomId, credential);
+    const startsAtMs = Date.now() + tournamentRules.startCountdownMs;
+    const initialRoom = await runInDurableObject(prepared.stub, async (_instance, state) => {
+      const room = roomSchema.parse(state.storage.kv.get("room"));
+      expect(room.status).toBe("waiting");
+      expect(room).not.toHaveProperty("tournamentStartsAtMs");
+      state.storage.kv.put("room", roomSchema.parse({ ...room, tournamentStartsAtMs: startsAtMs }));
+      await state.storage.setAlarm(startsAtMs);
+      return room;
+    });
+
+    try {
+      await expect(alarmAt(prepared, startsAtMs)).resolves.toBeUndefined();
+
+      const room = roomSchema.parse(
+        await runInDurableObject(prepared.stub, (_instance, state) => state.storage.kv.get("room")),
+      );
+      expect(room).not.toHaveProperty("tournamentStartsAtMs");
+      expect(room.status).toBe("waiting");
+      expect(
+        await prepared.stub.getTournamentReservationState(prepared.input.context.matchId),
+      ).toMatchObject({ status: "waiting" });
+    } finally {
+      // Alarmが失敗しても、後片付けが同じ期限処理で失敗しないように戻します。
+      await runInDurableObject(prepared.stub, (_instance, state) =>
+        state.storage.kv.put("room", initialRoom),
+      );
+    }
+  });
+
   test(`${game}の版2大会で設定どおり開始し、終局保存の再試行でも同じ対局へ一度だけ加点する`, async () => {
-    const settings: TournamentSettings =
-      game === "four-shogi"
-        ? {
-            game,
-            mode: "singles",
-            timeControl: { mainTimeMs: 180000, byoyomiMs: 10000 },
-            threePlayerAttackProhibited: false,
-          }
-        : { game, mode: "singles", timeControl: { mainTimeMs: 180000, byoyomiMs: 10000 } };
     const prepared = await fixture(3600000, settings);
     expect(await prepared.stub.prepareTournamentRoom(prepared.input)).toEqual({
       status: "prepared",

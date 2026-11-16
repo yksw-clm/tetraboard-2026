@@ -69,7 +69,6 @@ import {
   roomPublicMetadataSchema,
   tournamentRules,
   getTournamentSettings,
-  fourShogiRoomSchema,
   roomSchema,
   roomSocketContract,
   isFourShogiRoom,
@@ -3602,7 +3601,7 @@ export class GameRoom extends DurableObject<Env> {
         !this.tournamentPlayersConnected(room)
       ) {
         const { tournamentStartsAtMs: _deadline, ...waiting } = room;
-        room = fourShogiRoomSchema.parse({
+        room = roomSchema.parse({
           ...waiting,
           publicUpdatedAtMs: nextPublicUpdateAt(room),
         });
