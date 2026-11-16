@@ -62,7 +62,7 @@ export async function prepareSnapshotMatch(db: D1Database, record: SnapshotMatch
   return { canonical, statement: publishMatchStatement(db, record.id) };
 }
 
-function verifyFinalState(restored: DecodedMatch) {
+export function verifyFinalState(restored: DecodedMatch) {
   if (restored.game !== "shogi" && restored.game !== "four-shogi") {
     const replay = restored.record.replay;
     if (isEventReplay(replay)) throw new Error("Match replay was not restored");
