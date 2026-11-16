@@ -191,18 +191,23 @@ for (const game of gameIds) {
     await host.waitFor("room.snapshot", (m) => m.room.status === "playing");
     await runInDurableObject(env.GAME_ROOM.getByName(entry.room.id), async (instance, ctx) => {
       const read = vi.spyOn(ctx.storage.kv, "get");
+      const alarm = vi.spyOn(ctx.storage, "getAlarm");
       try {
         await boundaryRequest(`/rooms/${entry.room.id}`);
         const getReads = read.mock.calls.filter(([key]) => key === "room").length;
+        expect(alarm).toHaveBeenCalledTimes(1);
+        alarm.mockClear();
         expect(getReads).toBeGreaterThan(0);
         expect(getReads).toBeLessThanOrEqual(roomReadLimits[game].get);
         read.mockClear();
         await instance.alarm();
         const alarmReads = read.mock.calls.filter(([key]) => key === "room").length;
+        expect(alarm).toHaveBeenCalledTimes(1);
         expect(alarmReads).toBeGreaterThan(0);
         expect(alarmReads).toBeLessThanOrEqual(roomReadLimits[game].alarm);
       } finally {
         read.mockRestore();
+        alarm.mockRestore();
       }
     });
   });
