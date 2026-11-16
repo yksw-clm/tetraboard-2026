@@ -1,19 +1,21 @@
 import {
   chatEntrySchema,
-  systemChatMessageSchema,
   chatHistoryLimit,
-  roomSocketContract,
-  chatTextSchema,
   chatMessageSchema,
+  chatTextSchema,
   roomInteractionIntervalMs,
   roomSchema,
+  roomSocketContract,
+  systemChatMessageSchema,
   type ChatEntry,
-  type SystemChatMessage,
   type RoomSocketMessage,
+  type SystemChatMessage,
 } from "@tetraboard/protocol";
+import { isHumanParticipant, readMembership, readRoom } from "../../adapters/room/state";
+import { withIndexTransaction } from "../../adapters/room/transaction";
 import { roomStorageKey } from "../../rooms/progressHelpers";
-import { chatKey, mutedKey, lastChatAtKey } from "./storageKeys";
 import type { RoomRuntime } from "./runtime";
+import { chatKey, lastChatAtKey, mutedKey } from "./storageKeys";
 
 export function readChat(runtime: RoomRuntime): ChatEntry[] {
   return (runtime.ctx.storage.kv.get<unknown[]>(chatKey) ?? []).map((entry) =>
@@ -64,12 +66,12 @@ export function sendChat(
 ): "sent" | "unauthorized" | "rate_limited" | "muted" | "invalid_request" {
   const parsed = chatTextSchema.safeParse(rawText);
   if (!parsed.success) return "invalid_request";
-  return runtime.withIndexTransaction(() => {
-    const room = runtime.readRoom();
-    const membership = runtime.readMembership(tokenHash);
+  return withIndexTransaction(runtime, () => {
+    const room = readRoom(runtime);
+    const membership = readMembership(runtime, tokenHash);
     if (room === null || membership === null) return "unauthorized";
     const player = room.players.find((entry) => entry.id === membership.playerId);
-    if (!player || !runtime.isHumanParticipant(player)) return "unauthorized";
+    if (!player || !isHumanParticipant(runtime, player)) return "unauthorized";
     if ((runtime.ctx.storage.kv.get<string[]>(mutedKey) ?? []).includes(player.id)) return "muted";
     const now = Date.now();
     if (

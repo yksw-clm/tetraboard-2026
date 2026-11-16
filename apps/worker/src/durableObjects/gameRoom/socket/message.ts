@@ -3,11 +3,12 @@ import {
   roomSocketContract,
   type RoomSocketClientMessage,
 } from "@tetraboard/protocol";
+import { readRoom } from "../../../adapters/room/state";
 import { isTournamentGameRoom } from "../../../rooms/tournamentRoom";
-import { hashMembershipToken } from "../tokenCrypto";
-import { stampTag } from "../storageKeys";
-import { rejectAction, sendSocketError } from "../snapshots";
 import type { RoomRuntime } from "../runtime";
+import { rejectAction, sendSocketError } from "../snapshots";
+import { stampTag } from "../storageKeys";
+import { hashMembershipToken } from "../tokenCrypto";
 import { dispatchMessage } from "./dispatch";
 
 function parseMessage(
@@ -67,7 +68,7 @@ function canDispatch(
     sendSocketError(runtime, socket, "unauthorized");
     return false;
   }
-  const tournamentRoom = runtime.readRoom();
+  const tournamentRoom = readRoom(runtime);
   if (
     tournamentRoom &&
     ((isTournamentGameRoom(tournamentRoom) && tournamentRoom.tournamentId !== undefined) ||
@@ -104,7 +105,7 @@ export async function webSocketMessage(
     const authTokenHash =
       command.type === "room.auth" ? await hashMembershipToken(command.token) : null;
     await runtime.reconcileDeadlines();
-    if (runtime.readRoom() === null) {
+    if (readRoom(runtime) === null) {
       sendSocketError(runtime, socket, "not_found");
       return;
     }

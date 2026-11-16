@@ -1,15 +1,18 @@
-import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import type { MatchmakingRoomReservation } from "../../matchmaking/coordinator";
-import { startMatchmakingAiWarmup } from "./warmup";
 import { matchmakingRules } from "@tetraboard/protocol";
 import { gameCapacity } from "@tetraboard/protocol/games";
-import { hasOpenConnection } from "../../durableObjects/gameRoom/socket/membership";
+import { playerTokenHash, readRoom } from "../../adapters/room/state";
+import { withIndexTransaction } from "../../adapters/room/transaction";
+import { startAnalyticsMatch } from "../../adapters/room/usage";
 import { closeSockets } from "../../durableObjects/gameRoom/connections";
+import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { broadcastRoom } from "../../durableObjects/gameRoom/snapshots";
-import { roomStorageKey, nextPublicUpdateAt } from "../../rooms/progressHelpers";
+import { hasOpenConnection } from "../../durableObjects/gameRoom/socket/membership";
+import type { MatchmakingRoomReservation } from "../../matchmaking/coordinator";
+import { nextPublicUpdateAt, roomStorageKey } from "../../rooms/progressHelpers";
+import { startMatchmakingAiWarmup } from "./warmup";
 
 export async function advanceMatchmakingStart(runtime: RoomRuntime) {
-  const current = runtime.readRoom();
+  const current = readRoom(runtime);
   if (
     !current ||
     !("matchmaking" in current) ||
@@ -25,7 +28,7 @@ export async function advanceMatchmakingStart(runtime: RoomRuntime) {
   if (reservation.aiWarmup) {
     const connected = current.players
       .filter((p) => p.kind === "human")
-      .every((p) => hasOpenConnection(runtime, runtime.playerTokenHash(p.id) ?? ""));
+      .every((p) => hasOpenConnection(runtime, playerTokenHash(runtime, p.id) ?? ""));
     if (connected !== Boolean(reservation.aiHumansConnected)) {
       reservation = { ...reservation, aiHumansConnected: connected };
       runtime.ctx.storage.kv.put(`matchmaking:${reservation.matchId}`, reservation);
@@ -39,13 +42,13 @@ export async function advanceMatchmakingStart(runtime: RoomRuntime) {
     }
     if (reservation.aiWarmup?.state === "pending") {
       startMatchmakingAiWarmup(runtime, reservation);
-      runtime.markAlarm();
-      if (!runtime.readRoom()) closeSockets(runtime);
+      runtime.alarms.mark();
+      if (!readRoom(runtime)) closeSockets(runtime);
       return;
     }
   }
   const readyReservation = reservation;
-  const diagnostic = runtime.withIndexTransaction(() =>
+  const diagnostic = withIndexTransaction(runtime, () =>
     startConnectedMatchmakingRoom(runtime, readyReservation),
   );
   if (diagnostic)
@@ -57,8 +60,8 @@ export async function advanceMatchmakingStart(runtime: RoomRuntime) {
         diagnostic.event,
         diagnostic.atMs,
       );
-  const room = runtime.readRoom();
-  runtime.markAlarm();
+  const room = readRoom(runtime);
+  runtime.alarms.mark();
   if (room) broadcastRoom(runtime, room);
   else closeSockets(runtime);
 }
@@ -67,7 +70,7 @@ function startConnectedMatchmakingRoom(
   runtime: RoomRuntime,
   readyReservation: MatchmakingRoomReservation,
 ) {
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   if (
     !room ||
     !("matchmaking" in room) ||
@@ -85,7 +88,7 @@ function startConnectedMatchmakingRoom(
   }
   const connected = room.players
     .filter((p) => p.kind === "human")
-    .every((p) => hasOpenConnection(runtime, runtime.playerTokenHash(p.id) ?? ""));
+    .every((p) => hasOpenConnection(runtime, playerTokenHash(runtime, p.id) ?? ""));
   if (!connected) {
     if (room.matchmaking.startsAtMs !== undefined) {
       const { startsAtMs: _deadline, ...metadata } = room.matchmaking;
@@ -120,6 +123,6 @@ function startConnectedMatchmakingRoom(
     ...readyReservation,
     phase: "playing",
   } satisfies MatchmakingRoomReservation);
-  runtime.startAnalyticsMatch(started.roundId, started.room, started.at);
+  startAnalyticsMatch(runtime, started.roundId, started.room, started.at);
   return { event: "four_shogi_started", atMs: started.at };
 }

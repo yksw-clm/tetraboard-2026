@@ -1,10 +1,12 @@
-import { env } from "cloudflare:workers";
-import { runInDurableObject } from "cloudflare:test";
-import { expect, test } from "vitest";
 import type { Room } from "@tetraboard/protocol";
+import { runInDurableObject } from "cloudflare:test";
+import { env } from "cloudflare:workers";
+import { expect, test } from "vitest";
+import { withIndexTransaction } from "../src/adapters/room/transaction";
+import { endAnalyticsMatch, startAnalyticsMatch } from "../src/adapters/room/usage";
 import { analyticsActiveKey, type AnalyticsMatch } from "../src/usageEvents/matches";
-import { recordUsageEvents } from "./usageEventsRecorder";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
+import { recordUsageEvents } from "./usageEventsRecorder";
 
 test.each(["start", "end"] as const)(
   "%s のtransactionが戻ったら利用イベントを捨て、再試行で一度だけ書く",
@@ -17,13 +19,13 @@ test.each(["start", "end"] as const)(
         const room = ctx.storage.kv.get<Room>("room")!;
         const matchId = crypto.randomUUID();
         const start = () =>
-          Reflect.get(instance, "startAnalyticsMatch").call(instance, matchId, room, Date.now());
+          startAnalyticsMatch(Reflect.get(instance, "runtime"), matchId, room, Date.now());
         const end = () =>
-          Reflect.get(instance, "endAnalyticsMatch").call(instance, "completed", Date.now());
+          endAnalyticsMatch(Reflect.get(instance, "runtime"), "completed", Date.now());
         if (phase === "end") start();
         const action = phase === "start" ? start : end;
         const transaction = (callback: () => void) =>
-          Reflect.get(instance, "withIndexTransaction").call(instance, callback);
+          withIndexTransaction(Reflect.get(instance, "runtime"), callback);
         expect(() =>
           transaction(() => {
             action();
@@ -98,11 +100,13 @@ test("マッチングの開始イベントと検索情報の消去も、transact
         isTest: false,
         isGuest: false,
       });
-      const room = { ...saved, matchmaking: { id: matchId, preparedAtMs: at, rated: true } };
-      const start = () =>
-        Reflect.get(instance, "startAnalyticsMatch").call(instance, matchId, room, at);
+      const room = {
+        ...saved,
+        matchmaking: { id: matchId, preparedAtMs: at, rated: true },
+      } as Room;
+      const start = () => startAnalyticsMatch(Reflect.get(instance, "runtime"), matchId, room, at);
       const transaction = (action: () => void) =>
-        Reflect.get(instance, "withIndexTransaction").call(instance, action);
+        withIndexTransaction(Reflect.get(instance, "runtime"), action);
       expect(() =>
         transaction(() => {
           start();

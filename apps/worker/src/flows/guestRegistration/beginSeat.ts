@@ -1,8 +1,7 @@
-import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { membershipTokenSchema, roomSchema, type Room } from "@tetraboard/protocol";
+import { isHumanParticipant, readMembership, readRoom } from "../../adapters/room/state";
+import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { roomStorageKey } from "../../rooms/progressHelpers";
-import { storedAccount } from "../accountSeats/seats";
-import { registrationForPlayer } from "./records";
 import {
   activeRegistrationKey,
   guestRegistrationState,
@@ -14,6 +13,8 @@ import {
   type GuestRegistrationInput,
   type StoredGuestRegistration,
 } from "../../rooms/registrationTypes";
+import { storedAccount } from "../accountSeats/seats";
+import { registrationForPlayer } from "./records";
 
 export function beginRegistrationSeat(
   runtime: RoomRuntime,
@@ -21,13 +22,13 @@ export function beginRegistrationSeat(
   originalAccountIds: string[] | null,
   now: number,
 ): BeginGuestRegistrationResult {
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   if (!room) return { status: "not_found" };
   if (room.instanceId !== input.instanceId) return { status: "room_changed" };
   if (room.status !== "waiting") return { status: "room_started" };
-  const membership = runtime.readMembership(input.oldTokenHash);
+  const membership = readMembership(runtime, input.oldTokenHash);
   const player = room.players.find((p) => p.id === membership?.playerId);
-  if (!membership || player?.kind !== "human" || !runtime.isHumanParticipant(player))
+  if (!membership || player?.kind !== "human" || !isHumanParticipant(runtime, player))
     return { status: "unauthorized" };
   const seat = storedAccount(runtime, player.id);
   if (
@@ -45,7 +46,7 @@ export function beginRegistrationSeat(
   if (
     input.newTokenHash === input.oldTokenHash ||
     !membershipTokenSchema.safeParse(input.newTokenHash).success ||
-    runtime.readMembership(input.newTokenHash)
+    readMembership(runtime, input.newTokenHash)
   )
     return { status: "registration_conflict" };
   return persistRegistration(runtime, input, originalAccountIds, now, room, player);

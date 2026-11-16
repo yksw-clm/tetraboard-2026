@@ -1,17 +1,18 @@
-import { persistTournamentRoom } from "./prepareStorage";
-import { roomSchema, tournamentRules, getTournamentSettings } from "@tetraboard/protocol";
+import { getTournamentSettings, roomSchema, tournamentRules } from "@tetraboard/protocol";
+import { profileAvatarUrl } from "../../accounts/auth";
+import { readMembership, readRoom } from "../../adapters/room/state";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { cancelledAdmissionKey } from "../../durableObjects/gameRoom/storageKeys";
-import { profileAvatarUrl } from "../../accounts/auth";
-import { waitingRoomFactories } from "../../rooms/waitingRoomFactories";
-import { readTournament, tournamentSettingsMatch } from "../../tournaments/store";
 import {
-  tournamentReservationKey,
   cancelledTournamentKey,
   prepareTournamentRoomSchema,
+  tournamentReservationKey,
   type PrepareTournamentRoomInput,
   type TournamentRoomReservation,
 } from "../../rooms/tournamentRoom";
+import { waitingRoomFactories } from "../../rooms/waitingRoomFactories";
+import { readTournament, tournamentSettingsMatch } from "../../tournaments/store";
+import { persistTournamentRoom } from "./prepareStorage";
 
 export async function prepareTournamentRoom(
   runtime: RoomRuntime,
@@ -56,8 +57,8 @@ async function prepareReservedTournamentRoom(
     };
   if (runtime.ctx.storage.kv.get(cancelledTournamentKey(context.matchId)))
     return { status: "cancelled" as const };
-  if (runtime.readRoom()) return { status: "room_in_use" as const };
-  await runtime.syncAlarm();
+  if (readRoom(runtime)) return { status: "room_in_use" as const };
+  await runtime.alarms.sync();
   const checks = await checkTournamentAdmissions(runtime, input);
   if (
     checks.some((check) => check.results.length !== 1) ||
@@ -66,7 +67,7 @@ async function prepareReservedTournamentRoom(
     players.some(
       (p) =>
         runtime.ctx.storage.kv.get(cancelledAdmissionKey(p.admission.operationId)) ||
-        runtime.readMembership(p.tokenHash),
+        readMembership(runtime, p.tokenHash),
     )
   )
     return { status: "invalid_reservation" as const };

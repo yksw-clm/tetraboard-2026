@@ -1,17 +1,20 @@
-import { tournamentReservation, recordTournamentState } from "./reservations";
 import { roomSchema, tournamentRules } from "@tetraboard/protocol";
-import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
+import { playerTokenHash, readRoom } from "../../adapters/room/state";
+import { withIndexTransaction } from "../../adapters/room/transaction";
+import { startAnalyticsMatch } from "../../adapters/room/usage";
 import { closeSockets } from "../../durableObjects/gameRoom/connections";
+import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { broadcastRoom } from "../../durableObjects/gameRoom/snapshots";
 import { hasOpenConnection } from "../../durableObjects/gameRoom/socket/membership";
-import { roomStorageKey, nextPublicUpdateAt } from "../../rooms/progressHelpers";
-import { readTournament, tournamentSettingsMatch } from "../../tournaments/store";
+import { nextPublicUpdateAt, roomStorageKey } from "../../rooms/progressHelpers";
 import {
-  tournamentReservationKey,
   isTournamentGameRoom,
-  type TournamentRoomReservation,
+  tournamentReservationKey,
   type TournamentGameRoom,
+  type TournamentRoomReservation,
 } from "../../rooms/tournamentRoom";
+import { readTournament, tournamentSettingsMatch } from "../../tournaments/store";
+import { recordTournamentState, tournamentReservation } from "./reservations";
 
 export function tournamentPlayersConnected(
   runtime: RoomRuntime,
@@ -20,14 +23,14 @@ export function tournamentPlayersConnected(
   return (
     room.players.length === 4 &&
     room.players.every((player) => {
-      const hash = runtime.playerTokenHash(player.id);
+      const hash = playerTokenHash(runtime, player.id);
       return player.kind === "human" && !!hash && hasOpenConnection(runtime, hash);
     })
   );
 }
 
 export async function advanceTournamentStart(runtime: RoomRuntime) {
-  const initial = runtime.readRoom();
+  const initial = readRoom(runtime);
   const reservation = tournamentReservation(runtime, initial);
   if (
     !reservation ||
@@ -43,14 +46,14 @@ export async function advanceTournamentStart(runtime: RoomRuntime) {
   await runtime.ctx.blockConcurrencyWhile(async () => {
     await startReservedTournamentRoom(runtime, reservation, countdown);
   });
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   if (room) broadcastRoom(runtime, room);
 }
 
 function updateTournamentCountdown(runtime: RoomRuntime) {
   let countdownChanged = false;
-  const countdown = runtime.withIndexTransaction(() => {
-    const room = runtime.readRoom();
+  const countdown = withIndexTransaction(runtime, () => {
+    const room = readRoom(runtime);
     if (!room || !isTournamentGameRoom(room) || room.status !== "waiting") return null;
     const connected = tournamentPlayersConnected(runtime, room);
     if (connected && room.tournamentStartsAtMs !== undefined) return room;
@@ -66,7 +69,7 @@ function updateTournamentCountdown(runtime: RoomRuntime) {
     return next.status === "waiting" && isTournamentGameRoom(next) && connected ? next : null;
   });
   if (countdownChanged) {
-    const room = runtime.readRoom();
+    const room = readRoom(runtime);
     if (room) broadcastRoom(runtime, room);
   }
   return countdown;
@@ -77,7 +80,7 @@ async function startReservedTournamentRoom(
   reservation: TournamentRoomReservation,
   countdown: TournamentGameRoom & { status: "waiting" },
 ) {
-  await runtime.syncAlarm();
+  await runtime.alarms.sync();
   const active = await countActiveTournamentPlayers(runtime, reservation);
   const definition = await readTournament(runtime.db, reservation.context.tournamentKey);
   const now = Date.now();
@@ -89,8 +92,8 @@ async function startReservedTournamentRoom(
     now >= reservation.context.endsAtMs ||
     now >= reservation.preparedAtMs + tournamentRules.connectionGraceMs
   ) {
-    const closed = runtime.withIndexTransaction(() => {
-      const room = runtime.readRoom();
+    const closed = withIndexTransaction(runtime, () => {
+      const room = readRoom(runtime);
       if (!room || room.instanceId !== reservation.instanceId) return false;
       runtime.closeRoom();
       return true;
@@ -136,8 +139,8 @@ function startTournamentGame(
   reservation: TournamentRoomReservation,
   countdown: TournamentGameRoom & { status: "waiting" },
 ) {
-  runtime.withIndexTransaction(() => {
-    const room = runtime.readRoom();
+  withIndexTransaction(runtime, () => {
+    const room = readRoom(runtime);
     if (
       !room ||
       !isTournamentGameRoom(room) ||
@@ -177,6 +180,6 @@ function startTournamentGame(
     };
     runtime.ctx.storage.kv.put(tournamentReservationKey(reservation.context.matchId), playing);
     recordTournamentState(runtime, playing, "playing");
-    runtime.startAnalyticsMatch(started.roundId, started.room, started.at);
+    startAnalyticsMatch(runtime, started.roundId, started.room, started.at);
   });
 }

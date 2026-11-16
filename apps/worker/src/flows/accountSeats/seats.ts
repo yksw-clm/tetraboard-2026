@@ -1,5 +1,5 @@
-import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import type { AccountAdmission } from "../../accounts/roomAccounts";
+import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { accountKey, cancelledAdmissionKey } from "../../durableObjects/gameRoom/storageKeys";
 import { accountCleanupKey, type AccountCleanup, type StoredAccountSeat } from "./types";
 
@@ -17,7 +17,7 @@ export function queueAccountCleanup(
   if (existing) existing.releaseAvatar ||= releaseAvatar;
   else jobs.push({ reservation, releaseAvatar, retryAtMs: Date.now() });
   runtime.ctx.storage.kv.put(accountCleanupKey, jobs);
-  runtime.markAlarm();
+  runtime.alarms.mark();
 }
 
 export function releaseAccount(runtime: RoomRuntime, playerId: string, removeAvatar: boolean) {

@@ -1,6 +1,8 @@
-import { env } from "cloudflare:workers";
+import type { Room } from "@tetraboard/protocol";
 import { runInDurableObject } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { expect, test } from "vitest";
+import { endAnalyticsMatch, startAnalyticsMatch } from "../src/adapters/room/usage";
 import { recordUsageEvents } from "./usageEventsRecorder";
 
 test("人間の参加者が0人なら開始と終了のisTestはfalseになる", async () => {
@@ -9,13 +11,13 @@ test("人間の参加者が0人なら開始と終了のisTestはfalseになる",
   const stub = env.GAME_ROOM.getByName(`usage-${crypto.randomUUID()}`);
   await runInDurableObject(stub, (instance) => {
     const at = Date.now();
-    Reflect.get(instance, "startAnalyticsMatch").call(
-      instance,
+    startAnalyticsMatch(
+      Reflect.get(instance, "runtime"),
       matchId,
-      { settings: { game: "four-reversi", mode: "singles" }, players: [] },
+      { settings: { game: "four-reversi", mode: "singles" }, players: [] } as unknown as Room,
       at,
     );
-    Reflect.get(instance, "endAnalyticsMatch").call(instance, "abandoned", at + 1000);
+    endAnalyticsMatch(Reflect.get(instance, "runtime"), "abandoned", at + 1000);
   });
   expect(events.filter((e) => "matchId" in e && e.matchId === matchId)).toEqual([
     {

@@ -1,5 +1,5 @@
-import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import type { AccountAdmission } from "../../accounts/roomAccounts";
+import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { cancelledAdmissionKey } from "../../durableObjects/gameRoom/storageKeys";
 
 export async function withAccountAdmission<T>(
@@ -12,7 +12,7 @@ export async function withAccountAdmission<T>(
     try {
       if (runtime.ctx.storage.kv.get(cancelledAdmissionKey(admission.operationId)))
         return { ok: true as const, value: null };
-      await runtime.syncAlarm();
+      await runtime.alarms.sync();
       const reservation = await runtime.db
         .prepare(`SELECT operation_id FROM account_room_seats
         WHERE account_id = ? AND operation_id = ? AND room_id = ? AND instance_id = ? AND player_id = ? AND name = ? AND avatar_key IS ? AND avatar_preset_id IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=account_room_seats.account_id)`)

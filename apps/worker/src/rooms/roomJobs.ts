@@ -8,8 +8,7 @@ type RoomJobOptions<T, R> = {
   retry(job: T, retryAtMs: number, error: unknown): void;
   mode?: "drain" | "snapshot" | "single";
   stopOnFailure?: boolean;
-  syncWhenEmpty?: boolean;
-  syncOnlyWhenDue?: boolean;
+  sync?: "always" | "pending" | "due";
   canRun?(): boolean;
 };
 
@@ -38,9 +37,9 @@ export class RoomJob<T, R = void> {
     }
     if (this.options.canRun?.() === false) return Promise.resolve();
     const pending = [...this.options.pending()];
-    if (this.options.syncOnlyWhenDue && !pending.some((job) => this.due(job)))
+    if (this.options.sync === "due" && !pending.some((job) => this.due(job)))
       return Promise.resolve();
-    if (!pending.length && !this.options.syncWhenEmpty) return Promise.resolve();
+    if (!pending.length && this.options.sync !== "always") return Promise.resolve();
     this.running = this.runRequested(pending);
     return this.running;
   }

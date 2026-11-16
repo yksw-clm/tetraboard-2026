@@ -1,18 +1,20 @@
-import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import type { PurgeTargets } from "./types";
-import { loadPurgeTargets } from "./targets";
-import { discoverPurgeTargets } from "./discover";
-import { strip } from "./strip";
-import { closeSockets } from "../../durableObjects/gameRoom/connections";
-import { broadcastRoom } from "../../durableObjects/gameRoom/snapshots";
+import { playerTokenHash, readRoom } from "../../adapters/room/state";
+import { withIndexTransaction } from "../../adapters/room/transaction";
 import { broadcastChat } from "../../durableObjects/gameRoom/chat";
+import { closeSockets } from "../../durableObjects/gameRoom/connections";
+import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
+import { broadcastRoom } from "../../durableObjects/gameRoom/snapshots";
 import {
   accountKey,
   membershipStorageKey,
   playerTokenKey,
 } from "../../durableObjects/gameRoom/storageKeys";
-import { roomStorageKey, nextPublicUpdateAt } from "../../rooms/progressHelpers";
+import { nextPublicUpdateAt, roomStorageKey } from "../../rooms/progressHelpers";
 import { accountCleanupKey, type AccountCleanup } from "../accountSeats/types";
+import { discoverPurgeTargets } from "./discover";
+import { strip } from "./strip";
+import { loadPurgeTargets } from "./targets";
+import type { PurgeTargets } from "./types";
 
 export async function purgeAccount(runtime: RoomRuntime, accountId: string) {
   await runtime.ctx.blockConcurrencyWhile(async () => {
@@ -29,7 +31,7 @@ function revokeCredentials(runtime: RoomRuntime, targets: PurgeTargets) {
   const { ids } = targets;
   const removedKeys = new Set<string>();
   for (const id of ids) {
-    const token = runtime.playerTokenHash(id);
+    const token = playerTokenHash(runtime, id);
     if (token) {
       removedKeys.add(membershipStorageKey(token));
       removedKeys.add(playerTokenKey(id));
@@ -77,15 +79,15 @@ function purgeStoredIdentities(
 }
 
 function publishPurge(runtime: RoomRuntime) {
-  runtime.withIndexTransaction(() => {
-    const room = runtime.readRoom();
+  withIndexTransaction(runtime, () => {
+    const room = readRoom(runtime);
     if (room)
       runtime.ctx.storage.kv.put(roomStorageKey, {
         ...room,
         publicUpdatedAtMs: nextPublicUpdateAt(room),
       });
   });
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   if (room) broadcastRoom(runtime, room);
   broadcastChat(runtime);
 }

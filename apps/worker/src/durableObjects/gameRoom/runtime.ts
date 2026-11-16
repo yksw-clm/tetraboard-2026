@@ -1,23 +1,16 @@
-import type { PendingMatch } from "../../rooms/matchStore";
-import type { PendingMatch as PendingReversiMatch } from "../../rooms/reversiMatchStore";
-import type { PendingMatch as PendingGomokuMatch } from "../../rooms/gomokuMatchStore";
-import type { PendingMatch as PendingFourGomokuMatch } from "../../rooms/fourGomokuMatchStore";
-import type { PendingShogiMatch } from "../../rooms/shogiMatchStore";
-import type { PendingStandardShogiMatch } from "../../rooms/shogiMatchStore";
-import type { AiServiceBindings } from "../../rooms/aiService";
-import type { CpuCapacityGame } from "../../rooms/cpuCapacity";
-import type { IndexedRoomParticipant } from "../../rooms/roomIndex";
 import type {
   GameId,
-  RoomPublicMetadata,
-  MatchKind,
   Room,
-  RoomMembership,
   RoomSocketClientMessage,
   RoomSocketMessage,
   RoomTimeControl,
 } from "@tetraboard/protocol";
+import type { RoomJobs } from "../../adapters/room/jobs";
+import type { AiServiceBindings } from "../../rooms/aiService";
+import type { CpuCapacityGame } from "../../rooms/cpuCapacity";
 import type { ActionCommand, GameAdapter, SettingsCommand } from "../../rooms/gameAdapters/types";
+import type { RoomAlarmEvents } from "../../rooms/roomAlarmEvents";
+import type { TransactionUsageEvents } from "../../usageEvents/transactionEvents";
 
 export type RoomSocketError = Extract<RoomSocketMessage, { type: "room.error" }>["error"];
 export type SocketCommand<T extends RoomSocketClientMessage["type"]> = Extract<
@@ -41,43 +34,17 @@ export type RoomCpuCapacity = {
 };
 
 export type RoomRuntime = {
+  alarms: Pick<RoomAlarmEvents, "sync" | "afterFlush" | "mark">;
+  jobs: RoomJobs;
+  usageEvents: TransactionUsageEvents;
+  cpuCapacity: Env["CPU_CAPACITY"];
+  accountBindings: Env;
   db: D1Database;
   aiService: () => AiServiceBindings & { AI_WARMUP_ENABLED?: string };
-  markAlarm: () => void;
-  reserveCpuCapacity: (
-    room: Room,
-  ) => Promise<RoomCpuCapacity | null | "cpu_capacity_full" | "internal_error">;
-  flushCpuCapacity: () => Promise<void>;
-  publicMetadata: (room: Room) => RoomPublicMetadata & {
-    matchKind: MatchKind;
-    matchSequence?: number;
-    instanceId: string;
-    hostPlayerId: string | null;
-    participantPreviews: IndexedRoomParticipant[];
-  };
-  syncAlarm: () => Promise<void>;
   closeRoom: () => void;
-  pendingMatches: () => Map<
-    string,
-    PendingMatch | PendingReversiMatch | PendingGomokuMatch | PendingFourGomokuMatch
-  >;
-  pendingShogiMatches: () => Map<string, PendingShogiMatch | PendingStandardShogiMatch>;
-  flushGuestClaims: () => Promise<void>;
-  startAnalyticsMatch: (id: string, room: Room, at: number) => void;
   ctx: DurableObjectState;
   chat: { dirty: boolean };
-  readRoom: () => Room | null;
-  readMembership: (hash: string) => RoomMembership | null;
-  publicMembership: (membership: RoomMembership) => RoomMembership;
-  playerTokenHash: (playerId: string) => string | null;
-  isHumanParticipant: (player: Room["players"][number]) => boolean;
-  withIndexTransaction: <T>(action: () => T, previousRoom?: Room | null) => T;
   reconcileDeadlines: (applyCpu?: boolean) => Promise<void>;
-  currentRoomMembership: (
-    hash: string,
-  ) => { status: "found"; membership: RoomMembership } | { status: "not_found" | "unauthorized" };
-  advanceTournamentStart: () => Promise<void>;
-  advanceMatchmakingStart: () => Promise<void>;
   gameAdapter: <G extends GameId>(room: { settings: { game: G } }) => GameAdapter<G>;
   setReady: (hash: string, ready: boolean) => RoomUpdateResult;
   applySettings: (hash: string, command: SocketCommand<"room.settings.apply">) => RoomUpdateResult;

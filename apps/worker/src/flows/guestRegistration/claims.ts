@@ -1,6 +1,8 @@
-import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import { readStoredMatch } from "../../accounts/matchDataContracts";
 import { retryPendingMatchClaims } from "../../accounts/matchClaims";
+import { readStoredMatch } from "../../accounts/matchDataContracts";
+import { pendingMatches } from "../../adapters/room/matchJob";
+import { pendingShogiMatches } from "../../adapters/room/shogiMatchJob";
+import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import type { GuestRegistrationInput } from "../../rooms/registrationTypes";
 export const guestClaimsKey = "guest-match-claims-pending";
 export type PendingGuestClaims = { generation: string; retryAtMs: number };
@@ -45,12 +47,12 @@ export async function originalMatchAccounts(
   input: GuestRegistrationInput,
 ): Promise<string[] | null> {
   const pending = [
-    ...runtime.pendingMatches().values(),
-    ...runtime.pendingShogiMatches().values(),
+    ...pendingMatches(runtime).values(),
+    ...pendingShogiMatches(runtime).values(),
   ].find((job) => job.record.id === input.matchId)?.record;
   let record = pending;
   if (!record) {
-    await runtime.syncAlarm();
+    await runtime.alarms.sync();
     const saved = await runtime.db
       .prepare("SELECT game,record_json FROM matches WHERE id=?")
       .bind(input.matchId)
@@ -69,8 +71,8 @@ export async function armGuestMatchClaims(runtime: RoomRuntime): Promise<void> {
     generation: crypto.randomUUID(),
     retryAtMs: Date.now(),
   } satisfies PendingGuestClaims);
-  runtime.markAlarm();
-  runtime.ctx.waitUntil(runtime.flushGuestClaims());
+  runtime.alarms.mark();
+  runtime.ctx.waitUntil(runtime.jobs.guestClaimsJob.flush());
 }
 
 export function finishGuestClaims(

@@ -1,16 +1,18 @@
-import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import type { AccountAdmission } from "../../accounts/roomAccounts";
-import { withAccountAdmission } from "../accountSeats/admission";
-import { registrationView } from "./records";
-import { completeRegistrationSeat } from "./completeSeat";
+import { readMembership, readRoom } from "../../adapters/room/state";
+import { withIndexTransaction } from "../../adapters/room/transaction";
 import { closeSockets } from "../../durableObjects/gameRoom/connections";
+import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { broadcastRoom } from "../../durableObjects/gameRoom/snapshots";
-import type { AnalyticsIdentity } from "../../usageEvents/matches";
 import {
   registrationKey,
-  type StoredGuestRegistration,
   type CompleteGuestRegistrationResult,
+  type StoredGuestRegistration,
 } from "../../rooms/registrationTypes";
+import type { AnalyticsIdentity } from "../../usageEvents/matches";
+import { withAccountAdmission } from "../accountSeats/admission";
+import { completeRegistrationSeat } from "./completeSeat";
+import { registrationView } from "./records";
 
 export async function completeGuestRegistration(
   runtime: RoomRuntime,
@@ -22,7 +24,7 @@ export async function completeGuestRegistration(
   const prior = completedRegistration(runtime, registrationId, admission);
   if (prior) return prior;
   const result = await withAccountAdmission(runtime, admission, () =>
-    runtime.withIndexTransaction((): CompleteGuestRegistrationResult => {
+    withIndexTransaction(runtime, (): CompleteGuestRegistrationResult => {
       const prior = completedRegistration(runtime, registrationId, admission);
       if (prior) return prior;
       return completeRegistrationSeat(runtime, registrationId, admission, analytics);
@@ -33,7 +35,7 @@ export async function completeGuestRegistration(
       registrationKey(registrationId),
     )!;
     closeSockets(runtime, record.oldTokenHash, "Room membership updated");
-    const room = runtime.readRoom();
+    const room = readRoom(runtime);
     if (room) broadcastRoom(runtime, room);
   } else await runtime.reconcileDeadlines();
   return result ?? { status: "account_reservation_invalid" };
@@ -52,7 +54,7 @@ function completedRegistration(
     return { status: "account_conflict" };
   if (record.state === "converted") {
     const state = registrationView(runtime, record);
-    const membership = runtime.readMembership(record.newTokenHash);
+    const membership = readMembership(runtime, record.newTokenHash);
     return state.state === "converted" && membership
       ? { status: "converted", registration: state, membership }
       : { status: "released" };

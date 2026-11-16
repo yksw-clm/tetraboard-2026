@@ -1,9 +1,10 @@
 import type { ChatMessage } from "@tetraboard/protocol";
+import { readMembership, readRoom } from "../../adapters/room/state";
+import { broadcastChat, readChat } from "./chat";
+import type { RoomRuntime } from "./runtime";
+import { chatKey, mutedKey } from "./storageKeys";
 import { hashMembershipToken } from "./tokenCrypto";
 import { viewerMac } from "./viewerTokens";
-import { readChat, broadcastChat } from "./chat";
-import { chatKey, mutedKey } from "./storageKeys";
-import type { RoomRuntime } from "./runtime";
 
 export async function inspectReport(
   runtime: RoomRuntime,
@@ -14,10 +15,10 @@ export async function inspectReport(
   | { status: "not_found" | "unauthorized" | "message_not_found" }
 > {
   await runtime.reconcileDeadlines();
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   if (room === null) return { status: "not_found" };
   const tokenHash = await hashMembershipToken(token);
-  const membership = runtime.readMembership(tokenHash);
+  const membership = readMembership(runtime, tokenHash);
   const isPlayer =
     membership !== null && room.players.some((player) => player.id === membership.playerId);
   const isViewer =
@@ -37,7 +38,7 @@ export async function moderateMessage(
   mute: boolean,
 ): Promise<"applied" | "room_changed"> {
   await runtime.reconcileDeadlines();
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   if (room === null || room.instanceId !== instanceId) return "room_changed";
   runtime.ctx.storage.transactionSync(() => {
     if (remove)

@@ -1,13 +1,15 @@
+import { playerTokenHash, readRoom } from "../../adapters/room/state";
+import { withIndexTransaction } from "../../adapters/room/transaction";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import { storedAccount } from "../accountSeats/seats";
 import {
   activeRegistrationKey,
-  registrationKey,
   cancelledRegistrationKey,
   guestRegistrationState,
-  type StoredGuestRegistration,
+  registrationKey,
   type GuestRegistrationState,
+  type StoredGuestRegistration,
 } from "../../rooms/registrationTypes";
+import { storedAccount } from "../accountSeats/seats";
 
 export function registrationForPlayer(
   runtime: RoomRuntime,
@@ -40,13 +42,13 @@ export function registrationView(
 ): GuestRegistrationState {
   const result = guestRegistrationState(record);
   if (record.state === "converted") {
-    const room = runtime.readRoom();
+    const room = readRoom(runtime);
     const seat = storedAccount(runtime, record.playerId);
     if (
       room?.instanceId !== record.instanceId ||
       !seat?.occupying ||
       seat.accountId !== record.accountId ||
-      runtime.playerTokenHash(record.playerId) !== record.newTokenHash
+      playerTokenHash(runtime, record.playerId) !== record.newTokenHash
     )
       result.state = "released";
   }
@@ -88,7 +90,7 @@ export async function cancelGuestRegistration(
   registrationId: string,
 ): Promise<GuestRegistrationState | null> {
   await runtime.reconcileDeadlines();
-  runtime.withIndexTransaction(() => {
+  withIndexTransaction(runtime, () => {
     const record = runtime.ctx.storage.kv.get<StoredGuestRegistration>(
       registrationKey(registrationId),
     );

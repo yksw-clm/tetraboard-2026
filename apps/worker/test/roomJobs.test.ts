@@ -1,10 +1,11 @@
-import { env } from "cloudflare:workers";
-import { runInDurableObject } from "cloudflare:test";
-import { expect, test, vi } from "vitest";
 import { isReversiRoom } from "@tetraboard/protocol";
 import { getLegalMoves } from "@tetraboard/reversi";
-import * as indexes from "../src/rooms/roomIndex";
+import { runInDurableObject } from "cloudflare:test";
+import { env } from "cloudflare:workers";
+import { expect, test, vi } from "vitest";
 import * as accounts from "../src/accounts/roomAccounts";
+import { publicMetadata } from "../src/adapters/room/metadata";
+import * as indexes from "../src/rooms/roomIndex";
 import * as tournaments from "../src/rooms/tournamentRoom";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 
@@ -48,7 +49,7 @@ test("refreshLobbyIndexは前の索引反映のAlarm待ちに保存した新し�
     const entry = await fixtures.create({ game: "reversi", name: "索引の更新", quickPlay: false });
     const stub = env.GAME_ROOM.getByName(entry.room.id);
     await runInDurableObject(stub, async (instance, ctx) => {
-      await Reflect.get(instance, "roomIndexJob").running;
+      await Reflect.get(instance, "runtime").jobs.roomIndexJob.running;
       const db: D1Database = Reflect.get(instance, "env").APP_DB;
       const revision = ctx.storage.kv.get<number>("room-index-revision")!;
       const finishing = Promise.withResolvers<void>();
@@ -173,7 +174,7 @@ test.each(["index", "cleanup", "tournament"] as const)(
             : "tournamentStateJob";
       let pendingKey = "";
       await runInDurableObject(stub, async (instance, ctx) => {
-        await Reflect.get(instance, "roomIndexJob").running;
+        await Reflect.get(instance, "runtime").jobs.roomIndexJob.running;
         const db: D1Database = Reflect.get(instance, "env").APP_DB;
         const rows = await seedD1Rows(db, room.id, room.instanceId);
         held = holdWrite(kind);
@@ -186,7 +187,7 @@ test.each(["index", "cleanup", "tournament"] as const)(
               revision,
               closed: false,
               retryAtMs: Date.now(),
-              metadata: Reflect.get(instance, "publicMetadata").call(instance, room),
+              metadata: publicMetadata(Reflect.get(instance, "runtime"), room),
             });
           } else if (kind === "cleanup") {
             pendingKey = "account-cleanups";
@@ -255,7 +256,7 @@ test.each(["index", "cleanup", "tournament"] as const)(
           expect(held!.spy).toHaveBeenCalledTimes(1);
           held!.release.resolve();
           await Promise.all([first, next]);
-          await Reflect.get(instance, jobName).running;
+          await Reflect.get(instance, "runtime").jobs[jobName].running;
           const pending = ctx.storage.kv.get(pendingKey);
           expect(kind === "cleanup" ? pending : pending === undefined).toEqual(
             kind === "cleanup" ? [] : true,
@@ -297,7 +298,7 @@ test.each(["index", "cleanup", "tournament"] as const)(
         } finally {
           held!.release.resolve();
           await Promise.all(gets);
-          await Reflect.get(instance, jobName).running;
+          await Reflect.get(instance, "runtime").jobs[jobName].running;
           await rows.cleanup();
         }
       });

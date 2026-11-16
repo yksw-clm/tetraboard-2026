@@ -2,13 +2,15 @@ import {
   roomInteractionIntervalMs,
   roomSchema,
   roomSocketContract,
+  type Room,
   type RoomSocketClientMessage,
   type RoomStampNotification,
-  type Room,
 } from "@tetraboard/protocol";
+import { isHumanParticipant, readMembership, readRoom } from "../../adapters/room/state";
+import { withIndexTransaction } from "../../adapters/room/transaction";
 import { roomStorageKey } from "../../rooms/progressHelpers";
-import { lastChatAtKey, mutedKey, stampTag } from "./storageKeys";
 import type { RoomRuntime } from "./runtime";
+import { lastChatAtKey, mutedKey, stampTag } from "./storageKeys";
 
 export function interactionAvailableAtMs(runtime: RoomRuntime, playerId: string): number {
   const at = runtime.ctx.storage.kv.get<number>(lastChatAtKey(playerId));
@@ -23,13 +25,13 @@ export function sendStamp(
   | { status: "sent"; notification: RoomStampNotification; room: Room }
   | { status: "unauthorized" | "muted" | "room_changed" }
   | { status: "rate_limited"; interactionAvailableAtMs: number } {
-  return runtime.withIndexTransaction(() => {
-    const room = runtime.readRoom();
-    const membership = runtime.readMembership(tokenHash);
+  return withIndexTransaction(runtime, () => {
+    const room = readRoom(runtime);
+    const membership = readMembership(runtime, tokenHash);
     if (!room || !membership) return { status: "unauthorized" };
     if (room.instanceId !== command.instanceId) return { status: "room_changed" };
     const player = room.players.find((entry) => entry.id === membership.playerId);
-    if (!player || !runtime.isHumanParticipant(player)) return { status: "unauthorized" };
+    if (!player || !isHumanParticipant(runtime, player)) return { status: "unauthorized" };
     if ((runtime.ctx.storage.kv.get<string[]>(mutedKey) ?? []).includes(player.id))
       return { status: "muted" };
     const now = Date.now();

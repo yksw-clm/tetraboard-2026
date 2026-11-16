@@ -1,15 +1,16 @@
-import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import type { AccountAdmission } from "../../accounts/roomAccounts";
-import { storedAccount } from "../accountSeats/seats";
-import { registrationForPlayer } from "./records";
-import { persistRegistrationCredentials, updateRegistrationAppearance } from "./completeStorage";
-import type { AnalyticsIdentity } from "../../usageEvents/matches";
+import { readMembership, readRoom } from "../../adapters/room/state";
+import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import {
-  registrationKey,
   guestRegistrationState,
-  type StoredGuestRegistration,
+  registrationKey,
   type CompleteGuestRegistrationResult,
+  type StoredGuestRegistration,
 } from "../../rooms/registrationTypes";
+import type { AnalyticsIdentity } from "../../usageEvents/matches";
+import { storedAccount } from "../accountSeats/seats";
+import { persistRegistrationCredentials, updateRegistrationAppearance } from "./completeStorage";
+import { registrationForPlayer } from "./records";
 
 export function completeRegistrationSeat(
   runtime: RoomRuntime,
@@ -22,7 +23,7 @@ export function completeRegistrationSeat(
   )!;
   const now = Date.now();
   if (record.holdUntilMs <= now) return { status: "expired" };
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   if (
     !room ||
     room.instanceId !== record.instanceId ||
@@ -39,7 +40,7 @@ export function completeRegistrationSeat(
     registrationForPlayer(runtime, record.playerId)?.registrationId !== registrationId
   )
     return { status: "released" };
-  const membership = runtime.readMembership(record.oldTokenHash);
+  const membership = readMembership(runtime, record.oldTokenHash);
   const existing = storedAccount(runtime, record.playerId);
   if (
     membership?.playerId !== record.playerId ||
@@ -51,7 +52,8 @@ export function completeRegistrationSeat(
       : existing !== null)
   )
     return { status: "released" };
-  if (runtime.readMembership(record.newTokenHash)) return { status: "account_reservation_invalid" };
+  if (readMembership(runtime, record.newTokenHash))
+    return { status: "account_reservation_invalid" };
   const updatedRecord = persistRegistrationCredentials(
     runtime,
     registrationId,

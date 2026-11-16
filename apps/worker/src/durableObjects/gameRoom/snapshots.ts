@@ -4,29 +4,31 @@ import {
   type RoomPresence,
   type RoomSocketMessage,
 } from "@tetraboard/protocol";
+import { playerTokenHash, readMembership, readRoom } from "../../adapters/room/state";
 import {
-  roomFormationAnalysis,
   formationAnalysisTag,
+  roomFormationAnalysis,
 } from "../../rooms/fourShogiFormationAnalysis";
 import { eliminatedHandsTag } from "../../rooms/fourShogiProgress";
 import { broadcastChat } from "./chat";
+import type { RoomRuntime, RoomSocketError } from "./runtime";
 import { hasOpenConnection, sendCurrentMembership } from "./socket/membership";
-import type { RoomSocketError } from "./runtime";
-import type { RoomRuntime } from "./runtime";
 
 export function presence(runtime: RoomRuntime, room: Room): RoomPresence {
   const host = room.players.find((player) => {
-    const hash = runtime.playerTokenHash(player.id);
-    return hash !== null && runtime.readMembership(hash)?.role === "host";
+    const hash = playerTokenHash(runtime, player.id);
+    return hash !== null && readMembership(runtime, hash)?.role === "host";
   });
   return {
     hostPlayerId: host?.id ?? null,
     connectedPlayerIds: room.players
       .filter((player) => {
         if (player.kind === "cpu") return true;
-        const hash = runtime.playerTokenHash(player.id);
+        const hash = playerTokenHash(runtime, player.id);
         return (
-          hash !== null && runtime.readMembership(hash) !== null && hasOpenConnection(runtime, hash)
+          hash !== null &&
+          readMembership(runtime, hash) !== null &&
+          hasOpenConnection(runtime, hash)
         );
       })
       .map((player) => player.id),
@@ -57,10 +59,10 @@ export function broadcastRoom(runtime: RoomRuntime, room: Room): void {
     const host = room.players.find(
       (player) =>
         player.kind === "human" &&
-        runtime.readMembership(runtime.playerTokenHash(player.id) ?? "")?.role === "host",
+        readMembership(runtime, playerTokenHash(runtime, player.id) ?? "")?.role === "host",
     );
     if (host !== undefined) {
-      const hash = runtime.playerTokenHash(host.id);
+      const hash = playerTokenHash(runtime, host.id);
       if (hash !== null) sendCurrentMembership(runtime, hash);
     }
   }
@@ -111,7 +113,7 @@ export function rejectAction(
   error: RoomSocketError,
 ): void {
   sendSocketError(runtime, socket, error);
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   if (room !== null && socket.readyState === WebSocket.OPEN) {
     sendRoomSnapshot(runtime, socket, room);
   }

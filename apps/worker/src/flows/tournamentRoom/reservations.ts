@@ -1,18 +1,20 @@
-import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
+import { playerTokenHash, readRoom } from "../../adapters/room/state";
+import { withIndexTransaction } from "../../adapters/room/transaction";
 import { closeSockets } from "../../durableObjects/gameRoom/connections";
+import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { hasOpenConnection } from "../../durableObjects/gameRoom/socket/membership";
 import {
-  tournamentRoomKey,
-  tournamentReservationKey,
-  pendingTournamentStatePrefix,
   cancelledTournamentKey,
-  type TournamentRoomReservation,
+  pendingTournamentStatePrefix,
+  tournamentReservationKey,
+  tournamentRoomKey,
   type PendingTournamentState,
+  type TournamentRoomReservation,
 } from "../../rooms/tournamentRoom";
 
 export function tournamentReservation(
   runtime: RoomRuntime,
-  room = runtime.readRoom(),
+  room = readRoom(runtime),
 ): TournamentRoomReservation | null {
   const matchId = runtime.ctx.storage.kv.get<string>(tournamentRoomKey);
   const reservation = matchId
@@ -52,12 +54,12 @@ export async function getTournamentReservationState(runtime: RoomRuntime, matchI
   const reservation = runtime.ctx.storage.kv.get<TournamentRoomReservation>(
     tournamentReservationKey(matchId),
   );
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   const connectedPlayerIds =
     reservation?.status === "waiting" && room?.instanceId === reservation.instanceId
       ? room.players
           .filter((player) => {
-            const hash = runtime.playerTokenHash(player.id);
+            const hash = playerTokenHash(runtime, player.id);
             return hash !== null && hasOpenConnection(runtime, hash);
           })
           .map((player) => player.id)
@@ -82,9 +84,9 @@ export async function abortTournamentRoom(
   );
   if (reservation?.startedAtMs !== undefined) return { status: "already_started" as const };
   let closed = false;
-  runtime.withIndexTransaction(() => {
+  withIndexTransaction(runtime, () => {
     runtime.ctx.storage.kv.put(cancelledTournamentKey(matchId), true);
-    const room = runtime.readRoom();
+    const room = readRoom(runtime);
     if (reservation && room?.instanceId === reservation.instanceId) {
       runtime.ctx.storage.kv.put(tournamentReservationKey(matchId), {
         ...reservation,

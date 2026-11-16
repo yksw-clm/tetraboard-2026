@@ -1,8 +1,9 @@
-import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import type { AccountAdmission } from "../../accounts/roomAccounts";
-import { cancelledAdmissionKey } from "../../durableObjects/gameRoom/storageKeys";
 import { profileAvatarUrl } from "../../accounts/auth";
-import { storedAccount, queueAccountCleanup } from "./seats";
+import type { AccountAdmission } from "../../accounts/roomAccounts";
+import { readRoom } from "../../adapters/room/state";
+import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
+import { cancelledAdmissionKey } from "../../durableObjects/gameRoom/storageKeys";
+import { queueAccountCleanup, storedAccount } from "./seats";
 
 export async function accountReservationState(
   runtime: RoomRuntime,
@@ -22,7 +23,7 @@ export async function cancelAccountReservation(runtime: RoomRuntime, admission: 
     const seat = storedAccount(runtime, admission.playerId);
     if (seat?.operationId === admission.operationId && seat.occupying)
       return { occupied: true, avatarReferenced: true };
-    const room = runtime.readRoom();
+    const room = readRoom(runtime);
     const avatarReferenced =
       room?.instanceId === admission.instanceId &&
       (room.players.some(
@@ -42,7 +43,7 @@ export async function cancelAccountReservation(runtime: RoomRuntime, admission: 
       runtime.ctx.storage.kv.put(cancelledAdmissionKey(admission.operationId), true);
       queueAccountCleanup(runtime, admission, !avatarReferenced);
     });
-    runtime.markAlarm();
+    runtime.alarms.mark();
     return { occupied: false, avatarReferenced: Boolean(avatarReferenced) };
   });
 }
