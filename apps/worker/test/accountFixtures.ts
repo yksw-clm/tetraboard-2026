@@ -33,7 +33,14 @@ export async function accountFixture(
     .prepare(
       "INSERT INTO session (id, userId, token, expiresAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)",
     )
-    .bind(crypto.randomUUID(), id, token, now + 86400000, now, now)
+    .bind(
+      crypto.randomUUID(),
+      id,
+      token,
+      new Date(now + 86400000).toISOString(),
+      new Date(now).toISOString(),
+      new Date(now).toISOString(),
+    )
     .run();
   const key = await crypto.subtle.importKey(
     "raw",

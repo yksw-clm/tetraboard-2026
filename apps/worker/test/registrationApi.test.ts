@@ -12,7 +12,7 @@ import { accountRoutes } from "../src/accounts/accountRoutes";
 import { readRegistrationFlow } from "../src/accounts/registrationFlows";
 import { accountSessionIdentity } from "../src/accounts/auth";
 import { digest } from "../src/privacy/deletion";
-import { applyMatchClaims } from "../src/accounts/matchClaims";
+import { acceptMatchClaim, applyMatchClaims } from "../src/accounts/matchClaims";
 import { accountFixture, origin } from "./accountFixtures";
 import { boundaryRequest, RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 const request = (path: string, init?: RequestInit) =>
@@ -789,6 +789,47 @@ test("プロフィール入力読込後の取消もUPDATE条件で拒否し通�
     ).status,
   ).toBe(200);
 });
+
+test.each(["profile", "claim"])(
+  "%s の保存直前に失効した ISO session を拒否する",
+  async (action) => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.now());
+    const user = await accountFixture(action === "claim");
+    const flow = await seedFlow(user.cookie);
+    const db = beforeBatch(async () => {
+      await env.APP_DB.prepare("UPDATE session SET expiresAt=? WHERE userId=?")
+        .bind(new Date(Date.now() - 1).toISOString(), user.id)
+        .run();
+    });
+    if (action === "profile") {
+      const response = await accountRequest(profileRequest(flow, user.cookie), {
+        ...env,
+        APP_DB: db,
+      });
+      expect(response.status).toBe(401);
+      expect(
+        await env.APP_DB.prepare("SELECT profileCompleted FROM user WHERE id=?")
+          .bind(user.id)
+          .first("profileCompleted"),
+      ).toBe(0);
+    } else {
+      const identity = await session(user.cookie);
+      await expect(
+        acceptMatchClaim(
+          db,
+          {
+            matchId: crypto.randomUUID(),
+            playerId: crypto.randomUUID(),
+            accountId: user.id,
+            roomId: "98123",
+            instanceId: crypto.randomUUID(),
+          },
+          { registrationId: flow.registrationId, sessionId: identity.sessionId },
+        ),
+      ).rejects.toThrow("Match claim conflict");
+    }
+  },
+);
 
 test("取消処理の待機中にOAuthが固定したセッションも同じ取消で終了する", async () => {
   const user = await accountFixture();

@@ -56,17 +56,17 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
 }
 
 async function deleteExpiredCredentials(env: Env): Promise<void> {
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
   await env.APP_DB.batch([
-    env.APP_DB.prepare("DELETE FROM guest_sessions WHERE expires_at_ms<=?").bind(Date.now()),
-    env.APP_DB.prepare("DELETE FROM guest_oauth_flows WHERE expires_at_ms<=?").bind(Date.now()),
-    env.APP_DB.prepare("DELETE FROM session WHERE expiresAt < ?").bind(Date.now()),
-    env.APP_DB.prepare("DELETE FROM verification WHERE expiresAt < ?").bind(Date.now()),
-    env.APP_DB.prepare("DELETE FROM deletion_flows WHERE expires_at_ms < ?").bind(Date.now()),
-    env.APP_DB.prepare("DELETE FROM oauth_legal_consents WHERE expires_at_ms < ?").bind(Date.now()),
-    env.APP_DB.prepare("DELETE FROM registration_oauth_states WHERE expires_at_ms <= ?").bind(
-      Date.now(),
-    ),
-    env.APP_DB.prepare("DELETE FROM deletion_challenges WHERE expires_at_ms < ?").bind(Date.now()),
-    env.APP_DB.prepare("DELETE FROM rateLimit WHERE lastRequest < ?").bind(Date.now() - 86400000),
+    env.APP_DB.prepare("DELETE FROM guest_sessions WHERE expires_at_ms<=?").bind(now),
+    env.APP_DB.prepare("DELETE FROM guest_oauth_flows WHERE expires_at_ms<=?").bind(now),
+    env.APP_DB.prepare("DELETE FROM session WHERE expiresAt < ?").bind(nowIso),
+    env.APP_DB.prepare("DELETE FROM verification WHERE expiresAt < ?").bind(nowIso),
+    env.APP_DB.prepare("DELETE FROM deletion_flows WHERE expires_at_ms < ?").bind(now),
+    env.APP_DB.prepare("DELETE FROM oauth_legal_consents WHERE expires_at_ms < ?").bind(now),
+    env.APP_DB.prepare("DELETE FROM registration_oauth_states WHERE expires_at_ms <= ?").bind(now),
+    env.APP_DB.prepare("DELETE FROM deletion_challenges WHERE expires_at_ms < ?").bind(now),
+    env.APP_DB.prepare("DELETE FROM rateLimit WHERE lastRequest < ?").bind(now - 86400000),
   ]);
 }
