@@ -127,9 +127,11 @@ test("D1本体と全アカウント索引を一括保存し、再送では内容
       .bind(other.id)
       .first(),
   ).toEqual({ n: 0 });
+  const brokenId = crypto.randomUUID();
   const broken = {
     ...record,
-    id: crypto.randomUUID(),
+    id: brokenId,
+    replay: { ...record.replay, id: brokenId },
     participants: record.participants.map((p, i) =>
       i === 1 && p.kind === "human" ? { ...p, accountId: other.id } : p,
     ),

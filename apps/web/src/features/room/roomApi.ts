@@ -1,4 +1,5 @@
 import { leaveRoomContract, reportContract, viewerContract } from "@tetraboard/protocol";
+import { parseRoomResponse } from "../../shared/roomResponseValidation";
 
 export { fetchRoom } from "../../shared/roomAccess";
 
@@ -17,7 +18,7 @@ export async function issueViewerToken(id: string): Promise<string> {
     method: viewerContract.method,
   });
   if (!response.ok) throw new Error("Viewer token failed");
-  return viewerContract.response.parse(await response.json()).token;
+  return parseRoomResponse(viewerContract.response, await response.json(), "room.viewer", id).token;
 }
 
 export async function reportMessage(id: string, token: string, messageId: string): Promise<void> {

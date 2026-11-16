@@ -11,6 +11,7 @@ import {
 } from "@tetraboard/protocol";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { accountRequest } from "../account/accountApi";
+import { notifyRoomResponseValidation } from "../../shared/roomResponseValidation";
 const api = (game: MatchmakingGame) => `/api/matchmaking/${game}`;
 const waitingQuery = (game: MatchmakingGame) =>
   game === "four-reversi"
@@ -83,11 +84,18 @@ export async function readRatingResult(
   matchId: string,
   signal: AbortSignal,
 ) {
-  return ratingContracts[game].result.parse(
-    await accountRequest(`${api(game)}/results/${matchId}?includeOpponent=1`, {
-      signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]),
-    }),
+  const result = ratingContracts[game].result.safeParse(
+    await accountRequest(
+      `${api(game)}/results/${matchId}?includeOpponent=1`,
+      { signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]) },
+      { requireJson: true },
+    ),
   );
+  if (!result.success) {
+    notifyRoomResponseValidation("rating.result", undefined, signal);
+    throw result.error;
+  }
+  return result.data;
 }
 
 export async function readRatingSummary(game: RatedMatchmakingGame, signal: AbortSignal) {

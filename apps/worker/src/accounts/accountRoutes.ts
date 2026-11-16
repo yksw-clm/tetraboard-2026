@@ -367,6 +367,7 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
   let savedDetails: Pick<StoredProfile, "profileMessage" | "favoriteGames"> = {};
   try {
     // 同時編集で参照中の画像を消さず、旧画像の削除待ちをプロフィールと同時に保存します。
+    const now = Date.now();
     const results = await c.env.APP_DB.batch<{
       id: string;
       publicProfileId: string;
@@ -392,13 +393,15 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
         details.data.favoriteGames === undefined
           ? null
           : JSON.stringify(details.data.favoriteGames),
-        new Date().toISOString(),
+        new Date(now).toISOString(),
         publicProfileId,
         user.id,
         expectedCompleted,
         user.avatarKey,
         user.avatarPresetId ?? null,
-        ...(registration ? [registration.id, registration.session_id, Date.now(), Date.now()] : []),
+        ...(registration
+          ? [registration.id, registration.session_id, now, new Date(now).toISOString()]
+          : []),
       ),
       c.env.APP_DB.prepare(
         "INSERT OR IGNORE INTO avatar_deletions (key) SELECT ? WHERE ? IS NOT NULL AND ? IS NOT ? AND changes() = 1",

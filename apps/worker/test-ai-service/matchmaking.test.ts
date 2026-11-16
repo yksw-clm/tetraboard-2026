@@ -10,6 +10,7 @@ import { applyAction, createInitialState, eliminateColor } from "@tetraboard/fou
 import { accountFixture, origin } from "../test/accountFixtures";
 import { AcceptedGameRequest } from "../test/acceptedGameRequest";
 import { readFourReversiMatchRecord } from "../src/accounts/matchDataContracts";
+import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";
 import { fourReversiCpuJobKey, type FourReversiCpuJob } from "../src/rooms/fourReversiProgress";
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
@@ -137,7 +138,8 @@ async function playCpuRatedMatch(leaveAfterResign: boolean) {
       .bind(assigned.matchId)
       .first<{ record_json: string }>();
     expect(stored).not.toBeNull();
-    const record = readFourReversiMatchRecord(stored!.record_json);
+    const restored = await readMatchDetailRecord(env.APP_DB, stored!.record_json, "four-reversi");
+    const record = readFourReversiMatchRecord(JSON.stringify(restored.record));
     for (const player of record.participants) {
       const query = new URLSearchParams({
         source: "match",

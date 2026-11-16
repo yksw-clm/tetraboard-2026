@@ -103,7 +103,7 @@ export async function acceptMatchClaim(
         now,
         now,
         input.accountId,
-        ...(guard ? [guard.registrationId, guard.sessionId, now, now] : []),
+        ...(guard ? [guard.registrationId, guard.sessionId, now, new Date(now).toISOString()] : []),
       ),
     db
       .prepare(`INSERT OR IGNORE INTO privacy_room_accounts(account_id,room_id)

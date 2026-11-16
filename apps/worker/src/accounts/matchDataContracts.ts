@@ -1,3 +1,9 @@
+import {
+  eventReplaySchema,
+  isEventReplay,
+  snapshotRecord,
+  type StoredRecord,
+} from "../rooms/eventRecord";
 import { profileRatingsSchema } from "@tetraboard/protocol";
 import { fourGomokuMatchData } from "./fourGomokuMatchData";
 import type { MatchRecord as FourGomokuMatchRecord } from "../rooms/fourGomokuMatchStore";
@@ -62,6 +68,11 @@ export type RecordFor<G extends GameId> = MatchDataMap[G]["record"];
 export type StatsFor<G extends GameId> = MatchDataMap[G]["stats"];
 export type MatchDataContract<G extends GameId> = {
   read: (json: string) => RecordFor<G>;
+  readStored?: (
+    json: string,
+  ) => RecordFor<G> extends { replay: import("../rooms/eventRecord").SnapshotReplay }
+    ? StoredRecord<RecordFor<G>>
+    : RecordFor<G>;
   detail: (
     record: RecordFor<G>,
     selfPlayerId: string,
@@ -135,7 +146,7 @@ function publicIdentity(
     avatarUrl: profile?.avatarUrl ?? null,
   };
 }
-function reversiPublic(record: MatchRecord, profiles: ParticipantProfiles) {
+function reversiPublic(record: Omit<MatchRecord, "replay">, profiles: ParticipantProfiles) {
   return record.participants.map((p) => ({
     id: p.id,
     color: p.color,
@@ -202,8 +213,19 @@ export const matchDataContracts = {
   gomoku: gomokuMatchData,
   "four-reversi": {
     read: readFourReversiMatchRecord,
+    readStored(json: string): StoredRecord<MatchRecord> {
+      const value = reversiRecordSchema
+        .extend({
+          replay: z.union([
+            reversiRecordSchema.shape.replay,
+            eventReplaySchema(reversiRecordSchema.shape.replay),
+          ]),
+        })
+        .parse(JSON.parse(json));
+      return isEventReplay(value.replay) ? value : readFourReversiMatchRecord(json);
+    },
     detail: reversiDetail,
-    summary: (record: MatchRecord, profiles: ParticipantProfiles) =>
+    summary: (record: Omit<MatchRecord, "replay">, profiles: ParticipantProfiles) =>
       fourReversiMatchSummarySchema.parse({
         id: record.id,
         game: record.settings.game,
@@ -233,7 +255,14 @@ export const matchDataContracts = {
     rankings: (value: unknown) => gameRankingContracts["four-shogi"].response.parse(value),
   },
 } satisfies { [G in GameId]: MatchDataContract<G> };
-export type DecodedMatch = { [G in GameId]: { game: G; record: RecordFor<G> } }[GameId];
+export type DecodedMatch = {
+  [G in GameId]: {
+    game: G;
+    record: RecordFor<G> extends { replay: import("../rooms/eventRecord").SnapshotReplay }
+      ? StoredRecord<RecordFor<G>>
+      : RecordFor<G>;
+  };
+}[GameId];
 const storedGameSchema = z.object({ settings: z.object({ game: gameIdSchema }) });
 export function readStoredMatch(json: string, expectedGame: unknown): DecodedMatch {
   const value: unknown = JSON.parse(json);
@@ -243,13 +272,13 @@ export function readStoredMatch(json: string, expectedGame: unknown): DecodedMat
     case "shogi":
       return { game, record: matchDataContracts[game].read(json) };
     case "reversi":
-      return { game, record: matchDataContracts[game].read(json) };
+      return { game, record: matchDataContracts[game].readStored(json) };
     case "four-gomoku":
-      return { game, record: matchDataContracts[game].read(json) };
+      return { game, record: matchDataContracts[game].readStored(json) };
     case "gomoku":
-      return { game, record: matchDataContracts[game].read(json) };
+      return { game, record: matchDataContracts[game].readStored(json) };
     case "four-reversi":
-      return { game, record: matchDataContracts[game].read(json) };
+      return { game, record: matchDataContracts[game].readStored(json) };
     case "four-shogi":
       return { game, record: matchDataContracts[game].read(json) };
     default: {
@@ -295,13 +324,29 @@ export function matchDetail(
     case "shogi":
       return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);
     case "reversi":
-      return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);
+      return matchDataContracts[match.game].detail(
+        snapshotRecord<ReversiMatchRecord>(match.record),
+        selfPlayerId,
+        profiles,
+      );
     case "four-gomoku":
-      return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);
+      return matchDataContracts[match.game].detail(
+        snapshotRecord<FourGomokuMatchRecord>(match.record),
+        selfPlayerId,
+        profiles,
+      );
     case "gomoku":
-      return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);
+      return matchDataContracts[match.game].detail(
+        snapshotRecord<GomokuMatchRecord>(match.record),
+        selfPlayerId,
+        profiles,
+      );
     case "four-reversi":
-      return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);
+      return matchDataContracts[match.game].detail(
+        snapshotRecord<MatchRecord>(match.record),
+        selfPlayerId,
+        profiles,
+      );
     case "four-shogi":
       return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);
     default: {

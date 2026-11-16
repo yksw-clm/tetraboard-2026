@@ -1,3 +1,5 @@
+import { snapshotRecord } from "../src/rooms/eventRecord";
+import type { SnapshotMatch } from "../src/rooms/snapshotMatchEvents";
 import { env } from "cloudflare:workers";
 import { expect, test } from "vitest";
 import { gameIds, type GameId } from "@tetraboard/protocol/games";
@@ -74,7 +76,7 @@ function fixture(game: GameId, cpu = false) {
       await saveShogiFixture({ record: record.record, events: fourShogi.events });
     else if (record.game === "shogi")
       await saveStandardShogiFixture({ record: record.record, events: shogi.events });
-    else await writeMatch(env.APP_DB, record.record);
+    else await writeMatch(env.APP_DB, snapshotRecord<SnapshotMatch>(record.record));
   }
   return { record, save };
 }

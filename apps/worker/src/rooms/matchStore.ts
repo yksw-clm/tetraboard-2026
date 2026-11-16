@@ -1,6 +1,7 @@
+import { prepareSnapshotMatch } from "./snapshotMatchStore";
 import type { ProfileRatings } from "@tetraboard/protocol";
 import { tournamentMatchStatements } from "../tournaments/store";
-import { readFourReversiMatchRecord, readStoredMatch } from "../accounts/matchDataContracts";
+import { readStoredMatch } from "../accounts/matchDataContracts";
 import {
   applyFourReversiRating,
   fourReversiRatingStore,
@@ -62,37 +63,16 @@ export async function writeMatch(
   tournament?: TournamentRoomContext,
 ): Promise<void> {
   record = await redactParticipants(db, record);
+  const prepared = await prepareSnapshotMatch(db, record);
   let tournamentStatements: D1PreparedStatement[] = [];
   if (tournament) {
-    const saved = await db
-      .prepare("SELECT game,record_json FROM matches WHERE id=?")
-      .bind(record.id)
-      .first<{ game: string; record_json: string }>();
-    if (saved && saved.game !== record.settings.game)
-      throw new Error("Match ID belongs to another game");
-    const canonical = readStoredMatch(
-      saved?.record_json ?? JSON.stringify(record),
-      record.settings.game,
-    );
+    const canonical = prepared.canonical;
     if (canonical.game !== "four-reversi" && canonical.game !== "four-gomoku")
       throw new Error("Invalid tournament game");
-    record = canonical.record;
     tournamentStatements = tournamentMatchStatements(db, tournament, canonical.record);
   }
-  const statements = [
-    db
-      .prepare(`INSERT INTO matches (id, game, mode, started_at_ms, ended_at_ms, record_json)
-      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`)
-      .bind(
-        record.id,
-        record.settings.game,
-        record.settings.mode ?? "standard",
-        record.startedAtMs,
-        record.endedAtMs,
-        JSON.stringify(record),
-      ),
-  ];
-  // Index identities from the committed record, even if a conflicting retry arrives.
+  const statements: D1PreparedStatement[] = prepared.statement ? [prepared.statement] : [];
+  // 再送の内容が異なっても、保存済みの本人情報を索引へ反映します。
   statements.push(
     db
       .prepare(`INSERT INTO account_match_history
@@ -111,15 +91,13 @@ export async function writeMatch(
   statements.push(...badgeAwardStatements(db, record.settings.game, record.id));
   statements.push(...tournamentStatements);
   await db.batch(statements);
-  if ("fourReversiRating" in record && record.fourReversiRating) {
-    const saved = await db
-      .prepare("SELECT record_json FROM matches WHERE id=? AND game='four-reversi'")
-      .bind(record.id)
-      .first<{ record_json: string }>();
-    if (!saved) throw Error("四人リバーシの対局が保存されていません");
-    await applyFourReversiRating(db, readFourReversiMatchRecord(saved.record_json));
-    await fourReversiRatingStore.clearPending(db, record.id).run();
-  }
+  const saved = await db
+    .prepare("SELECT record_json FROM matches WHERE id = ? AND game = ?")
+    .bind(record.id, record.settings.game)
+    .first<{ record_json: string }>();
+  if (!saved) throw new Error("Match publication was incomplete");
+  if ("fourReversiRating" in record && record.fourReversiRating)
+    await finalizeFourReversiRating(db, saved.record_json);
   if (
     tournament &&
     !(await db
@@ -128,5 +106,13 @@ export async function writeMatch(
       .first())
   )
     throw new Error("Tournament result publication was incomplete");
+  await db.prepare("DELETE FROM match_uploads WHERE id = ?").bind(record.id).run();
   await applyMatchClaims(db, record.id);
+}
+
+async function finalizeFourReversiRating(db: D1Database, json: string) {
+  const canonical = readStoredMatch(json, "four-reversi");
+  if (canonical.game !== "four-reversi") throw new Error("Invalid rated game");
+  await applyFourReversiRating(db, canonical.record);
+  await fourReversiRatingStore.clearPending(db, canonical.record.id).run();
 }

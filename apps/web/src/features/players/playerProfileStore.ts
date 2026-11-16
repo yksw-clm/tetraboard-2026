@@ -4,6 +4,7 @@ import {
   type PlayerProfileTarget,
 } from "@tetraboard/protocol";
 import type { GameId } from "@tetraboard/protocol/games";
+import { notifyRoomResponseValidation } from "../../shared/roomResponseValidation";
 export type ProfileState = {
   loading: boolean;
   profile: PlayerProfile | null;
@@ -64,7 +65,13 @@ export class PlayerProfileStore {
             ? "プロフィールを表示できません。"
             : "プレイヤー情報を取得できませんでした。",
         );
-      const profile = getPlayerProfileContract.response.parse(await response.json());
+      const parsed = getPlayerProfileContract.response.safeParse(await response.json());
+      if (!parsed.success) {
+        if (target.source === "room")
+          notifyRoomResponseValidation("player.profile", target.roomId, controller.signal);
+        throw parsed.error;
+      }
+      const profile = parsed.data;
       if (profile.kind === "account" && profile.game !== game)
         throw new Error("プレイヤー情報を取得できませんでした。");
       if (controller.signal.aborted || this.pending.get(key) !== controller) return;
