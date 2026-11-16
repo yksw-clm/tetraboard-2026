@@ -31,7 +31,7 @@ import { servePublicAssets } from "./publicAssets";
 import { tournamentRoutes, tournamentAdminRoutes } from "./tournaments/routes";
 
 export { CpuCapacity } from "./rooms/cpuCapacity";
-export { GameRoom } from "./rooms/gameRoom";
+export { GameRoom } from "./durableObjects/gameRoom/gameRoom";
 export { MatchmakingCoordinator } from "./matchmaking/coordinator";
 export { TournamentCoordinator } from "./tournaments/coordinator";
 

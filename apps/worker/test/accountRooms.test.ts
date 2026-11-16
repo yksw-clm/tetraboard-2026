@@ -1,5 +1,5 @@
 import { AcceptedGameRequest } from "./acceptedGameRequest";
-import { GameRoom } from "../src/rooms/gameRoom";
+import { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";

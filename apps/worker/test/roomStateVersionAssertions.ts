@@ -1,6 +1,6 @@
 import { runInDurableObject } from "cloudflare:test";
 import { expect, vi } from "vitest";
-import type { GameRoom } from "../src/rooms/gameRoom";
+import type { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 import { FourShogiProgress } from "../src/rooms/fourShogiProgress";
 import { FourReversiProgress } from "../src/rooms/fourReversiProgress";
 import { FourGomokuProgress } from "../src/rooms/fourGomokuProgress";

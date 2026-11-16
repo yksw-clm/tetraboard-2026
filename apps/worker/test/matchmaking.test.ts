@@ -1,5 +1,5 @@
 import { expectVersionedRoom } from "./roomStateVersionAssertions";
-import { GameRoom } from "../src/rooms/gameRoom";
+import { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 import { env, exports } from "cloudflare:workers";
 import { evictDurableObject, runInDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
