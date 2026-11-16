@@ -86,7 +86,7 @@ test.each([false, true])(
       state.storage.kv.get<import("../src/usageEvents/matches").AnalyticsMatch>("analytics-active"),
     );
     const matchId = active!.id;
-    expect(events.filter((e) => e.name === "match_started")).toEqual([
+    expect(events.filter((e) => e.name === "match_started" && e.matchId === matchId)).toEqual([
       {
         name: "match_started",
         game: "four-reversi",
@@ -98,9 +98,13 @@ test.each([false, true])(
         cpus: 0,
       },
     ]);
-    expect(events.filter((e) => e.name === "match_participant")).toHaveLength(4);
+    expect(
+      events.filter((e) => e.name === "match_participant" && e.matchId === matchId),
+    ).toHaveLength(4);
     for (const participant of active!.participants)
-      expect(events).toContainEqual({
+      expect(
+        events.filter((e) => e.name === "match_participant" && e.matchId === matchId),
+      ).toContainEqual({
         name: "match_participant",
         game: "four-reversi",
         matchId,
@@ -119,7 +123,7 @@ test.each([false, true])(
             room.game.eliminatedColors.includes(color as "black" | "white"),
       );
     }
-    expect(events.filter((e) => e.name === "match_ended")).toEqual([
+    expect(events.filter((e) => e.name === "match_ended" && e.matchId === matchId)).toEqual([
       {
         name: "match_ended",
         game: "four-reversi",
@@ -156,14 +160,21 @@ test.each([false, true])(
     await readyPlayers(setup.id, setup.connections);
     setup.connections[0].send({ type: "room.game.start" });
     await setup.connections[0].nextSnapshotWhere((room) => room.status === "playing");
-    const participants = events.filter((e) => e.name === "match_participant");
+    const active = await runInDurableObject(env.GAME_ROOM.getByName(setup.id), (_, state) =>
+      state.storage.kv.get<import("../src/usageEvents/matches").AnalyticsMatch>("analytics-active"),
+    );
+    const matchId = active!.id;
+    const participants = events.filter(
+      (e) => e.name === "match_participant" && e.matchId === matchId,
+    );
+    expect(participants).toHaveLength(browserIds.length);
     for (const [index, browserId] of browserIds.entries())
       expect(participants).toContainEqual(
         expect.objectContaining({ browserId, isTest: allTest || index === 0 }),
       );
-    expect(events).toContainEqual(
+    expect(events.filter((e) => e.name === "match_started" && e.matchId === matchId)).toEqual([
       expect.objectContaining({ name: "match_started", isTest: allTest }),
-    );
+    ]);
   },
 );
 
