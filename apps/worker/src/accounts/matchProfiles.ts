@@ -1,11 +1,11 @@
 import { resolveMatchParticipantList } from "./matchClaims";
-import type { DecodedMatch } from "./matchDataContracts";
+import type { ReadableMatch } from "./matchDataContracts";
 import { readCurrentProfiles } from "./currentProfiles";
 
 export type ParticipantProfile = { name: string; avatarUrl: string | null };
 export type ParticipantProfiles = ReadonlyMap<string, ParticipantProfile>;
 
-export async function participantProfiles(db: D1Database, records: DecodedMatch[]) {
+export async function participantProfiles(db: D1Database, records: ReadableMatch[]) {
   await resolveMatchParticipantList(db, records);
   const accountIds = [
     ...new Set(

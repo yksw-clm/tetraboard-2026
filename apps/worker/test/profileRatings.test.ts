@@ -1,4 +1,5 @@
 import { ratedMatchmakingPolicy } from "../src/matchmaking/ratedMatchmaking";
+import { prepareStoredMatchFixture } from "./snapshotMatchFixtures";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
@@ -13,7 +14,7 @@ import { standardShogiRecord } from "./standardShogiFixtures";
 import { shogiRecord } from "./shogiMatchFixtures";
 import { fixtureRecord } from "./matchFixtures";
 import archive from "../../../test-fixtures/matches/reversi-standard-draw.json";
-import { readStoredMatch } from "../src/accounts/matchDataContracts";
+import { readMatchRecord } from "../src/accounts/matchDataContracts";
 import { profileRatingsKey } from "../src/accounts/profileRatings";
 import { redactRetiredParticipants } from "../src/privacy/identity";
 
@@ -87,7 +88,7 @@ function recordFor(game: RatedMatchmakingGame, accountId: string) {
   );
   const ranked = game.startsWith("four-");
   const recordId = crypto.randomUUID();
-  return readStoredMatch(
+  return readMatchRecord(
     JSON.stringify({
       ...base,
       id: recordId,
@@ -120,7 +121,7 @@ async function save(record: ReturnType<typeof recordFor>) {
       record.game.startsWith("four-") ? "singles" : "standard",
       record.record.startedAtMs,
       record.record.endedAtMs,
-      JSON.stringify(record.record),
+      await prepareStoredMatchFixture(env.APP_DB, JSON.stringify(record.record)),
     )
     .run();
   savedMatches.push(record.record.id);
@@ -206,7 +207,10 @@ test.each(games)(
     const legacy = await request(query);
     expect(legacy.status).toBe(200);
     expect(await legacy.json()).not.toHaveProperty("rating");
-    const raw = JSON.parse(JSON.stringify(match.record));
+    const stored = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id=?")
+      .bind(match.record.id)
+      .first<string>("record_json");
+    const raw = JSON.parse(stored!);
     delete raw.rating;
     delete raw.fourReversiRating;
     delete raw.fourShogiRating;
@@ -263,7 +267,7 @@ test.each(games)("新規%sの成立時のレートを固定し、後続の更新
     const frozen = await runInDurableObject(env.GAME_ROOM.getByName(roomId), (_, ctx) =>
       ctx.storage.kv.get(profileRatingsKey(assignment.matchId)),
     );
-    const stored = readStoredMatch(
+    const stored = readMatchRecord(
       JSON.stringify({ ...seed.record, profileRatings: frozen }),
       game,
     );

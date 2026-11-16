@@ -1,3 +1,4 @@
+import { prepareStoredMatchFixture } from "./snapshotMatchFixtures";
 import { accountAvatarPresetId, avatarPresetUrl } from "@tetraboard/protocol";
 import { applyD1Migrations, runInDurableObject } from "cloudflare:test";
 import { env as bindings } from "cloudflare:workers";
@@ -71,6 +72,7 @@ for (const fixture of [...reversiArchives, ...shogiArchives]) {
     const json =
       fixture.name === "shogi-legacy" ? await migratedShogiArchiveJson(env.APP_DB, source) : source;
     const match = fixture.detail;
+    let expectedStored = json;
     if (match.settings.game === "four-shogi") {
       const record = await persistedRecord(json);
       const events = fixture.events.map((entry) => fourShogiReplayEventSchema.parse(entry.event));
@@ -80,6 +82,7 @@ for (const fixture of [...reversiArchives, ...shogiArchives]) {
           events.slice(cursor, cursor + 100),
         );
     } else {
+      expectedStored = await prepareStoredMatchFixture(env.APP_DB, json);
       await env.APP_DB.prepare(
         "INSERT INTO matches (id,game,mode,started_at_ms,ended_at_ms,record_json) VALUES (?,?,?,?,?,?)",
       )
@@ -89,7 +92,7 @@ for (const fixture of [...reversiArchives, ...shogiArchives]) {
           match.settings.mode,
           match.startedAtMs,
           match.endedAtMs,
-          json,
+          expectedStored,
         )
         .run();
     }
@@ -124,7 +127,7 @@ for (const fixture of [...reversiArchives, ...shogiArchives]) {
     const stored = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id=?")
       .bind(match.id)
       .first<{ record_json: string }>();
-    expect(stored?.record_json).toBe(json);
+    expect(stored?.record_json).toBe(expectedStored);
   });
 }
 test("migration後の保存待ちは元JSONとmanifestを保持したまま再開する", async () => {

@@ -126,6 +126,7 @@ test("通常将棋の棋譜は公開前の破損を検出し、再試行と100�
   expect(await readShogiMatchReplayPage(env.APP_DB, fixture.record.id, 0, "four-shogi")).toBeNull();
   const json = JSON.stringify(fixture.record);
   const parsed = readStoredMatch(json, "shogi");
+  if (parsed.game !== "shogi") throw new Error("Unexpected stored game");
   expect(publicShogiMatchDetailSchema.parse(publicMatchDetail(parsed, new Map())).game).toEqual(
     fixture.record.game,
   );

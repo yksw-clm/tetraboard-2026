@@ -31,3 +31,21 @@ const wrongReversiStats: StatsFor<"four-reversi"> = shogiStats;
 // @ts-expect-error 将棋の読取り・公開棋譜契約をリバーシへ登録できない
 const wrongReader: MatchDataContract<"four-reversi"> = matchDataContracts["four-shogi"];
 void [missing, missingSql, wrongSql, wrongShogiStats, wrongReversiStats, wrongReader];
+
+import type { StoredRecord } from "../src/rooms/eventRecord";
+import {
+  matchDetail,
+  type DecodedMatch,
+  type ReplayedMatch,
+} from "../src/accounts/matchDataContracts";
+declare const storedReversi: StoredRecord<RecordFor<"four-reversi">>;
+// @ts-expect-error D1の本体には再生後のstepsが必要な棋譜を渡せない
+const wrongStored: StoredRecord<RecordFor<"four-reversi">> = reversi;
+// @ts-expect-error イベントを再生する前のD1本体を完全な棋譜として扱えない
+const wrongReplayed: RecordFor<"four-reversi"> = storedReversi;
+declare const stored: DecodedMatch;
+// @ts-expect-error 詳細の応答を作る前にD1のイベントを再生する必要がある
+matchDetail(stored, "", new Map());
+declare const replayed: ReplayedMatch;
+matchDetail(replayed, "", new Map());
+void [wrongStored, wrongReplayed];

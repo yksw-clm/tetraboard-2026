@@ -8,15 +8,8 @@ export type EventReplay<R extends SnapshotReplay> = Omit<R, "steps"> & {
   omittedLastMoves?: number[];
 };
 export type StoredRecord<T extends { replay: SnapshotReplay }> = Omit<T, "replay"> & {
-  replay: T["replay"] | EventReplay<T["replay"]>;
+  replay: EventReplay<T["replay"]>;
 };
-export function isEventReplay(replay: unknown): replay is EventReplay<SnapshotReplay> {
-  return typeof replay === "object" && replay !== null && "format" in replay;
-}
-export function snapshotRecord<T extends { replay: SnapshotReplay }>(record: StoredRecord<T>): T {
-  if (isEventReplay(record.replay)) throw new Error("Match events have not been replayed");
-  return record as T;
-}
 export function eventReplaySchema<I>(schema: {
   shape: { id: z.ZodType<string>; initial: z.ZodType<I> };
 }) {

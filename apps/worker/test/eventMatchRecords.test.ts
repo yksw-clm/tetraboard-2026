@@ -1,3 +1,4 @@
+import { participantProfiles } from "../src/accounts/matchProfiles";
 import { env } from "cloudflare:workers";
 import { afterEach, expect, test } from "vitest";
 import { reversiArchives } from "../../../test-fixtures/matches";
@@ -10,7 +11,12 @@ import mixed from "../../../test-fixtures/matches/four-gomoku-doubles-mixed.json
 import eliminated from "../../../test-fixtures/matches/four-gomoku-doubles-elimination.json";
 import { accountFixture } from "./accountFixtures";
 import { boundaryRequest } from "./roomBoundaryFixtures";
-import { readStoredMatch, matchDataContracts } from "../src/accounts/matchDataContracts";
+import {
+  readStoredMatch,
+  readMatchRecord,
+  publicMatchDetail,
+  matchDetail,
+} from "../src/accounts/matchDataContracts";
 import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";
 import { writeMatch } from "../src/rooms/matchStore";
 import type { SnapshotMatch } from "../src/rooms/snapshotMatchEvents";
@@ -45,21 +51,12 @@ async function remove(id: string) {
     env.APP_DB.prepare("DELETE FROM matches WHERE id = ?").bind(id),
   ]);
 }
-function readLegacy(json: string): SnapshotMatch {
-  const match = readStoredMatch(json, JSON.parse(json).settings.game);
-  switch (match.game) {
-    case "reversi":
-      return matchDataContracts.reversi.read(json);
-    case "four-reversi":
-      return matchDataContracts["four-reversi"].read(json);
-    case "gomoku":
-      return matchDataContracts.gomoku.read(json);
-    case "four-gomoku":
-      return matchDataContracts["four-gomoku"].read(json);
-    default:
-      throw Error("Not a snapshot game");
-  }
+function readSnapshot(json: string): SnapshotMatch {
+  const match = readMatchRecord(json, JSON.parse(json).settings.game);
+  if (match.game === "shogi" || match.game === "four-shogi") throw Error("Not a snapshot game");
+  return match.record;
 }
+
 async function responses(record: SnapshotMatch, cookie: string) {
   const publicResponse = await boundaryRequest(`/matches/${record.id}`);
   const ownResponse = await boundaryRequest(`/account/matches/${record.id}`, {
@@ -70,32 +67,24 @@ async function responses(record: SnapshotMatch, cookie: string) {
   return { public: await publicResponse.json(), own: await ownResponse.json() };
 }
 for (const fixture of fixtures)
-  test(`${fixture.name}: 新旧保存の公開・本人詳細で全ステップと最終結果が一致する`, async () => {
+  test(`${fixture.name}: イベント保存の公開・本人詳細で完全な棋譜の全ステップと最終結果を保持する`, async () => {
     const user = await accountFixture();
-    const record = readLegacy(fixture.json.replaceAll("fixture-self", user.id));
+    const record = readSnapshot(fixture.json.replaceAll("fixture-self", user.id));
     ids.add(record.id);
     await remove(record.id);
-    await env.APP_DB.batch([
-      env.APP_DB.prepare("INSERT INTO matches VALUES (?, ?, ?, ?, ?, ?)").bind(
-        record.id,
-        record.settings.game,
-        "mode" in record.settings ? record.settings.mode : "standard",
-        record.startedAtMs,
-        record.endedAtMs,
-        JSON.stringify(record),
-      ),
-      env.APP_DB.prepare("INSERT INTO account_match_history VALUES (?, ?, ?, ?, ?)").bind(
-        user.id,
-        record.id,
-        "mode" in record.settings ? record.settings.mode : "standard",
-        record.startedAtMs,
-        record.settings.game,
-      ),
-    ]);
-    const expected = await responses(record, user.cookie);
-    await remove(record.id);
     await writeMatch(env.APP_DB, record);
-    expect(await responses(record, user.cookie)).toEqual(expected);
+    const complete = readMatchRecord(JSON.stringify(record), record.settings.game);
+    const profiles = await participantProfiles(env.APP_DB, [complete]);
+    expect(await responses(record, user.cookie)).toEqual({
+      public: { match: publicMatchDetail(complete, profiles) },
+      own: {
+        match: matchDetail(
+          complete,
+          record.participants.find((p) => p.kind === "human" && p.accountId === user.id)!.id,
+          profiles,
+        ),
+      },
+    });
     const raw = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id = ?")
       .bind(record.id)
       .first<{ record_json: string }>();
@@ -132,7 +121,7 @@ for (const fixture of fixtures)
 
 test("大きな棋譜を100イベントのチャンクへ分け、再送・途中失敗・競合を安全に扱う", async () => {
   const user = await accountFixture();
-  const record = readLegacy(full.recordJson.replaceAll("fixture-self", user.id));
+  const record = readSnapshot(full.recordJson.replaceAll("fixture-self", user.id));
   ids.add(record.id);
   await remove(record.id);
   expect(new TextEncoder().encode(JSON.stringify(record)).length).toBeGreaterThan(100_000);
@@ -206,7 +195,7 @@ test("大きな棋譜を100イベントのチャンクへ分け、再送・途�
 });
 
 test("イベントの再生と最終局面が異なる対局は公開しない", async () => {
-  const record = readLegacy(recordJson(reversi.detail));
+  const record = readSnapshot(recordJson(reversi.detail));
   ids.add(record.id);
   await remove(record.id);
   record.game.moveNumber++;
@@ -215,3 +204,44 @@ test("イベントの再生と最終局面が異なる対局は公開しない",
     await env.APP_DB.prepare("SELECT id FROM matches WHERE id = ?").bind(record.id).first(),
   ).toBeNull();
 });
+
+for (const fixture of fixtures) {
+  test(`${fixture.name}: stepsを持つ古いD1本体を拒否し、既存の取得失敗として扱う`, async () => {
+    const user = await accountFixture();
+    const record = readSnapshot(fixture.json.replaceAll("fixture-self", user.id));
+    record.startedAtMs = Date.UTC(2099, 0, 1);
+    record.endedAtMs = record.startedAtMs + 1000;
+    ids.add(record.id);
+    await remove(record.id);
+    expect(() => readStoredMatch(JSON.stringify(record), record.settings.game)).toThrow();
+    await env.APP_DB.prepare("INSERT INTO matches VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(
+        record.id,
+        record.settings.game,
+        "mode" in record.settings ? record.settings.mode : "standard",
+        record.startedAtMs,
+        record.endedAtMs,
+        JSON.stringify(record),
+      )
+      .run();
+    await env.APP_DB.prepare("INSERT INTO account_match_history VALUES (?, ?, ?, ?, ?)")
+      .bind(
+        user.id,
+        record.id,
+        "mode" in record.settings ? record.settings.mode : "standard",
+        record.startedAtMs,
+        record.settings.game,
+      )
+      .run();
+    for (const path of [
+      `/matches/${record.id}`,
+      `/account/matches/${record.id}`,
+      `/matches?game=${record.settings.game}`,
+      `/account/matches?game=${record.settings.game}${"mode" in record.settings ? `&mode=${record.settings.mode}` : ""}`,
+    ]) {
+      const response = await boundaryRequest(path, { headers: { Cookie: user.cookie } });
+      expect(response.status).toBe(503);
+      expect(response.headers.get("Cache-Control")).toBe("no-store");
+    }
+  });
+}
