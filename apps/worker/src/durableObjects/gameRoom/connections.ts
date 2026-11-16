@@ -77,21 +77,25 @@ export async function socketGone(runtime: RoomRuntime, socket: WebSocket): Promi
     broadcastRoom(runtime, room);
     return;
   }
-  const updated = withIndexTransaction(runtime, () => {
-    const current = readRoom(runtime);
-    if (current === null) return null;
-    runtime.ctx.storage.kv.put(disconnectedAtKey(player.id), Date.now());
-    const next = roomSchema.parse({
-      ...current,
-      players: current.players.map((entry) =>
-        entry.id === player.id
-          ? { ...entry, reconnectDeadline: Date.now() + reconnectGraceMs }
-          : entry,
-      ),
-    });
-    runtime.ctx.storage.kv.put(roomStorageKey, next);
-    return next;
-  });
+  const updated = withIndexTransaction(
+    runtime,
+    (current) => {
+      if (current === null) return null;
+      runtime.ctx.storage.kv.put(disconnectedAtKey(player.id), Date.now());
+      const next = roomSchema.parse({
+        ...current,
+        players: current.players.map((entry) =>
+          entry.id === player.id
+            ? { ...entry, reconnectDeadline: Date.now() + reconnectGraceMs }
+            : entry,
+        ),
+      });
+      runtime.ctx.storage.kv.put(roomStorageKey, next);
+      return next;
+    },
+    room,
+    (next) => next,
+  );
   if (updated !== null) broadcastRoom(runtime, updated);
 }
 

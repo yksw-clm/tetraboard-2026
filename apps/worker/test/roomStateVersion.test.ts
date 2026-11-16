@@ -213,10 +213,10 @@ for (const game of gameIds) {
   });
 }
 const roomReadLimits = {
-  "four-reversi": { get: 6, alarm: 6 },
-  reversi: { get: 6, alarm: 6 },
-  "four-shogi": { get: 7, alarm: 7 },
-  shogi: { get: 7, alarm: 7 },
-  gomoku: { get: 6, alarm: 6 },
-  "four-gomoku": { get: 6, alarm: 6 },
+  "four-reversi": { get: 4, alarm: 4 },
+  reversi: { get: 4, alarm: 4 },
+  "four-shogi": { get: 4, alarm: 4 },
+  shogi: { get: 4, alarm: 4 },
+  gomoku: { get: 4, alarm: 4 },
+  "four-gomoku": { get: 4, alarm: 4 },
 };

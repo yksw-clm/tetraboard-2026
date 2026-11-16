@@ -34,6 +34,7 @@ jobs:
           filters: |
             ai:
               - 'packages/ai/**'
+              - 'packages/contexts/room/**'
               - 'packages/four-reversi/**'
               - 'packages/four-shogi/**'
               - 'packages/reversi/**'

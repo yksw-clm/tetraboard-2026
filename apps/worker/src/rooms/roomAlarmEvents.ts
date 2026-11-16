@@ -1,4 +1,5 @@
 /// <reference types="node" />
+import type { Room } from "@tetraboard/protocol";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 type AlarmStorage = {
@@ -11,6 +12,7 @@ const schedules = new WeakMap<object, RoomAlarmEvents>();
 
 export class RoomAlarmEvents {
   private dirty = false;
+  private synchronousRoom: Room | null | undefined;
   private syncing: Promise<void> | null = null;
   // 外部応答待ちに届いた別イベントを、入れ子の呼び出しと区別します。
   private readonly event = new AsyncLocalStorage<{ active: boolean }>();
@@ -18,10 +20,21 @@ export class RoomAlarmEvents {
   constructor(
     owner: object,
     private readonly storage: AlarmStorage,
-    private readonly nextAlarmAt: () => number | null,
+    private readonly nextAlarmAt: (room?: Room | null) => number | null,
     private readonly waitUntil: (task: Promise<void>) => void,
   ) {
     schedules.set(owner, this);
+  }
+
+  // 同期的に始まる Alarm 計算だけに渡し、await を越えて保持しません。
+  withRoom(room: Room | null, action: () => void): void {
+    const parent = this.synchronousRoom;
+    this.synchronousRoom = room;
+    try {
+      action();
+    } finally {
+      this.synchronousRoom = parent;
+    }
   }
 
   mark(): void {
@@ -50,7 +63,7 @@ export class RoomAlarmEvents {
   }
 
   private async syncAlarm(): Promise<void> {
-    const next = this.nextAlarmAt();
+    const next = this.nextAlarmAt(this.synchronousRoom);
     const current = await this.storage.getAlarm();
     if (next === current) return;
     if (next === null) await this.storage.deleteAlarm();

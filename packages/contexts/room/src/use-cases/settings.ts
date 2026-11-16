@@ -49,7 +49,7 @@ export function applySettings(
     );
   for (const player of room.players)
     if (player.kind === "cpu" && !result.room.players.some((current) => current.id === player.id))
-      recordDeparture(op, player);
+      recordDeparture(op, player, room);
   for (const player of result.room.players)
     if (player.kind === "cpu" && !room.players.some((previous) => previous.id === player.id))
       appendSystem(op, "joined", `CPU Lv${player.level}が入室しました`);

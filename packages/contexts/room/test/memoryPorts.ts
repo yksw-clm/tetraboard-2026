@@ -159,6 +159,10 @@ export class MemoryPorts {
       !player.retired &&
       !this.departed.has(player.id) &&
       this.tokens.has(player.id),
+    registrationDeadline: () => undefined,
+    expireRegistration: () => {},
+    waitingTournament: () => null,
+    hasCpuCapacity: () => true,
     hasRegistration: (id) => this.registrations.has(id),
     releaseRegistration: (id) => {
       this.registrations.delete(id);
@@ -197,6 +201,12 @@ export class MemoryPorts {
   };
 
   readonly adapter: RoomGamePort<"reversi"> = {
+    cpu: {
+      usesIdleDeadline: () => true,
+      timeout: () => this.progress,
+      disconnect: () => this.progress,
+      step: (room) => ({ room }),
+    },
     capacity: 2,
     waitingSeat: { color: null },
     keepsPlayingWithoutHumans: () => this.keepWithoutHumans,

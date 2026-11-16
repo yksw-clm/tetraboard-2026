@@ -1,3 +1,4 @@
+import type { Room } from "@tetraboard/protocol";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { registrationForPlayer } from "../../flows/guestRegistration/records";
 import { tournamentReservation } from "../../flows/tournamentRoom/reservations";
@@ -5,8 +6,10 @@ import type { MatchmakingRoomReservation } from "../../matchmaking/coordinator";
 import { nextRoomAlarmAt } from "../../rooms/roomAlarm";
 import { readRoom } from "./state";
 
-export function nextAlarmAt(runtime: RoomRuntime): number | null {
-  const room = readRoom(runtime);
+export function nextAlarmAt(
+  runtime: RoomRuntime,
+  room: Room | null = readRoom(runtime),
+): number | null {
   const cpu = room ? runtime.gameAdapter(room).cpu : null;
   return nextRoomAlarmAt({
     room,

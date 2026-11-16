@@ -27,6 +27,7 @@ export type SettingsResult =
         | "cpu_not_found";
     };
 export interface RoomGamePort<G extends GameId> {
+  cpu: import("./cpuPort").RoomCpuPort<G>;
   keepsPlayingWithoutHumans(room: RoomFor<G>): boolean;
   capacity: number;
   prepareSettings(

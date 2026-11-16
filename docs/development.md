@@ -5,8 +5,6 @@
 この文書は実装を探す入口、変更手順、構造と注意点を記します。最初にこの案内と次の共通手順を読み、変更対象別の表から必要な節へ進んでください。仕様を判断するときは、案内のリンク先にある正本の本文を確認します。
 
 
-通信経路の整理を進めるときは、[通信パフォーマンスのリファクタリング調査](communication-performance.md) の候補・維持する契約・検証方針も参照します。この調査は未実装の候補を含み、現在仕様の正本を置き換えません。
-
 | 文書                                                     | 主に残す内容                                                 |
 | -------------------------------------------------------- | ------------------------------------------------------------ |
 | [README](../README.md)                                   | サービスの目的、利用者向け仕様、詳細への入口                 |
@@ -563,7 +561,12 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 
 ルームの仕様と、サーバーの側で守る契約は[ルームの仕様](specs/room.md)を正本とします。
 
-- `apps/worker/src/durableObjects/gameRoom/`（`GameRoom` のクラスと、入口、配信、チャットなどの処理）が、認証、参加、準備、接続と切断、チャット、transaction、期限の処理、外部への反映（flush）、Alarm、配信、索引の更新を受け持ちます（TB-68 で殻と room の文脈へ分けています）。
+- ルームの Durable Object は、ADR 0010 の殻の形に分かれています（TB-68、TB-88）。
+  - `packages/contexts/room/src/use-cases/`: ルームの進行の決定（作成、参加、退室、準備、設定、開始、着手、期限の処理、終局、再戦、閉鎖）。Cloudflare と zod に依存せず、状態は `ports.ts` のポートで読み書きし、配信などの外への効果は `effects.ts` の `RoomEffect` で返します。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
+  - `apps/worker/src/durableObjects/gameRoom/`: `GameRoom` のクラス（RPC の入口だけ）と、入口の処理（`socket/` の WebSocket のメッセージ、`fetch.ts`、`admissions.ts`、`queries.ts`、`profiles.ts`）、配信、チャット、スタンプ、通報、期限の処理の外部への await（`deadlines.ts`）、`RoomRuntime` の組み立て（`createRuntime.ts`）。
+  - `apps/worker/src/adapters/room/`: ポートの実装と保存。状態の読み書き（版の移行を含む）、`withIndexTransaction`、効果を transaction の確定後に実行する口、外部への反映のジョブ 7 種類、外部 AI の枠、利用イベント、Alarm の入力。
+  - `apps/worker/src/flows/`: 他の文脈にまたがる処理（大会とレート戦のルーム、退会したアカウントの消去、ゲストの登録、席の台帳）。それぞれの文脈のパッケージへは、TB-71〜74 で移します。
+  - ゲームの違いは `apps/worker/src/rooms/gameAdapters/` のアダプター（ゲームのポートの実装）に閉じ込め、殻と use-case ではゲームの種類で分岐しません。
 - ゲームごとの進行は `*Progress.ts` にあり、ゲーム契約（`gameDefinitions.ts`）と room の文脈の `checkGameCommand` を使います。外部 AI のジョブは `externalCpu.ts` です。
 - 時計は `clockCore.ts`（席 ID を型パラメータとする純粋な計算）と、ゲームごとの wrapper（`clock.ts`、`shogiClock.ts`、`reversiClock.ts`）です。期限の選択は `roomDeadlines.ts` の純粋関数です。
 - CPU の最低待ち時間は `progressHelpers.ts` の `cpuMoveDelayMs` を全ゲームで共用します。

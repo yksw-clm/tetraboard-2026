@@ -104,7 +104,6 @@
         "apps/worker/src/rooms/applyRoomSettings.ts",
         "apps/worker/src/rooms/eloRating.ts",
         "apps/worker/src/rooms/fourReversiRating.ts",
-        "apps/worker/src/durableObjects/gameRoom/gameRoom.ts",
         "apps/worker/src/rooms/matchStore.ts",
         "apps/worker/src/rooms/rankingRoutes.ts",
         "apps/worker/src/rooms/roomIndex.ts",
@@ -116,19 +115,6 @@
       ],
       "rules": {
         "max-lines-per-function": "off"
-      }
-    },
-    {
-      "files": ["apps/worker/src/durableObjects/gameRoom/gameRoom.ts"],
-      "rules": {
-        "max-lines": [
-          "error",
-          {
-            "max": 764,
-            "skipBlankLines": false,
-            "skipComments": false
-          }
-        ]
       }
     }
   ]

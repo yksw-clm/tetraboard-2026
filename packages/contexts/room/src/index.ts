@@ -15,3 +15,7 @@ export * from "./use-cases/rematch";
 export * from "./use-cases/removeWaitingPlayer";
 export * from "./use-cases/settings";
 export * from "./use-cases/start";
+
+export * from "./use-cases/processDeadlines";
+export type * from "./use-cases/cpuPort";
+export * from "./use-cases/dueDeadline";

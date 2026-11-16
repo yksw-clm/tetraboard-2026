@@ -30,8 +30,7 @@ export function tournamentPlayersConnected(
   );
 }
 
-export async function advanceTournamentStart(runtime: RoomRuntime) {
-  const initial = readRoom(runtime);
+export async function advanceTournamentStart(runtime: RoomRuntime, initial = readRoom(runtime)) {
   const reservation = tournamentReservation(runtime, initial);
   if (
     !reservation ||
@@ -53,8 +52,7 @@ export async function advanceTournamentStart(runtime: RoomRuntime) {
 
 function updateTournamentCountdown(runtime: RoomRuntime) {
   let countdownChanged = false;
-  const countdown = withIndexTransaction(runtime, () => {
-    const room = readRoom(runtime);
+  const countdown = withIndexTransaction(runtime, (room) => {
     if (!room || !isTournamentGameRoom(room) || room.status !== "waiting") return null;
     const connected = tournamentPlayersConnected(runtime, room);
     if (connected && room.tournamentStartsAtMs !== undefined) return room;
@@ -93,8 +91,7 @@ async function startReservedTournamentRoom(
     now >= reservation.context.endsAtMs ||
     now >= reservation.preparedAtMs + tournamentRules.connectionGraceMs
   ) {
-    const closed = withIndexTransaction(runtime, () => {
-      const room = readRoom(runtime);
+    const closed = withIndexTransaction(runtime, (room) => {
       if (!room || room.instanceId !== reservation.instanceId) return false;
       closeRoom(runtime);
       return true;
@@ -140,8 +137,7 @@ function startTournamentGame(
   reservation: TournamentRoomReservation,
   countdown: TournamentGameRoom & { status: "waiting" },
 ) {
-  withIndexTransaction(runtime, () => {
-    const room = readRoom(runtime);
+  withIndexTransaction(runtime, (room) => {
     if (
       !room ||
       !isTournamentGameRoom(room) ||

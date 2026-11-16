@@ -602,7 +602,7 @@ Workerの公開ルーム索引のページングfixtureは、旧形式はテス�
 | `bun run build:development`                            | 成功、9.67秒                                                       |
 | `bun run --cwd apps/worker deploy:dry-run:development` | 成功、0.65秒                                                       |
 
-最初の全体checkでは `accounts.test.ts` のID同時取得でCloudflareテスト基盤のcross-request I/Oエラーが発生し、エラー通知RPCも失敗しました。終了通知が返らない実行を149.06秒で終了しています。この症状はBun 1.4.2での[既存の調査記録](communication-performance.md#今回の確認結果)にもあります。関連するaccounts・guestAccountsの独立実行は36件成功し、コードを変更せず再実行した全体checkも成功しました。原因は今回確定していません。buildには既存の500kB超chunkの警告があります。GitHub CIとLinuxでの比較は未実施で、マージ・デプロイは行っていません。
+最初の全体checkでは `accounts.test.ts` のID同時取得でCloudflareテスト基盤のcross-request I/Oエラーが発生し、エラー通知RPCも失敗しました。終了通知が返らない実行を149.06秒で終了しています。この症状はBun 1.4.2での既存の調査記録（2026-10 の通信の調査。文書は TB-103 で消しました）にもあります。関連するaccounts・guestAccountsの独立実行は36件成功し、コードを変更せず再実行した全体checkも成功しました。原因は今回確定していません。buildには既存の500kB超chunkの警告があります。GitHub CIとLinuxでの比較は未実施で、マージ・デプロイは行っていません。
 
 ### 内蔵チェッカー採用後の確認（2026-10-24）
 

@@ -1,5 +1,5 @@
 import type { RoomStatePort } from "@tetraboard/context-room";
-import { roomMembershipSchema, roomSchema } from "@tetraboard/protocol";
+import { roomMembershipSchema, roomSchema, tournamentRules } from "@tetraboard/protocol";
 import type { AccountAdmission } from "../../accounts/roomAccounts";
 import { appendSystem } from "../../durableObjects/gameRoom/chat";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
@@ -11,7 +11,11 @@ import {
   playerTokenKey,
 } from "../../durableObjects/gameRoom/storageKeys";
 import { releaseAccount } from "../../flows/accountSeats/seats";
-import { registrationForPlayer, releaseRegistration } from "../../flows/guestRegistration/records";
+import {
+  registrationForPlayer,
+  releaseRegistration,
+  endRegistration,
+} from "../../flows/guestRegistration/records";
 import { playerLabel, roomStorageKey } from "../../rooms/progressHelpers";
 import type { AnalyticsIdentity } from "../../usageEvents/matches";
 import { analyticsPlayerKey } from "../../usageEvents/matches";
@@ -34,6 +38,10 @@ import {
   readMembership,
   readRoom,
 } from "./state";
+import { hasCpuCapacity } from "./cpuCapacity";
+import { tournamentReservation } from "../../flows/tournamentRoom/reservations";
+import { tournamentPlayersConnected } from "../../flows/tournamentRoom/start";
+import { isTournamentGameRoom } from "../../rooms/tournamentRoom";
 import { collectMatchEnded, collectMatchStarted } from "./usage";
 
 export type LifecycleIdentity = { admission?: AccountAdmission; analytics?: AnalyticsIdentity };
@@ -70,6 +78,7 @@ export function lifecycleState(
     saveDeparted: (id) => kv.put(departedKey(id), true),
     clearDeparted: (id) => kv.delete(departedKey(id)),
     isHumanParticipant: (player) => isHumanParticipant(runtime, player),
+    ...deadlineState(runtime),
     hasRegistration: (id) => registrationForPlayer(runtime, id) !== null,
     releaseRegistration: (id) => releaseRegistration(runtime, id),
     releaseAccount: (id, removeAvatar) => releaseAccount(runtime, id, removeAvatar),
@@ -88,4 +97,34 @@ export function lifecycleState(
     endMatchUsage: (status, at, game) =>
       collectMatchEnded(runtime, status, at, game && matchEndFacts(game)),
   };
+}
+
+function deadlineState(runtime: RoomRuntime) {
+  return {
+    registrationDeadline: (id) => registrationForPlayer(runtime, id)?.holdUntilMs,
+    expireRegistration: (id) => {
+      const registration = registrationForPlayer(runtime, id);
+      if (registration) endRegistration(runtime, registration, "expired");
+    },
+    waitingTournament: (room) => {
+      const reservation = tournamentReservation(runtime, room);
+      return reservation?.status === "waiting"
+        ? {
+            expiresAt: Math.min(
+              reservation.preparedAtMs + tournamentRules.connectionGraceMs,
+              reservation.context.endsAtMs,
+            ),
+            connected:
+              isTournamentGameRoom(room) &&
+              room.status === "waiting" &&
+              room.tournamentStartsAtMs !== undefined &&
+              tournamentPlayersConnected(runtime, room),
+          }
+        : null;
+    },
+    hasCpuCapacity: (room) => hasCpuCapacity(runtime, room),
+  } satisfies Pick<
+    RoomStatePort,
+    "registrationDeadline" | "expireRegistration" | "waitingTournament" | "hasCpuCapacity"
+  >;
 }

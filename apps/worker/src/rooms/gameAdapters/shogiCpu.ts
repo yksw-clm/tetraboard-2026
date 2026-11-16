@@ -67,7 +67,6 @@ export function shogiCpu(
   return {
     ...defaults,
     usesIdleDeadline: (room) => !(room.status === "playing" && room.matchmaking),
-    reloadBeforeDeadlines: true,
     capacity: {
       game: (room) =>
         roomAiAllowed(dependencies.aiService(), room) && shogiAiEnabled(dependencies.aiService())

@@ -63,6 +63,7 @@ test("外部AIの枠の予約RPCの前に、保存した解放期限のAlarmが�
         JSON.stringify({ type: "room.game.start" }),
       );
       expect(reserve).toHaveBeenCalledTimes(1);
+      await reserve.mock.results[0]!.value;
       expect(ctx.storage.kv.get("external-cpu-capacity")).toBeUndefined();
       expect(ctx.storage.kv.get<Room>("room")?.status).toBe("waiting");
     } finally {
@@ -132,4 +133,29 @@ test("GET・Alarm・開始・着手の同期部分は getAlarm が各1回以下�
       spy.mockRestore();
     }
   });
+});
+
+test("確定したルームは同期的なAlarm計算だけに渡し、延期した計算では読み直す", async () => {
+  const { RoomAlarmEvents } = await import("../src/rooms/roomAlarmEvents");
+  const inputs: (Room | null | undefined)[] = [];
+  const room = { id: "synchronous-input" } as Room;
+  const events = new RoomAlarmEvents(
+    {},
+    { getAlarm: async () => null, setAlarm: async () => {}, deleteAlarm: async () => {} },
+    (input) => {
+      inputs.push(input);
+      return null;
+    },
+    () => {},
+  );
+  events.withRoom(room, () => events.mark());
+  await events.sync();
+  expect(inputs).toEqual([room]);
+  await events.run(async () => {
+    events.withRoom(room, () => events.mark());
+  });
+  expect(inputs).toEqual([room, undefined]);
+  events.mark();
+  await events.sync();
+  expect(inputs).toEqual([room, undefined, undefined]);
 });

@@ -7,7 +7,7 @@ import {
 export const roomStorageKey = "room";
 export const replayKey = "round-replay";
 export const shogiCpuJobKey = "shogi-cpu-job";
-export const cpuMoveDelayMs = 2_000;
+export { cpuMoveDelayMs } from "@tetraboard/context-room";
 export function nextPublicUpdateAt(room: Room): number {
   return Math.max(Date.now(), room.publicUpdatedAtMs + 1);
 }
