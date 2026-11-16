@@ -4,6 +4,8 @@ import { applyD1Migrations } from "cloudflare:test";
 import worker from "../src/worker";
 import { runMaintenanceTasks } from "../src/scheduledMaintenance";
 import * as monthlyKpi from "../src/kpi/monthly";
+import { createAuth } from "../src/accounts/auth";
+import { accountFixture } from "./accountFixtures";
 
 const env = {
   ...bindings,
@@ -67,15 +69,16 @@ test("通報の期限削除が失敗しても後続の資格を削除し、次�
   const id = crypto.randomUUID();
   const unrelatedId = crypto.randomUUID();
   unrelatedCredentials.push(unrelatedId);
+  const expiredAt = new Date(1).toISOString();
   await bindings.APP_DB.prepare(
-    "INSERT INTO verification(id,identifier,value,expiresAt,createdAt,updatedAt) VALUES (?,?,?,1,1,1)",
+    "INSERT INTO verification(id,identifier,value,expiresAt,createdAt,updatedAt) VALUES (?,?,?,?,?,?)",
   )
-    .bind(unrelatedId, unrelatedId, "unrelated")
+    .bind(unrelatedId, unrelatedId, "unrelated", expiredAt, expiredAt, expiredAt)
     .run();
   await env.APP_DB.prepare(
-    "INSERT INTO verification(id,identifier,value,expiresAt,createdAt,updatedAt) VALUES (?,?,?,1,1,1)",
+    "INSERT INTO verification(id,identifier,value,expiresAt,createdAt,updatedAt) VALUES (?,?,?,?,?,?)",
   )
-    .bind(id, id, "expired")
+    .bind(id, id, "expired", expiredAt, expiredAt, expiredAt)
     .run();
   const database = new Proxy(env.APP_DB, {
     get(target, key) {
@@ -104,6 +107,45 @@ test("通報の期限削除が失敗しても後続の資格を削除し、次�
   await expect(worker.scheduled({} as ScheduledController, env)).resolves.toBeUndefined();
   expect(monthly).toHaveBeenCalledTimes(2);
 });
+
+test.each(["session", "verification"] as const)(
+  "%s は better-auth が ISO text で保存し、掃除は期限切れだけを削除する",
+  async (table) => {
+    const now = Date.parse("2026-11-16T09:00:00.000Z");
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    vi.spyOn(monthlyKpi, "savePreviousMonthKpi").mockResolvedValue();
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const user = await accountFixture(true, crypto.randomUUID(), env.APP_DB);
+    const { internalAdapter } = await createAuth(env).$context;
+    const ids: string[] = [];
+    for (const offset of [-1, 0, 1]) {
+      const expiresAt = new Date(now + offset);
+      const row =
+        table === "session"
+          ? await internalAdapter.createSession(user.id, false, { expiresAt }, true)
+          : await internalAdapter.createVerificationValue({
+              identifier: crypto.randomUUID(),
+              value: "test",
+              expiresAt,
+            });
+      ids.push(row.id);
+      expect(
+        await env.APP_DB.prepare(
+          `SELECT expiresAt,typeof(expiresAt) AS storageType FROM ${table} WHERE id=?`,
+        )
+          .bind(row.id)
+          .first(),
+      ).toEqual({ expiresAt: expiresAt.toISOString(), storageType: "text" });
+    }
+
+    await worker.scheduled({} as ScheduledController, env);
+
+    for (const [index, id] of ids.entries()) {
+      const row = await env.APP_DB.prepare(`SELECT id FROM ${table} WHERE id=?`).bind(id).first();
+      expect(row).toEqual(index === 0 ? null : { id });
+    }
+  },
+);
 
 test("退会対象と横断棋譜一覧は検索順に対応する索引を使う", async () => {
   const room = await env.APP_DB.prepare(
