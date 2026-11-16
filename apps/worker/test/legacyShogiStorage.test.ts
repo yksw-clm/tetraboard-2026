@@ -12,6 +12,7 @@ import legacy from "../../../test-fixtures/matches/shogi-legacy.json";
 import { waitingRoomFactories } from "../src/rooms/waitingRoomFactories";
 import { advanceShogiMatchSave, type ShogiMatchRecord } from "../src/rooms/shogiMatchStore";
 import { standardShogiRecord } from "./standardShogiFixtures";
+import { resetDurableObjectStorage } from "./durableObjectCleanup";
 
 const stubs: ReturnType<typeof env.GAME_ROOM.getByName>[] = [];
 const ids: string[] = [];
@@ -21,11 +22,7 @@ function durableObject() {
   return stub;
 }
 afterEach(async () => {
-  for (const stub of stubs.splice(0))
-    await runInDurableObject(stub, async (_, state) => {
-      await state.storage.deleteAll();
-      await state.storage.deleteAlarm();
-    });
+  for (const stub of stubs.splice(0)) await resetDurableObjectStorage(stub);
   for (const id of ids.splice(0))
     await env.APP_DB.batch([
       env.APP_DB.prepare("DELETE FROM account_match_history WHERE match_id=?").bind(id),

@@ -10,6 +10,7 @@ import {
 } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
+import { resetDurableObjectStorage } from "./durableObjectCleanup";
 import { standardShogiRecord } from "./standardShogiFixtures";
 import { shogiRecord } from "./shogiMatchFixtures";
 import { fixtureRecord } from "./matchFixtures";
@@ -278,10 +279,7 @@ test.each(games)("新規%sの成立時のレートを固定し、後続の更新
     });
   } finally {
     await queue.leaveAccount(user.id);
-    if (roomId)
-      await runInDurableObject(env.GAME_ROOM.getByName(roomId), (_, ctx) =>
-        ctx.storage.deleteAll(),
-      );
+    if (roomId) await resetDurableObjectStorage(env.GAME_ROOM.getByName(roomId));
     vi.restoreAllMocks();
   }
 });
