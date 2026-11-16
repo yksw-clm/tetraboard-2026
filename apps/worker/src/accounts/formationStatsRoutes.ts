@@ -19,7 +19,7 @@ export async function readFormationStats(
     .prepare(`${matchOutcomesCte("four-shogi", true)}, used AS (
     SELECT DISTINCT o.rank, o.match_id, used.value AS id
     FROM outcomes o
-    JOIN shogi_match_formations f ON f.match_id = o.match_id,
+    JOIN four_shogi_formation_usages f ON f.match_id = o.match_id,
       json_each(f.used_by_side_json, '$.' || o.direction) used
     WHERE o.mode = 'singles' AND f.analyzer_id = ? AND f.analysis_version = ? AND f.rules_version = 1
   )

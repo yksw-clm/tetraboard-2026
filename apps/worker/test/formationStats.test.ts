@@ -16,8 +16,8 @@ beforeEach(async () => {
   await env.APP_DB.batch([
     env.APP_DB.prepare("DELETE FROM account_match_history"),
     env.APP_DB.prepare("DELETE FROM matches"),
-    env.APP_DB.prepare("DELETE FROM shogi_match_uploads"),
-    env.APP_DB.prepare("DELETE FROM shogi_match_chunks"),
+    env.APP_DB.prepare("DELETE FROM match_uploads"),
+    env.APP_DB.prepare("DELETE FROM match_event_chunks"),
   ]);
 });
 async function publish(fixture: ReturnType<typeof humanShogiRecord>, usage: ShogiFormationUsage) {
@@ -180,7 +180,7 @@ test("成立履歴の保存失敗は本体・索引も公開せず、再試行�
     fixture = humanShogiRecord(user.id),
     usage = emptyFormationUsage();
   usage.bySide.south = ["tenshukaku"];
-  await env.APP_DB.prepare(`CREATE TRIGGER reject_formations BEFORE INSERT ON shogi_match_formations
+  await env.APP_DB.prepare(`CREATE TRIGGER reject_formations BEFORE INSERT ON four_shogi_formation_usages
     BEGIN SELECT RAISE(ABORT, 'formations unavailable'); END`).run();
   try {
     await expect(publish(fixture, usage)).rejects.toThrow();
@@ -221,7 +221,7 @@ test("未認証・無効Cookieは401、認証と集計障害は503、初回0件�
   }
   const user = await accountFixture();
   expect(await stats(user.cookie)).toEqual([]);
-  for (const table of ["session", "shogi_match_formations"]) {
+  for (const table of ["session", "four_shogi_formation_usages"]) {
     await env.APP_DB.exec(`ALTER TABLE ${table} RENAME TO ${table}_unavailable`);
     try {
       const response = await matchRequest(getFourShogiFormationStatsContract.path, {

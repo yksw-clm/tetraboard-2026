@@ -280,7 +280,7 @@ test.each([
       expect(stored?.record_json).not.toContain("formationAnalysis");
       expect(stored?.record_json).not.toContain(id);
       const usage = await env.APP_DB.prepare(
-        "SELECT used_by_side_json FROM shogi_match_formations WHERE match_id = ?",
+        "SELECT used_by_side_json FROM four_shogi_formation_usages WHERE match_id = ?",
       )
         .bind(prepared.room.roundId)
         .first<{ used_by_side_json: string }>();
@@ -419,7 +419,7 @@ test("戦法履歴導入前の進行局は確定着手後も印を追加せず�
     ).not.toBeNull(),
   );
   expect(
-    await env.APP_DB.prepare("SELECT match_id FROM shogi_match_formations WHERE match_id = ?")
+    await env.APP_DB.prepare("SELECT match_id FROM four_shogi_formation_usages WHERE match_id = ?")
       .bind(prepared.room.roundId)
       .first(),
   ).toBeNull();
@@ -1602,7 +1602,7 @@ test("将棋の保存失敗中も再戦・未決着の打ち切り・番号再�
       });
       expect(
         await env.APP_DB.prepare(
-          "SELECT SUM(event_count) AS n FROM shogi_match_chunks WHERE match_id = ?",
+          "SELECT SUM(event_count) AS n FROM match_event_chunks WHERE match_id = ?",
         )
           .bind(id)
           .first(),

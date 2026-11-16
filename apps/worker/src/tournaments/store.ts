@@ -503,8 +503,8 @@ export function tournamentMatchStatements(
   context: TournamentRoomContext,
   record:
     | ShogiMatchRecord
-    | import("../rooms/matchStore").MatchRecord
-    | import("../rooms/fourGomokuMatchStore").MatchRecord,
+    | Omit<import("../rooms/matchStore").MatchRecord, "replay">
+    | Omit<import("../rooms/fourGomokuMatchStore").MatchRecord, "replay">,
 ): D1PreparedStatement[] {
   const settings = getTournamentSettings(context);
   if (

@@ -318,7 +318,7 @@ export async function mergeGuestAccounts(env: Env, flow: MergeFlow) {
     );
   statements.push(db.prepare("UPDATE feedback SET account_id=? WHERE account_id=?").bind(a, g));
   // 公開棋譜の本人参照だけを移し、手順・日時・結果を保持します。
-  for (const table of ["matches", "shogi_match_uploads"]) {
+  for (const table of ["matches", "match_uploads"]) {
     statements.push(
       db
         .prepare(`UPDATE ${table} SET record_json=json_set(record_json,'$.participants',json((

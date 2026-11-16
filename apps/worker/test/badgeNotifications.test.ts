@@ -8,7 +8,7 @@ import { humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
 import { createInitialState, eliminateColor } from "@tetraboard/four-reversi";
 import { writeMatch } from "../src/rooms/matchStore";
 import { badgeNotificationResponseSchema } from "@tetraboard/protocol";
-import { badgeAwardsSql } from "../src/accounts/badgeAwards";
+import { badgeAwardStatements, badgeAwardsSql } from "../src/accounts/badgeAwards";
 import { fourReversiRatingMethod } from "../../../packages/ai/fourReversiRating";
 
 const db = env.APP_DB;
@@ -295,7 +295,7 @@ test("migration snapshots historical badges without notifications and detects th
         .first<{ n: number }>()
     )?.n,
   ).toBe(3);
-  await writeMatch(database, humanFixtureRecord(user.id, 20));
+  await writeHistoricalMatch(database, humanFixtureRecord(user.id, 20));
   const response = await operation(user, "claim", crypto.randomUUID(), undefined, database);
   expect(badgeNotificationResponseSchema.parse(await response.json()).notification?.badges).toEqual(
     [{ id: "games", tier: 2, previousTier: 1, value: 20 }],
@@ -343,3 +343,22 @@ test("migration snapshots historical badges without notifications and detects th
   ]);
   expect(await count("notification_events")).toBe(1);
 });
+
+// 過去schemaの検証中は、当時の本体保存とバッジ更新だけを行います。
+async function writeHistoricalMatch(
+  database: D1Database,
+  record: ReturnType<typeof humanFixtureRecord>,
+) {
+  await database.batch([
+    database
+      .prepare("INSERT INTO matches VALUES (?, 'four-reversi', 'singles', ?, ?, ?)")
+      .bind(record.id, record.startedAtMs, record.endedAtMs, JSON.stringify(record)),
+    database
+      .prepare(`INSERT INTO account_match_history
+      SELECT json_extract(p.value, '$.accountId'), m.id, m.mode, m.started_at_ms, m.game
+      FROM matches m, json_each(m.record_json, '$.participants') p
+      WHERE m.id = ? AND json_extract(p.value, '$.accountId') IS NOT NULL`)
+      .bind(record.id),
+    ...badgeAwardStatements(database, "four-reversi", record.id),
+  ]);
+}

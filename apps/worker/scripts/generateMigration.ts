@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -22,6 +23,7 @@ if (args.length !== 1 || !/^[a-z][a-z0-9_]*$/.test(name))
 const out = resolve(worker, config.out!);
 const migrations = join(worker, "migrations");
 const lock = join(out, ".generate-lock");
+const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
 mkdirSync(lock);
 const temporary = mkdtempSync(join(out, ".generate-"));
 try {
@@ -35,13 +37,11 @@ try {
     `import config from "../../drizzle.config";\nexport default { ...config, out: ${JSON.stringify(relative(worker, temporary))} };\n`,
   );
   const kit = join(dirname(createRequire(import.meta.url).resolve("drizzle-kit")), "bin.cjs");
-  const result = spawnSync(
-    process.execPath,
-    [kit, "generate", "--config", temporaryConfig, "--name", name],
-    { cwd: worker, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-  );
-  process.stdout.write(result.stdout ?? "");
-  process.stderr.write(result.stderr ?? "");
+  const result = runGenerator(kit, temporaryConfig, temporary);
+  if (!interactive) {
+    process.stdout.write(result.stdout ?? "");
+    process.stderr.write(result.stderr ?? "");
+  }
   // drizzle-kitが例外時にも終了コード0を返す場合があるため、出力も検査します。
   if (result.error || result.status !== 0 || result.stderr)
     throw new Error("drizzle-kitの生成に失敗しました", { cause: result.error });
@@ -81,4 +81,30 @@ try {
 } finally {
   rmSync(temporary, { recursive: true, force: true });
   rmSync(lock, { recursive: true, force: true });
+}
+
+function runGenerator(kit: string, temporaryConfig: string, temporary: string) {
+  const args = [kit, "generate", "--config", temporaryConfig, "--name", name];
+  const options = { cwd: worker, encoding: "utf8" as const };
+  if (!interactive)
+    return spawnSync(process.execPath, args, { ...options, stdio: ["ignore", "pipe", "pipe"] });
+  // 対話には端末を渡し、終了コード0の例外も判別できるよう出力を記録します。
+  const transcript = join(temporary, "generator-output.log");
+  const command = [process.execPath, ...args];
+  const scriptArgs =
+    process.platform === "darwin"
+      ? ["-q", transcript, ...command]
+      : [
+          "-q",
+          "-e",
+          "-c",
+          command.map((arg) => "'" + arg.replaceAll("'", "'\"'\"'") + "'").join(" "),
+          transcript,
+        ];
+  const result = spawnSync("script", scriptArgs, { ...options, stdio: "inherit" });
+  return {
+    ...result,
+    stdout: existsSync(transcript) ? readFileSync(transcript, "utf8") : "",
+    stderr: "",
+  };
 }

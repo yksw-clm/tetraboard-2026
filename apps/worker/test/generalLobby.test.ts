@@ -29,8 +29,8 @@ afterEach(async () => {
     [
       "account_match_history",
       "matches",
-      "shogi_match_chunks",
-      "shogi_match_uploads",
+      "match_event_chunks",
+      "match_uploads",
       "lobby_chat_reports",
       "lobby_chat_messages",
       "lobby_chat_requests",
