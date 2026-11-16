@@ -52,6 +52,7 @@ import {
   type FourReversiRatingResult,
 } from "@tetraboard/protocol";
 import { usePlayerProfiles } from "../players/usePlayerProfiles";
+import { RoomReloadNotice } from "./RoomReloadNotice";
 
 export function RoomViewShell({
   session,
@@ -165,9 +166,9 @@ export function RoomViewShell({
   const activeProfileId = profiles?.active?.id;
   const closeProfile = profiles?.close;
   useEffect(() => {
-    if (tournamentStartsAtMs !== undefined && activeProfileId)
+    if ((session.reloadRequired || tournamentStartsAtMs !== undefined) && activeProfileId)
       closeProfile?.(activeProfileId, true);
-  }, [tournamentStartsAtMs, activeProfileId, closeProfile]);
+  }, [session.reloadRequired, tournamentStartsAtMs, activeProfileId, closeProfile]);
   useEffect(() => {
     if (
       !unfinishedRegistration?.returning ||
@@ -295,6 +296,7 @@ export function RoomViewShell({
   };
   const busy = session.leaving || session.pendingGameAction?.type === "resign";
   if (
+    (session.reloadRequired && dialog !== null) ||
     (room.status !== "playing" && dialog === "resign") ||
     (room.status === "playing" && dialog === "result") ||
     (dialog === "resign" && selfEliminated)
@@ -319,13 +321,16 @@ export function RoomViewShell({
     <RoomInfo
       onRoomSettings={() => setDialog("room-settings")}
       roomSettingsButtonRef={roomSettingsButtonRef}
-      settingsOpen={dialog === "settings"}
+      settingsOpen={!session.reloadRequired && dialog === "settings"}
       settingsDisabled={
+        session.reloadRequired ||
         (dialog !== null && dialog !== "settings") ||
         invitation.dialog !== null ||
         autoResult.visible
       }
-      onSettingsOpenChange={(open) => setDialog(open ? "settings" : null)}
+      onSettingsOpenChange={(open) =>
+        setDialog(open && !session.reloadRequired ? "settings" : null)
+      }
       feedbackButtonRef={feedbackButtonRef}
       onFeedback={() => {
         if (autoResult.visible) autoResult.dismiss();
@@ -345,7 +350,7 @@ export function RoomViewShell({
       session={session}
       turn={turn}
       onRotate={onRotate}
-      replay={desktop ? undefined : replayCard}
+      replay={desktop || session.reloadRequired ? undefined : replayCard}
       openReplayKey={openReplayKey}
       onReplayChange={setOpenReplayKey}
       onJoin={
@@ -371,8 +376,9 @@ export function RoomViewShell({
         setDialog("result");
       }}
       onResign={() => setDialog("resign")}
-      turnActions={turnActions}
+      turnActions={session.reloadRequired ? undefined : turnActions}
       stampPicker={
+        !session.reloadRequired &&
         session.stampsSupported &&
         membership &&
         session.self && (
@@ -410,7 +416,8 @@ export function RoomViewShell({
       ref={fallbackFocusRef}
       tabIndex={-1}
     >
-      {(connectionNotice || operationError || pendingNotice) && (
+      {session.reloadRequired && <RoomReloadNotice />}
+      {!session.reloadRequired && (connectionNotice || operationError || pendingNotice) && (
         <div
           className="absolute top-[calc(env(safe-area-inset-top)_+_8px)] left-1/2 -translate-x-1/2 z-10 pointer-events-none w-max max-w-[min(480px,calc(100%_-_16px))] rounded-lg py-[7px] px-4 bg-[#fff4dc] text-[#755b21] text-xs text-center break-words"
           role="status"
@@ -421,7 +428,10 @@ export function RoomViewShell({
           {pendingNotice}
         </div>
       )}
-      <div className="contents" inert={tournamentStartsAtMs !== undefined}>
+      <div
+        className="contents"
+        inert={session.reloadRequired || tournamentStartsAtMs !== undefined}
+      >
         <RoomStampContext.Provider value={stamps}>
           <RoomLayout
             statusBelowBoard
@@ -445,46 +455,49 @@ export function RoomViewShell({
             info={info}
             status={status}
             chat={chatPanel}
-            replay={replayCard}
+            replay={session.reloadRequired ? undefined : replayCard}
           />
         </RoomStampContext.Provider>
       </div>
-      {ratedMatch && ratedGame && room.status === "waiting" && !room.lastRound ? (
-        <RatedMatchStartCountdown
-          room={room}
-          ownPlayerId={membership?.playerId}
-          startsAtMs={tournamentStartsAtMs}
-          serverNowMs={session.serverNowMs}
-        />
-      ) : (
-        tournamentStartsAtMs !== undefined && (
-          <RoomStartCountdown
+      {!session.reloadRequired &&
+        (ratedMatch && ratedGame && room.status === "waiting" && !room.lastRound ? (
+          <RatedMatchStartCountdown
+            room={room}
+            ownPlayerId={membership?.playerId}
             startsAtMs={tournamentStartsAtMs}
             serverNowMs={session.serverNowMs}
-            durationMs={
-              isMatchmakingRoom(room) && isMatchmakingGame(game)
-                ? matchmakingQueues[game].countdownMs
-                : tournamentRules.startCountdownMs
-            }
-            label={
-              isMatchmakingRoom(room) ? "対局の開始カウントダウン" : "大会対局の開始カウントダウン"
-            }
-            details={
-              ratedMatch &&
-              ratedTime && (
-                <p>
-                  {room.players.some((p) => p.kind === "cpu") ? "CPU戦" : "対人戦"}・
-                  {ratedTime.mainTimeMs === 0
-                    ? `一手${ratedTime.byoyomiMs / 1000}秒`
-                    : `${ratedTime.mainTimeMs / 60_000}分${ratedTime.byoyomiMs ? `＋${ratedTime.byoyomiMs / 1000}秒` : "切れ負け"}`}
-                  ・レート対象
-                </p>
-              )
-            }
           />
-        )
-      )}
-      {tournamentStartsAtMs === undefined && (
+        ) : (
+          tournamentStartsAtMs !== undefined && (
+            <RoomStartCountdown
+              startsAtMs={tournamentStartsAtMs}
+              serverNowMs={session.serverNowMs}
+              durationMs={
+                isMatchmakingRoom(room) && isMatchmakingGame(game)
+                  ? matchmakingQueues[game].countdownMs
+                  : tournamentRules.startCountdownMs
+              }
+              label={
+                isMatchmakingRoom(room)
+                  ? "対局の開始カウントダウン"
+                  : "大会対局の開始カウントダウン"
+              }
+              details={
+                ratedMatch &&
+                ratedTime && (
+                  <p>
+                    {room.players.some((p) => p.kind === "cpu") ? "CPU戦" : "対人戦"}・
+                    {ratedTime.mainTimeMs === 0
+                      ? `一手${ratedTime.byoyomiMs / 1000}秒`
+                      : `${ratedTime.mainTimeMs / 60_000}分${ratedTime.byoyomiMs ? `＋${ratedTime.byoyomiMs / 1000}秒` : "切れ負け"}`}
+                    ・レート対象
+                  </p>
+                )
+              }
+            />
+          )
+        ))}
+      {tournamentStartsAtMs === undefined && !session.reloadRequired && (
         <>
           {!chat.toastManagedGlobally && <AppToastRegion queue={chat.toastQueue} theme={theme} />}
           {invitation.dialog === "share" && (

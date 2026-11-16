@@ -1,4 +1,10 @@
 const started = new WeakSet<Window>();
+const reporters = new WeakMap<Window, (kind: string, message: string) => void>();
+
+export function reportClientError(kind: string, message: string, target: Window = window): void {
+  startClientErrors(target);
+  reporters.get(target)?.(kind, message);
+}
 
 function pageType(path: string): string {
   return path === "/"
@@ -63,6 +69,7 @@ export function startClientErrors(target: Window = window): void {
     }
   }
 
+  reporters.set(target, send);
   target.addEventListener("error", (event) => {
     try {
       if (event.filename && new URL(event.filename).origin !== target.location.origin) return;
@@ -83,4 +90,4 @@ export function startClientErrors(target: Window = window): void {
   });
 }
 
-startClientErrors();
+if (typeof window !== "undefined") startClientErrors();

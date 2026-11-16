@@ -1,6 +1,6 @@
 import { afterEach, expect, mock, test } from "bun:test";
 import { Window } from "happy-dom";
-import { startClientErrors } from "../src/shared/clientErrors";
+import { reportClientError, startClientErrors } from "../src/shared/clientErrors";
 
 const windows: Window[] = [];
 afterEach(async () => {
@@ -203,4 +203,17 @@ test("sendBeaconの失敗やfalseは無視し、同じエラーを再送しな�
   expect(() => client.reject("second")).not.toThrow();
   expect(client.beacon).toHaveBeenCalledTimes(2);
   expect(client.fetch).not.toHaveBeenCalled();
+});
+
+test("明示的な検証失敗の報告も既存の送信・重複抑止を通す", async () => {
+  const client = browser("/rooms/12345?invite=SECRET");
+  const target = client.target as unknown as globalThis.Window;
+  reportClientError("RoomResponseValidationError", "room.snapshot", target);
+  reportClientError("RoomResponseValidationError", "room.snapshot", target);
+  expect(client.beacon).toHaveBeenCalledTimes(1);
+  expect(await client.payload()).toEqual({
+    page: "room",
+    kind: "RoomResponseValidationError",
+    message: "room.snapshot",
+  });
 });

@@ -6,6 +6,7 @@ import {
 } from "@tetraboard/protocol";
 import { getFourShogiDisplayReplayRules, type FourShogiReplayFrame } from "./fourShogiReplayV1";
 import { fetchEventReplay } from "./fetchEventReplay";
+import { parseRoomResponse } from "../../shared/roomResponseValidation";
 export {
   createFourShogiReplayFrame,
   applyFourShogiReplayEvent,
@@ -32,7 +33,13 @@ export function fetchFourShogiReplay({
       return `/api${getFourShogiReplayContract.pathFor(roomId, lastRound.roundId)}?${query}`;
     },
     parsePage: (value) => {
-      const page = getFourShogiReplayContract.response.parse(value);
+      const page = parseRoomResponse(
+        getFourShogiReplayContract.response,
+        value,
+        "room.four-shogi-replay",
+        roomId,
+        signal,
+      );
       if (
         page.instanceId !== instanceId ||
         page.roundId !== lastRound.roundId ||
