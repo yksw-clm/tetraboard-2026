@@ -1,7 +1,12 @@
+import type { PendingMatch } from "../../rooms/matchStore";
+import type { PendingMatch as PendingReversiMatch } from "../../rooms/reversiMatchStore";
+import type { PendingMatch as PendingGomokuMatch } from "../../rooms/gomokuMatchStore";
+import type { PendingMatch as PendingFourGomokuMatch } from "../../rooms/fourGomokuMatchStore";
+import type { PendingShogiMatch } from "../../rooms/shogiMatchStore";
+import type { PendingStandardShogiMatch } from "../../rooms/shogiMatchStore";
 import type { AiServiceBindings } from "../../rooms/aiService";
 import type { CpuCapacityGame } from "../../rooms/cpuCapacity";
 import type { IndexedRoomParticipant } from "../../rooms/roomIndex";
-import type { AccountAdmission } from "../../accounts/roomAccounts";
 import type {
   GameId,
   RoomPublicMetadata,
@@ -52,7 +57,12 @@ export type RoomRuntime = {
   };
   syncAlarm: () => Promise<void>;
   closeRoom: () => void;
-  storedAccount: (playerId: string) => (AccountAdmission & { occupying: boolean }) | null;
+  pendingMatches: () => Map<
+    string,
+    PendingMatch | PendingReversiMatch | PendingGomokuMatch | PendingFourGomokuMatch
+  >;
+  pendingShogiMatches: () => Map<string, PendingShogiMatch | PendingStandardShogiMatch>;
+  flushGuestClaims: () => Promise<void>;
   startAnalyticsMatch: (id: string, room: Room, at: number) => void;
   ctx: DurableObjectState;
   chat: { dirty: boolean };

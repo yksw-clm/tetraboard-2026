@@ -1,3 +1,4 @@
+import { storedAccount } from "../accountSeats/seats";
 import { roomSchema, tournamentRules } from "@tetraboard/protocol";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import {
@@ -51,7 +52,7 @@ async function rekeyReservedTournamentPlayer(
     tournamentReservationKey(input.matchId),
   );
   const initial = runtime.readRoom();
-  const seat = runtime.storedAccount(input.playerId);
+  const seat = storedAccount(runtime, input.playerId);
   const resultWaiting =
     initial &&
     isTournamentGameRoom(initial) &&

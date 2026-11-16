@@ -190,7 +190,9 @@ test.each(["index", "cleanup", "tournament"] as const)(
             });
           } else if (kind === "cleanup") {
             pendingKey = "account-cleanups";
-            Reflect.get(instance, "queueAccountCleanup").call(instance, rows.reservation, true);
+            ctx.storage.kv.put(pendingKey, [
+              { reservation: rows.reservation, releaseAvatar: true, retryAtMs: Date.now() },
+            ]);
           } else {
             pendingKey = tournaments.pendingTournamentStatePrefix + rows.matchId;
             ctx.storage.kv.put(pendingKey, {

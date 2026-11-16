@@ -1,3 +1,4 @@
+import { storedAccount } from "../accountSeats/seats";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import type { MatchmakingRoomReservation } from "../../matchmaking/coordinator";
 import type { RoomPublicMetadata } from "@tetraboard/protocol";
@@ -30,7 +31,7 @@ export async function getMatchmakingState(
   );
   const occupiedPlayerIds = same
     ? room!.players
-        .filter((p) => p.kind === "human" && runtime.storedAccount(p.id)?.occupying)
+        .filter((p) => p.kind === "human" && storedAccount(runtime, p.id)?.occupying)
         .map((p) => p.id)
     : [];
   const connectedPlayerIds = same
