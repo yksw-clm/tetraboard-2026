@@ -1,4 +1,5 @@
 import { expectVersionedRoom } from "./roomStateVersionAssertions";
+import { resetDurableObjectStorage } from "./durableObjectCleanup";
 import { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 import { env, exports } from "cloudflare:workers";
 import { evictDurableObject, runInDurableObject } from "cloudflare:test";
@@ -425,9 +426,7 @@ afterEach(async () => {
   vi.restoreAllMocks();
   for (const s of sockets.splice(0)) s.close();
   for (const id of rooms) {
-    await runInDurableObject(env.GAME_ROOM.getByName(id), async (_instance, state) => {
-      await state.storage.deleteAll();
-    });
+    await resetDurableObjectStorage(env.GAME_ROOM.getByName(id));
   }
   rooms.clear();
   for (const id of accounts.splice(0)) {
