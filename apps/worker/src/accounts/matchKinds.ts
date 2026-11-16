@@ -1,5 +1,5 @@
 import type { MatchHistoryFilter, MatchKind } from "@tetraboard/protocol";
-import type { DecodedMatch } from "./matchDataContracts";
+import type { ReadableMatch } from "./matchDataContracts";
 
 const rated = `(
   json_type(m.record_json, '$.fourReversiRating') = 'object'
@@ -39,7 +39,7 @@ export function withMatchKind<T extends { id: string }>(
   return kinds ? { ...match, matchKind: kinds.get(match.id) ?? ("unknown" as const) } : match;
 }
 
-export async function readMatchKinds(db: D1Database, records: readonly DecodedMatch[]) {
+export async function readMatchKinds(db: D1Database, records: readonly ReadableMatch[]) {
   const kinds = new Map<string, MatchKind>();
   if (!records.length) return kinds;
   const rows = await db

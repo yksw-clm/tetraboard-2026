@@ -1,3 +1,5 @@
+import { prepareStoredMatchFixture } from "./snapshotMatchFixtures";
+import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";
 import { legalDocuments, legalVersion } from "@tetraboard/protocol/privacy";
 import { symmetricEncrypt } from "better-auth/crypto";
 import { runInDurableObject } from "cloudflare:test";
@@ -9,7 +11,7 @@ import reversi from "../../../test-fixtures/matches/reversi-standard-draw.json";
 import { accountIdentity } from "../src/accounts/auth";
 import { fourGomokuMatchData } from "../src/accounts/fourGomokuMatchData";
 import { gomokuMatchData } from "../src/accounts/gomokuMatchData";
-import { publicMatchDetail, readStoredMatch } from "../src/accounts/matchDataContracts";
+import { publicMatchDetail } from "../src/accounts/matchDataContracts";
 import { reversiMatchData } from "../src/accounts/reversiMatchData";
 import type { RoomRuntime } from "../src/durableObjects/gameRoom/runtime";
 import {
@@ -248,7 +250,7 @@ test("全6ゲームの退会は本人だけを除去し、ゲスト名・盤面�
         "mode" in record.settings ? record.settings.mode : "singles",
         record.startedAtMs,
         record.endedAtMs,
-        JSON.stringify(record),
+        await prepareStoredMatchFixture(env.APP_DB, JSON.stringify(record)),
       )
       .run();
     await env.APP_DB.prepare(
@@ -267,20 +269,21 @@ test("全6ゲームの退会は本人だけを除去し、ゲスト名・盤面�
     expect(raw).not.toContain("削除する旧名");
     const parsed = JSON.parse(raw);
     expect(parsed.game).toEqual(record.game);
-    expect(parsed.replay).toEqual(record.replay);
+    const decoded = await readMatchDetailRecord(env.APP_DB, raw, record.settings.game);
+    expect(decoded.record.replay).toEqual(record.replay);
     expect(parsed.settings).toEqual(record.settings);
     const self = parsed.participants.find((p: { retired?: boolean }) => p.retired);
     expect(self).toMatchObject({ name: "退会したプレイヤー", accountId: null, retired: true });
     expect(parsed.participants.filter((p: { retired?: boolean }) => !p.retired)).toEqual(
       record.participants.filter((p) => !(p.kind === "human" && p.accountId === user.id)),
     );
-    const detail = publicMatchDetail(readStoredMatch(raw, record.settings.game), new Map());
+    const detail = publicMatchDetail(decoded, new Map());
     expect(detail.participants.find((p) => p.id === self.id)).toMatchObject({
       name: "退会したプレイヤー",
       retired: true,
     });
     await env.APP_DB.prepare("UPDATE matches SET record_json=? WHERE id=?")
-      .bind(JSON.stringify(record), record.id)
+      .bind(JSON.stringify({ ...record, replay: parsed.replay }), record.id)
       .run();
     expect(await saved(record.id)).not.toContain(user.id);
     await env.APP_DB.prepare(

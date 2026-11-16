@@ -5,7 +5,7 @@ import { getFourReversiRankingsContract } from "@tetraboard/protocol";
 import { accountFixture } from "./accountFixtures";
 import {
   humanFixtureRecord as fixtureRecord,
-  writeLegacyOutcomeFixture,
+  writeOutcomeFixture,
   matchClients,
   matchLeave,
   matchRequest,
@@ -56,7 +56,7 @@ test("対人戦・全色・同率優勝を集計し、0回・ゲスト・未設�
   const incomplete = await accountFixture(false);
   const record = champion(black.id, 1);
   record.participants[1] = { ...record.participants[1], kind: "human", accountId: white.id };
-  await writeLegacyOutcomeFixture(env.APP_DB, record);
+  await writeOutcomeFixture(env.APP_DB, record);
   for (const color of ["red", "blue"] as const) {
     const win = champion(black.id, color === "red" ? 2 : 3);
     win.participants[0].color = color;
@@ -66,13 +66,13 @@ test("対人戦・全色・同率優勝を集計し、0回・ゲスト・未設�
       ...s,
       rank: s.color === color ? 1 : 2,
     }));
-    await writeLegacyOutcomeFixture(env.APP_DB, win);
+    await writeOutcomeFixture(env.APP_DB, win);
   }
-  await writeLegacyOutcomeFixture(env.APP_DB, fixtureRecord(loser.id, 1));
-  await writeLegacyOutcomeFixture(env.APP_DB, champion(incomplete.id, 1));
+  await writeOutcomeFixture(env.APP_DB, fixtureRecord(loser.id, 1));
+  await writeOutcomeFixture(env.APP_DB, champion(incomplete.id, 1));
   const guest = champion(black.id, 4);
   for (const p of guest.participants) if (p.kind === "human") p.accountId = null;
-  await writeLegacyOutcomeFixture(env.APP_DB, guest);
+  await writeOutcomeFixture(env.APP_DB, guest);
   const result = await rankings();
   expect(result.singles.first.map((p) => [p.username, p.value])).toEqual([
     [black.username, 3],
@@ -95,16 +95,16 @@ test("ダブルスの両チーム・全色の勝利を数え、引き分けと�
     record.participants[0].color = color;
     if (record.game.result.mode !== "doubles") throw new Error("Wrong mode");
     record.game.result.winner = index < 2 ? "black-red" : "white-blue";
-    await writeLegacyOutcomeFixture(env.APP_DB, record);
+    await writeOutcomeFixture(env.APP_DB, record);
   }
   const draw = fixtureRecord(user.id, 5, "doubles");
   if (draw.game.result.mode !== "doubles") throw new Error("Wrong mode");
   draw.game.result.winner = null;
-  await writeLegacyOutcomeFixture(env.APP_DB, draw);
+  await writeOutcomeFixture(env.APP_DB, draw);
   const loss = fixtureRecord(user.id, 6, "doubles");
   if (loss.game.result.mode !== "doubles") throw new Error("Wrong mode");
   loss.game.result.winner = "white-blue";
-  await writeLegacyOutcomeFixture(env.APP_DB, loss);
+  await writeOutcomeFixture(env.APP_DB, loss);
   const result = await rankings();
   expect(result.doubles.wins[0]?.value).toBe(4);
   expect(result.doubles.total[0]?.value).toBe(6);
@@ -120,7 +120,7 @@ test("同数は1・1・3位とし、10人目の同数も公開ID順で最大10�
       .run();
     users.push(username);
     for (let count = 1; count <= (index < 2 ? 2 : 1); count++)
-      await writeLegacyOutcomeFixture(env.APP_DB, champion(user.id, count));
+      await writeOutcomeFixture(env.APP_DB, champion(user.id, count));
   }
   const result = await rankings();
   for (const list of [result.singles.first, result.singles.total]) {
@@ -132,8 +132,8 @@ test("同数は1・1・3位とし、10人目の同数も公開ID順で最大10�
 test("全履歴を集計し、再送を重複させず、最新の名前・公開ID・アイコンを表示する", async () => {
   const user = await accountFixture();
   for (let index = 1; index <= 41; index++)
-    await writeLegacyOutcomeFixture(env.APP_DB, champion(user.id, index));
-  await writeLegacyOutcomeFixture(env.APP_DB, champion(user.id, 41));
+    await writeOutcomeFixture(env.APP_DB, champion(user.id, index));
+  await writeOutcomeFixture(env.APP_DB, champion(user.id, 41));
   expect((await rankings()).singles.first[0]?.value).toBe(41);
   const avatarKey = `avatars/${crypto.randomUUID()}.webp`;
   await env.APP_DB.prepare("UPDATE user SET name = ?, username = ?, avatarKey = ? WHERE id = ?")

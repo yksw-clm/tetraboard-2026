@@ -4,7 +4,7 @@ import { getAccountStatsContract, type AccountStats } from "@tetraboard/protocol
 import { accountFixture } from "./accountFixtures";
 import {
   humanFixtureRecord as fixtureRecord,
-  writeLegacyOutcomeFixture,
+  writeOutcomeFixture,
   matchClients,
   matchLeave,
   matchRequest,
@@ -51,7 +51,7 @@ test("全色の本人を確定順位で集計し、同率優勝と順位の飛�
       rank: i + 1,
       stoneCount: 25 - i * 6,
     }));
-    await writeLegacyOutcomeFixture(env.APP_DB, record);
+    await writeOutcomeFixture(env.APP_DB, record);
   }
   const tied = fixtureRecord(user.id, 5);
   if (tied.game.result.mode !== "singles") throw new Error("Wrong mode");
@@ -60,7 +60,7 @@ test("全色の本人を確定順位で集計し、同率優勝と順位の飛�
     rank: [1, 1, 3, 4][i],
     stoneCount: [20, 20, 15, 9][i],
   }));
-  await writeLegacyOutcomeFixture(env.APP_DB, tied);
+  await writeOutcomeFixture(env.APP_DB, tied);
   expect((await stats(user)).singles).toEqual({
     total: 5,
     first: 2,
@@ -81,14 +81,14 @@ test("黒赤・白青の両チームで勝敗を求め、引き分けも対局�
     record.participants[0].color = colors[index];
     if (record.game.result.mode !== "doubles") throw new Error("Wrong mode");
     record.game.result.winner = index % 2 === 0 ? "black-red" : "white-blue";
-    await writeLegacyOutcomeFixture(env.APP_DB, record);
+    await writeOutcomeFixture(env.APP_DB, record);
   }
   const draw = fixtureRecord(user.id, 5, "doubles");
   if (draw.game.result.mode !== "doubles") throw new Error("Wrong mode");
   draw.game.result.winner = null;
   draw.game.result.reason = "board_full";
   draw.game.result.teamTotals = { "black-red": 32, "white-blue": 32 };
-  await writeLegacyOutcomeFixture(env.APP_DB, draw);
+  await writeOutcomeFixture(env.APP_DB, draw);
   expect((await stats(user)).doubles).toEqual({ total: 5, wins: 2, losses: 2, draws: 1 });
   expect((await stats(user)).singles).toEqual(emptyStats.singles);
 });

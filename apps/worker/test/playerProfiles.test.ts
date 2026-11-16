@@ -1,4 +1,5 @@
-import { writeLegacyOutcomeFixture } from "./matchFixtures";
+import { encodeSnapshotMatch } from "../src/rooms/snapshotMatchEvents";
+import { writeOutcomeFixture } from "./matchFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
@@ -285,7 +286,7 @@ test("guest, CPU, missing account, invalid target and D1 failure stay distinct",
   missing.accountId = crypto.randomUUID();
   await db
     .prepare("UPDATE matches SET record_json = ? WHERE id = ?")
-    .bind(JSON.stringify(record), record.id)
+    .bind(JSON.stringify(encodeSnapshotMatch(record).record), record.id)
     .run();
   expect((await lookup(target(2), "four-reversi")).status).toBe(404);
   expect((await request("/player-profile?source=profile&profileId=bad&game=all")).status).toBe(400);
@@ -395,7 +396,7 @@ test("badge opt-in derives independent games from historical human singles inclu
       rank: entry.color === "black" ? 1 : entry.rank,
     }));
     ids.push(record.id);
-    await writeLegacyOutcomeFixture(db, record);
+    await writeOutcomeFixture(db, record);
     reversiTarget = { source: "match", matchId: record.id, playerId: record.participants[0]!.id };
   }
   for (const record of [fixtureRecord(user.id, 6), humanFixtureRecord(user.id, 7, "doubles")]) {

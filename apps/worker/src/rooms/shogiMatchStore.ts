@@ -7,7 +7,6 @@ import {
   type MatchSaveProgress,
 } from "./matchChunks";
 import type { ProfileRatings } from "@tetraboard/protocol";
-import { normalizeLegacyShogiState } from "./normalizeLegacyShogiState";
 import { ensureMatchUpload } from "./matchUploads";
 import {
   applyFourShogiRating,
@@ -88,7 +87,6 @@ export function emptyKnockouts(): Record<Side, number> {
   return { south: 0, west: 0, north: 0, east: 0 };
 }
 
-// 保存待ちの引分提案以外は、読取り用の正規化結果を保存manifestへ戻しません。
 export { readFourShogiMatchRecord as readShogiMatchRecord } from "../accounts/matchDataContracts";
 import { readFourShogiMatchRecord as readShogiMatchRecord } from "../accounts/matchDataContracts";
 
@@ -136,7 +134,7 @@ export async function advanceShogiMatchSave(
   formationUsage?: ShogiFormationUsage,
   tournament?: TournamentRoomContext,
 ): Promise<ShogiSaveProgress | null> {
-  record = await redactParticipants(db, normalizeLegacyShogiState(record) as typeof record);
+  record = await redactParticipants(db, record);
   const game = record.settings.game;
   if (formationUsage) {
     shogiFormationUsageSchema.parse(formationUsage);

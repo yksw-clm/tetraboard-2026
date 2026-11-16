@@ -12,7 +12,7 @@ import mixed from "../../../test-fixtures/matches/four-gomoku-doubles-mixed.json
 import eliminated from "../../../test-fixtures/matches/four-gomoku-doubles-elimination.json";
 import { writeMatch } from "../src/rooms/matchStore";
 import { fourGomokuMatchData } from "../src/accounts/fourGomokuMatchData";
-import { readStoredMatch, publicMatchDetail } from "../src/accounts/matchDataContracts";
+import { readMatchRecord, publicMatchDetail } from "../src/accounts/matchDataContracts";
 import { accountFixture } from "./accountFixtures";
 import { boundaryRequest } from "./roomBoundaryFixtures";
 beforeEach(async () => {
@@ -25,12 +25,12 @@ const archives = [ranked, full, mixed, eliminated];
 for (const fixture of archives)
   test(`${fixture.name}: 固定棋譜の復元と保存・公開契約`, () => {
     const record = fourGomokuMatchData.read(fixture.recordJson);
-    const decoded = readStoredMatch(fixture.recordJson, "four-gomoku");
+    const decoded = readMatchRecord(fixture.recordJson, "four-gomoku");
     const detail = publicFourGomokuMatchDetailSchema.parse(publicMatchDetail(decoded, new Map()));
     expect(detail.game).toEqual(record.game);
     expect(JSON.stringify(detail)).not.toContain("accountId");
     expect(JSON.stringify(detail)).not.toContain("instanceId");
-    expect(() => readStoredMatch(fixture.recordJson, "gomoku")).toThrow();
+    expect(() => readMatchRecord(fixture.recordJson, "gomoku")).toThrow();
     if (fixture === full) expect(record.game.standings.map((s) => s.rank)).toEqual([1, 1, 1, 1]);
   });
 test("全人間の順位別・チーム別集計、同率優勝、重複防止、モード別履歴・ランキング", async () => {

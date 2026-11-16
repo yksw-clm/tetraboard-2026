@@ -1,4 +1,4 @@
-import { eventReplaySchema, isEventReplay, type StoredRecord } from "../rooms/eventRecord";
+import { eventReplaySchema, type StoredRecord } from "../rooms/eventRecord";
 import { profileRatingsSchema } from "@tetraboard/protocol";
 import { z } from "zod";
 import {
@@ -61,12 +61,11 @@ function detail(record: MatchRecord, selfPlayerId: string, profiles: Participant
   });
 }
 const storedRecordSchema = recordSchema.extend({
-  replay: z.union([recordSchema.shape.replay, eventReplaySchema(recordSchema.shape.replay)]),
+  replay: eventReplaySchema(recordSchema.shape.replay),
 });
 export const reversiMatchData = {
   readStored(json: string): StoredRecord<MatchRecord> {
-    const value = storedRecordSchema.parse(JSON.parse(json));
-    return isEventReplay(value.replay) ? value : this.read(json);
+    return storedRecordSchema.parse(JSON.parse(json));
   },
   read(json: string): MatchRecord {
     const record = recordSchema.parse(JSON.parse(json));

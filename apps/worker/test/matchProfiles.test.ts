@@ -1,3 +1,4 @@
+import { encodeSnapshotMatch } from "../src/rooms/snapshotMatchEvents";
 import { accountAvatarPresetId, avatarPresetUrl } from "@tetraboard/protocol";
 import { env } from "cloudflare:workers";
 import { afterEach, expect, test } from "vitest";
@@ -42,7 +43,10 @@ for (const count of [1, 20]) {
   test(`${count}件の対局の現在プロフィールを4回以内のDB問い合わせで取得する`, async () => {
     const user = await accountFixture();
     const records = Array.from({ length: count }, (_, index) =>
-      readStoredMatch(JSON.stringify(fixtureRecord(user.id, index + 1)), "four-reversi"),
+      readStoredMatch(
+        JSON.stringify(encodeSnapshotMatch(fixtureRecord(user.id, index + 1)).record),
+        "four-reversi",
+      ),
     );
     const measured = countQueries(env.APP_DB);
 
@@ -80,7 +84,7 @@ test("20件すべてが異なる登録者4人の対局でもD1のバインド上
     const record = humanFixtureRecord(namespace, index + 1);
     for (const player of record.participants)
       if (player.kind === "human") player.accountId = crypto.randomUUID();
-    return readStoredMatch(JSON.stringify(record), "four-reversi");
+    return readStoredMatch(JSON.stringify(encodeSnapshotMatch(record).record), "four-reversi");
   });
   const measured = countQueries(env.APP_DB);
 
@@ -119,7 +123,7 @@ test("対局ごとの登録引き継ぎ・退会を重ね、未確定の受付�
   retired.retired = true;
   retired.name = "退会したプレイヤー";
   const records = snapshots.map((record) =>
-    readStoredMatch(JSON.stringify(record), "four-reversi"),
+    readStoredMatch(JSON.stringify(encodeSnapshotMatch(record).record), "four-reversi"),
   );
   for (const [index, state] of ["applied", "retired", "pending", "rejected"].entries()) {
     const record = snapshots[index];
@@ -193,6 +197,8 @@ test("保存された本人と引き継ぎ先が矛盾する対局の一覧を�
     .run();
 
   await expect(
-    participantProfiles(env.APP_DB, [readStoredMatch(JSON.stringify(record), "four-reversi")]),
+    participantProfiles(env.APP_DB, [
+      readStoredMatch(JSON.stringify(encodeSnapshotMatch(record).record), "four-reversi"),
+    ]),
   ).rejects.toThrow("Conflicting match participant identity");
 });

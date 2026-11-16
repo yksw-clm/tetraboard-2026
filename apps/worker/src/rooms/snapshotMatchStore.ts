@@ -1,5 +1,8 @@
-import { readStoredMatch, type DecodedMatch } from "../accounts/matchDataContracts";
-import { isEventReplay } from "./eventRecord";
+import {
+  readStoredMatch,
+  readMatchRecord,
+  type ReplayedMatch,
+} from "../accounts/matchDataContracts";
 import {
   encodeSnapshotMatch,
   rebuildSnapshotMatch,
@@ -19,11 +22,12 @@ export async function readMatchDetailRecord(
   db: D1Database,
   json: string,
   game: string,
-): Promise<DecodedMatch> {
+): Promise<ReplayedMatch> {
   const match = readStoredMatch(json, game);
   const events = await readSnapshotMatchEvents(db, match);
-  if (!events) return match;
-  const restored = readStoredMatch(JSON.stringify(rebuildSnapshotMatch(match, events)), game);
+  if (match.game === "shogi" || match.game === "four-shogi") return match;
+  if (!events) throw new Error("Missing match events");
+  const restored = readMatchRecord(JSON.stringify(rebuildSnapshotMatch(match, events)), game);
   verifyFinalState(restored);
   return restored;
 }
@@ -39,12 +43,12 @@ export async function prepareSnapshotMatch(db: D1Database, record: SnapshotMatch
   const encoded = encodeSnapshotMatch(record);
   const json = JSON.stringify(encoded.record);
   const canonical = readStoredMatch(json, record.settings.game);
-  const restored = readStoredMatch(
+  const restored = readMatchRecord(
     JSON.stringify(rebuildSnapshotMatch(canonical, encoded.events)),
     record.settings.game,
   );
   verifyFinalState(restored);
-  const original = readStoredMatch(JSON.stringify(record), record.settings.game);
+  const original = readMatchRecord(JSON.stringify(record), record.settings.game);
   if (JSON.stringify(restored.record) !== JSON.stringify(original.record))
     throw new Error("Match event replay does not match saved steps");
   const schema = matchEventSchema(record.settings.game);
@@ -62,10 +66,9 @@ export async function prepareSnapshotMatch(db: D1Database, record: SnapshotMatch
   return { canonical, statement: publishMatchStatement(db, record.id) };
 }
 
-export function verifyFinalState(restored: DecodedMatch) {
+function verifyFinalState(restored: ReplayedMatch) {
   if (restored.game !== "shogi" && restored.game !== "four-shogi") {
     const replay = restored.record.replay;
-    if (isEventReplay(replay)) throw new Error("Match replay was not restored");
     if (
       JSON.stringify(replay.steps.at(-1)?.game ?? replay.initial) !==
       JSON.stringify(restored.record.game)
