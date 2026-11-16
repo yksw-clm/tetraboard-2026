@@ -125,23 +125,6 @@ function saveMatchStart(
   } satisfies MatchStart);
 }
 
-export function normalizeFourReversiRoom(
-  storage: DurableObjectStorage,
-  room: FourReversiRoom,
-  saved: object,
-): void {
-  if (room.status !== "playing" || Object.hasOwn(saved, "eliminations")) return;
-  const replay = storage.kv.get(replayKey);
-  if (replay === undefined) return;
-  for (const { action } of roundReplaySchema.parse(replay).steps)
-    if (
-      action.type === "eliminate" &&
-      room.game.eliminatedColors.includes(action.color) &&
-      !room.eliminations.some((e) => e.color === action.color)
-    )
-      room.eliminations.push({ color: action.color, reason: action.reason });
-}
-
 export function recordFourReversiTransition(
   storage: DurableObjectStorage,
   room: Playing,

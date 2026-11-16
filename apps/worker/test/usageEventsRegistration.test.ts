@@ -79,7 +79,7 @@ test.each([
     const configured = unavailable ? unavailableLegacyReads() : env;
     await completeRegistration(request, response, configured, newAccount);
     await recordProfileCompletion(configured, user.id, request);
-    expect(events).toEqual(
+    expect(events.filter((e) => e.name === "registration" && e.accountId === user.id)).toEqual(
       ["oauth_success", newAccount ? "registered" : "existing_login", "profile_complete"].map(
         (stage) => ({
           name: "registration",
@@ -114,8 +114,9 @@ test.each([undefined, "not-a-uuid"])(
       true,
     );
     await recordProfileCompletion(env, user.id, request);
-    expect(events).toHaveLength(3);
-    expect(events.every((e) => e.browserId === null)).toBe(true);
+    const completed = events.filter((e) => e.name === "registration" && e.accountId === user.id);
+    expect(completed).toHaveLength(3);
+    expect(completed.every((e) => e.browserId === null)).toBe(true);
   },
 );
 
@@ -142,7 +143,7 @@ test.each(["guest", "deleted"])(
       true,
     );
     await recordProfileCompletion(env, user.id, request);
-    expect(events).toEqual([]);
+    expect(events.filter((e) => e.name === "registration" && e.accountId === user.id)).toEqual([]);
   },
 );
 
@@ -192,7 +193,7 @@ test.each([
       env,
       true,
     );
-    expect(events).toEqual([]);
+    expect(events.filter((e) => e.name === "registration")).toEqual([]);
   },
 );
 
@@ -220,7 +221,7 @@ test("旧テーブルを読めなくても設定APIからプロフィール完�
     { waitUntil() {} } as unknown as ExecutionContext,
   );
   expect(response.status).toBe(200);
-  expect(events).toEqual([
+  expect(events.filter((e) => e.name === "registration" && e.accountId === user.id)).toEqual([
     {
       name: "registration",
       stage: "profile_complete",
@@ -285,7 +286,7 @@ test("OAuth開始は手続き・ブラウザ・本人の情報で新イベント
     unavailableLegacyReads(),
     input,
   );
-  expect(events).toEqual([
+  expect(events.filter((e) => e.name === "registration" && e.accountId === user.id)).toEqual([
     {
       name: "registration",
       flowId: input.id,

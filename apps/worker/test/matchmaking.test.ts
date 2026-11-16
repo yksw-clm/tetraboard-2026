@@ -1,4 +1,5 @@
-import { GameRoom } from "../src/rooms/gameRoom";
+import { expectVersionedRoom } from "./roomStateVersionAssertions";
+import { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 import { env, exports } from "cloudflare:workers";
 import { evictDurableObject, runInDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
@@ -88,7 +89,9 @@ test.each([false, true])(
     rooms.add(assignment.roomId);
     expect(states.map((s) => s.status)).toEqual(["matched", "matched"]);
     for (const user of users) {
-      expect(events).toContainEqual({
+      expect(
+        events.filter((e) => e.name === "matchmaking" && e.operationId === user.operationId),
+      ).toContainEqual({
         name: "matchmaking",
         operationId: user.operationId,
         accountId: user.account.id,
@@ -100,7 +103,9 @@ test.each([false, true])(
         rated: true,
         isTest: false,
       });
-      expect(events).toContainEqual({
+      expect(
+        events.filter((e) => e.name === "matchmaking" && e.operationId === user.operationId),
+      ).toContainEqual({
         name: "matchmaking",
         operationId: user.operationId,
         accountId: user.account.id,
@@ -119,7 +124,9 @@ test.each([false, true])(
     const room = env.GAME_ROOM.getByName(assignment.roomId);
     expect(await room.getRoom()).toMatchObject({ status: "playing" });
     for (const user of users)
-      expect(events).toContainEqual({
+      expect(
+        events.filter((e) => e.name === "matchmaking" && e.operationId === user.operationId),
+      ).toContainEqual({
         name: "matchmaking",
         operationId: user.operationId,
         accountId: user.account.id,
@@ -131,8 +138,14 @@ test.each([false, true])(
         rated: true,
         isTest: false,
       });
-    expect(events.filter((e) => e.name === "matchmaking")).toHaveLength(6);
-    expect(events).toContainEqual(
+    expect(
+      events.filter(
+        (e) => e.name === "matchmaking" && users.some((user) => user.operationId === e.operationId),
+      ),
+    ).toHaveLength(6);
+    expect(
+      events.filter((e) => e.name === "match_started" && e.matchId === assignment.matchId),
+    ).toEqual([
       expect.objectContaining({
         name: "match_started",
         matchId: assignment.matchId,
@@ -140,7 +153,7 @@ test.each([false, true])(
         humans: 2,
         cpus: 0,
       }),
-    );
+    ]);
     if (fail) expect(warn).toHaveBeenCalledWith("Usage event write failed");
   },
 );
@@ -468,6 +481,7 @@ test.each([
     const assignment = states[0]!.assignment!;
     rooms.add(assignment.roomId);
     const roomStub = env.GAME_ROOM.getByName(assignment.roomId);
+    await expectVersionedRoom(roomStub);
     const schema =
       game === "four-shogi"
         ? fourShogiRoomSchema

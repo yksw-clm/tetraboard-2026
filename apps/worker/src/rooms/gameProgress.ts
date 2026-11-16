@@ -1,52 +1,29 @@
-import { FourGomokuProgress } from "./fourGomokuProgress";
-import type { FourGomokuLastRound } from "@tetraboard/protocol";
-import { GomokuProgress } from "./gomokuProgress";
-import type { GomokuLastRound } from "@tetraboard/protocol";
-import { ShogiProgress } from "./standardShogiProgress";
-import type { ShogiLastRound } from "@tetraboard/protocol";
-import type { ReversiLastRound } from "@tetraboard/protocol";
-import { ReversiProgress } from "./reversiProgress";
 import type {
-  GameId,
-  RoomFor,
-  RoomMembership,
-  RoomSocketMessage,
-  LastRound,
-  FourShogiLastRound,
-} from "@tetraboard/protocol";
+  FinishedProgress,
+  LastRoundFor,
+  PlayingFor,
+  ProgressFor,
+  RematchFor,
+  WaitingFor,
+} from "@tetraboard/context-room";
+import type { GameId, RoomFor, RoomMembership } from "@tetraboard/protocol";
+import { FourGomokuProgress } from "./fourGomokuProgress";
 import { FourReversiProgress } from "./fourReversiProgress";
 import { FourShogiProgress } from "./fourShogiProgress";
-export type ProgressError = Extract<RoomSocketMessage, { type: "room.error" }>["error"];
-export type PlayingFor<G extends GameId> = Extract<RoomFor<G>, { status: "playing" }>;
-export type WaitingFor<G extends GameId> = Extract<RoomFor<G>, { status: "waiting" }>;
-interface ProgressTypes {
-  "four-gomoku": { finished: FourGomokuLastRound["game"]; lastRound: FourGomokuLastRound };
-  gomoku: { finished: GomokuLastRound["game"]; lastRound: GomokuLastRound };
-  shogi: { finished: ShogiLastRound["game"]; lastRound: ShogiLastRound };
-  reversi: { finished: ReversiLastRound["game"]; lastRound: ReversiLastRound };
-  "four-reversi": { finished: LastRound["game"]; lastRound: LastRound };
-  "four-shogi": { finished: FourShogiLastRound["game"]; lastRound: FourShogiLastRound };
-}
-export type FinishedFor<G extends GameId> = ProgressTypes[G]["finished"];
-export type LastRoundFor<G extends GameId> = ProgressTypes[G]["lastRound"];
-export type FinishedProgress<G extends GameId> = {
-  kind: "finished";
-  gameId: G;
-  room: PlayingFor<G>;
-  game: FinishedFor<G>;
-  at: number;
-};
-export type ProgressFor<G extends GameId> =
-  | { kind: "rejected"; error: ProgressError }
-  | { kind: "unchanged"; gameId: G; room: RoomFor<G> }
-  | { kind: "playing"; gameId: G; room: PlayingFor<G> }
-  | FinishedProgress<G>;
-export type AnyProgress = { [G in GameId]: ProgressFor<G> }[GameId];
-export type RematchFor<G extends GameId> = {
-  room: PlayingFor<G>;
-  lastRound: LastRoundFor<G>;
-  at: number;
-};
+import { GomokuProgress } from "./gomokuProgress";
+import { ReversiProgress } from "./reversiProgress";
+import { ShogiProgress } from "./standardShogiProgress";
+export type {
+  AnyProgress,
+  FinishedFor,
+  FinishedProgress,
+  LastRoundFor,
+  PlayingFor,
+  ProgressError,
+  ProgressFor,
+  RematchFor,
+  WaitingFor,
+} from "@tetraboard/context-room";
 export interface ProgressDependencies {
   storage: DurableObjectStorage;
   membership: (hash: string) => RoomMembership | null;

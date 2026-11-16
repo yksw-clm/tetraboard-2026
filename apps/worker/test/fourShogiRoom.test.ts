@@ -34,7 +34,7 @@ import {
   move as engineMove,
 } from "../../../packages/four-shogi/bench/positionFixture";
 import { ShogiStore } from "../src/rooms/shogiStore";
-import { GameRoom } from "../src/rooms/gameRoom";
+import { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 import { formationAction, formationState } from "../../../test-fixtures/shogiFormations";
 import { tacticalCases } from "../../../packages/four-shogi/bench/tactics";
 import {
@@ -1274,6 +1274,7 @@ test.each([true, false])(
     await runInDurableObject(env.GAME_ROOM.getByName(prepared.id), (_instance, state) => {
       const saved = state.storage.kv.get<Record<string, unknown>>("room")!;
       delete saved.threePlayerAttackForbiddenActions;
+      state.storage.kv.delete("room-state-version");
       state.storage.kv.put("room", saved);
     });
     expect(await get(prepared.id)).toEqual(before);

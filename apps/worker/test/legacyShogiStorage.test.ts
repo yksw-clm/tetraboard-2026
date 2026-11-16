@@ -103,6 +103,7 @@ for (const game of ["four-shogi", "shogi"] as const)
       expect(roomSchema.safeParse(stored).success).toBe(false);
       await runInDurableObject(stub, async (_, state) => {
         state.storage.kv.put("room", stored);
+        state.storage.kv.delete("room-state-version");
         for (const [index, player] of current.players.entries()) {
           const hash = String(index + 1).padStart(64, "0");
           state.storage.kv.put(`player-token:${player.id}`, hash);
@@ -119,11 +120,15 @@ for (const game of ["four-shogi", "shogi"] as const)
         instanceId: current.instanceId,
         settings: { game },
       });
-      const snapshot = getRoomContract.response.parse(await stub.getRoomSnapshot());
-      expect(snapshot.room).toEqual(current);
       expect(await runInDurableObject(stub, (_, state) => state.storage.kv.get("room"))).toEqual(
         stored,
       );
+      const snapshot = getRoomContract.response.parse(await stub.getRoomSnapshot());
+      expect(snapshot.room).toEqual(current);
+      await runInDurableObject(stub, (_, state) => {
+        expect(state.storage.kv.get("room")).toEqual(current);
+        expect(state.storage.kv.get("room-state-version")).toBe(1);
+      });
     });
   }
 

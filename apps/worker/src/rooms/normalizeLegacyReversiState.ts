@@ -1,4 +1,4 @@
-// フェーズ3の room の殻（TB-68）で、版の番号を付けた読み込み時の移行に置き換えます。
+// 版0のルームだけで、schemaの解析前に欠落した欄を補います。
 export function normalizeLegacyReversiState(
   value: unknown,
   readReplayId: () => string | undefined,

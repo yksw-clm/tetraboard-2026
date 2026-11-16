@@ -1,34 +1,35 @@
-import type { AnalyticsMatch } from "../src/usageEvents/matches";
-import { env, exports } from "cloudflare:workers";
+import { legalDocuments, legalVersion } from "@tetraboard/protocol/privacy";
+import { symmetricEncrypt } from "better-auth/crypto";
 import { runInDurableObject } from "cloudflare:test";
+import { env, exports } from "cloudflare:workers";
 import { afterEach, expect, test, vi } from "vitest";
-import { legalVersion, legalDocuments } from "@tetraboard/protocol/privacy";
-import { accountFixture, origin } from "./accountFixtures";
+import fourGomoku from "../../../test-fixtures/matches/four-gomoku-singles-ranked.json";
+import gomoku from "../../../test-fixtures/matches/gomoku-on-five.json";
+import reversi from "../../../test-fixtures/matches/reversi-standard-draw.json";
+import { accountIdentity } from "../src/accounts/auth";
+import { fourGomokuMatchData } from "../src/accounts/fourGomokuMatchData";
+import { gomokuMatchData } from "../src/accounts/gomokuMatchData";
+import { publicMatchDetail, readStoredMatch } from "../src/accounts/matchDataContracts";
+import { reversiMatchData } from "../src/accounts/reversiMatchData";
+import type { RoomRuntime } from "../src/durableObjects/gameRoom/runtime";
 import {
   challengeCookie,
-  flowCookie,
+  completeReauthentication,
   digest,
+  flowCookie,
   processDeletions,
   requestDeletion,
   responseCookies,
-  completeReauthentication,
 } from "../src/privacy/deletion";
-import { accountIdentity } from "../src/accounts/auth";
+import { authSecret, unsealToken } from "../src/privacy/tokens";
 import { writeMatch } from "../src/rooms/matchStore";
-import { readStoredMatch, publicMatchDetail } from "../src/accounts/matchDataContracts";
 import { advanceShogiMatchSave, type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
+import type { AnalyticsMatch } from "../src/usageEvents/matches";
+import worker from "../src/worker";
+import { accountFixture, origin } from "./accountFixtures";
+import { humanFixtureRecord } from "./matchFixtures";
 import { humanShogiRecord } from "./shogiMatchFixtures";
 import { standardShogiRecord } from "./standardShogiFixtures";
-import { humanFixtureRecord } from "./matchFixtures";
-import { reversiMatchData } from "../src/accounts/reversiMatchData";
-import { gomokuMatchData } from "../src/accounts/gomokuMatchData";
-import { fourGomokuMatchData } from "../src/accounts/fourGomokuMatchData";
-import reversi from "../../../test-fixtures/matches/reversi-standard-draw.json";
-import gomoku from "../../../test-fixtures/matches/gomoku-on-five.json";
-import fourGomoku from "../../../test-fixtures/matches/four-gomoku-singles-ranked.json";
-import worker from "../src/worker";
-import { authSecret, unsealToken } from "../src/privacy/tokens";
-import { symmetricEncrypt } from "better-auth/crypto";
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new Request(`${origin}/api${path}`, { redirect: "manual", ...init }));
 afterEach(() => vi.restoreAllMocks());
@@ -950,7 +951,7 @@ test("退会と同時に失敗したDO棋譜保存は、現在のマスク済み
   expect(await tombstone(user.id)).toBe(true);
   const stub = env.GAME_ROOM.getByName("privacy-inflight-save");
   await runInDurableObject(stub, async (instance, state) => {
-    const owned = instance as unknown as { env: Env; flushMatches: () => Promise<void> };
+    const owned = instance as unknown as { env: Env; runtime: RoomRuntime };
     const original = owned.env;
     let start!: () => void, release!: () => void;
     const started = new Promise<void>((resolve) => (start = resolve)),
@@ -969,7 +970,7 @@ test("退会と同時に失敗したDO棋譜保存は、現在のマスク済み
     const key = `match-pending:${record.id}`;
     state.storage.kv.put(key, { record, retryAtMs: Date.now() });
     try {
-      const flushing = owned.flushMatches();
+      const flushing = owned.runtime.jobs.matchJob.flush();
       await started;
       await instance.purgeAccount(user.id);
       release();
