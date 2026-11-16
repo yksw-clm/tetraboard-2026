@@ -50,7 +50,9 @@ import {
 import type { ReversiRoom } from "@tetraboard/protocol";
 import type { PendingMatch as PendingReversiMatch } from "./reversiMatchStore";
 import { gameCapacity } from "@tetraboard/protocol/games";
-import { nextDueRoomDeadline, earliestAlarmAt } from "./roomDeadlines";
+import { nextDueRoomDeadline } from "./roomDeadlines";
+import { nextRoomAlarmAt } from "./roomAlarm";
+import { RoomAlarmEvents, wrapRoomAlarmEvents } from "./roomAlarmEvents";
 import { roomFormationAnalysis, formationAnalysisTag } from "./fourShogiFormationAnalysis";
 import {
   analyticsActiveKey,
@@ -212,6 +214,12 @@ export class GameRoom extends DurableObject<Env> {
     });
   }
 
+  private readonly alarmEvents = new RoomAlarmEvents(
+    this,
+    this.ctx.storage,
+    () => this.nextAlarmAt(),
+    (task) => this.ctx.waitUntil(task),
+  );
   private cpuCapacityFlush: Promise<void> | null = null;
   private indexFlush: Promise<void> | null = null;
   private chatDirty = false;
@@ -385,6 +393,7 @@ export class GameRoom extends DurableObject<Env> {
       if (next) {
         const [key, job] = next;
         try {
+          await this.alarmEvents.sync();
           const progress = await advanceShogiMatchSave(
             this.env.APP_DB,
             job.record,
@@ -413,7 +422,7 @@ export class GameRoom extends DurableObject<Env> {
           if (latest) this.ctx.storage.kv.put(key, { ...latest, retryAtMs: Date.now() + 5_000 });
         }
       }
-      await this.syncAlarm(this.readRoom());
+      await this.alarmEvents.afterFlush();
     };
     this.shogiMatchFlush = flush().finally(() => {
       this.shogiMatchFlush = null;
@@ -430,6 +439,7 @@ export class GameRoom extends DurableObject<Env> {
         if (!next) break;
         const [key, job] = next;
         try {
+          await this.alarmEvents.sync();
           await writeMatch(
             this.env.APP_DB,
             job.record,
@@ -443,7 +453,7 @@ export class GameRoom extends DurableObject<Env> {
           break;
         }
       }
-      await this.syncAlarm(this.readRoom());
+      await this.alarmEvents.afterFlush();
     };
     this.matchFlush = flush().finally(() => {
       this.matchFlush = null;
@@ -471,6 +481,7 @@ export class GameRoom extends DurableObject<Env> {
 
   async purgeAccount(accountId: string) {
     await this.ctx.blockConcurrencyWhile(async () => {
+      await this.alarmEvents.sync();
       const aliases = await this.env.APP_DB.prepare(
         "SELECT guest_id FROM guest_account_merges WHERE account_id=?",
       )
@@ -491,12 +502,14 @@ export class GameRoom extends DurableObject<Env> {
         this.readRoom()?.id ??
         this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey)?.metadata.id;
       if (code) {
+        await this.alarmEvents.sync();
         const retained = await this.env.APP_DB.prepare(
           "SELECT player_id FROM privacy_room_players WHERE account_id=? AND room_id=?",
         )
           .bind(accountId, code)
           .all<{ player_id: string }>();
         for (const row of retained.results) ids.add(row.player_id);
+        await this.alarmEvents.sync();
         const matchIdentities = await this.env.APP_DB.prepare(`
           SELECT m.id AS match_id, json_extract(p.value, '$.id') AS player_id
           FROM matches m, json_each(m.record_json, '$.participants') p
@@ -795,6 +808,7 @@ export class GameRoom extends DurableObject<Env> {
     ].find((job) => job.record.id === input.matchId)?.record;
     let record = pending;
     if (!record) {
+      await this.alarmEvents.sync();
       const saved = await this.env.APP_DB.prepare("SELECT game,record_json FROM matches WHERE id=?")
         .bind(input.matchId)
         .first<{ game: string; record_json: string }>();
@@ -812,7 +826,7 @@ export class GameRoom extends DurableObject<Env> {
       generation: crypto.randomUUID(),
       retryAtMs: Date.now(),
     } satisfies PendingGuestClaims);
-    await this.syncAlarm(this.readRoom());
+    this.alarmEvents.mark();
     this.ctx.waitUntil(this.flushGuestMatchClaims());
   }
 
@@ -824,6 +838,7 @@ export class GameRoom extends DurableObject<Env> {
       if (!job || job.retryAtMs > Date.now() || !code) return;
       let pending = true;
       try {
+        await this.alarmEvents.sync();
         await retryPendingMatchClaims(this.env.APP_DB, code);
         pending = Boolean(
           await this.env.APP_DB.prepare(
@@ -842,7 +857,7 @@ export class GameRoom extends DurableObject<Env> {
           this.ctx.storage.kv.put(guestClaimsKey, { ...job, retryAtMs: Date.now() + 5_000 });
         else this.ctx.storage.kv.delete(guestClaimsKey);
       });
-      await this.syncAlarm(this.readRoom());
+      await this.alarmEvents.afterFlush();
     };
     this.guestClaimsFlush = flush().finally(() => {
       this.guestClaimsFlush = null;
@@ -972,7 +987,6 @@ export class GameRoom extends DurableObject<Env> {
       return { status: "started", registration: guestRegistrationState(record) };
     });
     const room = this.readRoom();
-    await this.syncAlarm(room);
     if (room && result.status === "started") this.broadcastRoom(room);
     return result;
   }
@@ -1122,7 +1136,6 @@ export class GameRoom extends DurableObject<Env> {
       )!;
       this.closeSockets(record.oldTokenHash, "Room membership updated");
       const room = this.readRoom();
-      await this.syncAlarm(room);
       if (room) this.broadcastRoom(room);
     } else await this.reconcileDeadlines();
     return result ?? { status: "account_reservation_invalid" };
@@ -1134,6 +1147,7 @@ export class GameRoom extends DurableObject<Env> {
     if (existing) existing.releaseAvatar ||= releaseAvatar;
     else jobs.push({ reservation, releaseAvatar, retryAtMs: Date.now() });
     this.ctx.storage.kv.put(accountCleanupKey, jobs);
+    this.alarmEvents.mark();
   }
 
   private releaseAccount(playerId: string, removeAvatar: boolean) {
@@ -1155,6 +1169,7 @@ export class GameRoom extends DurableObject<Env> {
         );
         if (!job) break;
         try {
+          await this.alarmEvents.sync();
           await releaseReservation(this.env, job.reservation, job.releaseAvatar);
           this.ctx.storage.transactionSync(() => {
             const jobs = this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [];
@@ -1179,7 +1194,7 @@ export class GameRoom extends DurableObject<Env> {
           break;
         }
       }
-      await this.syncAlarm(this.readRoom());
+      await this.alarmEvents.afterFlush();
     };
     this.accountFlush = flush().finally(() => {
       this.accountFlush = null;
@@ -1196,6 +1211,7 @@ export class GameRoom extends DurableObject<Env> {
       try {
         if (this.ctx.storage.kv.get(cancelledAdmissionKey(admission.operationId)))
           return { ok: true as const, value: null };
+        await this.alarmEvents.sync();
         const reservation =
           await this.env.APP_DB.prepare(`SELECT operation_id FROM account_room_seats
         WHERE account_id = ? AND operation_id = ? AND room_id = ? AND instance_id = ? AND player_id = ? AND name = ? AND avatar_key IS ? AND avatar_preset_id IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=account_room_seats.account_id)`)
@@ -1262,7 +1278,7 @@ export class GameRoom extends DurableObject<Env> {
         this.ctx.storage.kv.put(cancelledAdmissionKey(admission.operationId), true);
         this.queueAccountCleanup(admission, !avatarReferenced);
       });
-      await this.syncAlarm(room);
+      this.alarmEvents.mark();
       return { occupied: false, avatarReferenced: Boolean(avatarReferenced) };
     });
   }
@@ -1732,13 +1748,16 @@ export class GameRoom extends DurableObject<Env> {
       this.ctx.storage.kv.put(cpuCapacitySequenceKey, sequence);
     });
     try {
-      await this.syncAlarm(this.readRoom());
+      this.alarmEvents.mark();
+      await this.alarmEvents.sync();
       if (await this.env.CPU_CAPACITY.getByName(game).reserve(room.id, sequence, seats))
         return { ...reservation, releaseAtMs: null };
       this.ctx.storage.kv.delete(cpuCapacityKey);
+      this.alarmEvents.mark();
       return "cpu_capacity_full";
     } catch {
       this.ctx.storage.kv.put(cpuCapacityKey, { ...reservation, releaseAtMs: Date.now() });
+      this.alarmEvents.mark();
       this.ctx.waitUntil(this.flushCpuCapacity());
       return "internal_error";
     }
@@ -1750,6 +1769,7 @@ export class GameRoom extends DurableObject<Env> {
     if (pending?.releaseAtMs == null || pending.releaseAtMs > Date.now()) return;
     const flush = async () => {
       try {
+        await this.alarmEvents.sync();
         await this.env.CPU_CAPACITY.getByName(pending.game).release(
           pending.roomId,
           pending.sequence,
@@ -1758,7 +1778,7 @@ export class GameRoom extends DurableObject<Env> {
       } catch {
         this.ctx.storage.kv.put(cpuCapacityKey, { ...pending, releaseAtMs: Date.now() + 5000 });
       }
-      await this.syncAlarm(this.readRoom());
+      await this.alarmEvents.afterFlush();
     };
     this.cpuCapacityFlush = flush().finally(() => {
       this.cpuCapacityFlush = null;
@@ -1793,11 +1813,11 @@ export class GameRoom extends DurableObject<Env> {
     });
   }
 
-  private withIndexTransaction<T>(action: () => T): T {
+  private withIndexTransaction<T>(action: () => T, previousRoom?: Room | null): T {
     let changed = false;
     let releaseCpu = false;
     const result = this.ctx.storage.transactionSync(() => {
-      const before = this.readRoom();
+      const before = previousRoom === undefined ? this.readRoom() : previousRoom;
       const previous = before === null ? null : this.publicMetadata(before);
       const value = action();
       const after = this.readRoom();
@@ -1829,6 +1849,7 @@ export class GameRoom extends DurableObject<Env> {
       }
       return value;
     });
+    this.alarmEvents.mark();
     if (changed) this.ctx.waitUntil(this.flushRoomIndex());
     if (releaseCpu) this.ctx.waitUntil(this.flushCpuCapacity());
     if ((this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? []).length)
@@ -1848,6 +1869,7 @@ export class GameRoom extends DurableObject<Env> {
         const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
         if (pending === undefined || pending.retryAtMs > Date.now()) break;
         try {
+          await this.alarmEvents.sync();
           await writeRoomIndex(this.env.APP_DB, pending);
           this.ctx.storage.transactionSync(() => {
             if (
@@ -1870,7 +1892,7 @@ export class GameRoom extends DurableObject<Env> {
           break;
         }
       }
-      await this.syncAlarm(this.readRoom());
+      await this.alarmEvents.afterFlush();
     };
     this.indexFlush = flush().finally(() => {
       this.indexFlush = null;
@@ -1891,75 +1913,41 @@ export class GameRoom extends DurableObject<Env> {
     });
   }
 
-  private async syncAlarm(room: Room | null): Promise<void> {
-    const deadlines =
-      room?.players
-        .filter((player) => player.kind === "human" && !this.registrationForPlayer(player.id))
-        .map((player) => player.reconnectDeadline)
-        .filter((value) => value !== null) ?? [];
-    if (room !== null && this.gameAdapter(room).cpu.usesIdleDeadline(room))
-      deadlines.push(room.lastActivityAtMs + idleMs);
-    for (const player of room?.players ?? []) {
-      const registration = this.registrationForPlayer(player.id);
-      if (registration) deadlines.push(registration.holdUntilMs);
-    }
-    if (room?.status === "playing") {
-      deadlines.push(room.clock.turnExpiresAt);
-      if (this.gameAdapter(room).cpu.currentCpu(room) !== null) {
-        deadlines.push(this.gameAdapter(room).cpu.alarmAt(room));
-      }
-    }
-    const capacity = this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
-    if (capacity?.releaseAtMs != null) deadlines.push(capacity.releaseAtMs);
-    const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
-    if (pending !== undefined) deadlines.push(pending.retryAtMs);
-    for (const job of this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [])
-      deadlines.push(job.retryAtMs);
-    for (const job of this.pendingMatches().values()) deadlines.push(job.retryAtMs);
-    for (const job of this.pendingShogiMatches().values()) deadlines.push(job.retryAtMs);
-    const claims = this.ctx.storage.kv.get<PendingGuestClaims>(guestClaimsKey);
-    if (claims) deadlines.push(claims.retryAtMs);
-    for (const [, job] of this.ctx.storage.kv.list<PendingTournamentState>({
-      prefix: pendingTournamentStatePrefix,
-    }))
-      deadlines.push(job.retryAtMs);
-    const tournament = this.tournamentReservation(room);
-    if (tournament?.status === "waiting")
-      deadlines.push(
-        Math.min(
-          tournament.preparedAtMs + tournamentRules.connectionGraceMs,
-          tournament.context.endsAtMs,
-        ),
-      );
-    if (
-      room &&
-      isTournamentGameRoom(room) &&
-      room.status === "waiting" &&
-      room.tournamentStartsAtMs
-    )
-      deadlines.push(room.tournamentStartsAtMs);
-    if (
-      room &&
-      "matchmaking" in room &&
-      room.matchmaking &&
-      room.status === "waiting" &&
-      !room.lastRound
-    ) {
-      deadlines.push(room.matchmaking.preparedAtMs + matchmakingRules.connectionGraceMs);
-      if (room.matchmaking.startsAtMs !== undefined) deadlines.push(room.matchmaking.startsAtMs);
-      const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(
-        `matchmaking:${room.matchmaking.id}`,
-      );
-      if (saved?.phase === "waiting" && saved.aiWarmup?.state === "pending")
-        deadlines.push(
-          Math.min(saved.aiWarmup.nextAtMs, saved.expiresAtMs - matchmakingRules.countdownMs),
-        );
-    }
-    const next = earliestAlarmAt(deadlines);
-    const current = await this.ctx.storage.getAlarm();
-    if (next === current) return;
-    if (next === null) await this.ctx.storage.deleteAlarm();
-    else await this.ctx.storage.setAlarm(next);
+  private nextAlarmAt(): number | null {
+    const room = this.readRoom();
+    const cpu = room ? this.gameAdapter(room).cpu : null;
+    return nextRoomAlarmAt({
+      room,
+      registrations: new Map(
+        (room?.players ?? []).flatMap((player) => {
+          const registration = this.registrationForPlayer(player.id);
+          return registration ? [[player.id, registration] as const] : [];
+        }),
+      ),
+      usesIdleDeadline: !!room && !!cpu?.usesIdleDeadline(room),
+      cpuAlarmAt:
+        room?.status === "playing" && cpu && cpu.currentCpu(room) !== null
+          ? cpu.alarmAt(room)
+          : null,
+      capacity: this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey),
+      index: this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey),
+      accountCleanups: this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [],
+      matches: this.pendingMatches().values(),
+      shogiMatches: this.pendingShogiMatches().values(),
+      guestClaims: this.ctx.storage.kv.get<PendingGuestClaims>(guestClaimsKey),
+      tournamentStates: [
+        ...this.ctx.storage.kv.list<PendingTournamentState>({
+          prefix: pendingTournamentStatePrefix,
+        }),
+      ].map(([, job]) => job),
+      tournament: this.tournamentReservation(room),
+      matchmaking:
+        room && "matchmaking" in room && room.matchmaking
+          ? this.ctx.storage.kv.get<MatchmakingRoomReservation>(
+              `matchmaking:${room.matchmaking.id}`,
+            )
+          : undefined,
+    });
   }
 
   private tournamentReservation(room = this.readRoom()): TournamentRoomReservation | null {
@@ -1993,6 +1981,7 @@ export class GameRoom extends DurableObject<Env> {
       for (const [key, pending] of pendingStates) {
         if (pending.retryAtMs > Date.now()) continue;
         try {
+          await this.alarmEvents.sync();
           await writeTournamentState(this.env.APP_DB, pending);
           this.ctx.storage.transactionSync(() => {
             const current = this.ctx.storage.kv.get<PendingTournamentState>(key);
@@ -2007,7 +1996,7 @@ export class GameRoom extends DurableObject<Env> {
           });
         }
       }
-      await this.syncAlarm(this.readRoom());
+      await this.alarmEvents.afterFlush();
     };
     this.tournamentStateFlush = flush().finally(() => {
       this.tournamentStateFlush = null;
@@ -2048,6 +2037,7 @@ export class GameRoom extends DurableObject<Env> {
       if (this.ctx.storage.kv.get(cancelledTournamentKey(context.matchId)))
         return { status: "cancelled" as const };
       if (this.readRoom()) return { status: "room_in_use" as const };
+      await this.alarmEvents.sync();
       const checks = await this.env.APP_DB.batch(
         players.map(({ admission }) =>
           this.env.APP_DB.prepare(`SELECT u.isTestUser FROM account_room_seats s
@@ -2156,7 +2146,6 @@ export class GameRoom extends DurableObject<Env> {
         const secret = crypto.getRandomValues(new Uint8Array(32));
         this.ctx.storage.kv.put(viewerSecretKey, bytesToHex(secret));
       });
-      await this.syncAlarm(room);
       return { status: "prepared" as const };
     });
   }
@@ -2208,7 +2197,6 @@ export class GameRoom extends DurableObject<Env> {
         closed = true;
       }
     });
-    await this.syncAlarm(this.readRoom());
     if (closed) this.closeSockets();
     return { status: "cancelled" as const };
   }
@@ -2258,6 +2246,7 @@ export class GameRoom extends DurableObject<Env> {
           return { status: "stale" as const };
         if (input.version === version && previousHash === input.tokenHash)
           return { status: "updated" as const };
+        await this.alarmEvents.sync();
         const eligible = await this.env.APP_DB.prepare(
           `SELECT 1 FROM account_room_seats s JOIN user u ON u.id=s.account_id JOIN tournament_match_players p ON p.operation_id=s.operation_id AND p.match_id=? JOIN tournament_entries e ON e.id=p.entry_id AND e.account_id=s.account_id AND e.deleted=0 WHERE s.account_id=? AND s.operation_id=? AND s.instance_id=? AND s.player_id=? AND u.profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)`,
         )
@@ -2335,7 +2324,6 @@ export class GameRoom extends DurableObject<Env> {
           this.closeSockets(previousHash, "Tournament control transferred");
         }
         const room = this.readRoom();
-        await this.syncAlarm(room);
         if (room) this.broadcastRoom(room);
         return { status: "updated" as const };
       } catch (error) {
@@ -2390,7 +2378,6 @@ export class GameRoom extends DurableObject<Env> {
     });
     if (countdownChanged) {
       const room = this.readRoom();
-      await this.syncAlarm(room);
       if (room) this.broadcastRoom(room);
     }
     if (
@@ -2399,6 +2386,7 @@ export class GameRoom extends DurableObject<Env> {
     )
       return;
     await this.ctx.blockConcurrencyWhile(async () => {
+      await this.alarmEvents.sync();
       const active =
         await this.env.APP_DB.prepare(`SELECT COUNT(*) AS count FROM tournament_match_players p
         JOIN account_room_seats s ON s.account_id=p.account_id AND s.operation_id=p.operation_id AND s.player_id=p.player_id
@@ -2487,7 +2475,6 @@ export class GameRoom extends DurableObject<Env> {
       });
     });
     const room = this.readRoom();
-    await this.syncAlarm(room);
     if (room) this.broadcastRoom(room);
   }
 
@@ -2521,6 +2508,7 @@ export class GameRoom extends DurableObject<Env> {
         return { status: "cancelled" as const };
       if (this.readRoom()) return { status: "room_in_use" as const };
       for (const { admission: a } of input.players) {
+        await this.alarmEvents.sync();
         const valid = await this.env.APP_DB.prepare(
           `SELECT 1 FROM account_room_seats s JOIN user u ON u.id=s.account_id JOIN matchmaking_wait_reservations w ON w.account_id=s.account_id WHERE s.account_id=? AND s.operation_id=? AND s.room_id=? AND s.instance_id=? AND s.player_id=? AND w.match_operation_id=s.operation_id AND w.queue_key=? AND u.profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=u.id)
             ${
@@ -2645,7 +2633,6 @@ export class GameRoom extends DurableObject<Env> {
           bytesToHex(crypto.getRandomValues(new Uint8Array(32))),
         );
       });
-      await this.syncAlarm(room);
       return { status: "prepared" as const };
     });
   }
@@ -2711,7 +2698,6 @@ export class GameRoom extends DurableObject<Env> {
       return false;
     });
     if (closed) this.closeSockets();
-    await this.syncAlarm(this.readRoom());
     return { status: "aborted" as const };
   }
   async rekeyMatchmakingPlayer(
@@ -2737,7 +2723,7 @@ export class GameRoom extends DurableObject<Env> {
     if (version === current) {
       if (old !== tokenHash) return false;
       await this.advanceMatchmakingStart();
-      await this.syncAlarm(this.readRoom());
+      this.alarmEvents.mark();
       return true;
     }
     this.ctx.storage.transactionSync(() => {
@@ -2774,7 +2760,7 @@ export class GameRoom extends DurableObject<Env> {
       )
         socket.close(1000, "操作元が変わりました");
     await this.advanceMatchmakingStart();
-    await this.syncAlarm(this.readRoom());
+    this.alarmEvents.mark();
     return true;
   }
   private startMatchmakingAiWarmup(reservation: MatchmakingRoomReservation) {
@@ -2812,6 +2798,7 @@ export class GameRoom extends DurableObject<Env> {
       attempt,
       atMs: now,
     });
+    this.alarmEvents.mark();
     this.ctx.waitUntil(this.finishMatchmakingAiWarmup(key, game, attempt, deadline));
   }
 
@@ -2821,6 +2808,7 @@ export class GameRoom extends DurableObject<Env> {
     attempt: number,
     deadline: number,
   ) {
+    await this.alarmEvents.sync();
     const failure = await requestRatedAiWarmup(this.env, game, deadline);
     const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(key);
     const room = this.readRoom();
@@ -2852,7 +2840,9 @@ export class GameRoom extends DurableObject<Env> {
       atMs: now,
       ...(reason ? { reason } : {}),
     });
+    this.alarmEvents.mark();
     await this.advanceMatchmakingStart();
+    await this.alarmEvents.sync();
   }
 
   private async advanceMatchmakingStart() {
@@ -2886,7 +2876,7 @@ export class GameRoom extends DurableObject<Env> {
       }
       if (reservation.aiWarmup?.state === "pending") {
         this.startMatchmakingAiWarmup(reservation);
-        await this.syncAlarm(this.readRoom());
+        this.alarmEvents.mark();
         if (!this.readRoom()) this.closeSockets();
         return;
       }
@@ -2957,7 +2947,7 @@ export class GameRoom extends DurableObject<Env> {
         diagnostic.atMs,
       );
     const room = this.readRoom();
-    await this.syncAlarm(room);
+    this.alarmEvents.mark();
     if (room) this.broadcastRoom(room);
     else this.closeSockets();
   }
@@ -3029,7 +3019,6 @@ export class GameRoom extends DurableObject<Env> {
         return pendingRoom;
       }),
     );
-    if (created !== null) await this.syncAlarm(created);
     return created;
   }
 
@@ -3119,6 +3108,7 @@ export class GameRoom extends DurableObject<Env> {
     const room = this.readRoom();
     if (room === null) {
       // 番号が再利用された後の行や、新しいrevisionは閉じません。
+      await this.alarmEvents.sync();
       await this.env.APP_DB.prepare(
         "UPDATE room_index SET closed=1 WHERE room_id=? AND instance_id IS ? AND revision=?",
       )
@@ -3137,6 +3127,7 @@ export class GameRoom extends DurableObject<Env> {
         retryAtMs: Date.now(),
       } satisfies PendingRoomIndex);
     });
+    this.alarmEvents.mark();
     await this.flushRoomIndex();
   }
 
@@ -3272,7 +3263,6 @@ export class GameRoom extends DurableObject<Env> {
 
     if (result === null) return { status: "account_reservation_invalid" };
     if (result.status === "joined") {
-      await this.syncAlarm(result.room);
       this.broadcastRoom(result.room);
     }
 
@@ -3374,6 +3364,7 @@ export class GameRoom extends DurableObject<Env> {
   private async reconcileDeadlines(applyCpu = false): Promise<void> {
     const code = this.ctx.id.name ?? this.readRoom()?.id;
     if (code) {
+      await this.alarmEvents.sync();
       const pending = await this.env.APP_DB.prepare(
         "SELECT account_id FROM deletion_rooms WHERE room_id=?",
       )
@@ -3533,9 +3524,8 @@ export class GameRoom extends DurableObject<Env> {
         }
       }
       return room;
-    });
+    }, initial);
     cpuWork.afterTransaction?.();
-    await this.syncAlarm(updated);
     await this.flushRoomIndex();
     await this.flushAccountCleanup();
     await this.flushTournamentStates();
@@ -3551,13 +3541,14 @@ export class GameRoom extends DurableObject<Env> {
     await this.advanceMatchmakingStart();
     if (cpuWork.current) {
       // transactionとDOの入力ゲートを保持せず、ネットワーク応答を待ちます。
+      await this.alarmEvents.sync();
       const response = await cpuWork.current.request();
       await this.reconcileDeadlines();
       this.ctx.storage.transactionSync(() => {
         response.apply(this.readRoom(), Date.now());
       });
       response.afterTransaction?.();
-      await this.syncAlarm(this.readRoom());
+      this.alarmEvents.mark();
     }
   }
 
@@ -3615,7 +3606,6 @@ export class GameRoom extends DurableObject<Env> {
       return this.leaveRoom(tokenHash);
     }
     if (result.status !== "left") return result.status;
-    await this.syncAlarm(result.room);
     if (result.room === null) this.closeSockets();
     else this.broadcastRoom(result.room);
     if (promoted !== null) this.sendCurrentMembership(promoted);
@@ -4125,7 +4115,7 @@ export class GameRoom extends DurableObject<Env> {
         const room = this.readRoom();
         const player = room?.players.find((entry) => entry.id === result.membership.playerId);
         if (player !== undefined && player.reconnectDeadline !== null) {
-          const updated = this.withIndexTransaction(() => {
+          this.withIndexTransaction(() => {
             const current = this.readRoom();
             if (current === null) return null;
             const next = roomSchema.parse({
@@ -4137,9 +4127,6 @@ export class GameRoom extends DurableObject<Env> {
             this.ctx.storage.kv.put(roomStorageKey, next);
             return next;
           });
-          if (updated !== null) {
-            await this.syncAlarm(updated);
-          }
         }
         const connectedRoom = this.readRoom();
         if (connectedRoom !== null) this.broadcastRoom(connectedRoom);
@@ -4163,7 +4150,6 @@ export class GameRoom extends DurableObject<Env> {
           ? this.sendStamp(tokenHash.data, parsed.data)
           : { status: "unauthorized" as const };
         if (result.status === "sent") {
-          await this.syncAlarm(result.room);
           this.broadcastStamp(result.notification);
         } else {
           socket.send(
@@ -4300,7 +4286,6 @@ export class GameRoom extends DurableObject<Env> {
       if (parsed.data.type === "room.game.start") {
         const result = await this.startGame(tokenHash.data);
         if (result.status === "started") {
-          await this.syncAlarm(result.room);
           this.broadcastRoom(result.room);
         } else this.rejectAction(socket, result.status);
         return;
@@ -4312,7 +4297,6 @@ export class GameRoom extends DurableObject<Env> {
             ? this.declareShogi(tokenHash.data, parsed.data)
             : this.setShogiDrawProposal(tokenHash.data, parsed.data);
         if (result.status === "updated") {
-          await this.syncAlarm(result.room);
           if (result.room === null) this.closeSockets();
           else this.broadcastRoom(result.room);
         } else if (result.status === "unchanged") {
@@ -4327,7 +4311,6 @@ export class GameRoom extends DurableObject<Env> {
       if (parsed.data.type === "room.game.resign") {
         const result = this.resign(tokenHash.data);
         if (result.status === "resigned") {
-          await this.syncAlarm(result.room);
           if (result.room === null) this.closeSockets();
           else this.broadcastRoom(result.room);
         } else if (result.status === "time_expired") {
@@ -4339,7 +4322,6 @@ export class GameRoom extends DurableObject<Env> {
 
       const result = this.play(tokenHash.data, parsed.data);
       if (result.status === "placed") {
-        await this.syncAlarm(result.room);
         if (result.room === null) this.closeSockets();
         else this.broadcastRoom(result.room);
       } else if (result.status === "time_expired") {
@@ -4405,10 +4387,7 @@ export class GameRoom extends DurableObject<Env> {
       this.ctx.storage.kv.put(roomStorageKey, next);
       return next;
     });
-    if (updated !== null) {
-      await this.syncAlarm(updated);
-      this.broadcastRoom(updated);
-    }
+    if (updated !== null) this.broadcastRoom(updated);
   }
 
   async webSocketClose(socket: WebSocket, code: number, reason: string): Promise<void> {
@@ -4429,3 +4408,5 @@ export class GameRoom extends DurableObject<Env> {
     await this.socketGone(socket);
   }
 }
+
+wrapRoomAlarmEvents(GameRoom);
