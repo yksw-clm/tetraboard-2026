@@ -1,3 +1,4 @@
+import { fourShogiCpu } from "./fourShogiCpu";
 import { fourShogiActionSchema, fourShogiRoomSchema, isFourShogiRoom } from "@tetraboard/protocol";
 import { gameProgress } from "../gameProgress";
 import type { FourShogiProgress } from "../fourShogiProgress";
@@ -107,7 +108,7 @@ export function createFourShogiAdapter(dependencies: AdapterDependencies) {
     ),
     ...replayOperations(progress),
     ...leaveOperations(progress),
-    progress,
+    cpu: fourShogiCpu(progress, dependencies),
     start: (room, context) => {
       if (context.kind === "matchmaking")
         return context.rating?.kind === "four-shogi"

@@ -1,3 +1,4 @@
+import { fourReversiCpu } from "./fourReversiCpu";
 import { gameProgress } from "../gameProgress";
 import { adapterDefaults } from "./base";
 import { rejected, type AdapterDependencies, type AdapterInstance } from "./types";
@@ -9,7 +10,7 @@ export function createFourReversiAdapter(dependencies: AdapterDependencies) {
       waitingSeat: { color: null },
       supportsMode: true,
     }),
-    progress,
+    cpu: fourReversiCpu(progress, dependencies),
     start: (room, context) =>
       progress.start(
         room,

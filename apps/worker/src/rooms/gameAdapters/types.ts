@@ -21,6 +21,8 @@ import type {
 } from "../gameProgress";
 import type { TournamentRoomContext } from "../tournamentRoom";
 import type { QueueRatingSource } from "../../matchmaking/ratedMatchmaking";
+import type { AiServiceBindings } from "../aiService";
+import type { GameCpuAdapter } from "./cpuTypes";
 
 export type ActionCommand = Extract<RoomSocketClientMessage, { type: "room.game.action" }>;
 export type DrawCommand = Extract<RoomSocketClientMessage, { type: "room.game.draw.set" }>;
@@ -59,6 +61,7 @@ export type AnalysisReplayResult =
   | { status: "found"; page: FourShogiAnalysisReplayPage }
   | { status: "not_found" | "stale_position" };
 export interface AdapterDependencies extends ProgressDependencies {
+  aiService(): AiServiceBindings;
   appendSystem: (event: SystemChatMessage["event"], text: string) => void;
   recordDeparture: (player: Room["players"][number]) => void;
   logFourShogiDiagnostic: (
@@ -68,6 +71,7 @@ export interface AdapterDependencies extends ProgressDependencies {
 }
 
 export interface GameAdapter<G extends GameId> {
+  cpu: GameCpuAdapter<G>;
   start(
     room: WaitingFor<G>,
     context: StartContext,
@@ -123,9 +127,7 @@ export interface GameAdapter<G extends GameId> {
   ): void;
 }
 
-export type AdapterInstance<G extends GameId> = GameAdapter<G> & {
-  progress: ReturnType<(typeof import("../gameProgress").gameProgress)[G]["create"]>;
-};
+export type AdapterInstance<G extends GameId> = GameAdapter<G>;
 
 export function rejected(error: ProgressError = "invalid_request"): {
   kind: "rejected";

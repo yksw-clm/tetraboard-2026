@@ -1,3 +1,5 @@
+import { cpuDefaults, savedCpuAlarm } from "./cpuBase";
+import { fourGomokuCpuJobKey } from "../fourGomokuProgress";
 import { gameProgress } from "../gameProgress";
 import { adapterDefaults, invalidMatchmakingRoom } from "./base";
 import { rejected, type AdapterDependencies, type AdapterInstance } from "./types";
@@ -9,7 +11,12 @@ export function createFourGomokuAdapter(dependencies: AdapterDependencies) {
       waitingSeat: { color: null },
       supportsMode: true,
     }),
-    progress,
+    cpu: {
+      ...cpuDefaults<"four-gomoku">(progress, (room) =>
+        room.players.find((player) => player.color === room.game.turn),
+      ),
+      alarmAt: (room) => savedCpuAlarm(dependencies.storage, fourGomokuCpuJobKey, room),
+    },
     start: (room, context) =>
       context.kind === "matchmaking"
         ? invalidMatchmakingRoom()

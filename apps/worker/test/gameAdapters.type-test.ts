@@ -12,6 +12,14 @@ export const incompleteAdapters: GameAdapterRegistration = missingOne;
 export const wrongAdapter: GameAdapterRegistration["four-shogi"] = gameAdapters.reversi;
 export const completeAdapters: GameAdapterRegistration = gameAdapters;
 
+declare const missingCpu: {
+  [G in GameId]: Omit<typeof gameAdapters, G> & {
+    [K in G]: { create: (dependencies: AdapterDependencies) => Omit<GameAdapter<K>, "cpu"> };
+  };
+}[GameId];
+// @ts-expect-error CPU の定義を省いたアダプターは登録できません。
+export const incompleteCpuAdapters: GameAdapterRegistration = missingCpu;
+
 declare const dependencies: AdapterDependencies;
 declare const reversi: RoomFor<"reversi">;
 declare const shogi: RoomFor<"four-shogi">;
@@ -23,6 +31,8 @@ declare const retainReversi: (
 const adapter: GameAdapter<"reversi"> = gameAdapters.reversi.create(dependencies);
 // @ts-expect-error アダプターへ別ゲームのルームを渡せません。
 adapter.resign(shogi, "hash");
+// @ts-expect-error CPU の入口でも別ゲームのルームを渡せません。
+adapter.cpu.currentCpu(shogi);
 // @ts-expect-error 終局結果とアダプターのゲームを取り違えられません。
 adapter.finish(shogiFinished, retainReversi);
 // @ts-expect-error 将棋のアダプターへリバーシのルームを渡せません。

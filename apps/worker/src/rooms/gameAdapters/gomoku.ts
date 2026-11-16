@@ -1,3 +1,5 @@
+import { cpuDefaults, savedCpuAlarm } from "./cpuBase";
+import { gomokuCpuJobKey } from "../gomokuProgress";
 import { isGomokuRoom, type Room } from "@tetraboard/protocol";
 import { gameProgress } from "../gameProgress";
 import { nextPublicUpdateAt } from "../progressHelpers";
@@ -41,7 +43,12 @@ export function createGomokuAdapter(dependencies: AdapterDependencies) {
       supportsMode: false,
       special: (room, hash, command) => settings(dependencies, room, hash, command),
     }),
-    progress,
+    cpu: {
+      ...cpuDefaults<"gomoku">(progress, (room) =>
+        room.players.find((player) => player.color === room.game.turn),
+      ),
+      alarmAt: (room) => savedCpuAlarm(dependencies.storage, gomokuCpuJobKey, room),
+    },
     start: (room, context) =>
       context.kind === "matchmaking" ? invalidMatchmakingRoom() : progress.start(room),
     play: (room, hash, command) => {
