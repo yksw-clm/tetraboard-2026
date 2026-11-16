@@ -102,7 +102,7 @@ test("通常将棋の棋譜は公開前の破損を検出し、再試行と100�
   expect(progress).toEqual({ phase: "verify", cursor: 0 });
   expect((await boundaryRequest(`/matches/${fixture.record.id}`)).status).toBe(404);
   await env.APP_DB.prepare(
-    "UPDATE shogi_match_chunks SET events_json = '[]' WHERE match_id = ? AND chunk_index = 0",
+    "UPDATE match_event_chunks SET events_json = '[]' WHERE match_id = ? AND chunk_index = 0",
   )
     .bind(fixture.record.id)
     .run();
@@ -110,7 +110,7 @@ test("通常将棋の棋譜は公開前の破損を検出し、再試行と100�
     advanceShogiMatchSave(env.APP_DB, fixture.record, progress!, source),
   ).rejects.toThrow();
   await env.APP_DB.prepare(
-    "UPDATE shogi_match_chunks SET events_json = ? WHERE match_id = ? AND chunk_index = 0",
+    "UPDATE match_event_chunks SET events_json = ? WHERE match_id = ? AND chunk_index = 0",
   )
     .bind(JSON.stringify(source(0)), fixture.record.id)
     .run();

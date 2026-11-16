@@ -49,8 +49,8 @@ export const accountMatchHistory = sqliteTable(
   ],
 );
 
-export const shogiMatchChunks = sqliteTable(
-  "shogi_match_chunks",
+export const matchEventChunks = sqliteTable(
+  "match_event_chunks",
   {
     matchId: text("match_id").notNull(),
     chunkIndex: integer("chunk_index").notNull(),
@@ -61,8 +61,8 @@ export const shogiMatchChunks = sqliteTable(
   (t) => [primaryKey({ columns: [t.matchId, t.chunkIndex] })],
 );
 
-export const shogiMatchUploads = sqliteTable(
-  "shogi_match_uploads",
+export const matchUploads = sqliteTable(
+  "match_uploads",
   {
     id: text("id").notNull(),
     recordJson: text("record_json").notNull(),
@@ -72,8 +72,8 @@ export const shogiMatchUploads = sqliteTable(
   (t) => [primaryKey({ columns: [t.id] })],
 );
 
-export const shogiMatchFormations = sqliteTable(
-  "shogi_match_formations",
+export const fourShogiFormationUsages = sqliteTable(
+  "four_shogi_formation_usages",
   {
     matchId: text("match_id")
       .notNull()

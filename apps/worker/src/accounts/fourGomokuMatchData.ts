@@ -1,3 +1,4 @@
+import { eventReplaySchema, isEventReplay, type StoredRecord } from "../rooms/eventRecord";
 import { replayV1, sameState } from "@tetraboard/four-gomoku/replay";
 import { z } from "zod";
 import {
@@ -22,7 +23,7 @@ const participants = z
 const recordSchema = z
   .strictObject({ ...fourGomokuMatchDetailSchema.shape, instanceId: z.uuid(), participants })
   .omit({ selfPlayerId: true, matchKind: true });
-function publicPlayers(record: MatchRecord, profiles: ParticipantProfiles) {
+function publicPlayers(record: Omit<MatchRecord, "replay">, profiles: ParticipantProfiles) {
   return record.participants.map((p) => {
     const identity = p.kind === "human" && p.accountId ? profiles.get(p.accountId) : undefined;
     return {
@@ -45,7 +46,14 @@ function detail(record: MatchRecord, selfPlayerId: string, profiles: Participant
     participants: publicPlayers(record, profiles),
   });
 }
+const storedRecordSchema = recordSchema.extend({
+  replay: z.union([recordSchema.shape.replay, eventReplaySchema(recordSchema.shape.replay)]),
+});
 export const fourGomokuMatchData = {
+  readStored(json: string): StoredRecord<MatchRecord> {
+    const value = storedRecordSchema.parse(JSON.parse(json));
+    return isEventReplay(value.replay) ? value : this.read(json);
+  },
   read(json: string): MatchRecord {
     const record = recordSchema.parse(JSON.parse(json));
     detail(record, record.participants[0].id, new Map());
@@ -62,7 +70,7 @@ export const fourGomokuMatchData = {
     return record;
   },
   detail,
-  summary(record: MatchRecord, profiles: ParticipantProfiles) {
+  summary(record: Omit<MatchRecord, "replay">, profiles: ParticipantProfiles) {
     return fourGomokuMatchSummarySchema.parse({
       id: record.id,
       game: "four-gomoku",

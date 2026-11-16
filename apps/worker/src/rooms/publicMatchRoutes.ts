@@ -1,3 +1,4 @@
+import { readMatchDetailRecord } from "./snapshotMatchStore";
 import { readMatchKinds, withMatchKind } from "../accounts/matchKinds";
 import { gameCapacity } from "@tetraboard/protocol/games";
 import { Hono } from "hono";
@@ -62,7 +63,7 @@ publicMatchRoutes.get(getPublicMatchContract.path, async (c) => {
       .bind(params.data.matchId)
       .first<{ game: string; record_json: string }>();
     if (!row) return c.json({ message: "この棋譜は閲覧できません。" }, 404);
-    const record = readStoredMatch(row.record_json, row.game);
+    const record = await readMatchDetailRecord(c.env.APP_DB, row.record_json, row.game);
     const profiles = await participantProfiles(c.env.APP_DB, [record]);
     const kinds =
       query.data.includeMatchKind === "1"

@@ -39,8 +39,8 @@ afterEach(async () => {
   for (const id of ids.splice(0))
     await env.APP_DB.batch([
       env.APP_DB.prepare("DELETE FROM account_match_history WHERE match_id=?").bind(id),
-      env.APP_DB.prepare("DELETE FROM shogi_match_chunks WHERE match_id=?").bind(id),
-      env.APP_DB.prepare("DELETE FROM shogi_match_uploads WHERE id=?").bind(id),
+      env.APP_DB.prepare("DELETE FROM match_event_chunks WHERE match_id=?").bind(id),
+      env.APP_DB.prepare("DELETE FROM match_uploads WHERE id=?").bind(id),
       env.APP_DB.prepare("DELETE FROM matches WHERE id=?").bind(id),
     ]);
 });
@@ -239,12 +239,12 @@ for (const game of ["four-shogi", "shogi"] as const)
         scenario.manifest ? "verify" : "upload",
       );
       if (scenario.manifest) {
-        await env.APP_DB.prepare("INSERT INTO shogi_match_uploads VALUES(?,?,?,?)")
+        await env.APP_DB.prepare("INSERT INTO match_uploads VALUES(?,?,?,?)")
           .bind(record.id, original, events.length, Math.ceil(events.length / 100))
           .run();
         for (let cursor = 0; cursor < events.length; cursor += 100) {
           const chunk = events.slice(cursor, cursor + 100);
-          await env.APP_DB.prepare("INSERT INTO shogi_match_chunks VALUES(?,?,?,?,?)")
+          await env.APP_DB.prepare("INSERT INTO match_event_chunks VALUES(?,?,?,?,?)")
             .bind(record.id, cursor / 100, cursor, chunk.length, JSON.stringify(chunk))
             .run();
         }
@@ -262,7 +262,7 @@ for (const game of ["four-shogi", "shogi"] as const)
           game: { ...record.game, drawProposals: [] },
         });
         expect(
-          await env.APP_DB.prepare("SELECT id FROM shogi_match_uploads WHERE id=?")
+          await env.APP_DB.prepare("SELECT id FROM match_uploads WHERE id=?")
             .bind(record.id)
             .first(),
         ).toBeNull();
@@ -283,7 +283,7 @@ for (const game of ["four-shogi", "shogi"] as const)
 test("旧manifestでも引分提案以外が異なる再送は拒否し、元のmanifestを保持する", async () => {
   const { record, events } = archiveFixture("four-shogi");
   const json = JSON.stringify({ ...record, endedAtMs: record.endedAtMs + 1 });
-  await env.APP_DB.prepare("INSERT INTO shogi_match_uploads VALUES(?,?,?,?)")
+  await env.APP_DB.prepare("INSERT INTO match_uploads VALUES(?,?,?,?)")
     .bind(record.id, json, events.length, Math.ceil(events.length / 100))
     .run();
 
@@ -294,7 +294,7 @@ test("旧manifestでも引分提案以外が異なる再送は拒否し、元の
   ).rejects.toThrow("Conflicting Shogi match upload");
 
   expect(
-    await env.APP_DB.prepare("SELECT record_json FROM shogi_match_uploads WHERE id=?")
+    await env.APP_DB.prepare("SELECT record_json FROM match_uploads WHERE id=?")
       .bind(record.id)
       .first("record_json"),
   ).toBe(json);

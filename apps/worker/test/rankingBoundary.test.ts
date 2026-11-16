@@ -18,8 +18,8 @@ afterEach(async () => {
   for (const id of records.splice(0))
     await env.APP_DB.batch([
       env.APP_DB.prepare("DELETE FROM account_match_history WHERE match_id = ?").bind(id),
-      env.APP_DB.prepare("DELETE FROM shogi_match_chunks WHERE match_id = ?").bind(id),
-      env.APP_DB.prepare("DELETE FROM shogi_match_uploads WHERE id = ?").bind(id),
+      env.APP_DB.prepare("DELETE FROM match_event_chunks WHERE match_id = ?").bind(id),
+      env.APP_DB.prepare("DELETE FROM match_uploads WHERE id = ?").bind(id),
       env.APP_DB.prepare("DELETE FROM matches WHERE id = ?").bind(id),
     ]);
   for (const user of users.splice(0))

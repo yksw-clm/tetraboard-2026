@@ -50,7 +50,7 @@ export async function originalMatchAccounts(
     ...pendingMatches(runtime).values(),
     ...pendingShogiMatches(runtime).values(),
   ].find((job) => job.record.id === input.matchId)?.record;
-  let record = pending;
+  let record: Omit<NonNullable<typeof pending>, "replay"> | undefined = pending;
   if (!record) {
     await runtime.alarms.sync();
     const saved = await runtime.db

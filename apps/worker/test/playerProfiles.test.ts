@@ -1,3 +1,4 @@
+import { writeLegacyOutcomeFixture } from "./matchFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
@@ -60,8 +61,8 @@ afterEach(async () => {
     await db.batch([
       db.prepare("DELETE FROM account_match_history WHERE match_id = ?").bind(id),
       db.prepare("DELETE FROM matches WHERE id = ?").bind(id),
-      db.prepare("DELETE FROM shogi_match_chunks WHERE match_id = ?").bind(id),
-      db.prepare("DELETE FROM shogi_match_uploads WHERE id = ?").bind(id),
+      db.prepare("DELETE FROM match_event_chunks WHERE match_id = ?").bind(id),
+      db.prepare("DELETE FROM match_uploads WHERE id = ?").bind(id),
     ]);
 });
 test("extended stats rejects unsupported opt-in values", async () => {
@@ -394,7 +395,7 @@ test("badge opt-in derives independent games from historical human singles inclu
       rank: entry.color === "black" ? 1 : entry.rank,
     }));
     ids.push(record.id);
-    await writeMatch(db, record);
+    await writeLegacyOutcomeFixture(db, record);
     reversiTarget = { source: "match", matchId: record.id, playerId: record.participants[0]!.id };
   }
   for (const record of [fixtureRecord(user.id, 6), humanFixtureRecord(user.id, 7, "doubles")]) {

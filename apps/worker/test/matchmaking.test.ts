@@ -31,6 +31,7 @@ import { accountIdentity } from "../src/accounts/auth";
 import { matchmakingRoutes } from "../src/matchmaking/routes";
 import { standardShogiRecord, saveStandardShogiFixture } from "./standardShogiFixtures";
 import { reversiMatchData } from "../src/accounts/reversiMatchData";
+import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";
 import { writeMatch } from "../src/rooms/matchStore";
 import type { ShogiCpuJob } from "../src/rooms/standardShogiProgress";
 import { CpuCapacity } from "../src/rooms/cpuCapacity";
@@ -987,7 +988,7 @@ test("将棋の対人マッチは認証接続後だけ開始し、終局で両�
   });
   await vi.waitFor(async () =>
     expect(
-      await env.APP_DB.prepare("SELECT 1 FROM shogi_match_uploads WHERE id=?")
+      await env.APP_DB.prepare("SELECT 1 FROM match_uploads WHERE id=?")
         .bind(first.matchId)
         .first(),
     ).toBeTruthy(),
@@ -1928,7 +1929,8 @@ test.each(["human", "random", "engine", "fallback"] as const)(
     const saved = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id=?")
       .bind(assignment.matchId)
       .first<string>("record_json");
-    const record = reversiMatchData.read(saved!);
+    const restored = await readMatchDetailRecord(env.APP_DB, saved!, "reversi");
+    const record = reversiMatchData.read(JSON.stringify(restored.record));
     expect(
       record.participants.filter((player) => player.kind === "cpu").map((player) => player.name),
     ).toEqual(scenario === "human" ? [] : ["クルリ"]);

@@ -23,8 +23,8 @@ beforeEach(async () => {
   await env.APP_DB.batch([
     env.APP_DB.prepare("DELETE FROM account_match_history"),
     env.APP_DB.prepare("DELETE FROM matches"),
-    env.APP_DB.prepare("DELETE FROM shogi_match_uploads"),
-    env.APP_DB.prepare("DELETE FROM shogi_match_chunks"),
+    env.APP_DB.prepare("DELETE FROM match_uploads"),
+    env.APP_DB.prepare("DELETE FROM match_event_chunks"),
   ]);
 });
 const authenticated = (cookie: string) => ({ headers: { Cookie: cookie } });
@@ -181,7 +181,7 @@ test("保存棋譜は開始時の本人だけが取得でき、現在の名前�
       (await matchRequest(`${replayPath}?cursor=${cursor}`, authenticated(user.cookie))).status,
     ).toBe(400);
   }
-  await env.APP_DB.prepare("DELETE FROM shogi_match_chunks WHERE match_id = ?")
+  await env.APP_DB.prepare("DELETE FROM match_event_chunks WHERE match_id = ?")
     .bind(fixture.record.id)
     .run();
   expect((await matchRequest(replayPath, authenticated(user.cookie))).status).toBe(503);
