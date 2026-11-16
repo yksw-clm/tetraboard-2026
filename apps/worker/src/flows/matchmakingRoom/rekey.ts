@@ -1,3 +1,4 @@
+import { storedAccount } from "../accountSeats/seats";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { advanceMatchmakingStart } from "./start";
 import { roomSchema, matchmakingRules, type Room } from "@tetraboard/protocol";
@@ -24,7 +25,7 @@ export async function rekeyMatchmakingPlayer(
     !("matchmaking" in room) ||
     room.matchmaking?.id !== matchId ||
     room.instanceId !== instanceId ||
-    !runtime.storedAccount(playerId)?.occupying
+    !storedAccount(runtime, playerId)?.occupying
   )
     return false;
   const current = runtime.ctx.storage.kv.get<number>(`matchmaking-version:${playerId}`) ?? 0;
