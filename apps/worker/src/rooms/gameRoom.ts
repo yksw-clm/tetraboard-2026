@@ -11,7 +11,8 @@ import {
 import { matchEndFacts } from "../usageEvents/matchLifecycle";
 import { roomMatchKind, type MatchKind } from "@tetraboard/protocol";
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
-import { createUsageEventWriter } from "../usageEvents/writer";
+import { TransactionUsageEvents } from "../usageEvents/transactionEvents";
+import { RoomJob } from "./roomJobs";
 import {
   cpuReferenceRating,
   hasProfileRating,
@@ -220,14 +221,8 @@ export class GameRoom extends DurableObject<Env> {
     () => this.nextAlarmAt(),
     (task) => this.ctx.waitUntil(task),
   );
-  private cpuCapacityFlush: Promise<void> | null = null;
-  private indexFlush: Promise<void> | null = null;
   private chatDirty = false;
-  private accountFlush: Promise<void> | null = null;
-  private guestClaimsFlush: Promise<void> | null = null;
-  private matchFlush: Promise<void> | null = null;
-  private shogiMatchFlush: Promise<void> | null = null;
-  private tournamentStateFlush: Promise<void> | null = null;
+  private readonly usageEvents = new TransactionUsageEvents(() => this.env.USAGE_EVENTS);
   private readonly progressDependencies = {
     storage: this.ctx.storage,
     membership: (hash: string) => this.readMembership(hash),
@@ -302,7 +297,7 @@ export class GameRoom extends DurableObject<Env> {
           };
         }),
     };
-    const usage = createUsageEventWriter(this.env.USAGE_EVENTS);
+    const usage = this.usageEvents.writer();
     const common = {
       game: record.game,
       matchId: record.id,
@@ -356,7 +351,7 @@ export class GameRoom extends DurableObject<Env> {
     const active = this.ctx.storage.kv.get<AnalyticsMatch>(analyticsActiveKey);
     if (!active) return;
     this.ctx.storage.kv.delete(analyticsActiveKey);
-    createUsageEventWriter(this.env.USAGE_EVENTS).write({
+    this.usageEvents.writer().write({
       name: "match_ended",
       game: active.game,
       matchId: active.id,
@@ -386,80 +381,54 @@ export class GameRoom extends DurableObject<Env> {
       }),
     ]);
   }
-  private async flushShogiMatches(): Promise<void> {
-    if (this.shogiMatchFlush) return this.shogiMatchFlush;
-    const flush = async () => {
-      const next = [...this.pendingShogiMatches()].find(([, job]) => job.retryAtMs <= Date.now());
-      if (next) {
-        const [key, job] = next;
-        try {
-          await this.alarmEvents.sync();
-          const progress = await advanceShogiMatchSave(
-            this.env.APP_DB,
-            job.record,
-            job.progress,
-            (cursor) => this.gameAdapter(job.record).replayEvents(job.record.id, cursor),
-            "formationUsage" in job ? job.formationUsage : undefined,
-            "tournament" in job ? job.tournament : undefined,
-          );
-          this.ctx.storage.transactionSync(() => {
-            const latest = this.pendingShogiMatches().get(key);
-            if (!latest) return;
-            if (progress)
-              this.ctx.storage.kv.put(key, { ...latest, progress, retryAtMs: Date.now() + 1 });
-            else {
-              this.ctx.storage.kv.delete(key);
-              const room = this.readRoom();
-              const keep = Boolean(
-                room && this.gameAdapter(room).keepsArchive(room, job.record.id),
-              );
-              this.gameAdapter(job.record).releaseArchive(job.record.id, keep);
-            }
-          });
-        } catch {
-          console.error("Shogi match save will be retried", job.record.id);
-          const latest = this.pendingShogiMatches().get(key);
-          if (latest) this.ctx.storage.kv.put(key, { ...latest, retryAtMs: Date.now() + 5_000 });
-        }
-      }
-      await this.alarmEvents.afterFlush();
-    };
-    this.shogiMatchFlush = flush().finally(() => {
-      this.shogiMatchFlush = null;
-    });
-    return this.shogiMatchFlush;
-  }
-
-  private async flushMatches(): Promise<void> {
-    if (this.matchFlush) return this.matchFlush;
-    if (this.pendingMatches().size === 0) return;
-    const flush = async () => {
-      for (;;) {
-        const next = [...this.pendingMatches()].find(([, job]) => job.retryAtMs <= Date.now());
-        if (!next) break;
-        const [key, job] = next;
-        try {
-          await this.alarmEvents.sync();
-          await writeMatch(
-            this.env.APP_DB,
-            job.record,
-            "tournament" in job ? job.tournament : undefined,
-          );
+  private readonly shogiMatchJob = new RoomJob(this.alarmEvents, {
+    pending: () => this.pendingShogiMatches(),
+    retryAt: ([, job]) => job.retryAtMs,
+    mode: "single",
+    syncWhenEmpty: true,
+    execute: ([, job]) =>
+      advanceShogiMatchSave(
+        this.env.APP_DB,
+        job.record,
+        job.progress,
+        (cursor) => this.gameAdapter(job.record).replayEvents(job.record.id, cursor),
+        "formationUsage" in job ? job.formationUsage : undefined,
+        "tournament" in job ? job.tournament : undefined,
+      ),
+    complete: ([key, job], progress) =>
+      this.ctx.storage.transactionSync(() => {
+        const latest = this.pendingShogiMatches().get(key);
+        if (!latest) return;
+        if (progress)
+          this.ctx.storage.kv.put(key, { ...latest, progress, retryAtMs: Date.now() + 1 });
+        else {
           this.ctx.storage.kv.delete(key);
-        } catch {
-          console.error("Match save will be retried", job.record.id);
-          const latest = this.pendingMatches().get(key);
-          if (latest) this.ctx.storage.kv.put(key, { ...latest, retryAtMs: Date.now() + 5_000 });
-          break;
+          const room = this.readRoom();
+          const keep = Boolean(room && this.gameAdapter(room).keepsArchive(room, job.record.id));
+          this.gameAdapter(job.record).releaseArchive(job.record.id, keep);
         }
-      }
-      await this.alarmEvents.afterFlush();
-    };
-    this.matchFlush = flush().finally(() => {
-      this.matchFlush = null;
-    });
-    return this.matchFlush;
-  }
+      }),
+    retry: ([key, job], retryAtMs) => {
+      console.error("Shogi match save will be retried", job.record.id);
+      const latest = this.pendingShogiMatches().get(key);
+      if (latest) this.ctx.storage.kv.put(key, { ...latest, retryAtMs });
+    },
+  });
+
+  private readonly matchJob = new RoomJob(this.alarmEvents, {
+    pending: () => this.pendingMatches(),
+    retryAt: ([, job]) => job.retryAtMs,
+    execute: ([, job]) =>
+      writeMatch(this.env.APP_DB, job.record, "tournament" in job ? job.tournament : undefined),
+    complete: ([key]) => {
+      this.ctx.storage.kv.delete(key);
+    },
+    retry: ([key, job], retryAtMs) => {
+      console.error("Match save will be retried", job.record.id);
+      const latest = this.pendingMatches().get(key);
+      if (latest) this.ctx.storage.kv.put(key, { ...latest, retryAtMs });
+    },
+  });
 
   async guestMergeConflict(guestId: string, accountId: string): Promise<boolean> {
     const includesBoth = (value: unknown): boolean => {
@@ -827,42 +796,43 @@ export class GameRoom extends DurableObject<Env> {
       retryAtMs: Date.now(),
     } satisfies PendingGuestClaims);
     this.alarmEvents.mark();
-    this.ctx.waitUntil(this.flushGuestMatchClaims());
+    this.ctx.waitUntil(this.guestClaimsJob.flush());
   }
 
-  private async flushGuestMatchClaims(): Promise<void> {
-    if (this.guestClaimsFlush) return this.guestClaimsFlush;
-    const flush = async () => {
+  private readonly guestClaimsJob = new RoomJob(this.alarmEvents, {
+    canRun: () => Boolean(this.ctx.id.name),
+    syncOnlyWhenDue: true,
+    pending: () => {
       const job = this.ctx.storage.kv.get<PendingGuestClaims>(guestClaimsKey);
-      const code = this.ctx.id.name;
-      if (!job || job.retryAtMs > Date.now() || !code) return;
-      let pending = true;
-      try {
-        await this.alarmEvents.sync();
-        await retryPendingMatchClaims(this.env.APP_DB, code);
-        pending = Boolean(
-          await this.env.APP_DB.prepare(
-            "SELECT 1 FROM match_participant_accounts WHERE room_id=? AND state='pending' LIMIT 1",
-          )
-            .bind(code)
-            .first(),
-        );
-      } catch {
-        console.error("Guest match claims will be retried");
-      }
-      this.ctx.storage.transactionSync(() => {
-        const latest = this.ctx.storage.kv.get<PendingGuestClaims>(guestClaimsKey);
-        if (latest?.generation !== job.generation) return;
-        if (pending)
-          this.ctx.storage.kv.put(guestClaimsKey, { ...job, retryAtMs: Date.now() + 5_000 });
-        else this.ctx.storage.kv.delete(guestClaimsKey);
-      });
-      await this.alarmEvents.afterFlush();
-    };
-    this.guestClaimsFlush = flush().finally(() => {
-      this.guestClaimsFlush = null;
+      return job ? [job] : [];
+    },
+    retryAt: (job) => job.retryAtMs,
+    mode: "single",
+    execute: async () => {
+      const code = this.ctx.id.name!;
+      await retryPendingMatchClaims(this.env.APP_DB, code);
+      return Boolean(
+        await this.env.APP_DB.prepare(
+          "SELECT 1 FROM match_participant_accounts WHERE room_id=? AND state='pending' LIMIT 1",
+        )
+          .bind(code)
+          .first(),
+      );
+    },
+    complete: (job, pending) => this.finishGuestClaims(job, pending ? Date.now() + 5_000 : null),
+    retry: (job, retryAtMs) => {
+      console.error("Guest match claims will be retried");
+      this.finishGuestClaims(job, retryAtMs);
+    },
+  });
+
+  private finishGuestClaims(job: PendingGuestClaims, retryAtMs: number | null) {
+    this.ctx.storage.transactionSync(() => {
+      const latest = this.ctx.storage.kv.get<PendingGuestClaims>(guestClaimsKey);
+      if (latest?.generation !== job.generation) return;
+      if (retryAtMs !== null) this.ctx.storage.kv.put(guestClaimsKey, { ...job, retryAtMs });
+      else this.ctx.storage.kv.delete(guestClaimsKey);
     });
-    return this.guestClaimsFlush;
   }
 
   async beginGuestRegistration(
@@ -1159,48 +1129,33 @@ export class GameRoom extends DurableObject<Env> {
     else this.ctx.storage.kv.put(accountKey(playerId), { ...seat, occupying: false });
   }
 
-  private async flushAccountCleanup(): Promise<void> {
-    if (this.accountFlush) return this.accountFlush;
-    if (!this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey)?.length) return;
-    const flush = async () => {
-      for (;;) {
-        const job = (this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? []).find(
-          (entry) => entry.retryAtMs <= Date.now(),
+  private readonly accountCleanupJob = new RoomJob(this.alarmEvents, {
+    pending: () => this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [],
+    retryAt: (job) => job.retryAtMs,
+    execute: (job) => releaseReservation(this.env, job.reservation, job.releaseAvatar),
+    complete: (job) =>
+      this.ctx.storage.transactionSync(() => {
+        const jobs = this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [];
+        // D1の応答待ちに画像の解放が追加された場合は、次の実行へ残します。
+        const latest = jobs.find(
+          (entry) => entry.reservation.operationId === job.reservation.operationId,
         );
-        if (!job) break;
-        try {
-          await this.alarmEvents.sync();
-          await releaseReservation(this.env, job.reservation, job.releaseAvatar);
-          this.ctx.storage.transactionSync(() => {
-            const jobs = this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [];
-            // A departure may have added image release while D1 was responding.
-            const latest = jobs.find(
-              (entry) => entry.reservation.operationId === job.reservation.operationId,
-            );
-            if (latest && latest.releaseAvatar && !job.releaseAvatar) return;
-            this.ctx.storage.kv.put(
-              accountCleanupKey,
-              jobs.filter((entry) => entry.reservation.operationId !== job.reservation.operationId),
-            );
-            this.ctx.storage.kv.delete(cancelledAdmissionKey(job.reservation.operationId));
-          });
-        } catch {
-          console.error("Account seat cleanup will be retried");
-          const jobs = this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [];
-          for (const entry of jobs)
-            if (entry.reservation.operationId === job.reservation.operationId)
-              entry.retryAtMs = Date.now() + 5_000;
-          this.ctx.storage.kv.put(accountCleanupKey, jobs);
-          break;
-        }
-      }
-      await this.alarmEvents.afterFlush();
-    };
-    this.accountFlush = flush().finally(() => {
-      this.accountFlush = null;
-    });
-    return this.accountFlush;
-  }
+        if (latest && latest.releaseAvatar && !job.releaseAvatar) return;
+        this.ctx.storage.kv.put(
+          accountCleanupKey,
+          jobs.filter((entry) => entry.reservation.operationId !== job.reservation.operationId),
+        );
+        this.ctx.storage.kv.delete(cancelledAdmissionKey(job.reservation.operationId));
+      }),
+    retry: (job, retryAtMs) => {
+      console.error("Account seat cleanup will be retried");
+      const jobs = this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [];
+      for (const entry of jobs)
+        if (entry.reservation.operationId === job.reservation.operationId)
+          entry.retryAtMs = retryAtMs;
+      this.ctx.storage.kv.put(accountCleanupKey, jobs);
+    },
+  });
 
   private async withAccountAdmission<T>(
     admission: AccountAdmission | undefined,
@@ -1732,7 +1687,7 @@ export class GameRoom extends DurableObject<Env> {
     if (!game) return null;
     const seats = this.gameAdapter(room).cpu.capacity.seats(room);
     if (!seats) return null;
-    await this.flushCpuCapacity();
+    await this.cpuCapacityJob.flush();
     if (this.ctx.storage.kv.get(cpuCapacityKey) !== undefined) return "internal_error";
     const sequence = (this.ctx.storage.kv.get<number>(cpuCapacitySequenceKey) ?? 0) + 1;
     const reservation: RoomCpuCapacity = {
@@ -1758,33 +1713,25 @@ export class GameRoom extends DurableObject<Env> {
     } catch {
       this.ctx.storage.kv.put(cpuCapacityKey, { ...reservation, releaseAtMs: Date.now() });
       this.alarmEvents.mark();
-      this.ctx.waitUntil(this.flushCpuCapacity());
+      this.ctx.waitUntil(this.cpuCapacityJob.flush());
       return "internal_error";
     }
   }
 
-  private async flushCpuCapacity(): Promise<void> {
-    if (this.cpuCapacityFlush) return this.cpuCapacityFlush;
-    const pending = this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
-    if (pending?.releaseAtMs == null || pending.releaseAtMs > Date.now()) return;
-    const flush = async () => {
-      try {
-        await this.alarmEvents.sync();
-        await this.env.CPU_CAPACITY.getByName(pending.game).release(
-          pending.roomId,
-          pending.sequence,
-        );
-        this.ctx.storage.kv.delete(cpuCapacityKey);
-      } catch {
-        this.ctx.storage.kv.put(cpuCapacityKey, { ...pending, releaseAtMs: Date.now() + 5000 });
-      }
-      await this.alarmEvents.afterFlush();
-    };
-    this.cpuCapacityFlush = flush().finally(() => {
-      this.cpuCapacityFlush = null;
-    });
-    return this.cpuCapacityFlush;
-  }
+  private readonly cpuCapacityJob = new RoomJob(this.alarmEvents, {
+    syncOnlyWhenDue: true,
+    pending: () => {
+      const job = this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
+      return job ? [job] : [];
+    },
+    retryAt: (job) => job.releaseAtMs,
+    mode: "single",
+    execute: (job) => this.env.CPU_CAPACITY.getByName(job.game).release(job.roomId, job.sequence),
+    complete: () => {
+      this.ctx.storage.kv.delete(cpuCapacityKey);
+    },
+    retry: (job, releaseAtMs) => this.ctx.storage.kv.put(cpuCapacityKey, { ...job, releaseAtMs }),
+  });
 
   private hasCpuCapacity(room: Room): boolean {
     const reservation = this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
@@ -1816,88 +1763,77 @@ export class GameRoom extends DurableObject<Env> {
   private withIndexTransaction<T>(action: () => T, previousRoom?: Room | null): T {
     let changed = false;
     let releaseCpu = false;
-    const result = this.ctx.storage.transactionSync(() => {
-      const before = previousRoom === undefined ? this.readRoom() : previousRoom;
-      const previous = before === null ? null : this.publicMetadata(before);
-      const value = action();
-      const after = this.readRoom();
-      if (
-        after?.instanceId !== before?.instanceId ||
-        (before?.status === "playing" && after?.status !== "playing")
-      ) {
-        const reservation = this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
-        if (reservation?.releaseAtMs === null && reservation.instanceId === before?.instanceId) {
-          this.ctx.storage.kv.put(cpuCapacityKey, { ...reservation, releaseAtMs: Date.now() });
-          releaseCpu = true;
+    const result = this.usageEvents.run(() =>
+      this.ctx.storage.transactionSync(() => {
+        const before = previousRoom === undefined ? this.readRoom() : previousRoom;
+        const previous = before === null ? null : this.publicMetadata(before);
+        const value = action();
+        const after = this.readRoom();
+        if (
+          after?.instanceId !== before?.instanceId ||
+          (before?.status === "playing" && after?.status !== "playing")
+        ) {
+          const reservation = this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
+          if (reservation?.releaseAtMs === null && reservation.instanceId === before?.instanceId) {
+            this.ctx.storage.kv.put(cpuCapacityKey, { ...reservation, releaseAtMs: Date.now() });
+            releaseCpu = true;
+          }
         }
-      }
-      changed =
-        (before === null && after !== null) ||
-        (before !== null && after === null) ||
-        (before !== null && after !== null && after.publicUpdatedAtMs !== before.publicUpdatedAtMs);
-      if (changed) {
-        const revision = (this.ctx.storage.kv.get<number>(indexRevisionKey) ?? 0) + 1;
-        const metadata = after === null ? previous : this.publicMetadata(after);
-        if (metadata === null) throw new Error("Missing room metadata for index update");
-        this.ctx.storage.kv.put(indexRevisionKey, revision);
-        this.ctx.storage.kv.put(pendingIndexKey, {
-          revision,
-          closed: after === null,
-          metadata,
-          retryAtMs: Date.now(),
-        } satisfies PendingRoomIndex);
-      }
-      return value;
-    });
+        changed =
+          (before === null && after !== null) ||
+          (before !== null && after === null) ||
+          (before !== null &&
+            after !== null &&
+            after.publicUpdatedAtMs !== before.publicUpdatedAtMs);
+        if (changed) {
+          const revision = (this.ctx.storage.kv.get<number>(indexRevisionKey) ?? 0) + 1;
+          const metadata = after === null ? previous : this.publicMetadata(after);
+          if (metadata === null) throw new Error("Missing room metadata for index update");
+          this.ctx.storage.kv.put(indexRevisionKey, revision);
+          this.ctx.storage.kv.put(pendingIndexKey, {
+            revision,
+            closed: after === null,
+            metadata,
+            retryAtMs: Date.now(),
+          } satisfies PendingRoomIndex);
+        }
+        return value;
+      }),
+    );
     this.alarmEvents.mark();
-    if (changed) this.ctx.waitUntil(this.flushRoomIndex());
-    if (releaseCpu) this.ctx.waitUntil(this.flushCpuCapacity());
+    if (changed) this.ctx.waitUntil(this.roomIndexJob.flush());
+    if (releaseCpu) this.ctx.waitUntil(this.cpuCapacityJob.flush());
     if ((this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? []).length)
-      this.ctx.waitUntil(this.flushAccountCleanup());
-    if (this.pendingMatches().size) this.ctx.waitUntil(this.flushMatches());
-    if (this.pendingShogiMatches().size) this.ctx.waitUntil(this.flushShogiMatches());
+      this.ctx.waitUntil(this.accountCleanupJob.flush());
+    if (this.pendingMatches().size) this.ctx.waitUntil(this.matchJob.flush());
+    if (this.pendingShogiMatches().size) this.ctx.waitUntil(this.shogiMatchJob.flush());
     if ([...this.ctx.storage.kv.list({ prefix: pendingTournamentStatePrefix })].length)
-      this.ctx.waitUntil(this.flushTournamentStates());
+      this.ctx.waitUntil(this.tournamentStateJob.flush());
     return result;
   }
 
-  private async flushRoomIndex(): Promise<void> {
-    if (this.indexFlush !== null) return this.indexFlush;
-    if (this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey) === undefined) return;
-    const flush = async () => {
-      for (;;) {
-        const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
-        if (pending === undefined || pending.retryAtMs > Date.now()) break;
-        try {
-          await this.alarmEvents.sync();
-          await writeRoomIndex(this.env.APP_DB, pending);
-          this.ctx.storage.transactionSync(() => {
-            if (
-              this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey)?.revision ===
-              pending.revision
-            )
-              this.ctx.storage.kv.delete(pendingIndexKey);
-          });
-        } catch (error) {
-          console.error("Room index update failed", error);
-          this.ctx.storage.transactionSync(() => {
-            const current = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
-            if (current?.revision === pending.revision) {
-              this.ctx.storage.kv.put(pendingIndexKey, {
-                ...current,
-                retryAtMs: Date.now() + 5_000,
-              } satisfies PendingRoomIndex);
-            }
-          });
-          break;
-        }
-      }
-      await this.alarmEvents.afterFlush();
-    };
-    this.indexFlush = flush().finally(() => {
-      this.indexFlush = null;
+  private readonly roomIndexJob = new RoomJob(this.alarmEvents, {
+    pending: () => {
+      const job = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
+      return job ? [job] : [];
+    },
+    retryAt: (job) => job.retryAtMs,
+    execute: (job) => writeRoomIndex(this.env.APP_DB, job),
+    complete: (job) => this.updatePendingIndex(job),
+    retry: (job, retryAtMs, error) => {
+      console.error("Room index update failed", error);
+      this.updatePendingIndex(job, retryAtMs);
+    },
+  });
+
+  private updatePendingIndex(job: PendingRoomIndex, retryAtMs?: number) {
+    this.ctx.storage.transactionSync(() => {
+      const current = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
+      if (current?.revision !== job.revision) return;
+      if (retryAtMs !== undefined)
+        this.ctx.storage.kv.put(pendingIndexKey, { ...current, retryAtMs });
+      else this.ctx.storage.kv.delete(pendingIndexKey);
     });
-    return this.indexFlush;
   }
 
   private hasOpenConnection(tokenHash: string, excluded?: WebSocket): boolean {
@@ -1929,17 +1865,15 @@ export class GameRoom extends DurableObject<Env> {
         room?.status === "playing" && cpu && cpu.currentCpu(room) !== null
           ? cpu.alarmAt(room)
           : null,
-      capacity: this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey),
-      index: this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey),
-      accountCleanups: this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [],
-      matches: this.pendingMatches().values(),
-      shogiMatches: this.pendingShogiMatches().values(),
-      guestClaims: this.ctx.storage.kv.get<PendingGuestClaims>(guestClaimsKey),
-      tournamentStates: [
-        ...this.ctx.storage.kv.list<PendingTournamentState>({
-          prefix: pendingTournamentStatePrefix,
-        }),
-      ].map(([, job]) => job),
+      jobs: [
+        this.cpuCapacityJob,
+        this.roomIndexJob,
+        this.accountCleanupJob,
+        this.matchJob,
+        this.shogiMatchJob,
+        this.guestClaimsJob,
+        this.tournamentStateJob,
+      ].map((job) => job.nextAlarmAt()),
       tournament: this.tournamentReservation(room),
       matchmaking:
         room && "matchmaking" in room && room.matchmaking
@@ -1969,39 +1903,28 @@ export class GameRoom extends DurableObject<Env> {
     } satisfies PendingTournamentState);
   }
 
-  private async flushTournamentStates(): Promise<void> {
-    if (this.tournamentStateFlush) return this.tournamentStateFlush;
-    const pendingStates = [
-      ...this.ctx.storage.kv.list<PendingTournamentState>({
-        prefix: pendingTournamentStatePrefix,
-      }),
-    ];
-    if (pendingStates.length === 0) return;
-    const flush = async () => {
-      for (const [key, pending] of pendingStates) {
-        if (pending.retryAtMs > Date.now()) continue;
-        try {
-          await this.alarmEvents.sync();
-          await writeTournamentState(this.env.APP_DB, pending);
-          this.ctx.storage.transactionSync(() => {
-            const current = this.ctx.storage.kv.get<PendingTournamentState>(key);
-            if (current?.phase === pending.phase && current.retryAtMs === pending.retryAtMs)
-              this.ctx.storage.kv.delete(key);
-          });
-        } catch {
-          this.ctx.storage.transactionSync(() => {
-            const current = this.ctx.storage.kv.get<PendingTournamentState>(key);
-            if (current?.phase === pending.phase && current.retryAtMs === pending.retryAtMs)
-              this.ctx.storage.kv.put(key, { ...current, retryAtMs: Date.now() + 5_000 });
-          });
-        }
-      }
-      await this.alarmEvents.afterFlush();
-    };
-    this.tournamentStateFlush = flush().finally(() => {
-      this.tournamentStateFlush = null;
+  private readonly tournamentStateJob = new RoomJob(this.alarmEvents, {
+    pending: () =>
+      this.ctx.storage.kv.list<PendingTournamentState>({ prefix: pendingTournamentStatePrefix }),
+    retryAt: ([, job]) => job.retryAtMs,
+    mode: "snapshot",
+    stopOnFailure: false,
+    execute: ([, job]) => writeTournamentState(this.env.APP_DB, job),
+    complete: ([key, job]) => this.updatePendingTournamentState(key, job),
+    retry: ([key, job], retryAtMs) => this.updatePendingTournamentState(key, job, retryAtMs),
+  });
+
+  private updatePendingTournamentState(
+    key: string,
+    job: PendingTournamentState,
+    retryAtMs?: number,
+  ) {
+    this.ctx.storage.transactionSync(() => {
+      const current = this.ctx.storage.kv.get<PendingTournamentState>(key);
+      if (current?.phase !== job.phase || current.retryAtMs !== job.retryAtMs) return;
+      if (retryAtMs !== undefined) this.ctx.storage.kv.put(key, { ...current, retryAtMs });
+      else this.ctx.storage.kv.delete(key);
     });
-    return this.tournamentStateFlush;
   }
 
   async prepareTournamentRoom(input: PrepareTournamentRoomInput) {
@@ -2591,7 +2514,7 @@ export class GameRoom extends DurableObject<Env> {
       if (Date.now() >= input.expiresAtMs) {
         if (capacity) {
           this.ctx.storage.kv.put(cpuCapacityKey, { ...capacity, releaseAtMs: Date.now() });
-          this.ctx.waitUntil(this.flushCpuCapacity());
+          this.ctx.waitUntil(this.cpuCapacityJob.flush());
         }
         return { status: "invalid" as const };
       }
@@ -3128,7 +3051,7 @@ export class GameRoom extends DurableObject<Env> {
       } satisfies PendingRoomIndex);
     });
     this.alarmEvents.mark();
-    await this.flushRoomIndex();
+    await this.roomIndexJob.flush();
   }
 
   async getPublicMetadata(profilePreview = false) {
@@ -3378,7 +3301,7 @@ export class GameRoom extends DurableObject<Env> {
       }
     }
     if (applyCpu) {
-      await this.flushCpuCapacity();
+      await this.cpuCapacityJob.flush();
       await this.recoverPlayingCpuCapacity();
     }
     const initial = this.readRoom();
@@ -3526,12 +3449,12 @@ export class GameRoom extends DurableObject<Env> {
       return room;
     }, initial);
     cpuWork.afterTransaction?.();
-    await this.flushRoomIndex();
-    await this.flushAccountCleanup();
-    await this.flushTournamentStates();
+    this.ctx.waitUntil(this.roomIndexJob.flush());
+    this.ctx.waitUntil(this.accountCleanupJob.flush());
+    this.ctx.waitUntil(this.tournamentStateJob.flush());
     if (!initial || this.gameAdapter(initial).cpu.waitUntilMatchFlush)
-      this.ctx.waitUntil(this.flushMatches());
-    this.ctx.waitUntil(this.flushGuestMatchClaims());
+      this.ctx.waitUntil(this.matchJob.flush());
+    this.ctx.waitUntil(this.guestClaimsJob.flush());
     if (changed) {
       if (updated) this.broadcastRoom(updated);
       else this.closeSockets();

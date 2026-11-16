@@ -17,7 +17,7 @@ test("印の後にルームが保存されても、入口末尾のAlarmは最新
   const entry = await fixtures.create({ game: "reversi", name: "本人", quickPlay: true });
   await fixtures.connect(entry);
   await runInDurableObject(env.GAME_ROOM.getByName(entry.room.id), async (instance, ctx) => {
-    await Reflect.get(instance, "indexFlush");
+    await Reflect.get(instance, "roomIndexJob").running;
     const events = Reflect.get(instance, "alarmEvents") as RoomAlarmEvents;
     const lastActivityAtMs = Date.now() + 60_000;
     await events.run(async () => {
@@ -38,7 +38,7 @@ test("外部AIの枠の予約RPCの前に、保存した解放期限のAlarmが�
   });
   await fixtures.connect(entry);
   await runInDurableObject(env.GAME_ROOM.getByName(entry.room.id), async (instance, ctx) => {
-    await Reflect.get(instance, "indexFlush");
+    await Reflect.get(instance, "roomIndexJob").running;
     const original = Reflect.get(instance, "env");
     const at = Date.now() + 60_000;
     const clock = vi.spyOn(Date, "now").mockReturnValue(at);
@@ -88,7 +88,7 @@ test("GET・Alarm・開始・着手の同期部分は getAlarm が各1回以下�
         socketFor(playerId),
         JSON.stringify({ type: "room.ready.set", ready: true }),
       );
-    await Reflect.get(instance, "indexFlush");
+    await Reflect.get(instance, "roomIndexJob").running;
     const readAlarm = ctx.storage.getAlarm.bind(ctx.storage);
     const stacks: string[] = [];
     const spy = vi.spyOn(ctx.storage, "getAlarm").mockImplementation(() => {
@@ -110,7 +110,7 @@ test("GET・Alarm・開始・着手の同期部分は getAlarm が各1回以下�
         socketFor(entry.membership.playerId),
         JSON.stringify({ type: "room.game.start" }),
       );
-      await Reflect.get(instance, "indexFlush");
+      await Reflect.get(instance, "roomIndexJob").running;
       check(1);
       const room = ctx.storage.kv.get<Room>("room")!;
       expect(room.status).toBe("playing");
@@ -125,7 +125,7 @@ test("GET・Alarm・開始・着手の同期部分は getAlarm が各1回以下�
           action: { type: "placeStone", position: getLegalMoves(room.game)[0] },
         }),
       );
-      await Reflect.get(instance, "indexFlush");
+      await Reflect.get(instance, "roomIndexJob").running;
       check(1);
       expect(ctx.storage.kv.get<Room>("room")?.game?.moveNumber).toBe(1);
     } finally {
