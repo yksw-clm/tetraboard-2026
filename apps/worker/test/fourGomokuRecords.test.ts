@@ -10,7 +10,7 @@ import ranked from "../../../test-fixtures/matches/four-gomoku-singles-ranked.js
 import full from "../../../test-fixtures/matches/four-gomoku-singles-full.json";
 import mixed from "../../../test-fixtures/matches/four-gomoku-doubles-mixed.json";
 import eliminated from "../../../test-fixtures/matches/four-gomoku-doubles-elimination.json";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { fourGomokuMatchData } from "../src/accounts/fourGomokuMatchData";
 import { readMatchRecord, publicMatchDetail } from "../src/accounts/matchDataContracts";
 import { accountFixture } from "./accountFixtures";

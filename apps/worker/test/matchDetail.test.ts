@@ -15,7 +15,7 @@ import {
   matchLeave,
   matchRequest,
 } from "./matchFixtures";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 
 function reversiDetail(value: unknown) {
   const body = getMatchContract.response.parse(value);

@@ -33,7 +33,7 @@ import { matchmakingRoutes } from "../src/matchmaking/routes";
 import { standardShogiRecord, saveStandardShogiFixture } from "./standardShogiFixtures";
 import { reversiMatchData } from "../src/accounts/reversiMatchData";
 import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import type { ShogiCpuJob } from "../src/rooms/standardShogiProgress";
 import { CpuCapacity } from "../src/rooms/cpuCapacity";
 import { recordUsageEvents } from "./usageEventsRecorder";

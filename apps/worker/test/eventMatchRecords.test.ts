@@ -18,7 +18,7 @@ import {
   matchDetail,
 } from "../src/accounts/matchDataContracts";
 import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import type { SnapshotMatch } from "../src/rooms/snapshotMatchEvents";
 
 function recordJson(detail: typeof reversi.detail | typeof gomokuOn.detail) {

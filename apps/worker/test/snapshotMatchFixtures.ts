@@ -1,6 +1,6 @@
 import { readMatchRecord } from "../src/accounts/matchDataContracts";
 import { encodeSnapshotMatch } from "../src/rooms/snapshotMatchEvents";
-import { matchChunkSize } from "../src/rooms/matchChunks";
+import { matchChunkSize } from "@tetraboard/context-record";
 
 // 集計用の任意順位も、D1の本体・チャンクの現行形式で用意します。
 export async function prepareStoredMatchFixture(db: D1Database, json: string) {

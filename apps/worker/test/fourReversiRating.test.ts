@@ -15,7 +15,8 @@ import { accountFixture } from "./accountFixtures";
 import { boundaryRequest } from "./roomBoundaryFixtures";
 import { fixtureRecord, writeOutcomeFixture } from "./matchFixtures";
 import { namedCpuProfile } from "../src/matchmaking/cpuProfiles";
-import { writeMatch, type MatchRecord } from "../src/rooms/matchStore";
+import { type MatchRecord } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { publicRatingForMu } from "../src/rooms/fourReversiRating";
 import { readAccountStats } from "../src/accounts/statsRoutes";
 

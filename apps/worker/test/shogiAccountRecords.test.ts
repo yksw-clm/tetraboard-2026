@@ -15,8 +15,8 @@ import {
 } from "@tetraboard/protocol";
 import { accountFixture } from "./accountFixtures";
 import { fixtureRecord, humanFixtureRecord, matchRequest } from "./matchFixtures";
-import { writeMatch } from "../src/rooms/matchStore";
-import { advanceShogiMatchSave } from "../src/rooms/shogiMatchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
+import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { shogiRecord, humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
 
 beforeEach(async () => {

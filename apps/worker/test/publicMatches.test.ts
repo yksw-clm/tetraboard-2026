@@ -15,8 +15,8 @@ import {
 } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
 import { fixtureRecord, humanFixtureRecord } from "./matchFixtures";
-import { writeMatch } from "../src/rooms/matchStore";
-import { advanceShogiMatchSave } from "../src/rooms/shogiMatchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
+import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { shogiRecord, humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
 
 const db = (env as typeof env & { PUBLIC_MATCH_TEST_DB: D1Database }).PUBLIC_MATCH_TEST_DB;

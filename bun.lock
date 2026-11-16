@@ -107,6 +107,7 @@
       "name": "@tetraboard/worker",
       "version": "0.0.0",
       "dependencies": {
+        "@tetraboard/context-record": "workspace:*",
         "@tetraboard/context-room": "workspace:*",
         "@tetraboard/four-gomoku": "workspace:*",
         "@tetraboard/four-reversi": "workspace:*",

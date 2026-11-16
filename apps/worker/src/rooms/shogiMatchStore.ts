@@ -1,48 +1,29 @@
 import {
-  advanceMatchChunks,
   readMatchChunk,
-  publishMatchStatement,
-  type ChunkRow,
   matchChunkSize as chunkSize,
+  type ChunkRow,
   type MatchSaveProgress,
-} from "./matchChunks";
-import type { ProfileRatings } from "@tetraboard/protocol";
-import { ensureMatchUpload } from "./matchUploads";
+} from "@tetraboard/context-record";
 import {
-  applyFourShogiRating,
-  fourShogiRatingStore,
-  type FourShogiRatedMatch,
-} from "./fourReversiRating";
-import { redactParticipants } from "../privacy/identity";
-import { applyMatchClaims } from "../accounts/matchClaims";
-import { getMatchReplayContract, shogiMatchReplayPageSchema } from "@tetraboard/protocol";
-import { badgeAwardStatements } from "../accounts/badgeAwards";
-import { tournamentMatchStatements } from "../tournaments/store";
-import { shogiRatingStatement, shogiRatingStore, type ShogiRatingSource } from "./shogiRating";
-import type { TournamentRoomContext } from "./tournamentRoom";
-import {
+  getMatchReplayContract,
+  shogiMatchReplayPageSchema,
   fourShogiReplayEventSchema,
-  type FourShogiMatchDetail,
-  type FourShogiReplayEvent,
-  type FourShogiMatchReplayPage,
   shogiReplayEventSchema,
-  type ShogiReplayEvent,
-  type ShogiMatchReplayPage,
-  type ShogiMatchDetail,
 } from "@tetraboard/protocol";
-import { type Side } from "@tetraboard/four-shogi";
-import {
-  shogiFormationUsageSchema,
-  isFormationMatchEligible,
-  type ShogiFormationUsage,
-} from "./shogiFormationUsage";
-
-async function finalizeFourShogiRating(db: D1Database, json: string) {
-  const record = readShogiMatchRecord(json);
-  if (!record.fourShogiRating) return;
-  await applyFourShogiRating(db, record);
-  await fourShogiRatingStore.clearPending(db, record.id).run();
-}
+import type {
+  ProfileRatings,
+  FourShogiMatchDetail,
+  FourShogiReplayEvent,
+  FourShogiMatchReplayPage,
+  ShogiReplayEvent,
+  ShogiMatchReplayPage,
+  ShogiMatchDetail,
+} from "@tetraboard/protocol";
+import type { Side } from "@tetraboard/four-shogi";
+import type { FourShogiRatedMatch } from "./fourReversiRating";
+import type { ShogiRatingSource } from "./shogiRating";
+import type { TournamentRoomContext } from "./tournamentRoom";
+import type { ShogiFormationUsage } from "./shogiFormationUsage";
 
 export type ShogiMatchParticipant = {
   id: string;
@@ -123,117 +104,6 @@ function readRecord(json: string, game: "four-shogi" | "shogi") {
 }
 function readChunk(row: ChunkRow, eventCount: number, game: "four-shogi" | "shogi"): StoredEvent[] {
   return readMatchChunk(row, eventCount, (event) => eventSchema(game).parse(event));
-}
-
-/** 再送時も、1回の処理で転送・検証するイベントを最大400件に制限します。 */
-export async function advanceShogiMatchSave(
-  db: D1Database,
-  record: ShogiMatchRecord | StandardShogiMatchRecord,
-  progress: ShogiSaveProgress,
-  readEvents: (cursor: number) => StoredEvent[],
-  formationUsage?: ShogiFormationUsage,
-  tournament?: TournamentRoomContext,
-): Promise<ShogiSaveProgress | null> {
-  record = await redactParticipants(db, record);
-  const game = record.settings.game;
-  if (formationUsage) {
-    shogiFormationUsageSchema.parse(formationUsage);
-    if (
-      game !== "four-shogi" ||
-      !isFormationMatchEligible({
-        settings: { mode: record.settings.mode ?? "standard" },
-        participants: record.participants,
-        rated: "fourShogiRating" in record && record.fourShogiRating !== undefined,
-      })
-    )
-      throw new Error("Ineligible Shogi formation match");
-  }
-  const existing = await db
-    .prepare("SELECT game, record_json FROM matches WHERE id = ?")
-    .bind(record.id)
-    .first<{ game: string; record_json: string }>();
-  if (existing) {
-    if (existing.game !== game) throw new Error("Match ID belongs to another game");
-    if (tournament && game === "four-shogi") {
-      await db.batch(
-        tournamentMatchStatements(db, tournament, readShogiMatchRecord(existing.record_json)),
-      );
-      const saved = await db
-        .prepare(
-          "SELECT 1 FROM tournament_matches WHERE id=? AND tournament_key=? AND phase='saved'",
-        )
-        .bind(record.id, tournament.tournamentKey)
-        .first();
-      if (!saved) throw new Error("Tournament result publication was incomplete");
-    }
-    if (game === "four-shogi") await finalizeFourShogiRating(db, existing.record_json);
-    await db.prepare("DELETE FROM match_uploads WHERE id = ?").bind(record.id).run();
-    await applyMatchClaims(db, record.id);
-    return null;
-  }
-  const chunkCount = Math.ceil(record.replay.eventCount / chunkSize);
-  await ensureMatchUpload(db, record, chunkCount, "Conflicting Shogi match upload");
-  const next = await advanceMatchChunks(
-    db,
-    record.id,
-    record.replay.eventCount,
-    progress,
-    readEvents,
-    (event) => eventSchema(game).parse(event),
-  );
-  if (next) return next;
-  // 棋譜の検証後、本体・アカウント索引・レートを一緒に確定します。
-  await db.batch([
-    publishMatchStatement(db, record.id),
-    db
-      .prepare(`INSERT INTO account_match_history (account_id, match_id, mode, started_at_ms, game)
-      SELECT json_extract(p.value, '$.accountId'), m.id, m.mode, m.started_at_ms, m.game
-      FROM matches m, json_each(m.record_json, '$.participants') p
-      WHERE m.id = ? AND m.game IN ('four-shogi', 'shogi') AND json_extract(p.value, '$.kind') = 'human'
-        AND json_extract(p.value, '$.accountId') IS NOT NULL
-      ON CONFLICT(account_id, match_id) DO NOTHING`)
-      .bind(record.id),
-    ...(formationUsage
-      ? [
-          db
-            .prepare(`INSERT INTO four_shogi_formation_usages
-      (match_id, analyzer_id, analysis_version, rules_version, used_by_side_json)
-      SELECT id, ?, ?, ?, ? FROM matches WHERE id = ? AND game = 'four-shogi'
-      ON CONFLICT(match_id) DO NOTHING`)
-            .bind(
-              formationUsage.analyzerId,
-              formationUsage.analysisVersion,
-              formationUsage.rulesVersion,
-              JSON.stringify(formationUsage.bySide),
-              record.id,
-            ),
-        ]
-      : []),
-    ...badgeAwardStatements(db, game, record.id),
-    ...("rating" in record && record.rating
-      ? shogiRatingStore.finalize(db, record.id, shogiRatingStatement(db, record.id))
-      : []),
-    ...(tournament && game === "four-shogi"
-      ? tournamentMatchStatements(db, tournament, record as ShogiMatchRecord)
-      : []),
-  ]);
-  const savedRecord = await db
-    .prepare("SELECT record_json FROM matches WHERE id = ? AND game = ?")
-    .bind(record.id, game)
-    .first<{ record_json: string }>();
-  if (!savedRecord) throw new Error("Shogi match publication was incomplete");
-  if (game === "four-shogi") await finalizeFourShogiRating(db, savedRecord.record_json);
-  if (
-    tournament &&
-    !(await db
-      .prepare("SELECT 1 FROM tournament_matches WHERE id=? AND tournament_key=? AND phase='saved'")
-      .bind(record.id, tournament.tournamentKey)
-      .first())
-  )
-    throw new Error("Tournament result publication was incomplete");
-  await db.prepare("DELETE FROM match_uploads WHERE id = ?").bind(record.id).run();
-  await applyMatchClaims(db, record.id);
-  return null;
 }
 
 export async function readShogiMatchReplayPage(

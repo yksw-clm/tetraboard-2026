@@ -1,7 +1,8 @@
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import type { PendingMatch as PendingFourGomokuMatch } from "../../rooms/fourGomokuMatchStore";
 import type { PendingMatch as PendingGomokuMatch } from "../../rooms/gomokuMatchStore";
-import { pendingMatchPrefix, writeMatch, type PendingMatch } from "../../rooms/matchStore";
+import { pendingMatchPrefix, type PendingMatch } from "../../rooms/matchStore";
+import { writeMatch } from "../../flows/matchSave/snapshot";
 import type { PendingMatch as PendingReversiMatch } from "../../rooms/reversiMatchStore";
 import { RoomJob } from "../../rooms/roomJobs";
 

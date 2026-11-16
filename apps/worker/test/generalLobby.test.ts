@@ -1,5 +1,5 @@
 import { humanFixtureRecord, fixtureRecord } from "./matchFixtures";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
 import { env, applyD1Migrations } from "cloudflare:test";
 import { beforeAll, afterEach, expect, test } from "vitest";

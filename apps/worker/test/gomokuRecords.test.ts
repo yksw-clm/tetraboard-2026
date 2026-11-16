@@ -10,7 +10,7 @@ import {
 } from "@tetraboard/protocol";
 import { createInitialState, eliminateColor, applyAction } from "@tetraboard/gomoku";
 import archive from "../../../test-fixtures/matches/gomoku-on-five.json";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import type { MatchRecord } from "../src/rooms/gomokuMatchStore";
 import { readMatchRecord, publicMatchDetail } from "../src/accounts/matchDataContracts";
 import { accountFixture } from "./accountFixtures";

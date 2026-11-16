@@ -8,7 +8,8 @@ import {
 import { accountFixture } from "./accountFixtures";
 import { humanShogiRecord, shogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
 import { matchRequest } from "./matchFixtures";
-import { advanceShogiMatchSave, type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
+import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
+import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { emptyFormationUsage, type ShogiFormationUsage } from "../src/rooms/shogiFormationUsage";
 import { fourReversiRatingMethod } from "../../../packages/ai/fourReversiRating";
 

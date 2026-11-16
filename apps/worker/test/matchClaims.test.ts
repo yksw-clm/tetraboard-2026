@@ -19,8 +19,9 @@ import {
 } from "../src/accounts/matchDataContracts";
 import { readAccountStats } from "../src/accounts/statsRoutes";
 import { readFormationStats } from "../src/accounts/formationStatsRoutes";
-import { writeMatch } from "../src/rooms/matchStore";
-import { advanceShogiMatchSave, type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
+import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
+import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { emptyFormationUsage } from "../src/rooms/shogiFormationUsage";
 import { requestDeletion } from "../src/privacy/deletion";
 import { accountFixture } from "./accountFixtures";

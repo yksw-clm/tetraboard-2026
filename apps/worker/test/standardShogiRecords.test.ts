@@ -8,7 +8,8 @@ import {
   shogiMatchSummarySchema,
   shogiMatchReplayPageSchema,
 } from "@tetraboard/protocol";
-import { advanceShogiMatchSave, readShogiMatchReplayPage } from "../src/rooms/shogiMatchStore";
+import { readShogiMatchReplayPage } from "../src/rooms/shogiMatchStore";
+import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { readStoredMatch, publicMatchDetail } from "../src/accounts/matchDataContracts";
 import { accountFixture } from "./accountFixtures";
 import { boundaryRequest } from "./roomBoundaryFixtures";

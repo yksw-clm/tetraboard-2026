@@ -106,7 +106,6 @@
         "apps/worker/src/rooms/rankingRoutes.ts",
         "apps/worker/src/rooms/roomIndex.ts",
         "apps/worker/src/rooms/roomRoutes.ts",
-        "apps/worker/src/rooms/shogiMatchStore.ts",
         "apps/worker/src/tournaments/coordinator.ts",
         "apps/worker/src/tournaments/store.ts",
         "apps/worker/src/usageEvents/visit.ts"
