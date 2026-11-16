@@ -3,7 +3,11 @@ import {
   matchmakingCpuAppearance,
   matchmakingRoomMetadata,
 } from "./gameAdapters/matchmaking";
-import { normalizeLegacyReversiState } from "./normalizeLegacyReversiState";
+import {
+  currentRoomStateVersion,
+  roomStateVersionKey,
+  migrateRoomStateV0ToV1,
+} from "./roomStateVersion";
 import { matchEndFacts } from "../usageEvents/matchLifecycle";
 import { roomMatchKind, type MatchKind } from "@tetraboard/protocol";
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
@@ -106,7 +110,6 @@ import {
 import { profileAvatarUrl } from "../accounts/auth";
 import { retryPendingMatchClaims } from "../accounts/matchClaims";
 import { readStoredMatch } from "../accounts/matchDataContracts";
-import { normalizeLegacyShogiState } from "./normalizeLegacyShogiState";
 import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
 import { DurableObject } from "cloudflare:workers";
 import { waitingRoomFactories } from "./waitingRoomFactories";
@@ -1267,14 +1270,19 @@ export class GameRoom extends DurableObject<Env> {
   private readRoom(): Room | null {
     const saved = this.ctx.storage.kv.get<Room>(roomStorageKey);
     if (saved === undefined) return null;
-    const room = roomSchema.parse(
-      normalizeLegacyReversiState(
-        normalizeLegacyShogiState(saved),
-        () => this.ctx.storage.kv.get<{ id: string }>(replayKey)?.id,
-      ),
-    );
-    this.gameAdapter(room).normalize(room, saved);
-    return room;
+    const version = this.ctx.storage.kv.get<number>(roomStateVersionKey) ?? 0;
+    if (version >= currentRoomStateVersion) return roomSchema.parse(saved);
+    return this.ctx.storage.transactionSync(() => {
+      const parsed = migrateRoomStateV0ToV1(saved, {
+        readReplay: () => this.ctx.storage.kv.get(replayKey),
+        migrateLegacy: (room, original, readReplay) =>
+          this.gameAdapter(room).migrateLegacy(room, original, readReplay),
+      });
+      if (!parsed.success) throw parsed.error;
+      this.ctx.storage.kv.put(roomStorageKey, parsed.data);
+      this.ctx.storage.kv.put(roomStateVersionKey, currentRoomStateVersion);
+      return parsed.data;
+    });
   }
 
   private readMembership(tokenHash: string): RoomMembership | null {
@@ -1449,6 +1457,7 @@ export class GameRoom extends DurableObject<Env> {
       this.ctx.storage.kv.delete(departedKey(player.id));
     }
     this.ctx.storage.kv.delete(roomStorageKey);
+    this.ctx.storage.kv.delete(roomStateVersionKey);
     this.ctx.storage.kv.delete(replayKey);
     this.ctx.storage.kv.delete(matchStartKey);
     this.ctx.storage.kv.delete(shogiMatchStartKey);
@@ -2117,6 +2126,7 @@ export class GameRoom extends DurableObject<Env> {
       };
       this.withIndexTransaction(() => {
         this.ctx.storage.kv.put(roomStorageKey, room);
+        this.ctx.storage.kv.put(roomStateVersionKey, currentRoomStateVersion);
         this.ctx.storage.kv.put(tournamentRoomKey, context.matchId);
         this.ctx.storage.kv.delete(tournamentReturnKey);
         this.ctx.storage.kv.put(tournamentReservationKey(context.matchId), reservation);
@@ -2600,6 +2610,7 @@ export class GameRoom extends DurableObject<Env> {
       this.withIndexTransaction(() => {
         if (capacity) this.ctx.storage.kv.put(cpuCapacityKey, capacity);
         this.ctx.storage.kv.put(roomStorageKey, room);
+        this.ctx.storage.kv.put(roomStateVersionKey, currentRoomStateVersion);
         if (rating) this.ctx.storage.kv.put(profileRatingsKey(input.matchId), profileRatings);
         this.ctx.storage.kv.put(`matchmaking:${input.matchId}`, {
           ...input,
@@ -2999,6 +3010,7 @@ export class GameRoom extends DurableObject<Env> {
         if (analytics)
           this.ctx.storage.kv.put(analyticsPlayerKey(initialRoom.players[0].id), analytics);
         this.ctx.storage.kv.put(roomStorageKey, pendingRoom);
+        this.ctx.storage.kv.put(roomStateVersionKey, currentRoomStateVersion);
         this.ctx.storage.kv.put(
           membershipStorageKey(tokenHash),
           roomMembershipSchema.parse({ playerId: initialRoom.players[0].id, role: "host" }),
@@ -3028,12 +3040,16 @@ export class GameRoom extends DurableObject<Env> {
 
   async getShareMetadata(instanceId: string) {
     // ルームの進行や期限処理を呼ばず、クローラーの取得で対局・時計・保存を変更しません。
-    const parsed = roomSchema.safeParse(
-      normalizeLegacyReversiState(
-        normalizeLegacyShogiState(this.ctx.storage.kv.get(roomStorageKey)),
-        () => this.ctx.storage.kv.get<{ id: string }>(replayKey)?.id,
-      ),
-    );
+    const saved = this.ctx.storage.kv.get(roomStorageKey);
+    const version = this.ctx.storage.kv.get<number>(roomStateVersionKey) ?? 0;
+    const parsed =
+      version >= currentRoomStateVersion
+        ? roomSchema.safeParse(saved)
+        : migrateRoomStateV0ToV1(saved, {
+            readReplay: () => this.ctx.storage.kv.get(replayKey),
+            migrateLegacy: (room, original, readReplay) =>
+              this.gameAdapter(room).migrateLegacy(room, original, readReplay),
+          });
     if (!parsed.success) return null;
     const room = parsed.data;
     const now = Date.now();

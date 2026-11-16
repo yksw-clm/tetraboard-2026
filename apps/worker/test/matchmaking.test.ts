@@ -1,3 +1,4 @@
+import { expectVersionedRoom } from "./roomStateVersionAssertions";
 import { GameRoom } from "../src/rooms/gameRoom";
 import { env, exports } from "cloudflare:workers";
 import { evictDurableObject, runInDurableObject } from "cloudflare:test";
@@ -480,6 +481,7 @@ test.each([
     const assignment = states[0]!.assignment!;
     rooms.add(assignment.roomId);
     const roomStub = env.GAME_ROOM.getByName(assignment.roomId);
+    await expectVersionedRoom(roomStub);
     const schema =
       game === "four-shogi"
         ? fourShogiRoomSchema

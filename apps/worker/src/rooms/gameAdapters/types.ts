@@ -100,7 +100,7 @@ export interface GameAdapter<G extends GameId> {
     result: FinishedProgress<G>,
     retainPlayers: (players: RoomFor<G>["players"], at: number) => RoomFor<G>["players"] | null,
   ): RoomFor<G> | null;
-  normalize(room: RoomFor<G>, saved: object): void;
+  migrateLegacy(room: RoomFor<G>, saved: object, readReplay: () => unknown): void;
   close(): void;
   waitingSeat: { side: null } | { color: null };
   allowsCompetitiveDraw: boolean;

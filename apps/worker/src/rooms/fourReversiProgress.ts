@@ -1,3 +1,4 @@
+import { migrateLegacyFourReversiRoom } from "./legacyRoomMigrations";
 import { checkGameCommand } from "@tetraboard/context-room";
 import { gameDefinitions } from "./gameDefinitions";
 import {
@@ -23,7 +24,6 @@ import type { FourReversiRatingSource } from "../matchmaking/fourReversiSelectio
 import type { ServiceProfile } from "./aiServiceProfiles";
 import {
   startFourReversiRound,
-  normalizeFourReversiRoom,
   recordFourReversiTransition,
   finalizeFourReversiRound,
 } from "./fourReversiProgressStore";
@@ -262,7 +262,7 @@ export class FourReversiProgress {
     return room;
   }
 
-  normalize(room: FourReversiRoom, saved: object): void {
-    normalizeFourReversiRoom(this.storage, room, saved);
+  migrateLegacy(room: FourReversiRoom, saved: object, readReplay: () => unknown): void {
+    migrateLegacyFourReversiRoom(room, saved, readReplay);
   }
 }

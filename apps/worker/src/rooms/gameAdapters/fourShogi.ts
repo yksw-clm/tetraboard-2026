@@ -130,7 +130,7 @@ export function createFourShogiAdapter(dependencies: AdapterDependencies) {
     },
     resign: (room, hash) => progress.resign(room, hash),
     draw: (room, hash, command) => progress.draw(room, hash, command),
-    normalize: (room, saved) => progress.normalize(room, saved),
+    migrateLegacy: (room, saved) => progress.migrateLegacy(room, saved),
     matchmakingDiagnostic: (rating, matchId, event, atMs) => {
       if (rating?.kind === "four-shogi")
         dependencies.logFourShogiDiagnostic(event, { matchId, atMs });

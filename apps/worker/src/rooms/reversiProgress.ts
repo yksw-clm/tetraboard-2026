@@ -2,7 +2,6 @@ import { checkGameCommand } from "@tetraboard/context-room";
 import {
   reversiStateSchema,
   reversiRoomSchema,
-  reversiReplaySchema as roundReplaySchema,
   type ReversiRoom,
   type ReversiLastRound as LastRound,
   type GameActionCommandFor,
@@ -17,7 +16,7 @@ import {
   externalCpuJobKey,
 } from "./reversiProgressStore";
 import { ReversiExternalCpu } from "./reversiExternalCpu";
-import { replayKey, nextPublicUpdateAt, cpuMoveDelayMs } from "./progressHelpers";
+import { nextPublicUpdateAt, cpuMoveDelayMs } from "./progressHelpers";
 import type {
   ProgressDependencies,
   ProgressFor,
@@ -269,18 +268,5 @@ export class ReversiProgress {
     });
     if (room.status !== "waiting") throw new Error("Expected waiting room");
     return room;
-  }
-
-  normalize(room: ReversiRoom, saved: object): void {
-    if (room.status !== "playing" || Object.hasOwn(saved, "eliminations")) return;
-    const replay = this.storage.kv.get(replayKey);
-    if (replay === undefined) return;
-    for (const { action } of roundReplaySchema.parse(replay).steps)
-      if (
-        action.type === "eliminate" &&
-        room.game.eliminatedColors.includes(action.color) &&
-        !room.eliminations.some((e) => e.color === action.color)
-      )
-        room.eliminations.push({ color: action.color, reason: action.reason });
   }
 }

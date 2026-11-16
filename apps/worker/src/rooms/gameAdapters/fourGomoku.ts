@@ -37,7 +37,7 @@ export function createFourGomokuAdapter(dependencies: AdapterDependencies) {
       const prepared = progress.prepareLeave(room, playerId);
       return (at, hostLeaving) => progress.leave(room, playerId, prepared, at, hostLeaving);
     },
-    normalize: (room) => progress.normalize(room),
+    migrateLegacy: (room, _saved, readReplay) => progress.migrateLegacy(room, readReplay),
     lastRoundId: (room) => room.lastRound?.replay?.id,
   } satisfies AdapterInstance<"four-gomoku">;
 }

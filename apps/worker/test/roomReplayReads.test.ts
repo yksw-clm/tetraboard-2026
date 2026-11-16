@@ -62,6 +62,8 @@ for (const reader of readers) {
         if (missing !== "positionRevision") delete saved.roundId;
         if (missing !== "roundId") delete saved.positionRevision;
         state.storage.kv.put("room", saved);
+        state.storage.kv.delete("room-state-version");
+        expect(state.storage.kv.get("room")).toEqual(saved);
         const get = vi.spyOn(state.storage.kv, "get");
         try {
           const result =
@@ -82,10 +84,17 @@ for (const reader of readers) {
           const reads = get.mock.calls.filter(([key]) => key === "round-replay").length;
           if (missing === "roundId" || missing === "both") expect(reads).toBeGreaterThan(0);
           else expect(reads).toBe(0);
-          expect(state.storage.kv.get("room")).toEqual(saved);
+          if (reader === "getShareMetadata") {
+            expect(state.storage.kv.get("room")).toEqual(saved);
+            expect(state.storage.kv.get("room-state-version")).toBeUndefined();
+          } else {
+            expect(state.storage.kv.get("room")).toEqual(original);
+            expect(state.storage.kv.get("room-state-version")).toBe(1);
+          }
         } finally {
           get.mockRestore();
           state.storage.kv.put("room", original);
+          state.storage.kv.put("room-state-version", 1);
         }
       });
     },

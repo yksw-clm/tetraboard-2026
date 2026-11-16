@@ -21,7 +21,7 @@ export function adapterDefaults<G extends GameId>(
   | "afterLeave"
   | "finish"
   | "settings"
-  | "normalize"
+  | "migrateLegacy"
   | "close"
   | "waitingSeat"
   | "allowsCompetitiveDraw"
@@ -45,7 +45,7 @@ export function adapterDefaults<G extends GameId>(
       return players === null ? null : progress.waiting({ ...result, lastRound }, players);
     },
     settings: (room, hash, command) => updateSettings(dependencies, policy, room, hash, command),
-    normalize: () => {},
+    migrateLegacy: () => {},
     close: () => {},
     waitingSeat: policy.waitingSeat,
     allowsCompetitiveDraw: false,

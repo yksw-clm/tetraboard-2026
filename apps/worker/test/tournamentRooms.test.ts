@@ -1,3 +1,4 @@
+import { expectVersionedRoom } from "./roomStateVersionAssertions";
 import { roomSchema, type TournamentSettings } from "@tetraboard/protocol";
 import { isTournamentGameRoom } from "../src/rooms/tournamentRoom";
 import { pendingMatchPrefix, type PendingMatch } from "../src/rooms/matchStore";
@@ -1021,3 +1022,16 @@ for (const game of ["four-reversi", "four-gomoku", "four-shogi"] as const) {
     ).toBe("saved");
   });
 }
+
+test("大会ルームは作成時に現在の版を持ち、読み込みは移行せず、中止で版も消す", async () => {
+  const prepared = await fixture();
+  expect(await prepared.stub.prepareTournamentRoom(prepared.input)).toEqual({ status: "prepared" });
+  await expectVersionedRoom(prepared.stub);
+  expect(await prepared.stub.abortTournamentRoom(prepared.input.context.matchId)).toEqual({
+    status: "cancelled",
+  });
+  await runInDurableObject(prepared.stub, (_, ctx) => {
+    expect(ctx.storage.kv.get("room")).toBeUndefined();
+    expect(ctx.storage.kv.get("room-state-version")).toBeUndefined();
+  });
+});
