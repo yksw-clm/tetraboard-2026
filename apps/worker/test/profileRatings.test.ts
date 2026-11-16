@@ -1,3 +1,4 @@
+import { ratedMatchmakingPolicy } from "../src/matchmaking/ratedMatchmaking";
 import { prepareStoredMatchFixture } from "./snapshotMatchFixtures";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
@@ -24,7 +25,7 @@ afterEach(async () => {
     await env.APP_DB.batch([
       ...games.map((game) =>
         env.APP_DB.prepare(
-          `DELETE FROM ${game.replaceAll("-", "_")}_rating_changes WHERE match_id=?`,
+          `DELETE FROM ${ratedMatchmakingPolicy(game).store.changesTable} WHERE game='${game}' AND match_id=?`,
         ).bind(id),
       ),
       env.APP_DB.prepare("DELETE FROM matches WHERE id=?").bind(id),
@@ -154,12 +155,12 @@ async function change(
   accountId: string,
   games: number,
 ) {
-  const table = `${game.replaceAll("-", "_")}_rating_changes`;
+  const table = ratedMatchmakingPolicy(game).store.changesTable;
   const ranked = game.startsWith("four-");
   await env.APP_DB.prepare(
     ranked
-      ? `INSERT INTO ${table} (match_id,account_id,mu_before,sigma_before,mu_after,sigma_after,rated_games,human_games) VALUES (?,?,26,1,27,1,?,0)`
-      : `INSERT INTO ${table} (match_id,account_id,rating_before,rating_after,rated_games,human_games) VALUES (?,?,1550,1600,?,0)`,
+      ? `INSERT INTO ${table} (game,match_id,account_id,mu_before,sigma_before,mu_after,sigma_after,rated_games,human_games) VALUES ('${game}',?,?,26,1,27,1,?,0)`
+      : `INSERT INTO ${table} (game,match_id,account_id,rating_before,rating_after,rated_games,human_games) VALUES ('${game}',?,?,1550,1600,?,0)`,
   )
     .bind(matchId, accountId, games)
     .run();
@@ -181,8 +182,10 @@ test.each(games)(
     expect(await profile(query)).toMatchObject({
       rating: { timing: "before", status: "placement" },
     });
-    const table = `${game.replaceAll("-", "_")}_rating_changes`;
-    await env.APP_DB.prepare(`UPDATE ${table} SET rated_games=6 WHERE match_id=?`)
+    const table = ratedMatchmakingPolicy(game).store.changesTable;
+    await env.APP_DB.prepare(
+      `UPDATE ${table} SET rated_games=6 WHERE game='${game}' AND match_id=?`,
+    )
       .bind(match.record.id)
       .run();
     expect(await profile(query)).toMatchObject({
@@ -249,9 +252,9 @@ test.each(games)("新規%sの成立時のレートを固定し、後続の更新
     expect(await profile(query)).toMatchObject({
       rating: { timing: "before", status: "rated", rating: 1600 },
     });
-    const table = `${game.replaceAll("-", "_")}_rating_changes`;
+    const table = ratedMatchmakingPolicy(game).store.changesTable;
     await env.APP_DB.prepare(
-      `UPDATE ${table} SET ${game.startsWith("four-") ? "mu_after=30" : "rating_after=1900"} WHERE account_id=?`,
+      `UPDATE ${table} SET ${game.startsWith("four-") ? "mu_after=30" : "rating_after=1900"} WHERE game='${game}' AND account_id=?`,
     )
       .bind(user.id)
       .run();

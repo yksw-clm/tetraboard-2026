@@ -24,7 +24,7 @@ export function createEloRating(
   game: "shogi" | "reversi",
   resultSchema: { parse(value: unknown): ShogiRatingResult },
 ) {
-  const store = createRatingStore(game, `${game}_rating_pending`, `${game}_rating_changes`);
+  const store = createRatingStore(game);
   const { placementGames } = ratedMatchmakingRules[game];
   const side = game === "shogi" ? "side" : "color";
   async function readResult(
@@ -41,13 +41,13 @@ export function createEloRating(
       o.rating_before AS opponent_before, o.rating_after AS opponent_after,
       o.rated_games AS opponent_games
     FROM account_match_history h JOIN matches m ON m.id = h.match_id
-    LEFT JOIN ${store.changesTable} r ON r.account_id = h.account_id AND r.match_id = m.id
-    LEFT JOIN ${store.changesTable} o ON ?3 = 1 AND o.match_id = m.id AND o.account_id <> h.account_id
+    LEFT JOIN ${store.changesTable} r ON r.game = '${game}' AND r.account_id = h.account_id AND r.match_id = m.id
+    LEFT JOIN ${store.changesTable} o ON o.game = '${game}' AND ?3 = 1 AND o.match_id = m.id AND o.account_id <> h.account_id
     WHERE h.account_id = ?1 AND m.id = ?2 AND m.game = '${game}'
       AND json_extract(m.record_json, '$.rating.kind') IS NOT NULL
     UNION ALL
     SELECT 'pending', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
-    FROM ${store.pendingTable} WHERE account_id = ?1 AND match_id = ?2
+    FROM ${store.pendingTable} WHERE game = '${game}' AND account_id = ?1 AND match_id = ?2
   `)
       .bind(accountId, matchId, Number(includeOpponent))
       .first<{
@@ -146,15 +146,15 @@ export function createEloRating(
           COALESCE(r.human_games, 0) AS human_games
         FROM participants p
         JOIN user u ON u.id = p.account_id AND COALESCE(u.isAnonymous, 0) = 0
-        LEFT JOIN ${store.changesTable} r ON r.account_id = u.id AND r.rated_games = (
-          SELECT MAX(rated_games) FROM ${store.changesTable} WHERE account_id = u.id
+        LEFT JOIN ${store.changesTable} r ON r.game = '${game}' AND r.account_id = u.id AND r.rated_games = (
+          SELECT MAX(rated_games) FROM ${store.changesTable} WHERE game = '${game}' AND account_id = u.id
         )
         WHERE p.kind = 'human'
           AND NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id = u.id)
       )
       INSERT INTO ${store.changesTable}
-        (match_id, account_id, rating_before, rating_after, rated_games, human_games)
-      SELECT ?1, p.account_id, p.rating,
+        (game, match_id, account_id, rating_before, rating_after, rated_games, human_games)
+      SELECT '${game}', ?1, p.account_id, p.rating,
         p.rating + (CASE m.opponent_kind
           WHEN 'human' THEN CASE WHEN p.rated_games < ${placementGames} THEN 64 ELSE 32 END
           WHEN 'cpu' THEN CASE WHEN p.rated_games < ${placementGames} THEN 48 ELSE 16 END

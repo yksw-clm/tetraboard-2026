@@ -94,7 +94,7 @@ test.each([
     await writeMatch(env.APP_DB, match);
     await writeMatch(env.APP_DB, match);
     const { results } = await env.APP_DB.prepare(
-      "SELECT rating_after, rated_games FROM reversi_rating_changes WHERE match_id=?",
+      "SELECT rating_after, rated_games FROM elo_rating_changes WHERE game='reversi' AND match_id=?",
     )
       .bind(match.id)
       .all();

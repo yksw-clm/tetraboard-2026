@@ -32,7 +32,7 @@ async function seedRating(
   const id = crypto.randomUUID();
   const now = Date.now();
   const fourPlayer = game === "four-shogi" || game === "four-reversi";
-  const table = `${game.replaceAll("-", "_")}_rating_changes`;
+  const table = ratedMatchmakingPolicy(game).store.changesTable;
   await env.APP_DB.batch([
     env.APP_DB.prepare("INSERT INTO matches VALUES (?, ?, ?, ?, ?, '{}')").bind(
       id,
@@ -42,13 +42,13 @@ async function seedRating(
       now,
     ),
     fourPlayer
-      ? env.APP_DB.prepare(`INSERT INTO ${table} VALUES (?, ?, 25, 8, ?, 8, ?, 0)`).bind(
+      ? env.APP_DB.prepare(`INSERT INTO ${table} VALUES ('${game}',?, ?, 25, 8, ?, 8, ?, 0)`).bind(
           id,
           accountId,
           25 + (value - 1500) / 50,
           games,
         )
-      : env.APP_DB.prepare(`INSERT INTO ${table} VALUES (?, ?, 1500, ?, ?, 0)`).bind(
+      : env.APP_DB.prepare(`INSERT INTO ${table} VALUES ('${game}',?, ?, 1500, ?, ?, 0)`).bind(
           id,
           accountId,
           value,

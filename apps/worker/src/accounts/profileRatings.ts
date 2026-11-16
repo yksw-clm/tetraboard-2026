@@ -101,7 +101,7 @@ export async function readMatchProfileRating(
   const row = await db
     .prepare(
       `SELECT ${ranked ? "mu_before" : "rating_before"} AS rating, rated_games
-      FROM ${store.changesTable} WHERE match_id=? AND account_id=?`,
+      FROM ${store.changesTable} WHERE game='${match.game}' AND match_id=? AND account_id=?`,
     )
     .bind(record.id, player.accountId)
     .first<{ rating: number; rated_games: number }>();

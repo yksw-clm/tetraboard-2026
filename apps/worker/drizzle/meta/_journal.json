@@ -22,6 +22,13 @@
       "when": 1794830220206,
       "tag": "0002_generalize_match_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794840130791,
+      "tag": "0003_consolidate_rating_tables",
+      "breakpoints": true
     }
   ]
 }

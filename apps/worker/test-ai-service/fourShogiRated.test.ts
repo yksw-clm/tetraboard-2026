@@ -203,7 +203,7 @@ test.each(["placement", "fifth", "fallback", "retry", "retry_failed", "timeout_r
               "INSERT INTO matches VALUES (?, 'four-shogi', 'singles', ?, ?, '{}')",
             ).bind(id, now - 2000, now - 1000),
             env.APP_DB.prepare(
-              "INSERT INTO four_shogi_rating_changes VALUES (?, ?, 25, 8, 25, 8, ?, 0)",
+              "INSERT INTO skill_rating_changes VALUES ('four-shogi',?, ?, 25, 8, 25, 8, ?, 0)",
             ).bind(id, account.id, count),
           ]);
         }
@@ -438,7 +438,7 @@ test.each(["placement", "fifth", "fallback", "retry", "retry_failed", "timeout_r
         });
         expect(
           await env.APP_DB.prepare(
-            "SELECT MAX(rated_games) AS games FROM four_shogi_rating_changes WHERE account_id=?",
+            "SELECT MAX(rated_games) AS games FROM skill_rating_changes WHERE game='four-shogi' AND account_id=?",
           )
             .bind(account.id)
             .first("games"),
@@ -447,7 +447,9 @@ test.each(["placement", "fifth", "fallback", "retry", "retry_failed", "timeout_r
         expect(summary).toEqual({ status: "placement", games: fallback ? 0 : 1 });
       }
       expect(
-        await env.APP_DB.prepare("SELECT 1 FROM four_shogi_rating_pending WHERE match_id=?")
+        await env.APP_DB.prepare(
+          "SELECT 1 FROM skill_rating_pending WHERE game='four-shogi' AND match_id=?",
+        )
           .bind(assigned.matchId)
           .first(),
       ).toBeNull();

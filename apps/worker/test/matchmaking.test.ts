@@ -162,8 +162,8 @@ test.each([false, true])(
 test.each(["shogi", "reversi"] as const)("%sの保存待ちも全ゲームの再検索を止める", async (game) => {
   const account = await accountFixture();
   accounts.push(account.id);
-  const table = game === "shogi" ? "shogi_rating_pending" : "reversi_rating_pending";
-  await env.APP_DB.prepare(`INSERT INTO ${table}(account_id,match_id) VALUES (?,?)`)
+  const table = "elo_rating_pending";
+  await env.APP_DB.prepare(`INSERT INTO ${table}(game,account_id,match_id) VALUES ('${game}',?,?)`)
     .bind(account.id, crypto.randomUUID())
     .run();
   for (const target of Object.keys(matchmakingQueues) as (keyof typeof matchmakingQueues)[])
@@ -181,7 +181,7 @@ test("前局の保存待ちがある古い待機者も、成立処理で待機�
   const queue = shogiQueue();
   const [user] = await fixture(1, queue);
   await env.APP_DB.prepare(
-    "INSERT INTO four_reversi_rating_pending(account_id,match_id) VALUES (?,?)",
+    "INSERT INTO skill_rating_pending(game,account_id,match_id) VALUES ('four-reversi',?,?)",
   )
     .bind(user!.account.id, crypto.randomUUID())
     .run();
@@ -228,10 +228,11 @@ test.each(["four-reversi", "four-shogi"] as const)(
           .first(),
       ).toBeNull(),
     );
-    const table =
-      game === "four-reversi" ? "four_reversi_rating_pending" : "four_shogi_rating_pending";
+    const table = "skill_rating_pending";
     expect(
-      await env.APP_DB.prepare(`SELECT room_id,instance_id FROM ${table} WHERE account_id=?`)
+      await env.APP_DB.prepare(
+        `SELECT room_id,instance_id FROM ${table} WHERE game='${game}' AND account_id=?`,
+      )
         .bind(users[0]!.account.id)
         .first(),
     ).toEqual({ room_id: assignment.roomId, instance_id: assignment.instanceId });
@@ -309,7 +310,7 @@ test.each(["four-reversi", "four-shogi"] as const)(
       now += 1;
       await runInDurableObject(room, (instance) => instance.alarm());
       expect(
-        await env.APP_DB.prepare(`SELECT 1 FROM ${table} WHERE account_id=?`)
+        await env.APP_DB.prepare(`SELECT 1 FROM ${table} WHERE game='${game}' AND account_id=?`)
           .bind(users[0]!.account.id)
           .first(),
       ).toBeNull();
@@ -430,14 +431,20 @@ afterEach(async () => {
   }
   rooms.clear();
   for (const id of accounts.splice(0)) {
-    await env.APP_DB.prepare("DELETE FROM shogi_rating_pending WHERE account_id=?").bind(id).run();
-    await env.APP_DB.prepare("DELETE FROM reversi_rating_pending WHERE account_id=?")
+    await env.APP_DB.prepare("DELETE FROM elo_rating_pending WHERE game='shogi' AND account_id=?")
       .bind(id)
       .run();
-    await env.APP_DB.prepare("DELETE FROM four_reversi_rating_pending WHERE account_id=?")
+    await env.APP_DB.prepare("DELETE FROM elo_rating_pending WHERE game='reversi' AND account_id=?")
       .bind(id)
       .run();
-    await env.APP_DB.prepare("DELETE FROM four_shogi_rating_pending WHERE account_id=?")
+    await env.APP_DB.prepare(
+      "DELETE FROM skill_rating_pending WHERE game='four-reversi' AND account_id=?",
+    )
+      .bind(id)
+      .run();
+    await env.APP_DB.prepare(
+      "DELETE FROM skill_rating_pending WHERE game='four-shogi' AND account_id=?",
+    )
       .bind(id)
       .run();
     await env.APP_DB.prepare("DELETE FROM tournament_wait_reservations WHERE account_id=?")
@@ -797,7 +804,7 @@ async function ratedAccount(rating: number, ratedGames = 1) {
   accounts.push(account.id);
   const previous = standardShogiRecord(account.id, "win", true);
   await saveStandardShogiFixture(previous);
-  await env.APP_DB.prepare("INSERT INTO shogi_rating_changes VALUES (?,?,1500,?,?,0)")
+  await env.APP_DB.prepare("INSERT INTO elo_rating_changes VALUES ('shogi',?,?,1500,?,?,0)")
     .bind(previous.record.id, account.id, rating, ratedGames)
     .run();
   return account;
@@ -995,7 +1002,7 @@ test("将棋の対人マッチは認証接続後だけ開始し、終局で両�
   );
   const changes = () =>
     env.APP_DB.prepare(
-      "SELECT account_id,rating_after,rated_games,human_games FROM shogi_rating_changes WHERE match_id=?",
+      "SELECT account_id,rating_after,rated_games,human_games FROM elo_rating_changes WHERE game='shogi' AND match_id=?",
     )
       .bind(first.matchId)
       .all();
@@ -1108,7 +1115,7 @@ test("将棋CPU戦は選んだ探索予算で着手し、そのCPU基準レー�
     );
     expect(
       await env.APP_DB.prepare(
-        "SELECT rating_before,rating_after,rated_games,human_games FROM shogi_rating_changes WHERE match_id=?",
+        "SELECT rating_before,rating_after,rated_games,human_games FROM elo_rating_changes WHERE game='shogi' AND match_id=?",
       )
         .bind(assignment.matchId)
         .first(),
@@ -1906,7 +1913,7 @@ test.each(["human", "random", "engine", "fallback"] as const)(
             },
       );
       const changes = await env.APP_DB.prepare(
-        "SELECT account_id,rating_after,human_games FROM reversi_rating_changes WHERE match_id=?",
+        "SELECT account_id,rating_after,human_games FROM elo_rating_changes WHERE game='reversi' AND match_id=?",
       )
         .bind(assignment.matchId)
         .all<{ account_id: string; rating_after: number; human_games: number }>();
@@ -1920,7 +1927,7 @@ test.each(["human", "random", "engine", "fallback"] as const)(
       }
       expect(
         await env.APP_DB.prepare(
-          "SELECT COUNT(*) AS count FROM reversi_rating_pending WHERE match_id=?",
+          "SELECT COUNT(*) AS count FROM elo_rating_pending WHERE game='reversi' AND match_id=?",
         )
           .bind(assignment.matchId)
           .first("count"),
@@ -1963,7 +1970,9 @@ test.each(["human", "random", "engine", "fallback"] as const)(
     ).toEqual(scenario === "human" ? [] : ["クルリ"]);
     await writeMatch(env.APP_DB, record);
     expect(
-      await env.APP_DB.prepare("SELECT COUNT(*) FROM reversi_rating_changes WHERE match_id=?")
+      await env.APP_DB.prepare(
+        "SELECT COUNT(*) FROM elo_rating_changes WHERE game='reversi' AND match_id=?",
+      )
         .bind(assignment.matchId)
         .first("COUNT(*)"),
     ).toBe(scenario === "fallback" ? 0 : users.length);

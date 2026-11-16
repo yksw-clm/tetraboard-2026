@@ -20,12 +20,7 @@ const cpuRating = z.strictObject({
   profileHash: z.string().min(1),
 });
 export type FourReversiCpuRating = z.infer<typeof cpuRating>;
-export const fourReversiRatingStore = createRatingStore(
-  "four-reversi",
-  "four_reversi_rating_pending",
-  "four_reversi_rating_changes",
-  "mu_after AS rating_after, sigma_after",
-);
+export const fourReversiRatingStore = createRatingStore("four-reversi");
 export const fourReversiRatedMatchSchema = z.strictObject({
   method: z.literal(fourReversiRatingMethod),
   calibrationVersion: z.string().min(1),
@@ -41,12 +36,7 @@ export const fourShogiRatedMatchSchema = fourReversiRatedMatchSchema.extend({
   cpu: z.partialRecord(z.enum(sides), shogiCpuRating),
 });
 export type FourShogiRatedMatch = z.infer<typeof fourShogiRatedMatchSchema>;
-export const fourShogiRatingStore = createRatingStore(
-  "four-shogi",
-  "four_shogi_rating_pending",
-  "four_shogi_rating_changes",
-  "mu_after AS rating_after, sigma_after",
-);
+export const fourShogiRatingStore = createRatingStore("four-shogi");
 const rankRatingStorage = {
   "four-reversi": { store: fourReversiRatingStore, key: "fourReversiRating", seat: "color" },
   "four-shogi": { store: fourShogiRatingStore, key: "fourShogiRating", seat: "side" },
@@ -76,7 +66,7 @@ async function readRankSummary(db: D1Database, accountId: string, game: RankGame
   const { store } = rankRatingStorage[game];
   const row = await db
     .prepare(`SELECT mu_after AS mu, rated_games, human_games FROM ${store.changesTable}
-      WHERE account_id=? ORDER BY rated_games DESC LIMIT 1`)
+      WHERE game='${game}' AND account_id=? ORDER BY rated_games DESC LIMIT 1`)
     .bind(accountId)
     .first<Pick<CurrentRating, "mu" | "rated_games" | "human_games">>();
   if (!row || row.rated_games < fourReversiPlacementGames)
@@ -115,16 +105,16 @@ async function readRankResult(
       json_extract(m.record_json, '$.${key}.usedFallback') AS fallback,
       json_extract(m.record_json, '$.${key}.cpu.' || json_extract(p.value, '$.${seat}') || '.mu') AS cpu_mu,
       r.mu_before, r.mu_after, r.rated_games, r.human_games,
-      EXISTS(SELECT 1 FROM ${store.pendingTable} WHERE account_id=?1 AND match_id=?2) AS pending
+      EXISTS(SELECT 1 FROM ${store.pendingTable} WHERE game='${game}' AND account_id=?1 AND match_id=?2) AS pending
     FROM account_match_history h JOIN matches m ON m.id=h.match_id
     JOIN json_each(m.record_json, '$.participants') p
     LEFT JOIN ${store.changesTable} r
-      ON r.match_id=m.id AND r.account_id=json_extract(p.value, '$.accountId')
+      ON r.game='${game}' AND r.match_id=m.id AND r.account_id=json_extract(p.value, '$.accountId')
     WHERE h.account_id=?1 AND m.id=?2 AND m.game='${game}'
       AND json_extract(m.record_json, '$.${key}.method') IS NOT NULL
     UNION ALL
     SELECT NULL, 0, 0, NULL, NULL, NULL, NULL, NULL, 1
-    FROM ${store.pendingTable} WHERE account_id=?1 AND match_id=?2
+    FROM ${store.pendingTable} WHERE game='${game}' AND account_id=?1 AND match_id=?2
   `)
     .bind(accountId, matchId)
     .all<{
@@ -297,7 +287,10 @@ async function applyRankRating(
   const ids = humans.map(({ accountId }) => accountId);
   for (let attempt = 0; attempt < 3; attempt++) {
     if (
-      await db.prepare(`SELECT 1 FROM ${store.changesTable} WHERE match_id=?`).bind(matchId).first()
+      await db
+        .prepare(`SELECT 1 FROM ${store.changesTable} WHERE game='${game}' AND match_id=?`)
+        .bind(matchId)
+        .first()
     )
       return;
     const { results } = await db
@@ -305,8 +298,8 @@ async function applyRankRating(
       SELECT u.id AS account_id, COALESCE(r.mu_after, ?2) AS mu, COALESCE(r.sigma_after, ?3) AS sigma,
         COALESCE(r.rated_games, 0) AS rated_games, COALESCE(r.human_games, 0) AS human_games
       FROM json_each(?1) ids JOIN user u ON u.id=ids.value
-      LEFT JOIN ${store.changesTable} r ON r.account_id=u.id AND r.rated_games=(
-        SELECT MAX(rated_games) FROM ${store.changesTable} WHERE account_id=u.id
+      LEFT JOIN ${store.changesTable} r ON r.game='${game}' AND r.account_id=u.id AND r.rated_games=(
+        SELECT MAX(rated_games) FROM ${store.changesTable} WHERE game='${game}' AND account_id=u.id
       )
       WHERE COALESCE(u.isAnonymous, 0)=0 AND NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=u.id)
     `)
@@ -349,14 +342,14 @@ async function applyRankRating(
       .prepare(`
       WITH changes AS MATERIALIZED (SELECT value AS row FROM json_each(?2))
       INSERT INTO ${store.changesTable}
-        (match_id, account_id, mu_before, sigma_before, mu_after, sigma_after, rated_games, human_games)
-      SELECT ?1, row->>'$.accountId', row->>'$.muBefore', row->>'$.sigmaBefore',
+        (game, match_id, account_id, mu_before, sigma_before, mu_after, sigma_after, rated_games, human_games)
+      SELECT '${game}', ?1, row->>'$.accountId', row->>'$.muBefore', row->>'$.sigmaBefore',
         row->>'$.muAfter', row->>'$.sigmaAfter', row->>'$.ratedGames', row->>'$.humanGames'
       FROM changes
-      WHERE NOT EXISTS (SELECT 1 FROM ${store.changesTable} WHERE match_id=?1)
+      WHERE NOT EXISTS (SELECT 1 FROM ${store.changesTable} WHERE game='${game}' AND match_id=?1)
         AND NOT EXISTS (
           SELECT 1 FROM changes c WHERE c.row->>'$.ratedGames' - 1 <> COALESCE((
-            SELECT MAX(r.rated_games) FROM ${store.changesTable} r WHERE r.account_id=c.row->>'$.accountId'
+            SELECT MAX(r.rated_games) FROM ${store.changesTable} r WHERE r.game='${game}' AND r.account_id=c.row->>'$.accountId'
           ), 0) OR NOT EXISTS (
             SELECT 1 FROM user u WHERE u.id=c.row->>'$.accountId' AND COALESCE(u.isAnonymous, 0)=0
               AND NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=u.id)

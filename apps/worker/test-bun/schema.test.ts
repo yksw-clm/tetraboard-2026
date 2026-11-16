@@ -32,12 +32,12 @@ const uniqueNames = new Set(
     .filter((name) => name !== undefined),
 );
 
-test("既存migrationの全69テーブルと69トリガーを適用します", () => {
-  expect(tableNames(migrated)).toHaveLength(69);
+test("既存migrationの全65テーブルと61トリガーを適用します", () => {
+  expect(tableNames(migrated)).toHaveLength(65);
   expect(tableNames(defined)).toEqual(tableNames(migrated));
   expect(
     migrated.query("SELECT name FROM sqlite_master WHERE type = 'trigger'").all(),
-  ).toHaveLength(69);
+  ).toHaveLength(61);
 });
 
 for (const table of tableNames(migrated)) {

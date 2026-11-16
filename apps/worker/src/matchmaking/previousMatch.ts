@@ -12,7 +12,10 @@ export const pendingRatedGames = ratedMatchmakingGameIds.map((game) => ({
 }));
 
 export const noPendingRatedMatch = pendingRatedGames
-  .map(({ table }) => `NOT EXISTS (SELECT 1 FROM ${table} WHERE account_id=?5)`)
+  .map(
+    ({ game, table }) =>
+      `NOT EXISTS (SELECT 1 FROM ${table} WHERE game='${game}' AND account_id=?5)`,
+  )
   .join(" AND ");
 
 export async function readPreviousRatedMatch(
@@ -27,7 +30,7 @@ export async function readPreviousRatedMatch(
     ordered
       .map(
         ({ game, table }) =>
-          `SELECT '${game}' AS game, match_id, room_id, instance_id FROM ${table} AS pending WHERE account_id=?1`,
+          `SELECT '${game}' AS game, match_id, room_id, instance_id FROM ${table} AS pending WHERE game='${game}' AND account_id=?1`,
       )
       .join(" UNION ALL ") + " LIMIT 1",
   )
