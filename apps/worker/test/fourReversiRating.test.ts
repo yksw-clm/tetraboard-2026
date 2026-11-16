@@ -13,7 +13,7 @@ import {
 } from "../../../packages/ai/fourReversiRating";
 import { accountFixture } from "./accountFixtures";
 import { boundaryRequest } from "./roomBoundaryFixtures";
-import { fixtureRecord } from "./matchFixtures";
+import { fixtureRecord, writeLegacyOutcomeFixture } from "./matchFixtures";
 import { namedCpuProfile } from "../src/matchmaking/cpuProfiles";
 import { writeMatch, type MatchRecord } from "../src/rooms/matchStore";
 import { publicRatingForMu } from "../src/rooms/fourReversiRating";
@@ -226,7 +226,7 @@ test("CPU混在局は全員の確定順位で人間2人を更新し、通常戦�
     rank: [1, 1, 3, 4][index]!,
     stoneCount: [20, 20, 15, 9][index]!,
   }));
-  await writeMatch(env.APP_DB, excluded);
+  await writeLegacyOutcomeFixture(env.APP_DB, excluded);
   expect(await changes(excluded.id)).toEqual([]);
   expect(
     await env.APP_DB.prepare("SELECT id FROM matches WHERE id=?").bind(excluded.id).first(),

@@ -183,7 +183,7 @@ async function readRankResult(
 }
 
 /** 保存済みの対局と更新前の全参加者の状態を使って、レートをまとめて確定します。 */
-export async function applyFourReversiRating(db: D1Database, record: MatchRecord) {
+export async function applyFourReversiRating(db: D1Database, record: Omit<MatchRecord, "replay">) {
   const source = record.fourReversiRating;
   const result = record.game.result;
   const clock = record.settings.timeControl;

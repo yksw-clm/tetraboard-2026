@@ -52,8 +52,8 @@ afterEach(async () => {
   for (const id of new Set([...reversiArchives, ...shogiArchives].map((f) => f.detail.id))) {
     for (const [table, column] of [
       ["account_match_history", "match_id"],
-      ["shogi_match_chunks", "match_id"],
-      ["shogi_match_uploads", "id"],
+      ["match_event_chunks", "match_id"],
+      ["match_uploads", "id"],
       ["matches", "id"],
     ])
       await env.APP_DB.prepare(`DELETE FROM ${table} WHERE ${column}=?`).bind(id).run();
@@ -144,9 +144,7 @@ test("migration後の保存待ちは元JSONとmanifestを保持したまま再�
   expect(
     await env.APP_DB.prepare("SELECT id FROM matches WHERE id=?").bind(record.id).first(),
   ).toBeNull();
-  const manifest = await env.APP_DB.prepare(
-    "SELECT record_json FROM shogi_match_uploads WHERE id=?",
-  )
+  const manifest = await env.APP_DB.prepare("SELECT record_json FROM match_uploads WHERE id=?")
     .bind(record.id)
     .first<{ record_json: string }>();
   expect(manifest?.record_json).toBe(json);

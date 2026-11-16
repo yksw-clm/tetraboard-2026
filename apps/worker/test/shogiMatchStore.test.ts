@@ -117,9 +117,7 @@ test("将棋本体と本人索引は全棋譜検証後にだけ公開し、再�
     ).results,
   ).toEqual([{ account_id: user.id }]);
   expect(
-    await env.APP_DB.prepare("SELECT id FROM shogi_match_uploads WHERE id = ?")
-      .bind(match.id)
-      .first(),
+    await env.APP_DB.prepare("SELECT id FROM match_uploads WHERE id = ?").bind(match.id).first(),
   ).toBeNull();
 });
 
@@ -142,7 +140,7 @@ test("長期イベント転送は1回400件までで、100件ページと任意c
   expect(first).toEqual({ phase: "upload", cursor: 4 });
   expect(
     (await env.APP_DB.prepare(
-      "SELECT SUM(event_count) AS n FROM shogi_match_chunks WHERE match_id = ?",
+      "SELECT SUM(event_count) AS n FROM match_event_chunks WHERE match_id = ?",
     )
       .bind(match.id)
       .first<{ n: number }>())!.n,
@@ -170,7 +168,7 @@ test("棋譜欠損・異なる再送は公開せず、修復後は同じ保存�
     { phase: "upload", cursor: 0 },
     source,
   );
-  await env.APP_DB.prepare("UPDATE shogi_match_chunks SET events_json = '[]' WHERE match_id = ?")
+  await env.APP_DB.prepare("UPDATE match_event_chunks SET events_json = '[]' WHERE match_id = ?")
     .bind(match.id)
     .run();
   await expect(advanceShogiMatchSave(env.APP_DB, match, progress!, source)).rejects.toThrow();
@@ -185,7 +183,7 @@ test("棋譜欠損・異なる再送は公開せず、修復後は同じ保存�
       source,
     ),
   ).rejects.toThrow("Conflicting");
-  await env.APP_DB.prepare("UPDATE shogi_match_chunks SET events_json = ? WHERE match_id = ?")
+  await env.APP_DB.prepare("UPDATE match_event_chunks SET events_json = ? WHERE match_id = ?")
     .bind(JSON.stringify(departures), match.id)
     .run();
   expect(await advanceShogiMatchSave(env.APP_DB, match, progress!, source)).toBeNull();
@@ -209,7 +207,7 @@ test("総棋譜がD1の1行2MBを超えても分割して保存・取得でき�
   await publish(match, events);
   expect(
     await env.APP_DB.prepare(`SELECT SUM(event_count) AS n, MAX(length(events_json)) AS max
-    FROM shogi_match_chunks WHERE match_id = ?`)
+    FROM match_event_chunks WHERE match_id = ?`)
       .bind(match.id)
       .first(),
   ).toEqual({ n: events.length, max: JSON.stringify(events.slice(0, 100)).length });
@@ -234,14 +232,12 @@ test("本人索引の保存失敗は本体も公開せず、ack喪失後の再�
     await env.APP_DB.exec("DROP TRIGGER reject_shogi_index");
   }
   await publish(match, departures);
-  await env.APP_DB.prepare("INSERT INTO shogi_match_uploads VALUES (?, ?, 3, 1)")
+  await env.APP_DB.prepare("INSERT INTO match_uploads VALUES (?, ?, 3, 1)")
     .bind(match.id, JSON.stringify(match))
     .run();
   await publish(match, departures);
   expect(
-    await env.APP_DB.prepare("SELECT id FROM shogi_match_uploads WHERE id = ?")
-      .bind(match.id)
-      .first(),
+    await env.APP_DB.prepare("SELECT id FROM match_uploads WHERE id = ?").bind(match.id).first(),
   ).toBeNull();
   expect(
     (await env.APP_DB.prepare("SELECT COUNT(*) AS n FROM account_match_history WHERE match_id = ?")

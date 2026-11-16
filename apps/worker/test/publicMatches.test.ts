@@ -41,8 +41,8 @@ afterEach(async () => {
     await db.batch([
       db.prepare("DELETE FROM account_match_history WHERE match_id = ?").bind(id),
       db.prepare("DELETE FROM matches WHERE id = ?").bind(id),
-      db.prepare("DELETE FROM shogi_match_chunks WHERE match_id = ?").bind(id),
-      db.prepare("DELETE FROM shogi_match_uploads WHERE id = ?").bind(id),
+      db.prepare("DELETE FROM match_event_chunks WHERE match_id = ?").bind(id),
+      db.prepare("DELETE FROM match_uploads WHERE id = ?").bind(id),
     ]);
   }
 });
@@ -278,7 +278,7 @@ async function storedProfileFixture(id: string) {
     db
       .prepare("SELECT * FROM account_match_history WHERE match_id = ? ORDER BY account_id")
       .bind(id),
-    db.prepare("SELECT * FROM shogi_match_chunks WHERE match_id = ? ORDER BY chunk_index").bind(id),
+    db.prepare("SELECT * FROM match_event_chunks WHERE match_id = ? ORDER BY chunk_index").bind(id),
   ]);
   return rows.map((row) => row.results);
 }

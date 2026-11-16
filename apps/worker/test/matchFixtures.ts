@@ -1,6 +1,7 @@
+import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { createInitialState, eliminateColor } from "@tetraboard/four-reversi";
-import { type MatchRecord } from "../src/rooms/matchStore";
+import { writeMatch, type MatchRecord } from "../src/rooms/matchStore";
 import { env, exports } from "cloudflare:workers";
 import {
   createRoomContract,
@@ -127,9 +128,12 @@ export async function matchLeave(id: string, membership: TokenMembership) {
   if (response.status !== 204) throw new Error(`Leave failed: ${response.status}`);
 }
 export async function storedMatch(id: string) {
-  return env.APP_DB.prepare("SELECT record_json FROM matches WHERE id = ?")
+  const row = await env.APP_DB.prepare("SELECT game, record_json FROM matches WHERE id = ?")
     .bind(id)
-    .first<{ record_json: string }>();
+    .first<{ game: string; record_json: string }>();
+  if (!row) return null;
+  const match = await readMatchDetailRecord(env.APP_DB, row.record_json, row.game);
+  return { record_json: JSON.stringify(match.record) };
 }
 
 const namespaces = new Map<string, string>();
@@ -199,4 +203,21 @@ export function fixtureRecord(
     eliminations: steps.map((step) => ({ color: step.action.color, reason: "left" })),
     replay: { id, initial: JSON.parse(JSON.stringify(initial)), steps },
   };
+}
+
+// 任意の順位を与える集計用fixtureは、合法なイベント列を表さないため旧形式で用意します。
+export async function writeLegacyOutcomeFixture(db: D1Database, record: MatchRecord) {
+  await db
+    .prepare(`INSERT INTO matches (id, game, mode, started_at_ms, ended_at_ms, record_json)
+    VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`)
+    .bind(
+      record.id,
+      record.settings.game,
+      record.settings.mode,
+      record.startedAtMs,
+      record.endedAtMs,
+      JSON.stringify(record),
+    )
+    .run();
+  await writeMatch(db, record);
 }

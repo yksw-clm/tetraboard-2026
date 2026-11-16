@@ -1,6 +1,14 @@
+import {
+  advanceMatchChunks,
+  readMatchChunk,
+  publishMatchStatement,
+  type ChunkRow,
+  matchChunkSize as chunkSize,
+  type MatchSaveProgress,
+} from "./matchChunks";
 import type { ProfileRatings } from "@tetraboard/protocol";
 import { normalizeLegacyShogiState } from "./normalizeLegacyShogiState";
-import { ensureShogiMatchUpload } from "./shogiMatchUploads";
+import { ensureMatchUpload } from "./matchUploads";
 import {
   applyFourShogiRating,
   fourShogiRatingStore,
@@ -59,7 +67,7 @@ export type ShogiMatchRecord = ShogiMatchStart & {
   knockouts: Record<Side, number>;
   replay: FourShogiMatchDetail["replay"];
 };
-export type ShogiSaveProgress = { phase: "upload" | "verify"; cursor: number };
+export type ShogiSaveProgress = MatchSaveProgress;
 export type PendingShogiMatch = {
   record: ShogiMatchRecord;
   tournament?: TournamentRoomContext;
@@ -75,8 +83,6 @@ export type ActiveShogiMatch = {
 };
 export const shogiMatchStartKey = "shogi-match-start";
 export const pendingShogiMatchPrefix = "shogi-match-pending:";
-const chunkSize = 100;
-const chunksPerPass = 4;
 
 export function emptyKnockouts(): Record<Side, number> {
   return { south: 0, west: 0, north: 0, east: 0 };
@@ -117,26 +123,8 @@ function eventSchema(game: "four-shogi" | "shogi") {
 function readRecord(json: string, game: "four-shogi" | "shogi") {
   return game === "four-shogi" ? readShogiMatchRecord(json) : shogiMatchData.read(json);
 }
-type ChunkRow = {
-  chunk_index: number;
-  start_index: number;
-  event_count: number;
-  events_json: string;
-};
 function readChunk(row: ChunkRow, eventCount: number, game: "four-shogi" | "shogi"): StoredEvent[] {
-  const events = JSON.parse(row.events_json) as unknown;
-  const expected = Math.min(chunkSize, eventCount - row.chunk_index * chunkSize);
-  if (
-    !Number.isInteger(row.chunk_index) ||
-    row.chunk_index < 0 ||
-    row.start_index !== row.chunk_index * chunkSize ||
-    expected <= 0 ||
-    row.event_count !== expected ||
-    !Array.isArray(events) ||
-    events.length !== expected
-  )
-    throw new Error("Shogi replay chunk is incomplete");
-  return events.map((event) => eventSchema(game).parse(event));
+  return readMatchChunk(row, eventCount, (event) => eventSchema(game).parse(event));
 }
 
 /** 再送時も、1回の処理で転送・検証するイベントを最大400件に制限します。 */
@@ -181,59 +169,24 @@ export async function advanceShogiMatchSave(
       if (!saved) throw new Error("Tournament result publication was incomplete");
     }
     if (game === "four-shogi") await finalizeFourShogiRating(db, existing.record_json);
-    await db.prepare("DELETE FROM shogi_match_uploads WHERE id = ?").bind(record.id).run();
+    await db.prepare("DELETE FROM match_uploads WHERE id = ?").bind(record.id).run();
     await applyMatchClaims(db, record.id);
     return null;
   }
   const chunkCount = Math.ceil(record.replay.eventCount / chunkSize);
-  await ensureShogiMatchUpload(db, record, chunkCount);
-  if (!Number.isInteger(progress.cursor) || progress.cursor < 0 || progress.cursor > chunkCount)
-    throw new Error("Invalid Shogi save progress");
-  const end = Math.min(progress.cursor + chunksPerPass, chunkCount);
-  if (progress.phase === "upload") {
-    for (let index = progress.cursor; index < end; index++) {
-      const events = readEvents(index * chunkSize);
-      const row: ChunkRow = {
-        chunk_index: index,
-        start_index: index * chunkSize,
-        event_count: events.length,
-        events_json: JSON.stringify(events),
-      };
-      readChunk(row, record.replay.eventCount, game);
-      await db
-        .prepare(`INSERT INTO shogi_match_chunks VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(match_id, chunk_index) DO NOTHING`)
-        .bind(record.id, index, row.start_index, row.event_count, row.events_json)
-        .run();
-    }
-    return end === chunkCount ? { phase: "verify", cursor: 0 } : { phase: "upload", cursor: end };
-  }
-  const rows = await db
-    .prepare(`SELECT chunk_index, start_index, event_count, events_json
-    FROM shogi_match_chunks WHERE match_id = ? AND chunk_index >= ? AND chunk_index < ?
-    ORDER BY chunk_index`)
-    .bind(record.id, progress.cursor, end)
-    .all<ChunkRow>();
-  if (rows.results.length !== end - progress.cursor) throw new Error("Missing Shogi replay chunk");
-  for (const [offset, row] of rows.results.entries()) {
-    if (row.chunk_index !== progress.cursor + offset) throw new Error("Shogi chunk index mismatch");
-    const stored = readChunk(row, record.replay.eventCount, game);
-    const expected = readEvents(row.start_index).map((event) => eventSchema(game).parse(event));
-    if (JSON.stringify(stored) !== JSON.stringify(expected))
-      throw new Error("Shogi chunk content mismatch");
-  }
-  if (end < chunkCount) return { phase: "verify", cursor: end };
+  await ensureMatchUpload(db, record, chunkCount, "Conflicting Shogi match upload");
+  const next = await advanceMatchChunks(
+    db,
+    record.id,
+    record.replay.eventCount,
+    progress,
+    readEvents,
+    (event) => eventSchema(game).parse(event),
+  );
+  if (next) return next;
   // 棋譜の検証後、本体・アカウント索引・レートを一緒に確定します。
   await db.batch([
-    db
-      .prepare(`INSERT INTO matches (id, game, mode, started_at_ms, ended_at_ms, record_json)
-      SELECT id, json_extract(record_json, '$.settings.game'), COALESCE(json_extract(record_json, '$.settings.mode'), 'standard'),
-        json_extract(record_json, '$.startedAtMs'), json_extract(record_json, '$.endedAtMs'), record_json
-      FROM shogi_match_uploads u WHERE id = ?
-        AND (SELECT COUNT(*) FROM shogi_match_chunks WHERE match_id = u.id) = u.chunk_count
-        AND COALESCE((SELECT SUM(event_count) FROM shogi_match_chunks WHERE match_id = u.id), 0) = u.event_count
-      ON CONFLICT(id) DO NOTHING`)
-      .bind(record.id),
+    publishMatchStatement(db, record.id),
     db
       .prepare(`INSERT INTO account_match_history (account_id, match_id, mode, started_at_ms, game)
       SELECT json_extract(p.value, '$.accountId'), m.id, m.mode, m.started_at_ms, m.game
@@ -245,7 +198,7 @@ export async function advanceShogiMatchSave(
     ...(formationUsage
       ? [
           db
-            .prepare(`INSERT INTO shogi_match_formations
+            .prepare(`INSERT INTO four_shogi_formation_usages
       (match_id, analyzer_id, analysis_version, rules_version, used_by_side_json)
       SELECT id, ?, ?, ?, ? FROM matches WHERE id = ? AND game = 'four-shogi'
       ON CONFLICT(match_id) DO NOTHING`)
@@ -280,7 +233,7 @@ export async function advanceShogiMatchSave(
       .first())
   )
     throw new Error("Tournament result publication was incomplete");
-  await db.prepare("DELETE FROM shogi_match_uploads WHERE id = ?").bind(record.id).run();
+  await db.prepare("DELETE FROM match_uploads WHERE id = ?").bind(record.id).run();
   await applyMatchClaims(db, record.id);
   return null;
 }
@@ -307,7 +260,7 @@ export async function readShogiMatchReplayPage(
       last = Math.floor((cursor + count - 1) / chunkSize);
     const rows = await db
       .prepare(`SELECT chunk_index, start_index, event_count, events_json
-      FROM shogi_match_chunks WHERE match_id = ? AND chunk_index BETWEEN ? AND ? ORDER BY chunk_index`)
+      FROM match_event_chunks WHERE match_id = ? AND chunk_index BETWEEN ? AND ? ORDER BY chunk_index`)
       .bind(matchId, first, last)
       .all<ChunkRow>();
     if (rows.results.length !== last - first + 1)
