@@ -1,3 +1,4 @@
+import type { AccountAdmission } from "../../accounts/roomAccounts";
 import type {
   GameId,
   Room,
@@ -21,6 +22,11 @@ export type GameActionResult<T extends string> =
   | { status: RoomSocketError };
 
 export type RoomRuntime = {
+  db: D1Database;
+  syncAlarm: () => Promise<void>;
+  closeRoom: () => void;
+  storedAccount: (playerId: string) => (AccountAdmission & { occupying: boolean }) | null;
+  startAnalyticsMatch: (id: string, room: Room, at: number) => void;
   ctx: DurableObjectState;
   chat: { dirty: boolean };
   readRoom: () => Room | null;

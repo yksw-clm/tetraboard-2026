@@ -5,3 +5,7 @@ export const disconnectedAtKey = (playerId: string) => `disconnected-at:${player
 export const lastChatAtKey = (playerId: string) => `last-chat-at:${playerId}`;
 export const reconnectGraceMs = 30_000;
 export const stampTag = "room-stamps-v1";
+export const accountKey = (playerId: string) => `seat-account:${playerId}`;
+export const cancelledAdmissionKey = (operationId: string) => `cancelled-admission:${operationId}`;
+export const membershipStorageKey = (tokenHash: string) => `membership:${tokenHash}`;
+export const playerTokenKey = (playerId: string) => `player-token:${playerId}`;
