@@ -1,19 +1,12 @@
 import { matchmakingRules, tournamentRules, type Room } from "@tetraboard/protocol";
 import { earliestAlarmAt } from "./roomDeadlines";
 
-type Retry = { retryAtMs: number };
 export type RoomAlarmInput = {
   room: Room | null;
   registrations: ReadonlyMap<string, { holdUntilMs: number }>;
   usesIdleDeadline: boolean;
   cpuAlarmAt: number | null;
-  capacity: { releaseAtMs: number | null } | undefined;
-  index: Retry | undefined;
-  accountCleanups: Iterable<Retry>;
-  matches: Iterable<Retry>;
-  shogiMatches: Iterable<Retry>;
-  guestClaims: Retry | undefined;
-  tournamentStates: Iterable<Retry>;
+  jobs: Iterable<number | null>;
   tournament: {
     status: "waiting" | "playing" | "closed";
     preparedAtMs: number;
@@ -44,16 +37,7 @@ export function nextRoomAlarmAt(input: RoomAlarmInput): number | null {
     deadlines.push(room.clock.turnExpiresAt);
     if (input.cpuAlarmAt !== null) deadlines.push(input.cpuAlarmAt);
   }
-  if (input.capacity?.releaseAtMs != null) deadlines.push(input.capacity.releaseAtMs);
-  if (input.index) deadlines.push(input.index.retryAtMs);
-  for (const jobs of [
-    input.accountCleanups,
-    input.matches,
-    input.shogiMatches,
-    input.tournamentStates,
-  ])
-    for (const job of jobs) deadlines.push(job.retryAtMs);
-  if (input.guestClaims) deadlines.push(input.guestClaims.retryAtMs);
+  for (const at of input.jobs) if (at !== null) deadlines.push(at);
   if (tournament?.status === "waiting")
     deadlines.push(
       Math.min(

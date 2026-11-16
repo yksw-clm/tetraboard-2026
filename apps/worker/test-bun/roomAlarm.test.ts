@@ -3,22 +3,46 @@ import { isFourShogiRoom, matchmakingRules, tournamentRules } from "@tetraboard/
 import { nextRoomAlarmAt, type RoomAlarmInput } from "../src/rooms/roomAlarm";
 import { roomFixture } from "./roomStateFixtures";
 
-function input(overrides: Partial<RoomAlarmInput> = {}): RoomAlarmInput {
+type Retry = { retryAtMs: number };
+type Retries = {
+  capacity?: { releaseAtMs: number | null };
+  index?: Retry;
+  accountCleanups?: Retry[];
+  matches?: Retry[];
+  shogiMatches?: Retry[];
+  guestClaims?: Retry;
+  tournamentStates?: Retry[];
+};
+function input(overrides: Partial<RoomAlarmInput> & Retries = {}): RoomAlarmInput {
+  const {
+    capacity,
+    index,
+    accountCleanups = [],
+    matches = [],
+    shogiMatches = [],
+    guestClaims,
+    tournamentStates = [],
+    ...rest
+  } = overrides;
   return {
     room: null,
     registrations: new Map(),
     usesIdleDeadline: false,
     cpuAlarmAt: null,
-    capacity: undefined,
-    index: undefined,
-    accountCleanups: [],
-    matches: [],
-    shogiMatches: [],
-    guestClaims: undefined,
-    tournamentStates: [],
+    jobs: [
+      capacity?.releaseAtMs ?? null,
+      ...[
+        index,
+        guestClaims,
+        ...accountCleanups,
+        ...matches,
+        ...shogiMatches,
+        ...tournamentStates,
+      ].map((job) => job?.retryAtMs ?? null),
+    ],
     tournament: null,
     matchmaking: undefined,
-    ...overrides,
+    ...rest,
   };
 }
 

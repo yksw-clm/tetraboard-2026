@@ -950,7 +950,7 @@ test("退会と同時に失敗したDO棋譜保存は、現在のマスク済み
   expect(await tombstone(user.id)).toBe(true);
   const stub = env.GAME_ROOM.getByName("privacy-inflight-save");
   await runInDurableObject(stub, async (instance, state) => {
-    const owned = instance as unknown as { env: Env; flushMatches: () => Promise<void> };
+    const owned = instance as unknown as { env: Env; matchJob: { flush: () => Promise<void> } };
     const original = owned.env;
     let start!: () => void, release!: () => void;
     const started = new Promise<void>((resolve) => (start = resolve)),
@@ -969,7 +969,7 @@ test("退会と同時に失敗したDO棋譜保存は、現在のマスク済み
     const key = `match-pending:${record.id}`;
     state.storage.kv.put(key, { record, retryAtMs: Date.now() });
     try {
-      const flushing = owned.flushMatches();
+      const flushing = owned.matchJob.flush();
       await started;
       await instance.purgeAccount(user.id);
       release();
