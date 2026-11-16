@@ -15,6 +15,7 @@ type RoomJobOptions<T, R> = {
 
 export class RoomJob<T, R = void> {
   running: Promise<void> | null = null;
+  private flushRequested = false;
 
   constructor(
     private readonly alarms: AlarmEvents,
@@ -31,16 +32,32 @@ export class RoomJob<T, R = void> {
   }
 
   flush(): Promise<void> {
-    if (this.running) return this.running;
+    if (this.running) {
+      this.flushRequested = true;
+      return this.running;
+    }
     if (this.options.canRun?.() === false) return Promise.resolve();
     const pending = [...this.options.pending()];
     if (this.options.syncOnlyWhenDue && !pending.some((job) => this.due(job)))
       return Promise.resolve();
     if (!pending.length && !this.options.syncWhenEmpty) return Promise.resolve();
-    this.running = this.run(pending).finally(() => {
-      this.running = null;
-    });
+    this.running = this.runRequested(pending);
     return this.running;
+  }
+
+  private async runRequested(pending: T[]): Promise<void> {
+    try {
+      for (;;) {
+        this.flushRequested = false;
+        await this.run(pending);
+        if (!this.flushRequested || this.options.canRun?.() === false) return;
+        // afterFlush中に届いた要求も、同じPromiseを解決する前に処理します。
+        pending = [...this.options.pending()];
+        if (!pending.some((job) => this.due(job))) return;
+      }
+    } finally {
+      this.running = null;
+    }
   }
 
   private due(job: T): boolean {

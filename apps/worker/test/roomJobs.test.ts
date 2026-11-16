@@ -41,6 +41,57 @@ function holdWrite(kind: "index" | "cleanup" | "tournament") {
   return { started, release, spy };
 }
 
+test("refreshLobbyIndexは前の索引反映のAlarm待ちに保存した新しい索引もD1へ書いてから戻る", async () => {
+  const fixtures = new RoomBoundaryFixtures();
+  const release = Promise.withResolvers<void>();
+  try {
+    const entry = await fixtures.create({ game: "reversi", name: "索引の更新", quickPlay: false });
+    const stub = env.GAME_ROOM.getByName(entry.room.id);
+    await runInDurableObject(stub, async (instance, ctx) => {
+      await Reflect.get(instance, "roomIndexJob").running;
+      const db: D1Database = Reflect.get(instance, "env").APP_DB;
+      const revision = ctx.storage.kv.get<number>("room-index-revision")!;
+      const finishing = Promise.withResolvers<void>();
+      const alarms: { afterFlush(): Promise<void> } = Reflect.get(instance, "alarmEvents");
+      const afterFlush = alarms.afterFlush.bind(alarms);
+      vi.spyOn(alarms, "afterFlush").mockImplementationOnce(async () => {
+        await afterFlush();
+        finishing.resolve();
+        await release.promise;
+      });
+      const first = instance.refreshLobbyIndex(entry.room.instanceId, revision);
+      const requests = [first];
+      try {
+        await finishing.promise;
+        expect(ctx.storage.kv.get("room-index-pending")).toBeUndefined();
+        const next = instance.refreshLobbyIndex(entry.room.instanceId, revision + 1);
+        requests.push(next);
+        await vi.waitFor(() =>
+          expect(ctx.storage.kv.get<{ revision: number }>("room-index-pending")?.revision).toBe(
+            revision + 2,
+          ),
+        );
+        release.resolve();
+        await next;
+        expect(
+          await db
+            .prepare("SELECT revision FROM room_index WHERE room_id=?")
+            .bind(entry.room.id)
+            .first(),
+        ).toEqual({ revision: revision + 2 });
+        expect(ctx.storage.kv.get("room-index-pending")).toBeUndefined();
+      } finally {
+        release.resolve();
+        await Promise.all(requests);
+      }
+    });
+  } finally {
+    release.resolve();
+    vi.restoreAllMocks();
+    await fixtures.dispose();
+  }
+});
+
 async function seedD1Rows(db: D1Database, roomId: string, instanceId: string) {
   const reservation: accounts.AccountAdmission = {
     accountId: crypto.randomUUID(),

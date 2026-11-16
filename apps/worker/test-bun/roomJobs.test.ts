@@ -55,6 +55,69 @@ test("期限前は実行せず、到達したものだけ実行する。Alarm候
   expect(job.nextAlarmAt()).toBeNull();
 });
 
+test.each(["drain", "single", "snapshot"] as const)(
+  "%s の完了後のAlarm待ちに保存したジョブも、実行中のflushを待つ呼び出しが戻る前に実行する",
+  async (mode) => {
+    const { pending, alarms, execute, job } = fixture(mode);
+    const finishing = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    alarms.afterFlush.mockImplementationOnce(async () => {
+      finishing.resolve();
+      await release.promise;
+    });
+    pending.set("one", { revision: 1, retryAtMs: 0 });
+    const first = job.flush();
+    try {
+      await finishing.promise;
+      expect(pending.size).toBe(0);
+      pending.set("two", { revision: 2, retryAtMs: 0 });
+      const next = job.flush();
+      const concurrent = job.flush();
+      expect(execute).toHaveBeenCalledTimes(1);
+      release.resolve();
+      await next;
+      expect(execute.mock.calls.map(([entry]) => entry[0])).toEqual(["one", "two"]);
+      expect(pending.size).toBe(0);
+      await concurrent;
+      expect(execute).toHaveBeenCalledTimes(2);
+      expect(alarms.afterFlush).toHaveBeenCalledTimes(2);
+      expect(job.running).toBeNull();
+    } finally {
+      release.resolve();
+      await first;
+    }
+  },
+);
+
+test("実行中のflushを待ち直しても、失敗して5秒後に回ったジョブは再試行しない", async () => {
+  const { pending, alarms, execute, job } = fixture();
+  const clock = spyOn(Date, "now").mockReturnValue(1_000);
+  const finishing = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  alarms.afterFlush.mockImplementationOnce(async () => {
+    finishing.resolve();
+    await release.promise;
+  });
+  execute.mockRejectedValueOnce(new Error("D1 unavailable"));
+  pending.set("one", { revision: 1, retryAtMs: 0 });
+  const first = job.flush();
+  try {
+    await finishing.promise;
+    const next = job.flush();
+    release.resolve();
+    await next;
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(pending.get("one")).toEqual({ revision: 1, retryAtMs: 6_000 });
+    expect(alarms.afterFlush).toHaveBeenCalledTimes(1);
+    expect(job.nextAlarmAt()).toBe(6_000);
+    expect(job.running).toBeNull();
+  } finally {
+    release.resolve();
+    await first;
+    clock.mockRestore();
+  }
+});
+
 test("失敗時は5秒後へ残し、後続を進めず、完了後のAlarm候補を更新する", async () => {
   const { pending, alarms, execute, job } = fixture();
   pending.set("one", { revision: 1, retryAtMs: 0 });
