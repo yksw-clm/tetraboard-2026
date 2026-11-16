@@ -24,7 +24,8 @@ export async function authenticate(
     sendSocketError(runtime, socket, "unauthorized");
     return;
   }
-  const result = currentRoomMembership(runtime, tokenHash);
+  let room = readRoom(runtime);
+  const result = currentRoomMembership(runtime, tokenHash, room);
   if (result.status !== "found") {
     socket.serializeAttachment(null);
     sendSocketError(runtime, socket, result.status === "not_found" ? "not_found" : "unauthorized");
@@ -33,25 +34,27 @@ export async function authenticate(
 
   socket.serializeAttachment({ tokenHash });
   runtime.ctx.storage.kv.delete(disconnectedAtKey(result.membership.playerId));
-  const room = readRoom(runtime);
   const player = room?.players.find((entry) => entry.id === result.membership.playerId);
   if (player !== undefined && player.reconnectDeadline !== null) {
-    withIndexTransaction(runtime, () => {
-      const current = readRoom(runtime);
-      if (current === null) return null;
-      const next = roomSchema.parse({
-        ...current,
-        players: current.players.map((entry) =>
-          entry.id === player.id ? { ...entry, reconnectDeadline: null } : entry,
-        ),
-      });
-      runtime.ctx.storage.kv.put(roomStorageKey, next);
-      return next;
-    });
+    room = withIndexTransaction(
+      runtime,
+      (current) => {
+        if (current === null) return null;
+        const next = roomSchema.parse({
+          ...current,
+          players: current.players.map((entry) =>
+            entry.id === player.id ? { ...entry, reconnectDeadline: null } : entry,
+          ),
+        });
+        runtime.ctx.storage.kv.put(roomStorageKey, next);
+        return next;
+      },
+      room,
+      (updated) => updated,
+    );
   }
-  const connectedRoom = readRoom(runtime);
-  if (connectedRoom !== null) broadcastRoom(runtime, connectedRoom);
+  if (room !== null) broadcastRoom(runtime, room);
   socket.send(JSON.stringify(authenticationMessage(runtime, socket, result.membership)));
-  await advanceTournamentStart(runtime);
+  await advanceTournamentStart(runtime, room);
   await advanceMatchmakingStart(runtime);
 }

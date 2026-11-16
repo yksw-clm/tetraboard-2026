@@ -76,9 +76,8 @@ export async function abortMatchmakingRoom(
     `matchmaking:${matchId}`,
   );
   if (reservation?.phase === "playing") return { status: "already_started" as const };
-  const closed = withIndexTransaction(runtime, () => {
+  const closed = withIndexTransaction(runtime, (room) => {
     runtime.ctx.storage.kv.put(`matchmaking-cancelled:${matchId}`, true);
-    const room = readRoom(runtime);
     if (
       room &&
       "matchmaking" in room &&

@@ -1,8 +1,7 @@
 import { releaseResultAvatars } from "./participants";
 import type { RoomOperation } from "./ports";
 
-export function closeRoom(op: RoomOperation): void {
-  const room = op.state.readRoom();
+export function closeRoom(op: RoomOperation, room = op.state.readRoom()): void {
   op.state.closeReservations(room);
   if (room) releaseResultAvatars(op, room, new Set());
   op.effects.push(...op.state.endMatchUsage("abandoned", op.now));

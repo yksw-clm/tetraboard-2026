@@ -11,14 +11,19 @@ export function closeIfNoHumanParticipants<T extends Room>(
     room.players.some((player) => op.state.isHumanParticipant(player))
   )
     return room;
-  closeRoom(op);
+  closeRoom(op, room);
   return null;
 }
 
-export function recordDeparture(op: RoomOperation, player: Room["players"][number]): void {
+export function recordDeparture(
+  op: RoomOperation,
+  player: Room["players"][number],
+  room?: Room | null,
+): void {
   if (op.state.hasDeparted(player.id)) return;
   op.state.deleteIdentity(player.id);
-  if (op.state.readRoom()?.status === "playing") op.state.saveDeparted(player.id);
+  const current = room === undefined ? op.state.readRoom() : room;
+  if (current?.status === "playing") op.state.saveDeparted(player.id);
   appendSystem(op, "left", `${op.state.playerLabel(player)}が退室しました`);
 }
 

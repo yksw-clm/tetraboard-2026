@@ -22,7 +22,7 @@ export function leaveRoom(op: RoomOperation, hash: string): LeaveResult {
   let updated: Room | null;
   if (room.status === "waiting") {
     if (op.state.excludeWaitingTournamentPlayer(room, player.id)) {
-      closeRoom(op);
+      closeRoom(op, room);
       op.effects.push({ type: "closeSockets" }, { type: "closeSockets", tokenHash: hash });
       return { status: "left", room: null };
     }
@@ -30,7 +30,7 @@ export function leaveRoom(op: RoomOperation, hash: string): LeaveResult {
     updated = removeWaitingPlayer(op, room, player.id);
     if (hostLeaving && updated !== null) promoted = op.state.playerToken(updated.players[0].id);
   } else {
-    recordDeparture(op, player);
+    recordDeparture(op, player, room);
     op.state.releaseAccount(player.id, false);
     const adapter = op.game(room);
     const leave = adapter.prepareLeave(room, player.id);

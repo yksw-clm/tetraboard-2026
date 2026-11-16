@@ -35,6 +35,10 @@ export interface RoomStatePort {
   saveDeparted(playerId: string): void;
   clearDeparted(playerId: string): void;
   isHumanParticipant(player: Room["players"][number]): boolean;
+  registrationDeadline(playerId: string): number | undefined;
+  expireRegistration(playerId: string): void;
+  waitingTournament(room: Room): { expiresAt: number; connected: boolean } | null;
+  hasCpuCapacity(room: Room): boolean;
   hasRegistration(playerId: string): boolean;
   releaseRegistration(playerId: string): void;
   releaseAccount(playerId: string, removeAvatar: boolean): void;

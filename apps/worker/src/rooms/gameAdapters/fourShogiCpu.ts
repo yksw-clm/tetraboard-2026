@@ -83,7 +83,6 @@ export function fourShogiCpu(
     usesIdleDeadline: (room) => !(room.status === "playing" && room.matchmaking?.rated === true),
     keepsPlayingWithoutHumans: (room) =>
       room.status === "playing" && room.matchmaking?.rated === true,
-    reloadBeforeDeadlines: true,
     waitUntilMatchFlush: false,
     capacity: {
       game: (room) =>

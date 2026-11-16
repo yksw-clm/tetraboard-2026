@@ -12,9 +12,11 @@ import { readRoom } from "./state";
 
 export function withIndexTransaction<T>(
   runtime: RoomRuntime,
-  action: () => T,
+  action: (before: Room | null) => T,
   previousRoom?: Room | null,
+  resultingRoom?: (value: T) => Room | null,
 ): T {
+  let committedRoom: Room | null = null;
   let changed = false;
   let releaseCpu = false;
   const result = runtime.effects.run(() =>
@@ -22,8 +24,9 @@ export function withIndexTransaction<T>(
       runtime.ctx.storage.transactionSync(() => {
         const before = previousRoom === undefined ? readRoom(runtime) : previousRoom;
         const previous = before === null ? null : publicMetadata(runtime, before);
-        const value = action();
-        const after = readRoom(runtime);
+        const value = action(before);
+        const after = resultingRoom ? resultingRoom(value) : readRoom(runtime);
+        committedRoom = after;
         if (
           after?.instanceId !== before?.instanceId ||
           (before?.status === "playing" && after?.status !== "playing")
@@ -56,6 +59,11 @@ export function withIndexTransaction<T>(
       }),
     ),
   );
+  runtime.alarms.withRoom(committedRoom, () => startTransactionJobs(runtime, changed, releaseCpu));
+  return result;
+}
+
+function startTransactionJobs(runtime: RoomRuntime, changed: boolean, releaseCpu: boolean): void {
   runtime.alarms.mark();
   if (changed) runtime.ctx.waitUntil(runtime.jobs.roomIndexJob.flush());
   if (releaseCpu) runtime.ctx.waitUntil(runtime.jobs.cpuCapacityJob.flush());
@@ -65,5 +73,4 @@ export function withIndexTransaction<T>(
   if (pendingShogiMatches(runtime).size) runtime.ctx.waitUntil(runtime.jobs.shogiMatchJob.flush());
   if ([...runtime.ctx.storage.kv.list({ prefix: pendingTournamentStatePrefix })].length)
     runtime.ctx.waitUntil(runtime.jobs.tournamentStateJob.flush());
-  return result;
 }

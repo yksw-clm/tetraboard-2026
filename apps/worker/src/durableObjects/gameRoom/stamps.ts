@@ -6,7 +6,7 @@ import {
   type RoomSocketClientMessage,
   type RoomStampNotification,
 } from "@tetraboard/protocol";
-import { isHumanParticipant, readMembership, readRoom } from "../../adapters/room/state";
+import { isHumanParticipant, readMembership } from "../../adapters/room/state";
 import { withIndexTransaction } from "../../adapters/room/transaction";
 import { roomStorageKey } from "../../rooms/progressHelpers";
 import type { RoomRuntime } from "./runtime";
@@ -25,8 +25,7 @@ export function sendStamp(
   | { status: "sent"; notification: RoomStampNotification; room: Room }
   | { status: "unauthorized" | "muted" | "room_changed" }
   | { status: "rate_limited"; interactionAvailableAtMs: number } {
-  return withIndexTransaction(runtime, () => {
-    const room = readRoom(runtime);
+  return withIndexTransaction(runtime, (room) => {
     const membership = readMembership(runtime, tokenHash);
     if (!room || !membership) return { status: "unauthorized" };
     if (room.instanceId !== command.instanceId) return { status: "room_changed" };

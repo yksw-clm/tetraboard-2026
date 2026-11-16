@@ -32,7 +32,6 @@ export interface GameCpuAdapter<G extends GameId> {
   currentCpu(room: RoomFor<G>): CpuPlayerFor<G> | null;
   usesIdleDeadline(room: RoomFor<G>): boolean;
   keepsPlayingWithoutHumans(room: RoomFor<G>): boolean;
-  reloadBeforeDeadlines: boolean;
   waitUntilMatchFlush: boolean;
   capacity: {
     game(room: RoomFor<G>): CpuCapacityGame | null;

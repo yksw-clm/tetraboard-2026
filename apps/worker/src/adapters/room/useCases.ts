@@ -15,7 +15,7 @@ import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { prepareRoomSettings } from "../../rooms/applyRoomSettings";
 import { lifecycleState, type LifecycleIdentity } from "./lifecycleState";
 
-function roomPorts(runtime: RoomRuntime, identity?: LifecycleIdentity): RoomPorts {
+export function roomPorts(runtime: RoomRuntime, identity?: LifecycleIdentity): RoomPorts {
   return {
     state: lifecycleState(runtime, identity),
     game: (room) => {
@@ -35,8 +35,9 @@ export function invokeRoomUseCase<T>(
   runtime: RoomRuntime,
   action: (operation: RoomOperation) => T,
   identity?: LifecycleIdentity,
+  now = Date.now(),
 ): T {
-  const outcome = runRoomUseCase(roomPorts(runtime, identity), Date.now(), action);
+  const outcome = runRoomUseCase(roomPorts(runtime, identity), now, action);
   runtime.effects.publish(outcome.effects);
   return outcome.value;
 }

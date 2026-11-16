@@ -32,7 +32,6 @@ export function cpuDefaults<G extends GameId>(
     },
     usesIdleDeadline: () => true,
     keepsPlayingWithoutHumans: () => false,
-    reloadBeforeDeadlines: false,
     waitUntilMatchFlush: true,
     capacity: { game: () => null, seats: () => 0, recoverPlaying: () => true },
     timeout: (room, at) => {

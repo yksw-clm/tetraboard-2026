@@ -64,11 +64,11 @@ export function isHumanParticipant(runtime: RoomRuntime, player: Room["players"]
 export function currentRoomMembership(
   runtime: RoomRuntime,
   tokenHash: string,
+  room = readRoom(runtime),
 ):
   | { status: "found"; membership: RoomMembership }
   | { status: "not_found" }
   | { status: "unauthorized" } {
-  const room = readRoom(runtime);
   if (room === null) {
     return { status: "not_found" };
   }

@@ -11,7 +11,7 @@ import {
   type RoomSocketMessage,
   type SystemChatMessage,
 } from "@tetraboard/protocol";
-import { isHumanParticipant, readMembership, readRoom } from "../../adapters/room/state";
+import { isHumanParticipant, readMembership } from "../../adapters/room/state";
 import { withIndexTransaction } from "../../adapters/room/transaction";
 import { roomStorageKey } from "../../rooms/progressHelpers";
 import type { RoomRuntime } from "./runtime";
@@ -68,8 +68,7 @@ export function sendChat(
 ): "sent" | "unauthorized" | "rate_limited" | "muted" | "invalid_request" {
   const parsed = chatTextSchema.safeParse(rawText);
   if (!parsed.success) return "invalid_request";
-  return withIndexTransaction(runtime, () => {
-    const room = readRoom(runtime);
+  return withIndexTransaction(runtime, (room) => {
     const membership = readMembership(runtime, tokenHash);
     if (room === null || membership === null) return "unauthorized";
     const player = room.players.find((entry) => entry.id === membership.playerId);

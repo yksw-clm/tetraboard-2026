@@ -79,8 +79,7 @@ function purgeStoredIdentities(
 }
 
 function publishPurge(runtime: RoomRuntime) {
-  withIndexTransaction(runtime, () => {
-    const room = readRoom(runtime);
+  withIndexTransaction(runtime, (room) => {
     if (room)
       runtime.ctx.storage.kv.put(roomStorageKey, {
         ...room,

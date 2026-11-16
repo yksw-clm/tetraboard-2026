@@ -85,9 +85,8 @@ export async function abortTournamentRoom(
   );
   if (reservation?.startedAtMs !== undefined) return { status: "already_started" as const };
   let closed = false;
-  withIndexTransaction(runtime, () => {
+  withIndexTransaction(runtime, (room) => {
     runtime.ctx.storage.kv.put(cancelledTournamentKey(matchId), true);
-    const room = readRoom(runtime);
     if (reservation && room?.instanceId === reservation.instanceId) {
       runtime.ctx.storage.kv.put(tournamentReservationKey(matchId), {
         ...reservation,

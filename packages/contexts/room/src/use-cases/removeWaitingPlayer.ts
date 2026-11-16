@@ -9,7 +9,7 @@ export function removeWaitingPlayer(
 ): Room | null {
   op.state.releaseRegistration(playerId);
   const departing = room.players.find((player) => player.id === playerId);
-  if (departing) recordDeparture(op, departing);
+  if (departing) recordDeparture(op, departing, room);
   op.state.releaseAccount(
     playerId,
     !room.lastRound?.players.some((player) => player.id === playerId),
@@ -21,7 +21,7 @@ export function removeWaitingPlayer(
   let remaining = room.players.filter((player) => player.id !== playerId);
   const successor = remaining.find((player) => player.kind === "human");
   if (successor === undefined) {
-    closeRoom(op);
+    closeRoom(op, room);
     return null;
   }
 
