@@ -1,9 +1,8 @@
-import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { membershipTokenSchema } from "@tetraboard/protocol";
+import { readRoom } from "../../adapters/room/state";
+import { withIndexTransaction } from "../../adapters/room/transaction";
+import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { broadcastRoom } from "../../durableObjects/gameRoom/snapshots";
-import { registrationView } from "./records";
-import { originalMatchAccounts } from "./claims";
-import { beginRegistrationSeat } from "./beginSeat";
 import {
   cancelledRegistrationKey,
   guestRegistrationState,
@@ -13,6 +12,9 @@ import {
   type GuestRegistrationInput,
   type StoredGuestRegistration,
 } from "../../rooms/registrationTypes";
+import { beginRegistrationSeat } from "./beginSeat";
+import { originalMatchAccounts } from "./claims";
+import { registrationView } from "./records";
 
 export async function beginGuestRegistration(
   runtime: RoomRuntime,
@@ -20,7 +22,7 @@ export async function beginGuestRegistration(
 ): Promise<BeginGuestRegistrationResult> {
   await runtime.reconcileDeadlines();
   const originalAccountIds = await originalMatchAccounts(runtime, input);
-  const result = runtime.withIndexTransaction((): BeginGuestRegistrationResult => {
+  const result = withIndexTransaction(runtime, (): BeginGuestRegistrationResult => {
     const previous = previousRegistration(runtime, input);
     if (previous) return previous;
     const now = Date.now();
@@ -28,7 +30,7 @@ export async function beginGuestRegistration(
     if (retained) return retained;
     return beginRegistrationSeat(runtime, input, originalAccountIds, now);
   });
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   if (room && result.status === "started") broadcastRoom(runtime, room);
   return result;
 }

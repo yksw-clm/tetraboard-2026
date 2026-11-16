@@ -196,3 +196,36 @@ test("snapshotは一度飛ばした期限前のジョブへ戻らず、元の一
     clock.mockRestore();
   }
 });
+
+test.each([
+  ["always", "empty", 1, 0],
+  ["always", "future", 1, 0],
+  ["always", "due", 1, 1],
+  ["pending", "empty", 0, 0],
+  ["pending", "future", 1, 0],
+  ["pending", "due", 1, 1],
+  ["due", "empty", 0, 0],
+  ["due", "future", 0, 0],
+  ["due", "due", 1, 1],
+] as const)(
+  "sync=%s、保存待ち=%s のAlarm同期と実行回数を保つ",
+  async (sync, state, flushes, runs) => {
+    const pending = state === "empty" ? [] : [state === "due" ? 0 : Date.now() + 60_000];
+    const alarms = { sync: mock(async () => {}), afterFlush: mock(async () => {}) };
+    const execute = mock(async (_at: number) => {});
+    const job = new RoomJob(alarms, {
+      sync,
+      pending: () => pending,
+      retryAt: (at) => at,
+      execute,
+      complete: () => {
+        pending.length = 0;
+      },
+      retry: () => {},
+    });
+    await job.flush();
+    expect(execute).toHaveBeenCalledTimes(runs);
+    expect(alarms.sync).toHaveBeenCalledTimes(runs);
+    expect(alarms.afterFlush).toHaveBeenCalledTimes(flushes);
+  },
+);

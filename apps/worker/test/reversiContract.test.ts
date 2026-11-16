@@ -1,10 +1,11 @@
-import { env } from "cloudflare:workers";
-import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { reversiRoomSchema, reversiReplaySchema } from "@tetraboard/protocol";
+import { reversiReplaySchema, reversiRoomSchema } from "@tetraboard/protocol";
 import { getLegalMoves } from "@tetraboard/reversi";
-import { gameDefinitions } from "../src/rooms/gameDefinitions";
+import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
+import { env } from "cloudflare:workers";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import archive from "../../../test-fixtures/matches/reversi-standard-draw.json";
+import { playerTokenHash } from "../src/adapters/room/state";
+import { gameDefinitions } from "../src/rooms/gameDefinitions";
 import { matchStartKey, type MatchStart } from "../src/rooms/reversiMatchStore";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 
@@ -66,8 +67,8 @@ test("局ID・版の古い着手を手番・時計より先に拒否し、受理
         positionRevision: 0,
       }),
     ).toMatchObject({ error: "unauthorized" });
-    const hash = Reflect.get(instance, "playerTokenHash").call(
-      instance,
+    const hash = playerTokenHash(
+      Reflect.get(instance, "runtime"),
       room.players.find((p) => p.color === "white")!.id,
     );
     expect(

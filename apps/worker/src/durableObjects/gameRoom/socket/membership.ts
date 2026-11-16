@@ -3,9 +3,10 @@ import {
   type RoomMembership,
   type RoomSocketMessage,
 } from "@tetraboard/protocol";
+import { publicMembership, readMembership } from "../../../adapters/room/state";
+import type { RoomRuntime } from "../runtime";
 import { interactionAvailableAtMs } from "../stamps";
 import { stampTag } from "../storageKeys";
-import type { RoomRuntime } from "../runtime";
 
 export function hasOpenConnection(
   runtime: RoomRuntime,
@@ -31,7 +32,7 @@ export function authenticationMessage(
 ): RoomSocketMessage {
   return roomSocketContract.message.parse({
     type: "room.authenticated",
-    membership: runtime.publicMembership(membership),
+    membership: publicMembership(runtime, membership),
     ...(runtime.ctx.getTags(socket).includes(stampTag)
       ? { interactionAvailableAtMs: interactionAvailableAtMs(runtime, membership.playerId) }
       : {}),
@@ -39,7 +40,7 @@ export function authenticationMessage(
 }
 
 export function sendCurrentMembership(runtime: RoomRuntime, tokenHash: string): void {
-  const membership = runtime.readMembership(tokenHash);
+  const membership = readMembership(runtime, tokenHash);
   if (membership === null) return;
   for (const socket of runtime.ctx.getWebSockets()) {
     if (socket.readyState !== WebSocket.OPEN) continue;

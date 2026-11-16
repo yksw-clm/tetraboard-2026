@@ -1,8 +1,10 @@
+import { isRatedMatchmakingGame, matchmakingRules } from "@tetraboard/protocol";
+import { readRoom } from "../../adapters/room/state";
+import { withIndexTransaction } from "../../adapters/room/transaction";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import type { MatchmakingRoomReservation } from "../../matchmaking/coordinator";
-import { advanceMatchmakingStart } from "./start";
-import { isRatedMatchmakingGame, matchmakingRules } from "@tetraboard/protocol";
 import { requestRatedAiWarmup, type RatedAiGame } from "../../rooms/aiService";
+import { advanceMatchmakingStart } from "./start";
 
 const aiWarmupAttemptMs = 8000;
 const aiWarmupRetryMs = 2000;
@@ -13,13 +15,13 @@ export function startMatchmakingAiWarmup(
   reservation: MatchmakingRoomReservation,
 ) {
   const warmup = reservation.aiWarmup;
-  const game = reservation.game ?? runtime.readRoom()?.settings.game;
+  const game = reservation.game ?? readRoom(runtime)?.settings.game;
   if (warmup?.state !== "pending" || !game || !isRatedMatchmakingGame(game)) return;
   const key = `matchmaking:${reservation.matchId}`;
   const now = Date.now();
   const latest = reservation.expiresAtMs - matchmakingRules.countdownMs;
   if (now >= latest || (warmup.attempts >= aiWarmupMaxAttempts && now >= warmup.nextAtMs)) {
-    runtime.withIndexTransaction(() => {
+    withIndexTransaction(runtime, () => {
       runtime.ctx.storage.kv.put(key, { ...reservation, aiWarmup: { state: "failed" } });
       runtime.closeRoom();
     });
@@ -46,7 +48,7 @@ export function startMatchmakingAiWarmup(
     attempt,
     atMs: now,
   });
-  runtime.markAlarm();
+  runtime.alarms.mark();
   runtime.ctx.waitUntil(finishMatchmakingAiWarmup(runtime, key, game, attempt, deadline));
 }
 
@@ -57,10 +59,10 @@ async function finishMatchmakingAiWarmup(
   attempt: number,
   deadline: number,
 ) {
-  await runtime.syncAlarm();
+  await runtime.alarms.sync();
   const failure = await requestRatedAiWarmup(runtime.aiService(), game, deadline);
   const saved = runtime.ctx.storage.kv.get<MatchmakingRoomReservation>(key);
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   if (
     !saved ||
     saved.phase !== "waiting" ||
@@ -89,7 +91,7 @@ async function finishMatchmakingAiWarmup(
     atMs: now,
     ...(reason ? { reason } : {}),
   });
-  runtime.markAlarm();
+  runtime.alarms.mark();
   await advanceMatchmakingStart(runtime);
-  await runtime.syncAlarm();
+  await runtime.alarms.sync();
 }

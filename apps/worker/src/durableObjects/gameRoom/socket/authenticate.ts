@@ -1,9 +1,13 @@
 import { roomSchema } from "@tetraboard/protocol";
+import { currentRoomMembership, readRoom } from "../../../adapters/room/state";
+import { withIndexTransaction } from "../../../adapters/room/transaction";
+import { advanceMatchmakingStart } from "../../../flows/matchmakingRoom/start";
+import { advanceTournamentStart } from "../../../flows/tournamentRoom/start";
 import { roomStorageKey } from "../../../rooms/progressHelpers";
-import { disconnectedAtKey } from "../storageKeys";
-import { broadcastRoom, sendSocketError } from "../snapshots";
-import { authenticationMessage } from "./membership";
 import type { RoomRuntime } from "../runtime";
+import { broadcastRoom, sendSocketError } from "../snapshots";
+import { disconnectedAtKey } from "../storageKeys";
+import { authenticationMessage } from "./membership";
 
 export async function authenticate(
   runtime: RoomRuntime,
@@ -20,7 +24,7 @@ export async function authenticate(
     sendSocketError(runtime, socket, "unauthorized");
     return;
   }
-  const result = runtime.currentRoomMembership(tokenHash);
+  const result = currentRoomMembership(runtime, tokenHash);
   if (result.status !== "found") {
     socket.serializeAttachment(null);
     sendSocketError(runtime, socket, result.status === "not_found" ? "not_found" : "unauthorized");
@@ -29,11 +33,11 @@ export async function authenticate(
 
   socket.serializeAttachment({ tokenHash });
   runtime.ctx.storage.kv.delete(disconnectedAtKey(result.membership.playerId));
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   const player = room?.players.find((entry) => entry.id === result.membership.playerId);
   if (player !== undefined && player.reconnectDeadline !== null) {
-    runtime.withIndexTransaction(() => {
-      const current = runtime.readRoom();
+    withIndexTransaction(runtime, () => {
+      const current = readRoom(runtime);
       if (current === null) return null;
       const next = roomSchema.parse({
         ...current,
@@ -45,9 +49,9 @@ export async function authenticate(
       return next;
     });
   }
-  const connectedRoom = runtime.readRoom();
+  const connectedRoom = readRoom(runtime);
   if (connectedRoom !== null) broadcastRoom(runtime, connectedRoom);
   socket.send(JSON.stringify(authenticationMessage(runtime, socket, result.membership)));
-  await runtime.advanceTournamentStart();
-  await runtime.advanceMatchmakingStart();
+  await advanceTournamentStart(runtime);
+  await advanceMatchmakingStart(runtime);
 }

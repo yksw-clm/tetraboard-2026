@@ -1,23 +1,24 @@
-import type { RoomRuntime, RoomCpuCapacity } from "../../durableObjects/gameRoom/runtime";
+import type { ProfileRatings, Room } from "@tetraboard/protocol";
+import { profileRatingsKey } from "../../accounts/profileRatings";
+import { withIndexTransaction } from "../../adapters/room/transaction";
+import { appendSystem } from "../../durableObjects/gameRoom/chat";
+import type { RoomCpuCapacity, RoomRuntime } from "../../durableObjects/gameRoom/runtime";
+import {
+  accountKey,
+  cpuCapacityKey,
+  disconnectedAtKey,
+  membershipStorageKey,
+  playerTokenKey,
+  viewerSecretKey,
+} from "../../durableObjects/gameRoom/storageKeys";
+import { bytesToHex } from "../../durableObjects/gameRoom/tokenCrypto";
 import type {
   MatchmakingRoomInput,
   MatchmakingRoomReservation,
 } from "../../matchmaking/coordinator";
-import type { Room, ProfileRatings } from "@tetraboard/protocol";
-import {
-  cpuCapacityKey,
-  accountKey,
-  membershipStorageKey,
-  playerTokenKey,
-  disconnectedAtKey,
-  viewerSecretKey,
-} from "../../durableObjects/gameRoom/storageKeys";
+import { playerLabel, roomStorageKey } from "../../rooms/progressHelpers";
 import { currentRoomStateVersion, roomStateVersionKey } from "../../rooms/roomStateVersion";
-import { roomStorageKey, playerLabel } from "../../rooms/progressHelpers";
-import { profileRatingsKey } from "../../accounts/profileRatings";
 import { analyticsPlayerKey } from "../../usageEvents/matches";
-import { appendSystem } from "../../durableObjects/gameRoom/chat";
-import { bytesToHex } from "../../durableObjects/gameRoom/tokenCrypto";
 
 export function persistMatchmakingRoom(
   runtime: RoomRuntime,
@@ -28,7 +29,7 @@ export function persistMatchmakingRoom(
   capacity: RoomCpuCapacity | null,
 ) {
   const rating = input.rating;
-  runtime.withIndexTransaction(() => {
+  withIndexTransaction(runtime, () => {
     if (capacity) runtime.ctx.storage.kv.put(cpuCapacityKey, capacity);
     runtime.ctx.storage.kv.put(roomStorageKey, room);
     runtime.ctx.storage.kv.put(roomStateVersionKey, currentRoomStateVersion);

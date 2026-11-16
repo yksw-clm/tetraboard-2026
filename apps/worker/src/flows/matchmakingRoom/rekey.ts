@@ -1,14 +1,15 @@
-import { storedAccount } from "../accountSeats/seats";
+import { matchmakingRules, roomSchema, type Room } from "@tetraboard/protocol";
+import { playerTokenHash, readMembership, readRoom } from "../../adapters/room/state";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import { advanceMatchmakingStart } from "./start";
-import { roomSchema, matchmakingRules, type Room } from "@tetraboard/protocol";
 import {
+  disconnectedAtKey,
   membershipStorageKey,
   playerTokenKey,
-  disconnectedAtKey,
   reconnectGraceMs,
 } from "../../durableObjects/gameRoom/storageKeys";
 import { roomStorageKey } from "../../rooms/progressHelpers";
+import { storedAccount } from "../accountSeats/seats";
+import { advanceMatchmakingStart } from "./start";
 
 export async function rekeyMatchmakingPlayer(
   runtime: RoomRuntime,
@@ -19,7 +20,7 @@ export async function rekeyMatchmakingPlayer(
   tokenHash: string,
 ) {
   await runtime.reconcileDeadlines();
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   if (
     !room ||
     !("matchmaking" in room) ||
@@ -30,11 +31,11 @@ export async function rekeyMatchmakingPlayer(
     return false;
   const current = runtime.ctx.storage.kv.get<number>(`matchmaking-version:${playerId}`) ?? 0;
   if (version < current) return false;
-  const old = runtime.playerTokenHash(playerId);
+  const old = playerTokenHash(runtime, playerId);
   if (version === current) {
     if (old !== tokenHash) return false;
     await advanceMatchmakingStart(runtime);
-    runtime.markAlarm();
+    runtime.alarms.mark();
     return true;
   }
   replaceMatchmakingCredential(runtime, room, playerId, version, tokenHash, old);
@@ -42,7 +43,7 @@ export async function rekeyMatchmakingPlayer(
     if (old && (socket.deserializeAttachment() as { tokenHash?: string } | null)?.tokenHash === old)
       socket.close(1000, "操作元が変わりました");
   await advanceMatchmakingStart(runtime);
-  runtime.markAlarm();
+  runtime.alarms.mark();
   return true;
 }
 
@@ -55,7 +56,7 @@ function replaceMatchmakingCredential(
   old: string | null,
 ) {
   runtime.ctx.storage.transactionSync(() => {
-    const membership = old ? runtime.readMembership(old) : null;
+    const membership = old ? readMembership(runtime, old) : null;
     if (old) runtime.ctx.storage.kv.delete(membershipStorageKey(old));
     runtime.ctx.storage.kv.put(playerTokenKey(playerId), tokenHash);
     runtime.ctx.storage.kv.put(membershipStorageKey(tokenHash), {

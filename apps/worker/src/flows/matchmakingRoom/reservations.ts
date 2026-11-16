@@ -1,9 +1,12 @@
-import { storedAccount } from "../accountSeats/seats";
-import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import type { MatchmakingRoomReservation } from "../../matchmaking/coordinator";
 import type { RoomPublicMetadata } from "@tetraboard/protocol";
-import { hasOpenConnection } from "../../durableObjects/gameRoom/socket/membership";
+import { publicMetadata } from "../../adapters/room/metadata";
+import { playerTokenHash, readRoom } from "../../adapters/room/state";
+import { withIndexTransaction } from "../../adapters/room/transaction";
 import { closeSockets } from "../../durableObjects/gameRoom/connections";
+import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
+import { hasOpenConnection } from "../../durableObjects/gameRoom/socket/membership";
+import type { MatchmakingRoomReservation } from "../../matchmaking/coordinator";
+import { storedAccount } from "../accountSeats/seats";
 
 export function clearMatchmakingSearches(
   _runtime: RoomRuntime,
@@ -22,7 +25,7 @@ export async function getMatchmakingState(
 ) {
   await runtime.reconcileDeadlines();
   const saved = runtime.ctx.storage.kv.get<MatchmakingRoomReservation>(`matchmaking:${matchId}`);
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   const same = Boolean(
     room &&
     "matchmaking" in room &&
@@ -38,7 +41,7 @@ export async function getMatchmakingState(
     ? room!.players
         .filter(
           (p) =>
-            p.kind === "human" && hasOpenConnection(runtime, runtime.playerTokenHash(p.id) ?? ""),
+            p.kind === "human" && hasOpenConnection(runtime, playerTokenHash(runtime, p.id) ?? ""),
         )
         .map((p) => p.id)
     : (saved?.connectedPlayerIds ?? []);
@@ -49,7 +52,7 @@ export async function getMatchmakingState(
       participantPreviews: _players,
       matchKind: _matchKind,
       ...metadata
-    } = runtime.publicMetadata(room!);
+    } = publicMetadata(runtime, room!);
     summary = metadata;
   }
   return {
@@ -72,9 +75,9 @@ export async function abortMatchmakingRoom(
     `matchmaking:${matchId}`,
   );
   if (reservation?.phase === "playing") return { status: "already_started" as const };
-  const closed = runtime.withIndexTransaction(() => {
+  const closed = withIndexTransaction(runtime, () => {
     runtime.ctx.storage.kv.put(`matchmaking-cancelled:${matchId}`, true);
-    const room = runtime.readRoom();
+    const room = readRoom(runtime);
     if (
       room &&
       "matchmaking" in room &&

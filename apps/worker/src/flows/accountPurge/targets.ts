@@ -1,14 +1,15 @@
+import { readRoom } from "../../adapters/room/state";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import type { PendingRoomIndex } from "../../rooms/roomIndex";
-import type { PurgeTargets } from "./types";
 import { collectMatchPlayers, rememberMatchPlayer } from "./identityScope";
+import type { PurgeTargets } from "./types";
 const pendingIndexKey = "room-index-pending";
 
 export async function loadPurgeTargets(
   runtime: RoomRuntime,
   accountId: string,
 ): Promise<PurgeTargets> {
-  await runtime.syncAlarm();
+  await runtime.alarms.sync();
   const aliases = await runtime.db
     .prepare("SELECT guest_id FROM guest_account_merges WHERE account_id=?")
     .bind(accountId)
@@ -37,16 +38,16 @@ async function loadRetainedPlayers(runtime: RoomRuntime, targets: PurgeTargets) 
   const { accountId, ids } = targets;
   const code =
     runtime.ctx.id.name ??
-    runtime.readRoom()?.id ??
+    readRoom(runtime)?.id ??
     runtime.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey)?.metadata.id;
   if (code) {
-    await runtime.syncAlarm();
+    await runtime.alarms.sync();
     const retained = await runtime.db
       .prepare("SELECT player_id FROM privacy_room_players WHERE account_id=? AND room_id=?")
       .bind(accountId, code)
       .all<{ player_id: string }>();
     for (const row of retained.results) ids.add(row.player_id);
-    await runtime.syncAlarm();
+    await runtime.alarms.sync();
     const matchIdentities = await runtime.db
       .prepare(`
           SELECT m.id AS match_id, json_extract(p.value, '$.id') AS player_id

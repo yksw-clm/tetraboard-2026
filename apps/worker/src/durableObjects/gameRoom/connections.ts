@@ -1,10 +1,12 @@
 import { roomSchema } from "@tetraboard/protocol";
-import { tournamentReturnKey, type TournamentReturn } from "../../rooms/tournamentRoom";
+import { isHumanParticipant, readMembership, readRoom } from "../../adapters/room/state";
+import { withIndexTransaction } from "../../adapters/room/transaction";
 import { roomStorageKey } from "../../rooms/progressHelpers";
-import { broadcastRoom, sendSocketError } from "./snapshots";
-import { disconnectedAtKey, reconnectGraceMs } from "./storageKeys";
+import { tournamentReturnKey, type TournamentReturn } from "../../rooms/tournamentRoom";
 import type { RoomRuntime } from "./runtime";
+import { broadcastRoom, sendSocketError } from "./snapshots";
 import { hasOpenConnection } from "./socket/membership";
+import { disconnectedAtKey, reconnectGraceMs } from "./storageKeys";
 
 export function closeSockets(
   runtime: RoomRuntime,
@@ -57,8 +59,8 @@ export async function socketGone(runtime: RoomRuntime, socket: WebSocket): Promi
   if (hasOpenConnection(runtime, tokenHash, socket)) return;
   await runtime.reconcileDeadlines();
   if (hasOpenConnection(runtime, tokenHash, socket)) return;
-  const membership = runtime.readMembership(tokenHash);
-  const room = runtime.readRoom();
+  const membership = readMembership(runtime, tokenHash);
+  const room = readRoom(runtime);
   if (membership === null || room === null) return;
   const player = room.players.find((entry) => entry.id === membership.playerId);
   if (
@@ -69,14 +71,14 @@ export async function socketGone(runtime: RoomRuntime, socket: WebSocket): Promi
   }
   if (
     player === undefined ||
-    !runtime.isHumanParticipant(player) ||
+    !isHumanParticipant(runtime, player) ||
     player.reconnectDeadline !== null
   ) {
     broadcastRoom(runtime, room);
     return;
   }
-  const updated = runtime.withIndexTransaction(() => {
-    const current = runtime.readRoom();
+  const updated = withIndexTransaction(runtime, () => {
+    const current = readRoom(runtime);
     if (current === null) return null;
     runtime.ctx.storage.kv.put(disconnectedAtKey(player.id), Date.now());
     const next = roomSchema.parse({

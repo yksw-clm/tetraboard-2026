@@ -1,23 +1,25 @@
-import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import type {
-  MatchmakingRoomInput,
-  MatchmakingRoomReservation,
-} from "../../matchmaking/coordinator";
-import { persistMatchmakingRoom } from "./prepareStorage";
-import { roomSchema, type Room, type ProfileRatings } from "@tetraboard/protocol";
-import {
-  matchmakingRoomConfiguration,
-  matchmakingCpuAppearance,
-  matchmakingRoomMetadata,
-} from "../../rooms/gameAdapters/matchmaking";
-import { cancelledAdmissionKey, cpuCapacityKey } from "../../durableObjects/gameRoom/storageKeys";
-import { waitingRoomFactories } from "../../rooms/waitingRoomFactories";
+import { roomSchema, type ProfileRatings, type Room } from "@tetraboard/protocol";
 import { profileAvatarUrl } from "../../accounts/auth";
 import {
   cpuReferenceRating,
   hasProfileRating,
   readProfileRating,
 } from "../../accounts/profileRatings";
+import { reserveCpuCapacity } from "../../adapters/room/cpuCapacity";
+import { readRoom } from "../../adapters/room/state";
+import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
+import { cancelledAdmissionKey, cpuCapacityKey } from "../../durableObjects/gameRoom/storageKeys";
+import type {
+  MatchmakingRoomInput,
+  MatchmakingRoomReservation,
+} from "../../matchmaking/coordinator";
+import {
+  matchmakingCpuAppearance,
+  matchmakingRoomConfiguration,
+  matchmakingRoomMetadata,
+} from "../../rooms/gameAdapters/matchmaking";
+import { waitingRoomFactories } from "../../rooms/waitingRoomFactories";
+import { persistMatchmakingRoom } from "./prepareStorage";
 
 type MatchmakingConfiguration = ReturnType<typeof matchmakingRoomConfiguration>;
 
@@ -53,7 +55,7 @@ async function prepareReservedMatchmakingRoom(runtime: RoomRuntime, input: Match
       : { status: "prepared" as const };
   if (runtime.ctx.storage.kv.get(`matchmaking-cancelled:${input.matchId}`))
     return { status: "cancelled" as const };
-  if (runtime.readRoom()) return { status: "room_in_use" as const };
+  if (readRoom(runtime)) return { status: "room_in_use" as const };
   return prepareEligibleMatchmakingRoom(runtime, input, configuration);
 }
 
@@ -66,12 +68,12 @@ async function prepareEligibleMatchmakingRoom(
     return { status: "invalid" as const };
   const { room, cpuCount } = createWaitingMatchmakingRoom(runtime, input, configuration);
   const profileRatings = await readMatchmakingProfileRatings(runtime, input, room, configuration);
-  const capacity = await runtime.reserveCpuCapacity(room);
+  const capacity = await reserveCpuCapacity(runtime, room);
   if (typeof capacity === "string") return { status: capacity };
   if (Date.now() >= input.expiresAtMs) {
     if (capacity) {
       runtime.ctx.storage.kv.put(cpuCapacityKey, { ...capacity, releaseAtMs: Date.now() });
-      runtime.ctx.waitUntil(runtime.flushCpuCapacity());
+      runtime.ctx.waitUntil(runtime.jobs.cpuCapacityJob.flush());
     }
     return { status: "invalid" as const };
   }
@@ -86,7 +88,7 @@ async function checkMatchmakingAdmissions(
 ) {
   const { rules, policy } = configuration;
   for (const { admission: a } of input.players) {
-    await runtime.syncAlarm();
+    await runtime.alarms.sync();
     const valid = await runtime.db
       .prepare(
         `SELECT 1 FROM account_room_seats s JOIN user u ON u.id=s.account_id JOIN matchmaking_wait_reservations w ON w.account_id=s.account_id WHERE s.account_id=? AND s.operation_id=? AND s.room_id=? AND s.instance_id=? AND s.player_id=? AND w.match_operation_id=s.operation_id AND w.queue_key=? AND u.profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=u.id)

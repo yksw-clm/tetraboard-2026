@@ -1,11 +1,12 @@
+import { readRoom } from "../../../adapters/room/state";
 import type { SettingsCommand } from "../../../rooms/gameAdapters/types";
 import type { RoomRuntime, RoomUpdateResult, SocketCommand } from "../runtime";
-import { broadcastRoom, sendRoomSnapshot, rejectAction } from "../snapshots";
+import { broadcastRoom, rejectAction, sendRoomSnapshot } from "../snapshots";
 
 function sendUpdate(runtime: RoomRuntime, socket: WebSocket, result: RoomUpdateResult): void {
   if (result.status === "updated") broadcastRoom(runtime, result.room);
   else if (result.status === "unchanged") {
-    const room = runtime.readRoom();
+    const room = readRoom(runtime);
     if (room !== null) sendRoomSnapshot(runtime, socket, room);
   } else rejectAction(runtime, socket, result.status);
 }

@@ -1,25 +1,26 @@
 import type { Room } from "@tetraboard/protocol";
+import { withIndexTransaction } from "../../adapters/room/transaction";
+import { appendSystem } from "../../durableObjects/gameRoom/chat";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import {
   accountKey,
+  disconnectedAtKey,
   membershipStorageKey,
   playerTokenKey,
-  disconnectedAtKey,
   viewerSecretKey,
 } from "../../durableObjects/gameRoom/storageKeys";
-import { appendSystem } from "../../durableObjects/gameRoom/chat";
 import { bytesToHex } from "../../durableObjects/gameRoom/tokenCrypto";
 import { roomStorageKey } from "../../rooms/progressHelpers";
 import { currentRoomStateVersion, roomStateVersionKey } from "../../rooms/roomStateVersion";
-import { analyticsPlayerKey } from "../../usageEvents/matches";
 import {
-  tournamentRoomKey,
-  tournamentReservationKey,
   tournamentCredentialVersionKey,
+  tournamentReservationKey,
   tournamentReturnKey,
+  tournamentRoomKey,
   type PrepareTournamentRoomInput,
   type TournamentRoomReservation,
 } from "../../rooms/tournamentRoom";
+import { analyticsPlayerKey } from "../../usageEvents/matches";
 
 export function persistTournamentRoom(
   runtime: RoomRuntime,
@@ -30,7 +31,7 @@ export function persistTournamentRoom(
   now: number,
 ) {
   const { context, players } = input;
-  runtime.withIndexTransaction(() => {
+  withIndexTransaction(runtime, () => {
     runtime.ctx.storage.kv.put(roomStorageKey, room);
     runtime.ctx.storage.kv.put(roomStateVersionKey, currentRoomStateVersion);
     runtime.ctx.storage.kv.put(tournamentRoomKey, context.matchId);

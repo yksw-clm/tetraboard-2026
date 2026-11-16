@@ -1,10 +1,11 @@
 import { roomSocketContract } from "@tetraboard/protocol";
+import { readRoom } from "../../adapters/room/state";
 import { formationAnalysisTag } from "../../rooms/fourShogiFormationAnalysis";
 import { eliminatedHandsTag } from "../../rooms/fourShogiProgress";
-import { stampTag } from "./storageKeys";
-import { sendRoomSnapshot } from "./snapshots";
 import { chatSnapshot } from "./chat";
 import type { RoomRuntime } from "./runtime";
+import { sendRoomSnapshot } from "./snapshots";
+import { stampTag } from "./storageKeys";
 
 export async function fetch(runtime: RoomRuntime, request: Request): Promise<Response> {
   const query = roomSocketContract.query.safeParse(
@@ -14,7 +15,7 @@ export async function fetch(runtime: RoomRuntime, request: Request): Promise<Res
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
   await runtime.reconcileDeadlines();
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   if (room === null) {
     return Response.json(roomSocketContract.error.parse({ error: "not_found" }), { status: 404 });
   }

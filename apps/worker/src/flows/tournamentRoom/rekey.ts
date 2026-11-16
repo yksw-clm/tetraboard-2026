@@ -1,24 +1,26 @@
-import { storedAccount } from "../accountSeats/seats";
 import { roomSchema, tournamentRules } from "@tetraboard/protocol";
+import { playerTokenHash, readMembership, readRoom } from "../../adapters/room/state";
+import { withIndexTransaction } from "../../adapters/room/transaction";
+import { closeSockets } from "../../durableObjects/gameRoom/connections";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
+import { broadcastRoom } from "../../durableObjects/gameRoom/snapshots";
 import {
+  disconnectedAtKey,
   membershipStorageKey,
   playerTokenKey,
-  disconnectedAtKey,
   reconnectGraceMs,
 } from "../../durableObjects/gameRoom/storageKeys";
-import { closeSockets } from "../../durableObjects/gameRoom/connections";
-import { broadcastRoom } from "../../durableObjects/gameRoom/snapshots";
-import { roomStorageKey, nextPublicUpdateAt } from "../../rooms/progressHelpers";
+import { nextPublicUpdateAt, roomStorageKey } from "../../rooms/progressHelpers";
 import {
-  tournamentReservationKey,
-  tournamentCredentialVersionKey,
   isTournamentGameRoom,
-  type TournamentRoomReservation,
+  tournamentCredentialVersionKey,
+  tournamentReservationKey,
   type RekeyTournamentPlayerInput,
-  type TournamentReturn,
   type TournamentGameRoom,
+  type TournamentReturn,
+  type TournamentRoomReservation,
 } from "../../rooms/tournamentRoom";
+import { storedAccount } from "../accountSeats/seats";
 
 export async function rekeyTournamentPlayer(
   runtime: RoomRuntime,
@@ -51,7 +53,7 @@ async function rekeyReservedTournamentPlayer(
   const reservation = runtime.ctx.storage.kv.get<TournamentRoomReservation>(
     tournamentReservationKey(input.matchId),
   );
-  const initial = runtime.readRoom();
+  const initial = readRoom(runtime);
   const seat = storedAccount(runtime, input.playerId);
   const resultWaiting =
     initial &&
@@ -73,8 +75,8 @@ async function rekeyReservedTournamentPlayer(
     return { status: "not_found" as const };
   const version =
     runtime.ctx.storage.kv.get<number>(tournamentCredentialVersionKey(input.playerId)) ?? 0;
-  const previousHash = runtime.playerTokenHash(input.playerId);
-  const collision = runtime.readMembership(input.tokenHash);
+  const previousHash = playerTokenHash(runtime, input.playerId);
+  const collision = readMembership(runtime, input.tokenHash);
   if (collision && collision.playerId !== input.playerId) return { status: "stale" as const };
   if (input.version < version || (input.version === version && previousHash !== input.tokenHash))
     return { status: "stale" as const };
@@ -90,7 +92,7 @@ async function rekeyEligibleTournamentPlayer(
   initial: TournamentGameRoom,
   previousHash: string | null,
 ) {
-  await runtime.syncAlarm();
+  await runtime.alarms.sync();
   const eligible = await runtime.db
     .prepare(
       `SELECT 1 FROM account_room_seats s JOIN user u ON u.id=s.account_id JOIN tournament_match_players p ON p.operation_id=s.operation_id AND p.match_id=? JOIN tournament_entries e ON e.id=p.entry_id AND e.account_id=s.account_id AND e.deleted=0 WHERE s.account_id=? AND s.operation_id=? AND s.instance_id=? AND s.player_id=? AND u.profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)`,
@@ -106,13 +108,13 @@ async function rekeyEligibleTournamentPlayer(
         reservation.context.endsAtMs,
       )
   ) {
-    runtime.withIndexTransaction(() => runtime.closeRoom());
+    withIndexTransaction(runtime, () => runtime.closeRoom());
     closeSockets(runtime);
     return { status: "not_found" as const };
   }
   replaceTournamentCredential(runtime, input, reservation, initial, previousHash);
   notifyTournamentTransfer(runtime, input, reservation, previousHash);
-  const room = runtime.readRoom();
+  const room = readRoom(runtime);
   if (room) broadcastRoom(runtime, room);
   return { status: "updated" as const };
 }
@@ -124,8 +126,8 @@ function replaceTournamentCredential(
   initial: TournamentGameRoom,
   previousHash: string | null,
 ) {
-  runtime.withIndexTransaction(() => {
-    const membership = previousHash ? runtime.readMembership(previousHash) : null;
+  withIndexTransaction(runtime, () => {
+    const membership = previousHash ? readMembership(runtime, previousHash) : null;
     if (previousHash) runtime.ctx.storage.kv.delete(membershipStorageKey(previousHash));
     runtime.ctx.storage.kv.put(
       membershipStorageKey(input.tokenHash),

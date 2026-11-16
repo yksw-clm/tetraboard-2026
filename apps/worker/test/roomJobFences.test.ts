@@ -1,10 +1,11 @@
-import { env } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { expect, test, vi } from "vitest";
-import * as indexes from "../src/rooms/roomIndex";
 import * as accounts from "../src/accounts/roomAccounts";
-import * as tournaments from "../src/rooms/tournamentRoom";
+import { publicMetadata } from "../src/adapters/room/metadata";
+import * as indexes from "../src/rooms/roomIndex";
 import type { RoomJob } from "../src/rooms/roomJobs";
+import * as tournaments from "../src/rooms/tournamentRoom";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 
 function barrier(fail: boolean) {
@@ -27,14 +28,14 @@ for (const fail of [false, true]) {
     try {
       const entry = await fixtures.create({ game: "reversi", name: "本人", quickPlay: true });
       await runInDurableObject(env.GAME_ROOM.getByName(entry.room.id), async (instance, ctx) => {
-        const job = Reflect.get(instance, "roomIndexJob") as RoomJob<unknown>;
+        const job = Reflect.get(instance, "runtime").jobs.roomIndexJob as RoomJob<unknown>;
         await job.running;
         const gate = barrier(fail);
         const spy = vi.spyOn(indexes, "writeRoomIndex").mockImplementation(gate.execute);
         try {
           const pending = {
             revision: ctx.storage.kv.get<number>("room-index-revision")! + 1,
-            metadata: Reflect.get(instance, "publicMetadata").call(instance, entry.room),
+            metadata: publicMetadata(Reflect.get(instance, "runtime"), entry.room),
             closed: false,
             retryAtMs: Date.now(),
           };
@@ -66,7 +67,7 @@ for (const fail of [false, true]) {
   test(`席の反映中に追加した画像解放と別の操作IDを残す（失敗=${fail}）`, async () => {
     const stub = env.GAME_ROOM.getByName(`cleanup-fence-${crypto.randomUUID()}`);
     await runInDurableObject(stub, async (instance, ctx) => {
-      const job = Reflect.get(instance, "accountCleanupJob") as RoomJob<unknown>;
+      const job = Reflect.get(instance, "runtime").jobs.accountCleanupJob as RoomJob<unknown>;
       const gate = barrier(fail);
       const spy = vi.spyOn(accounts, "releaseReservation").mockImplementation(gate.execute);
       const reservation = {
@@ -119,7 +120,7 @@ for (const fail of [false, true]) {
   test(`大会の反映中にphaseが進んだら、古い完了と再送は新しいphaseを消さない（失敗=${fail}）`, async () => {
     const stub = env.GAME_ROOM.getByName(`tournament-fence-${crypto.randomUUID()}`);
     await runInDurableObject(stub, async (instance, ctx) => {
-      const job = Reflect.get(instance, "tournamentStateJob") as RoomJob<unknown>;
+      const job = Reflect.get(instance, "runtime").jobs.tournamentStateJob as RoomJob<unknown>;
       const gate = barrier(fail);
       const spy = vi.spyOn(tournaments, "writeTournamentState").mockImplementation(gate.execute);
       const pending: tournaments.PendingTournamentState = {

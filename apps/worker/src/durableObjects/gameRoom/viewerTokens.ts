@@ -1,6 +1,7 @@
-import { bytesToHex, hexToBytes } from "./tokenCrypto";
-import { viewerSecretKey } from "./storageKeys";
+import { readRoom } from "../../adapters/room/state";
 import type { RoomRuntime } from "./runtime";
+import { viewerSecretKey } from "./storageKeys";
+import { bytesToHex, hexToBytes } from "./tokenCrypto";
 
 export async function viewerMac(runtime: RoomRuntime, nonce: string): Promise<string> {
   const secret = runtime.ctx.storage.kv.get<string>(viewerSecretKey);
@@ -20,7 +21,7 @@ export async function viewerMac(runtime: RoomRuntime, nonce: string): Promise<st
 
 export async function issueViewerToken(runtime: RoomRuntime): Promise<string | null> {
   await runtime.reconcileDeadlines();
-  if (runtime.readRoom() === null) return null;
+  if (readRoom(runtime) === null) return null;
   const nonce = new Uint8Array(16);
   crypto.getRandomValues(nonce);
   const prefix = bytesToHex(nonce);
