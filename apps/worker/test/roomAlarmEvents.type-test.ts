@@ -1,4 +1,4 @@
-import type { GameRoom } from "../src/rooms/gameRoom";
+import type { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 import type { eventMethods } from "../src/rooms/roomAlarmEvents";
 import type { RoomAlarmEvents } from "../src/rooms/roomAlarmEvents";
 

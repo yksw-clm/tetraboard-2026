@@ -25,7 +25,7 @@ import {
 } from "../src/rooms/shogiMatchStore";
 import { processDeletions, requestDeletion } from "../src/privacy/deletion";
 import { releaseReservation } from "../src/accounts/roomAccounts";
-import type { GameRoom } from "../src/rooms/gameRoom";
+import type { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 
 type PreparedFixture = {
   input: PrepareTournamentRoomInput;

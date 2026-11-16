@@ -1,80 +1,90 @@
+import { hasOpenConnection, sendCurrentMembership } from "./socket/membership";
+import type { RoomRuntime, RoomSocketError } from "./runtime";
+import {
+  chatKey,
+  mutedKey,
+  viewerSecretKey,
+  disconnectedAtKey,
+  lastChatAtKey,
+  reconnectGraceMs,
+} from "./storageKeys";
+import { bytesToHex } from "./tokenCrypto";
+import { appendSystem, broadcastChat } from "./chat";
+import { presence, broadcastRoom } from "./snapshots";
+import { closeSockets, webSocketClose, webSocketError } from "./connections";
+import { issueViewerToken } from "./viewerTokens";
+import { inspectReport, moderateMessage } from "./reports";
+import { fetch } from "./fetch";
+import { webSocketMessage } from "./socket/message";
 import {
   matchmakingRoomConfiguration,
   matchmakingCpuAppearance,
   matchmakingRoomMetadata,
-} from "./gameAdapters/matchmaking";
+} from "../../rooms/gameAdapters/matchmaking";
 import {
   currentRoomStateVersion,
   roomStateVersionKey,
   migrateRoomStateV0ToV1,
-} from "./roomStateVersion";
-import { matchEndFacts } from "../usageEvents/matchLifecycle";
+} from "../../rooms/roomStateVersion";
+import { matchEndFacts } from "../../usageEvents/matchLifecycle";
 import { roomMatchKind, type MatchKind } from "@tetraboard/protocol";
-import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
-import { TransactionUsageEvents } from "../usageEvents/transactionEvents";
-import { RoomJob } from "./roomJobs";
+import { logFourShogiDiagnostic } from "../../fourShogiDiagnostics";
+import { TransactionUsageEvents } from "../../usageEvents/transactionEvents";
+import { RoomJob } from "../../rooms/roomJobs";
 import {
   cpuReferenceRating,
   hasProfileRating,
   profileRatingsKey,
   readProfileRating,
-} from "../accounts/profileRatings";
+} from "../../accounts/profileRatings";
 import type { ProfileRatings } from "@tetraboard/protocol";
 import {
   cpuPlayerAppearance,
   isRatedMatchmakingGame,
   matchmakingRules,
 } from "@tetraboard/protocol";
-import type { MatchmakingRoomInput, MatchmakingRoomReservation } from "../matchmaking/coordinator";
-import { isTournamentGameRoom, type TournamentGameRoom } from "./tournamentRoom";
-import { tournamentSettingsMatch, readTournament } from "../tournaments/store";
-import { prepareRoomSettings } from "./applyRoomSettings";
-import {
-  shogiEliminatedHandsKey,
-  eliminatedHandsTag,
-  fourShogiAiJobKey,
-} from "./fourShogiProgress";
-import { retiredName } from "../privacy/identity";
-import type { PendingMatch as PendingFourGomokuMatch } from "./fourGomokuMatchStore";
-import { fourGomokuCpuJobKey } from "./fourGomokuProgress";
+import type {
+  MatchmakingRoomInput,
+  MatchmakingRoomReservation,
+} from "../../matchmaking/coordinator";
+import { isTournamentGameRoom, type TournamentGameRoom } from "../../rooms/tournamentRoom";
+import { tournamentSettingsMatch, readTournament } from "../../tournaments/store";
+import { prepareRoomSettings } from "../../rooms/applyRoomSettings";
+import { shogiEliminatedHandsKey, fourShogiAiJobKey } from "../../rooms/fourShogiProgress";
+import { retiredName } from "../../privacy/identity";
+import type { PendingMatch as PendingFourGomokuMatch } from "../../rooms/fourGomokuMatchStore";
+import { fourGomokuCpuJobKey } from "../../rooms/fourGomokuProgress";
 import type { FourGomokuRoom } from "@tetraboard/protocol";
-import { gomokuCpuJobKey } from "./gomokuProgress";
+import { gomokuCpuJobKey } from "../../rooms/gomokuProgress";
 import type { GomokuRoom } from "@tetraboard/protocol";
-import type { PendingMatch as PendingGomokuMatch } from "./gomokuMatchStore";
-import { roomInteractionIntervalMs, type RoomStampNotification } from "@tetraboard/protocol";
+import type { PendingMatch as PendingGomokuMatch } from "../../rooms/gomokuMatchStore";
 import type { ShogiRoom } from "@tetraboard/protocol";
 import {
   pendingStandardShogiMatchPrefix,
   standardShogiMatchStartKey,
   type PendingStandardShogiMatch,
-} from "./shogiMatchStore";
+} from "../../rooms/shogiMatchStore";
 import type { ReversiRoom } from "@tetraboard/protocol";
-import type { PendingMatch as PendingReversiMatch } from "./reversiMatchStore";
+import type { PendingMatch as PendingReversiMatch } from "../../rooms/reversiMatchStore";
 import { gameCapacity } from "@tetraboard/protocol/games";
-import { nextDueRoomDeadline } from "./roomDeadlines";
-import { nextRoomAlarmAt } from "./roomAlarm";
-import { RoomAlarmEvents, wrapRoomAlarmEvents } from "./roomAlarmEvents";
-import { roomFormationAnalysis, formationAnalysisTag } from "./fourShogiFormationAnalysis";
+import { nextDueRoomDeadline } from "../../rooms/roomDeadlines";
+import { nextRoomAlarmAt } from "../../rooms/roomAlarm";
+import { RoomAlarmEvents, wrapRoomAlarmEvents } from "../../rooms/roomAlarmEvents";
+import { roomFormationAnalysis } from "../../rooms/fourShogiFormationAnalysis";
 import {
   analyticsActiveKey,
   analyticsPlayerKey,
   type AnalyticsIdentity,
   type AnalyticsMatch,
-} from "../usageEvents/matches";
+} from "../../usageEvents/matches";
 import {
   joinRoomContract,
-  chatMessageSchema,
-  chatEntrySchema,
-  chatHistoryLimit,
-  systemChatMessageSchema,
-  chatTextSchema,
   membershipTokenSchema,
   roomMembershipSchema,
   roomPublicMetadataSchema,
   tournamentRules,
   getTournamentSettings,
   roomSchema,
-  roomSocketContract,
   type FourShogiRoom,
   type FourReversiRoom,
   type Room,
@@ -82,20 +92,15 @@ import {
   type RoomTimeControl,
   type RoomPublicMetadata,
   type RoomSocketClientMessage,
-  type RoomSocketMessage,
-  type ChatMessage,
-  type ChatEntry,
-  type RoomPresence,
-  type SystemChatMessage,
 } from "@tetraboard/protocol";
-import { unreachable, type ProgressFor } from "./gameProgress";
-import { createGameAdapters } from "./gameAdapters";
-import type { GameAdapter, SettingsCommand, ActionCommand } from "./gameAdapters/types";
+import { unreachable, type ProgressFor } from "../../rooms/gameProgress";
+import { createGameAdapters } from "../../rooms/gameAdapters";
+import type { GameAdapter, SettingsCommand, ActionCommand } from "../../rooms/gameAdapters/types";
 import type { GameId } from "@tetraboard/protocol";
-import type { ExternalCpuRequest } from "./gameAdapters/cpuTypes";
-import { fourReversiCpuJobKey, fourReversiAiJobKey } from "./fourReversiProgress";
-import { requestRatedAiWarmup, type RatedAiGame } from "./aiService";
-import type { CpuCapacityGame } from "./cpuCapacity";
+import type { ExternalCpuRequest } from "../../rooms/gameAdapters/cpuTypes";
+import { fourReversiCpuJobKey, fourReversiAiJobKey } from "../../rooms/fourReversiProgress";
+import { requestRatedAiWarmup, type RatedAiGame } from "../../rooms/aiService";
+import type { CpuCapacityGame } from "../../rooms/cpuCapacity";
 import {
   roomStorageKey,
   replayKey,
@@ -103,19 +108,19 @@ import {
   cpuMoveDelayMs,
   nextPublicUpdateAt,
   playerLabel,
-} from "./progressHelpers";
+} from "../../rooms/progressHelpers";
 import {
   advanceShogiMatchSave,
   pendingShogiMatchPrefix,
   shogiMatchStartKey,
   type PendingShogiMatch,
-} from "./shogiMatchStore";
-import { profileAvatarUrl } from "../accounts/auth";
-import { retryPendingMatchClaims } from "../accounts/matchClaims";
-import { readStoredMatch } from "../accounts/matchDataContracts";
-import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
+} from "../../rooms/shogiMatchStore";
+import { profileAvatarUrl } from "../../accounts/auth";
+import { retryPendingMatchClaims } from "../../accounts/matchClaims";
+import { readStoredMatch } from "../../accounts/matchDataContracts";
+import { releaseReservation, type AccountAdmission } from "../../accounts/roomAccounts";
 import { DurableObject } from "cloudflare:workers";
-import { waitingRoomFactories } from "./waitingRoomFactories";
+import { waitingRoomFactories } from "../../rooms/waitingRoomFactories";
 import {
   tournamentRoomKey,
   tournamentReservationKey,
@@ -130,10 +135,19 @@ import {
   type PendingTournamentState,
   type RekeyTournamentPlayerInput,
   type TournamentReturn,
-} from "./tournamentRoom";
-import { isClockExpired } from "./clock";
-import { writeRoomIndex, type IndexedRoomParticipant, type PendingRoomIndex } from "./roomIndex";
-import { matchStartKey, pendingMatchPrefix, writeMatch, type PendingMatch } from "./matchStore";
+} from "../../rooms/tournamentRoom";
+import { isClockExpired } from "../../rooms/clock";
+import {
+  writeRoomIndex,
+  type IndexedRoomParticipant,
+  type PendingRoomIndex,
+} from "../../rooms/roomIndex";
+import {
+  matchStartKey,
+  pendingMatchPrefix,
+  writeMatch,
+  type PendingMatch,
+} from "../../rooms/matchStore";
 import {
   activeRegistrationKey,
   cancelledRegistrationKey,
@@ -148,7 +162,7 @@ import {
   type GuestRegistrationInput,
   type GuestRegistrationState,
   type StoredGuestRegistration,
-} from "./registrationTypes";
+} from "../../rooms/registrationTypes";
 
 const aiWarmupAttemptMs = 8000;
 const aiWarmupRetryMs = 2000;
@@ -173,33 +187,10 @@ type StoredAccountSeat = AccountAdmission & { occupying: boolean };
 type AccountCleanup = { reservation: AccountAdmission; releaseAvatar: boolean; retryAtMs: number };
 const indexRevisionKey = "room-index-revision";
 const pendingIndexKey = "room-index-pending";
-const chatKey = "chat";
-const mutedKey = "chat-muted";
-const viewerSecretKey = "viewer-secret";
-const disconnectedAtKey = (playerId: string) => `disconnected-at:${playerId}`;
-const lastChatAtKey = (playerId: string) => `last-chat-at:${playerId}`;
 const membershipStorageKey = (tokenHash: string) => `membership:${tokenHash}`;
 const playerTokenKey = (playerId: string) => `player-token:${playerId}`;
-const reconnectGraceMs = 30_000;
 const idleMs = 24 * 60 * 60 * 1000;
-const stampTag = "room-stamps-v1";
 const departedKey = (playerId: string) => `departed:${playerId}`;
-type RoomSocketError = Extract<RoomSocketMessage, { type: "room.error" }>["error"];
-async function hashMembershipToken(token: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
-  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join(
-    "",
-  );
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function hexToBytes(value: string): Uint8Array {
-  return Uint8Array.from(value.match(/../g) ?? [], (part) => Number.parseInt(part, 16));
-}
-
 export class GameRoom extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -221,7 +212,7 @@ export class GameRoom extends DurableObject<Env> {
     () => this.nextAlarmAt(),
     (task) => this.ctx.waitUntil(task),
   );
-  private chatDirty = false;
+  private readonly chat = { dirty: false };
   private readonly usageEvents = new TransactionUsageEvents(() => this.env.USAGE_EVENTS);
   private readonly progressDependencies = {
     storage: this.ctx.storage,
@@ -231,7 +222,7 @@ export class GameRoom extends DurableObject<Env> {
   private readonly adapters = createGameAdapters({
     ...this.progressDependencies,
     aiService: () => this.env,
-    appendSystem: (event, text) => this.appendSystem(event, text),
+    appendSystem: (event, text) => appendSystem(this.runtime, event, text),
     recordDeparture: (player) => this.recordDeparture(player),
     logFourShogiDiagnostic: (event, fields) => logFourShogiDiagnostic(this.env, event, fields),
   });
@@ -251,6 +242,31 @@ export class GameRoom extends DurableObject<Env> {
         return unreachable(game);
     }
   }
+
+  private readonly runtime: RoomRuntime = {
+    ctx: this.ctx,
+    chat: this.chat,
+    readRoom: () => this.readRoom(),
+    readMembership: (hash) => this.readMembership(hash),
+    publicMembership: (membership) => this.publicMembership(membership),
+    playerTokenHash: (playerId) => this.playerTokenHash(playerId),
+    isHumanParticipant: (player) => this.isHumanParticipant(player),
+    withIndexTransaction: (action, previousRoom) => this.withIndexTransaction(action, previousRoom),
+    reconcileDeadlines: (applyCpu) => this.reconcileDeadlines(applyCpu),
+    currentRoomMembership: (hash) => this.currentRoomMembership(hash),
+    advanceTournamentStart: () => this.advanceTournamentStart(),
+    advanceMatchmakingStart: () => this.advanceMatchmakingStart(),
+    gameAdapter: (room) => this.gameAdapter(room),
+    setReady: (hash, ready) => this.setReady(hash, ready),
+    applySettings: (hash, command) => this.applySettings(hash, command),
+    updateGameSettings: (hash, command) => this.updateGameSettings(hash, command),
+    setTimeControl: (hash, timeControl) => this.setTimeControl(hash, timeControl),
+    startGame: (hash) => this.startGame(hash),
+    setShogiDrawProposal: (hash, command) => this.setShogiDrawProposal(hash, command),
+    declareShogi: (hash, command) => this.declareShogi(hash, command),
+    resign: (hash) => this.resign(hash),
+    play: (hash, command) => this.play(hash, command),
+  };
 
   private clearMatchmakingSearches(reservation: MatchmakingRoomReservation) {
     return {
@@ -601,7 +617,7 @@ export class GameRoom extends DurableObject<Env> {
         if (token) {
           removedKeys.add(membershipStorageKey(token));
           removedKeys.add(playerTokenKey(id));
-          this.closeSockets(token, "Account deleted");
+          closeSockets(this.runtime, token, "Account deleted");
           this.ctx.storage.kv.delete(membershipStorageKey(token));
           this.ctx.storage.kv.delete(playerTokenKey(id));
         }
@@ -698,8 +714,8 @@ export class GameRoom extends DurableObject<Env> {
           });
       });
       const room = this.readRoom();
-      if (room) this.broadcastRoom(room);
-      this.broadcastChat();
+      if (room) broadcastRoom(this.runtime, room);
+      broadcastChat(this.runtime);
     });
   }
 
@@ -957,7 +973,7 @@ export class GameRoom extends DurableObject<Env> {
       return { status: "started", registration: guestRegistrationState(record) };
     });
     const room = this.readRoom();
-    if (room && result.status === "started") this.broadcastRoom(room);
+    if (room && result.status === "started") broadcastRoom(this.runtime, room);
     return result;
   }
 
@@ -1104,9 +1120,9 @@ export class GameRoom extends DurableObject<Env> {
       const record = this.ctx.storage.kv.get<StoredGuestRegistration>(
         registrationKey(registrationId),
       )!;
-      this.closeSockets(record.oldTokenHash, "Room membership updated");
+      closeSockets(this.runtime, record.oldTokenHash, "Room membership updated");
       const room = this.readRoom();
-      if (room) this.broadcastRoom(room);
+      if (room) broadcastRoom(this.runtime, room);
     } else await this.reconcileDeadlines();
     return result ?? { status: "account_reservation_invalid" };
   }
@@ -1295,69 +1311,12 @@ export class GameRoom extends DurableObject<Env> {
     return null;
   }
 
-  private readChat(): ChatEntry[] {
-    return (this.ctx.storage.kv.get<unknown[]>(chatKey) ?? []).map((entry) =>
-      chatEntrySchema.parse(entry),
-    );
-  }
-
-  private appendSystem(event: SystemChatMessage["event"], text: string): void {
-    const message = systemChatMessageSchema.parse({
-      id: crypto.randomUUID(),
-      kind: "system",
-      event,
-      text,
-      sentAtMs: Date.now(),
-    });
-    this.ctx.storage.kv.put(chatKey, [...this.readChat(), message].slice(-chatHistoryLimit));
-    this.chatDirty = true;
-  }
-
   private recordDeparture(player: Room["players"][number]): void {
     if (this.ctx.storage.kv.get(departedKey(player.id))) return;
     this.ctx.storage.kv.delete(analyticsPlayerKey(player.id));
     if (this.readRoom()?.status === "playing")
       this.ctx.storage.kv.put(departedKey(player.id), true);
-    this.appendSystem("left", `${playerLabel(player)}が退室しました`);
-  }
-
-  private presence(room: Room): RoomPresence {
-    const host = room.players.find((player) => {
-      const hash = this.playerTokenHash(player.id);
-      return hash !== null && this.readMembership(hash)?.role === "host";
-    });
-    return {
-      hostPlayerId: host?.id ?? null,
-      connectedPlayerIds: room.players
-        .filter((player) => {
-          if (player.kind === "cpu") return true;
-          const hash = this.playerTokenHash(player.id);
-          return (
-            hash !== null && this.readMembership(hash) !== null && this.hasOpenConnection(hash)
-          );
-        })
-        .map((player) => player.id),
-    };
-  }
-
-  private chatSnapshot(): RoomSocketMessage {
-    return roomSocketContract.message.parse({
-      type: "room.chat.snapshot",
-      messages: this.readChat(),
-    });
-  }
-
-  private broadcastChat(): void {
-    this.chatDirty = false;
-    const payload = JSON.stringify(this.chatSnapshot());
-    for (const socket of this.ctx.getWebSockets()) {
-      if (socket.readyState !== WebSocket.OPEN) continue;
-      try {
-        socket.send(payload);
-      } catch {
-        // 切断中の相手への配信失敗で、保存済みの投稿や操作を失敗にしません。
-      }
-    }
+    appendSystem(this.runtime, "left", `${playerLabel(player)}が退室しました`);
   }
 
   private releaseResultAvatars(room: Room, retainedIds: Set<string>): void {
@@ -1377,7 +1336,9 @@ export class GameRoom extends DurableObject<Env> {
           phase: "closed",
           connectedPlayerIds: room.players
             .filter(
-              (p) => p.kind === "human" && this.hasOpenConnection(this.playerTokenHash(p.id) ?? ""),
+              (p) =>
+                p.kind === "human" &&
+                hasOpenConnection(this.runtime, this.playerTokenHash(p.id) ?? ""),
             )
             .map((p) => p.id),
         });
@@ -1389,7 +1350,11 @@ export class GameRoom extends DurableObject<Env> {
         room?.players
           .filter((player) => {
             const hash = this.playerTokenHash(player.id);
-            return !excluded.includes(player.id) && hash !== null && this.hasOpenConnection(hash);
+            return (
+              !excluded.includes(player.id) &&
+              hash !== null &&
+              hasOpenConnection(this.runtime, hash)
+            );
           })
           .map((player) => player.id) ?? [];
       const closed = { ...tournament, status: "closed" as const, connectedPlayerIds };
@@ -1484,7 +1449,7 @@ export class GameRoom extends DurableObject<Env> {
       if (!this.isHumanParticipant(player)) return false;
       const hash = this.playerTokenHash(player.id);
       if (hash === null || this.readMembership(hash) === null) return false;
-      if (this.hasOpenConnection(hash)) return true;
+      if (hasOpenConnection(this.runtime, hash)) return true;
       const disconnectedAt = this.ctx.storage.kv.get<number>(disconnectedAtKey(player.id));
       return disconnectedAt !== undefined && disconnectedAt + reconnectGraceMs > at;
     });
@@ -1520,7 +1485,7 @@ export class GameRoom extends DurableObject<Env> {
       ...player,
       ready: player.kind === "cpu",
       reconnectDeadline:
-        player.kind === "cpu" || this.hasOpenConnection(this.playerTokenHash(player.id)!)
+        player.kind === "cpu" || hasOpenConnection(this.runtime, this.playerTokenHash(player.id)!)
           ? null
           : this.ctx.storage.kv.get<number>(disconnectedAtKey(player.id))! + reconnectGraceMs,
     })) as P;
@@ -1836,19 +1801,6 @@ export class GameRoom extends DurableObject<Env> {
     });
   }
 
-  private hasOpenConnection(tokenHash: string, excluded?: WebSocket): boolean {
-    return this.ctx.getWebSockets().some((socket) => {
-      if (socket === excluded || socket.readyState !== WebSocket.OPEN) return false;
-      const attachment: unknown = socket.deserializeAttachment();
-      return (
-        typeof attachment === "object" &&
-        attachment !== null &&
-        "tokenHash" in attachment &&
-        attachment.tokenHash === tokenHash
-      );
-    });
-  }
-
   private nextAlarmAt(): number | null {
     const room = this.readRoom();
     const cpu = room ? this.gameAdapter(room).cpu : null;
@@ -2064,7 +2016,7 @@ export class GameRoom extends DurableObject<Env> {
             visitorId: null,
             isTest: Boolean(profile.isTestUser),
           });
-          this.appendSystem("joined", `${admission.name}が入室しました`);
+          appendSystem(this.runtime, "joined", `${admission.name}が入室しました`);
         }
         const secret = crypto.getRandomValues(new Uint8Array(32));
         this.ctx.storage.kv.put(viewerSecretKey, bytesToHex(secret));
@@ -2084,7 +2036,7 @@ export class GameRoom extends DurableObject<Env> {
         ? room.players
             .filter((player) => {
               const hash = this.playerTokenHash(player.id);
-              return hash !== null && this.hasOpenConnection(hash);
+              return hash !== null && hasOpenConnection(this.runtime, hash);
             })
             .map((player) => player.id)
         : (reservation?.connectedPlayerIds ?? []);
@@ -2120,7 +2072,7 @@ export class GameRoom extends DurableObject<Env> {
         closed = true;
       }
     });
-    if (closed) this.closeSockets();
+    if (closed) closeSockets(this.runtime);
     return { status: "cancelled" as const };
   }
 
@@ -2185,7 +2137,7 @@ export class GameRoom extends DurableObject<Env> {
             )
         ) {
           this.withIndexTransaction(() => this.closeRoom());
-          this.closeSockets();
+          closeSockets(this.runtime);
           return { status: "not_found" as const };
         }
         this.withIndexTransaction(() => {
@@ -2244,10 +2196,10 @@ export class GameRoom extends DurableObject<Env> {
               }
             }
           }
-          this.closeSockets(previousHash, "Tournament control transferred");
+          closeSockets(this.runtime, previousHash, "Tournament control transferred");
         }
         const room = this.readRoom();
-        if (room) this.broadcastRoom(room);
+        if (room) broadcastRoom(this.runtime, room);
         return { status: "updated" as const };
       } catch (error) {
         // RPCの一時失敗で、ほかの参加者の接続までリセットしないようにします。
@@ -2264,7 +2216,7 @@ export class GameRoom extends DurableObject<Env> {
       room.players.length === 4 &&
       room.players.every((player) => {
         const hash = this.playerTokenHash(player.id);
-        return player.kind === "human" && !!hash && this.hasOpenConnection(hash);
+        return player.kind === "human" && !!hash && hasOpenConnection(this.runtime, hash);
       })
     );
   }
@@ -2301,7 +2253,7 @@ export class GameRoom extends DurableObject<Env> {
     });
     if (countdownChanged) {
       const room = this.readRoom();
-      if (room) this.broadcastRoom(room);
+      if (room) broadcastRoom(this.runtime, room);
     }
     if (
       countdown?.tournamentStartsAtMs === undefined ||
@@ -2350,7 +2302,7 @@ export class GameRoom extends DurableObject<Env> {
           this.closeRoom();
           return true;
         });
-        if (closed) this.closeSockets();
+        if (closed) closeSockets(this.runtime);
         return;
       }
       this.withIndexTransaction(() => {
@@ -2398,7 +2350,7 @@ export class GameRoom extends DurableObject<Env> {
       });
     });
     const room = this.readRoom();
-    if (room) this.broadcastRoom(room);
+    if (room) broadcastRoom(this.runtime, room);
   }
 
   async prepareMatchmakingRoom(input: MatchmakingRoomInput) {
@@ -2550,7 +2502,7 @@ export class GameRoom extends DurableObject<Env> {
           });
         }
         for (const p of room.players)
-          this.appendSystem("joined", `${playerLabel(p)}が入室しました`);
+          appendSystem(this.runtime, "joined", `${playerLabel(p)}が入室しました`);
         this.ctx.storage.kv.put(
           viewerSecretKey,
           bytesToHex(crypto.getRandomValues(new Uint8Array(32))),
@@ -2577,7 +2529,9 @@ export class GameRoom extends DurableObject<Env> {
     const connectedPlayerIds = same
       ? room!.players
           .filter(
-            (p) => p.kind === "human" && this.hasOpenConnection(this.playerTokenHash(p.id) ?? ""),
+            (p) =>
+              p.kind === "human" &&
+              hasOpenConnection(this.runtime, this.playerTokenHash(p.id) ?? ""),
           )
           .map((p) => p.id)
       : (saved?.connectedPlayerIds ?? []);
@@ -2620,7 +2574,7 @@ export class GameRoom extends DurableObject<Env> {
       }
       return false;
     });
-    if (closed) this.closeSockets();
+    if (closed) closeSockets(this.runtime);
     return { status: "aborted" as const };
   }
   async rekeyMatchmakingPlayer(
@@ -2785,7 +2739,7 @@ export class GameRoom extends DurableObject<Env> {
     if (reservation.aiWarmup) {
       const connected = current.players
         .filter((p) => p.kind === "human")
-        .every((p) => this.hasOpenConnection(this.playerTokenHash(p.id) ?? ""));
+        .every((p) => hasOpenConnection(this.runtime, this.playerTokenHash(p.id) ?? ""));
       if (connected !== Boolean(reservation.aiHumansConnected)) {
         reservation = { ...reservation, aiHumansConnected: connected };
         this.ctx.storage.kv.put(`matchmaking:${reservation.matchId}`, reservation);
@@ -2800,7 +2754,7 @@ export class GameRoom extends DurableObject<Env> {
       if (reservation.aiWarmup?.state === "pending") {
         this.startMatchmakingAiWarmup(reservation);
         this.alarmEvents.mark();
-        if (!this.readRoom()) this.closeSockets();
+        if (!this.readRoom()) closeSockets(this.runtime);
         return;
       }
     }
@@ -2824,7 +2778,7 @@ export class GameRoom extends DurableObject<Env> {
       }
       const connected = room.players
         .filter((p) => p.kind === "human")
-        .every((p) => this.hasOpenConnection(this.playerTokenHash(p.id) ?? ""));
+        .every((p) => hasOpenConnection(this.runtime, this.playerTokenHash(p.id) ?? ""));
       if (!connected) {
         if (room.matchmaking.startsAtMs !== undefined) {
           const { startsAtMs: _deadline, ...metadata } = room.matchmaking;
@@ -2871,8 +2825,8 @@ export class GameRoom extends DurableObject<Env> {
       );
     const room = this.readRoom();
     this.alarmEvents.mark();
-    if (room) this.broadcastRoom(room);
-    else this.closeSockets();
+    if (room) broadcastRoom(this.runtime, room);
+    else closeSockets(this.runtime);
   }
 
   async createRoom(
@@ -2931,7 +2885,7 @@ export class GameRoom extends DurableObject<Env> {
         this.ctx.storage.kv.put(playerTokenKey(initialRoom.players[0].id), tokenHash);
         this.ctx.storage.kv.put(disconnectedAtKey(initialRoom.players[0].id), Date.now());
         for (const player of initialRoom.players) {
-          this.appendSystem("joined", `${playerLabel(player)}が入室しました`);
+          appendSystem(this.runtime, "joined", `${playerLabel(player)}が入室しました`);
         }
         const secret = new Uint8Array(32);
         crypto.getRandomValues(secret);
@@ -2970,7 +2924,7 @@ export class GameRoom extends DurableObject<Env> {
       if (!this.isHumanParticipant(player)) return false;
       if ((this.registrationForPlayer(player.id)?.holdUntilMs ?? 0) > now) return true;
       const hash = this.playerTokenHash(player.id);
-      if (hash && this.hasOpenConnection(hash)) return true;
+      if (hash && hasOpenConnection(this.runtime, hash)) return true;
       const disconnectedAt = this.ctx.storage.kv.get<number>(disconnectedAtKey(player.id));
       const deadline =
         player.reconnectDeadline ??
@@ -2988,7 +2942,7 @@ export class GameRoom extends DurableObject<Env> {
       ? null
       : {
           room,
-          presence: this.presence(room),
+          presence: presence(this.runtime, room),
           serverNowMs: Date.now(),
           ...roomFormationAnalysis(room, formationAnalysis),
           ...this.gameAdapter(room).displayHands(room, eliminatedHands),
@@ -3179,14 +3133,14 @@ export class GameRoom extends DurableObject<Env> {
         this.ctx.storage.kv.put(membershipStorageKey(tokenHash), membership);
         this.ctx.storage.kv.put(playerTokenKey(playerId), tokenHash);
         this.ctx.storage.kv.put(disconnectedAtKey(playerId), Date.now());
-        this.appendSystem("joined", `${playerName}が入室しました`);
+        appendSystem(this.runtime, "joined", `${playerName}が入室しました`);
         return { status: "joined", room: updatedRoom, membership } as const;
       }),
     );
 
     if (result === null) return { status: "account_reservation_invalid" };
     if (result.status === "joined") {
-      this.broadcastRoom(result.room);
+      broadcastRoom(this.runtime, result.room);
     }
 
     return result;
@@ -3231,57 +3185,6 @@ export class GameRoom extends DurableObject<Env> {
     });
     this.ctx.storage.kv.put(roomStorageKey, updated);
     return updated;
-  }
-
-  private sendCurrentMembership(tokenHash: string): void {
-    const membership = this.readMembership(tokenHash);
-    if (membership === null) return;
-    for (const socket of this.ctx.getWebSockets()) {
-      if (socket.readyState !== WebSocket.OPEN) continue;
-      const attachment: unknown = socket.deserializeAttachment();
-      if (
-        typeof attachment === "object" &&
-        attachment !== null &&
-        "tokenHash" in attachment &&
-        attachment.tokenHash === tokenHash
-      ) {
-        socket.send(JSON.stringify(this.authenticationMessage(socket, membership)));
-      }
-    }
-  }
-
-  private closeSockets(tokenHash?: string, reason = "Room membership ended"): void {
-    for (const socket of this.ctx.getWebSockets()) {
-      if (tokenHash !== undefined) {
-        const attachment: unknown = socket.deserializeAttachment();
-        if (
-          typeof attachment !== "object" ||
-          attachment === null ||
-          !("tokenHash" in attachment) ||
-          attachment.tokenHash !== tokenHash
-        )
-          continue;
-      }
-      if (tokenHash === undefined) {
-        try {
-          const attachment = socket.deserializeAttachment() as { tokenHash?: string } | null;
-          const notice = attachment?.tokenHash
-            ? this.ctx.storage.kv.get<Record<string, TournamentReturn>>(tournamentReturnKey)?.[
-                attachment.tokenHash
-              ]
-            : undefined;
-          if (notice) socket.send(JSON.stringify(notice));
-          else this.sendSocketError(socket, "not_found");
-        } catch {
-          // 通知に失敗しても接続を終了します。
-        }
-      }
-      try {
-        socket.close(1000, reason);
-      } catch {
-        // 切断済みの接続は、そのまま無視します。
-      }
-    }
   }
 
   private async reconcileDeadlines(applyCpu = false): Promise<void> {
@@ -3377,7 +3280,7 @@ export class GameRoom extends DurableObject<Env> {
           !this.isHumanParticipant(player) ||
           player.reconnectDeadline !== null ||
           hash === null ||
-          this.hasOpenConnection(hash)
+          hasOpenConnection(this.runtime, hash)
         )
           return player;
         const disconnectedAt = this.ctx.storage.kv.get<number>(disconnectedAtKey(player.id)) ?? now;
@@ -3456,10 +3359,10 @@ export class GameRoom extends DurableObject<Env> {
       this.ctx.waitUntil(this.matchJob.flush());
     this.ctx.waitUntil(this.guestClaimsJob.flush());
     if (changed) {
-      if (updated) this.broadcastRoom(updated);
-      else this.closeSockets();
+      if (updated) broadcastRoom(this.runtime, updated);
+      else closeSockets(this.runtime);
     }
-    for (const hash of promoted) this.sendCurrentMembership(hash);
+    for (const hash of promoted) sendCurrentMembership(this.runtime, hash);
     await this.advanceTournamentStart();
     await this.advanceMatchmakingStart();
     if (cpuWork.current) {
@@ -3529,220 +3432,19 @@ export class GameRoom extends DurableObject<Env> {
       return this.leaveRoom(tokenHash);
     }
     if (result.status !== "left") return result.status;
-    if (result.room === null) this.closeSockets();
-    else this.broadcastRoom(result.room);
-    if (promoted !== null) this.sendCurrentMembership(promoted);
-    this.closeSockets(tokenHash);
+    if (result.room === null) closeSockets(this.runtime);
+    else broadcastRoom(this.runtime, result.room);
+    if (promoted !== null) sendCurrentMembership(this.runtime, promoted);
+    closeSockets(this.runtime, tokenHash);
     return "left";
   }
 
-  private broadcastRoom(room: Room): void {
-    const snapshots = new Map<string, string>();
-    for (const socket of this.ctx.getWebSockets()) {
-      if (socket.readyState !== WebSocket.OPEN) continue;
-      try {
-        const tags = this.ctx.getTags(socket);
-        const formation = tags.includes(formationAnalysisTag);
-        const hands = tags.includes(eliminatedHandsTag);
-        const key = `${formation}:${hands}`;
-        let message = snapshots.get(key);
-        if (message === undefined) {
-          message = JSON.stringify(this.roomSnapshot(room, formation, hands));
-          snapshots.set(key, message);
-        }
-        socket.send(message);
-      } catch {
-        // 切断中の接続への送信失敗は、保存済みのルーム状態に影響させません。
-      }
-    }
-    if (this.chatDirty) this.broadcastChat();
-    if (room.status === "waiting" && room.lastRound !== null) {
-      const host = room.players.find(
-        (player) =>
-          player.kind === "human" &&
-          this.readMembership(this.playerTokenHash(player.id) ?? "")?.role === "host",
-      );
-      if (host !== undefined) {
-        const hash = this.playerTokenHash(host.id);
-        if (hash !== null) this.sendCurrentMembership(hash);
-      }
-    }
-  }
-
-  private roomSnapshot(
-    room: Room,
-    formationAnalysis = false,
-    eliminatedHands = false,
-  ): RoomSocketMessage {
-    return roomSocketContract.message.parse({
-      type: "room.snapshot",
-      room,
-      presence: this.presence(room),
-      serverNowMs: Date.now(),
-      ...roomFormationAnalysis(room, formationAnalysis),
-      ...this.gameAdapter(room).displayHands(room, eliminatedHands),
-    });
-  }
-
-  private sendRoomSnapshot(socket: WebSocket, room: Room): void {
-    socket.send(
-      JSON.stringify(
-        this.roomSnapshot(
-          room,
-          this.ctx.getTags(socket).includes(formationAnalysisTag),
-          this.ctx.getTags(socket).includes(eliminatedHandsTag),
-        ),
-      ),
-    );
-  }
-
-  private sendSocketError(socket: WebSocket, error: RoomSocketError): void {
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(roomSocketContract.message.parse({ type: "room.error", error })));
-    }
-  }
-
-  private sendChat(
-    tokenHash: string,
-    rawText: string,
-  ): "sent" | "unauthorized" | "rate_limited" | "muted" | "invalid_request" {
-    const parsed = chatTextSchema.safeParse(rawText);
-    if (!parsed.success) return "invalid_request";
-    return this.withIndexTransaction(() => {
-      const room = this.readRoom();
-      const membership = this.readMembership(tokenHash);
-      if (room === null || membership === null) return "unauthorized";
-      const player = room.players.find((entry) => entry.id === membership.playerId);
-      if (!player || !this.isHumanParticipant(player)) return "unauthorized";
-      if ((this.ctx.storage.kv.get<string[]>(mutedKey) ?? []).includes(player.id)) return "muted";
-      const now = Date.now();
-      if (
-        now - (this.ctx.storage.kv.get<number>(lastChatAtKey(player.id)) ?? -Infinity) <
-        roomInteractionIntervalMs
-      )
-        return "rate_limited";
-      const message = chatMessageSchema.parse({
-        id: crypto.randomUUID(),
-        senderId: player.id,
-        senderName: player.name,
-        text: parsed.data,
-        sentAtMs: now,
-      });
-      this.ctx.storage.kv.put(chatKey, [...this.readChat(), message].slice(-chatHistoryLimit));
-      this.ctx.storage.kv.put(lastChatAtKey(player.id), now);
-      this.ctx.storage.kv.put(roomStorageKey, roomSchema.parse({ ...room, lastActivityAtMs: now }));
-      return "sent";
-    });
-  }
-
-  private interactionAvailableAtMs(playerId: string): number {
-    const at = this.ctx.storage.kv.get<number>(lastChatAtKey(playerId));
-    return at === undefined ? 0 : at + roomInteractionIntervalMs;
-  }
-
-  private authenticationMessage(socket: WebSocket, membership: RoomMembership): RoomSocketMessage {
-    return roomSocketContract.message.parse({
-      type: "room.authenticated",
-      membership: this.publicMembership(membership),
-      ...(this.ctx.getTags(socket).includes(stampTag)
-        ? { interactionAvailableAtMs: this.interactionAvailableAtMs(membership.playerId) }
-        : {}),
-    });
-  }
-
-  private sendStamp(
-    tokenHash: string,
-    command: Extract<RoomSocketClientMessage, { type: "room.stamp.send" }>,
-  ):
-    | { status: "sent"; notification: RoomStampNotification; room: Room }
-    | { status: "unauthorized" | "muted" | "room_changed" }
-    | { status: "rate_limited"; interactionAvailableAtMs: number } {
-    return this.withIndexTransaction(() => {
-      const room = this.readRoom();
-      const membership = this.readMembership(tokenHash);
-      if (!room || !membership) return { status: "unauthorized" };
-      if (room.instanceId !== command.instanceId) return { status: "room_changed" };
-      const player = room.players.find((entry) => entry.id === membership.playerId);
-      if (!player || !this.isHumanParticipant(player)) return { status: "unauthorized" };
-      if ((this.ctx.storage.kv.get<string[]>(mutedKey) ?? []).includes(player.id))
-        return { status: "muted" };
-      const now = Date.now();
-      const interactionAvailableAtMs = this.interactionAvailableAtMs(player.id);
-      if (now < interactionAvailableAtMs)
-        return { status: "rate_limited", interactionAvailableAtMs };
-      const updated = roomSchema.parse({ ...room, lastActivityAtMs: now });
-      const notification: RoomStampNotification = {
-        type: "room.stamp.received",
-        id: crypto.randomUUID(),
-        instanceId: room.instanceId,
-        requestId: command.requestId,
-        senderId: player.id,
-        stampId: command.stampId,
-        sentAtMs: now,
-      };
-      this.ctx.storage.kv.put(lastChatAtKey(player.id), now);
-      this.ctx.storage.kv.put(roomStorageKey, updated);
-      return { status: "sent", notification, room: updated };
-    });
-  }
-
-  private broadcastStamp(notification: RoomStampNotification): void {
-    const payload = JSON.stringify(roomSocketContract.message.parse(notification));
-    for (const socket of this.ctx.getWebSockets(stampTag)) {
-      if (socket.readyState !== WebSocket.OPEN) continue;
-      try {
-        socket.send(payload);
-      } catch {
-        /* 切断中の相手には再送しません。 */
-      }
-    }
-  }
-
-  private async viewerMac(nonce: string): Promise<string> {
-    const secret = this.ctx.storage.kv.get<string>(viewerSecretKey);
-    if (secret === undefined) throw new Error("Missing viewer secret");
-    const key = await crypto.subtle.importKey(
-      "raw",
-      hexToBytes(secret),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"],
-    );
-    const mac = new Uint8Array(
-      await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(nonce)),
-    );
-    return bytesToHex(mac.slice(0, 16));
-  }
-
   async issueViewerToken(): Promise<string | null> {
-    await this.reconcileDeadlines();
-    if (this.readRoom() === null) return null;
-    const nonce = new Uint8Array(16);
-    crypto.getRandomValues(nonce);
-    const prefix = bytesToHex(nonce);
-    return prefix + (await this.viewerMac(prefix));
+    return issueViewerToken(this.runtime);
   }
 
-  async inspectReport(
-    token: string,
-    messageId: string,
-  ): Promise<
-    | { status: "found"; instanceId: string; message: ChatMessage; reporterHash: string }
-    | { status: "not_found" | "unauthorized" | "message_not_found" }
-  > {
-    await this.reconcileDeadlines();
-    const room = this.readRoom();
-    if (room === null) return { status: "not_found" };
-    const tokenHash = await hashMembershipToken(token);
-    const membership = this.readMembership(tokenHash);
-    const isPlayer =
-      membership !== null && room.players.some((player) => player.id === membership.playerId);
-    const isViewer =
-      token.length === 64 && (await this.viewerMac(token.slice(0, 32))) === token.slice(32);
-    if (!isPlayer && !isViewer) return { status: "unauthorized" };
-    const message = this.readChat().find((entry) => entry.id === messageId);
-    if (message === undefined || message.kind !== "player") return { status: "message_not_found" };
-    return { status: "found", instanceId: room.instanceId, message, reporterHash: tokenHash };
+  async inspectReport(token: string, messageId: string): ReturnType<typeof inspectReport> {
+    return inspectReport(this.runtime, token, messageId);
   }
 
   async moderateMessage(
@@ -3752,22 +3454,7 @@ export class GameRoom extends DurableObject<Env> {
     remove: boolean,
     mute: boolean,
   ): Promise<"applied" | "room_changed"> {
-    await this.reconcileDeadlines();
-    const room = this.readRoom();
-    if (room === null || room.instanceId !== instanceId) return "room_changed";
-    this.ctx.storage.transactionSync(() => {
-      if (remove)
-        this.ctx.storage.kv.put(
-          chatKey,
-          this.readChat().filter((message) => message.id !== messageId),
-        );
-      if (mute)
-        this.ctx.storage.kv.put(mutedKey, [
-          ...new Set([...(this.ctx.storage.kv.get<string[]>(mutedKey) ?? []), senderId]),
-        ]);
-    });
-    if (remove) this.broadcastChat();
-    return "applied";
+    return moderateMessage(this.runtime, instanceId, messageId, senderId, remove, mute);
   }
 
   private setReady(
@@ -3815,7 +3502,8 @@ export class GameRoom extends DurableObject<Env> {
       const result = prepareRoomSettings(room, command);
       if (result.status !== "updated") return result;
       if (command.mode !== undefined && command.mode !== room.settings.mode)
-        this.appendSystem(
+        appendSystem(
+          this.runtime,
           "mode_changed",
           `対局形式が${command.mode === "singles" ? "シングルス" : "ダブルス"}に変更されました`,
         );
@@ -3827,7 +3515,7 @@ export class GameRoom extends DurableObject<Env> {
           this.recordDeparture(player);
       for (const player of result.room.players)
         if (player.kind === "cpu" && !room.players.some((previous) => previous.id === player.id))
-          this.appendSystem("joined", `CPU Lv${player.level}が入室しました`);
+          appendSystem(this.runtime, "joined", `CPU Lv${player.level}が入室しました`);
       this.ctx.storage.kv.put(roomStorageKey, result.room);
       return result;
     });
@@ -3892,7 +3580,7 @@ export class GameRoom extends DurableObject<Env> {
         room.players.some((player) => {
           if (player.kind === "cpu") return false;
           const hash = this.playerTokenHash(player.id);
-          return !player.ready || hash === null || !this.hasOpenConnection(hash);
+          return !player.ready || hash === null || !hasOpenConnection(this.runtime, hash);
         })
       ) {
         return { status: "not_ready" };
@@ -3924,411 +3612,20 @@ export class GameRoom extends DurableObject<Env> {
     });
   }
 
-  private rejectAction(socket: WebSocket, error: RoomSocketError): void {
-    this.sendSocketError(socket, error);
-    const room = this.readRoom();
-    if (room !== null && socket.readyState === WebSocket.OPEN) {
-      this.sendRoomSnapshot(socket, room);
-    }
-  }
-
   async fetch(request: Request): Promise<Response> {
-    const query = roomSocketContract.query.safeParse(
-      Object.fromEntries(new URL(request.url).searchParams),
-    );
-    if (!query.success) {
-      return Response.json({ error: "invalid_request" }, { status: 400 });
-    }
-    await this.reconcileDeadlines();
-    const room = this.readRoom();
-    if (room === null) {
-      return Response.json(roomSocketContract.error.parse({ error: "not_found" }), { status: 404 });
-    }
-    if (query.data.instanceId !== undefined && room.instanceId !== query.data.instanceId) {
-      return Response.json({ error: "room_changed" }, { status: 410 });
-    }
-
-    if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
-      return Response.json(roomSocketContract.error.parse({ error: "upgrade_required" }), {
-        status: 426,
-      });
-    }
-
-    const pair = new WebSocketPair();
-    const [client, server] = Object.values(pair);
-    this.ctx.acceptWebSocket(server, [
-      ...(query.data.formationAnalysis === "1" ? [formationAnalysisTag] : []),
-      ...(query.data.eliminatedHands === "1" ? [eliminatedHandsTag] : []),
-      ...(query.data.stamps === "1" ? [stampTag] : []),
-    ]);
-    this.sendRoomSnapshot(server, room);
-    server.send(JSON.stringify(this.chatSnapshot()));
-
-    return new Response(null, { status: 101, webSocket: client });
+    return fetch(this.runtime, request);
   }
 
   async webSocketMessage(socket: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    if (typeof message !== "string" || message.length > 8192) {
-      this.sendSocketError(socket, "invalid_request");
-      return;
-    }
-
-    let body: unknown;
-    try {
-      body = JSON.parse(message);
-    } catch {
-      this.sendSocketError(socket, "invalid_request");
-      return;
-    }
-
-    const parsed = roomSocketContract.clientMessage.safeParse(body);
-    if (!parsed.success) {
-      // スタンプの拒否は、並行する準備や着手の応答と区別します。
-      const stampError =
-        typeof body === "object" &&
-        body !== null &&
-        "type" in body &&
-        body.type === "room.stamp.send" &&
-        "requestId" in body
-          ? roomSocketContract.message.safeParse({
-              type: "room.stamp.error",
-              requestId: body.requestId,
-              error: "invalid_request",
-            })
-          : null;
-      if (stampError?.success && this.ctx.getTags(socket).includes(stampTag))
-        socket.send(JSON.stringify(stampError.data));
-      else this.sendSocketError(socket, "invalid_request");
-      return;
-    }
-
-    try {
-      // hash計算中に復帰期限を越える場合も、照合直前に期限を処理します。
-      const authTokenHash =
-        parsed.data.type === "room.auth" ? await hashMembershipToken(parsed.data.token) : null;
-      await this.reconcileDeadlines();
-      if (this.readRoom() === null) {
-        this.sendSocketError(socket, "not_found");
-        return;
-      }
-      if (parsed.data.type === "room.auth") {
-        const tokenHash = authTokenHash!;
-        const existing: unknown = socket.deserializeAttachment();
-        if (
-          typeof existing === "object" &&
-          existing !== null &&
-          "tokenHash" in existing &&
-          existing.tokenHash !== tokenHash
-        ) {
-          this.sendSocketError(socket, "unauthorized");
-          return;
-        }
-        const result = this.currentRoomMembership(tokenHash);
-        if (result.status !== "found") {
-          socket.serializeAttachment(null);
-          this.sendSocketError(
-            socket,
-            result.status === "not_found" ? "not_found" : "unauthorized",
-          );
-          return;
-        }
-
-        socket.serializeAttachment({ tokenHash });
-        this.ctx.storage.kv.delete(disconnectedAtKey(result.membership.playerId));
-        const room = this.readRoom();
-        const player = room?.players.find((entry) => entry.id === result.membership.playerId);
-        if (player !== undefined && player.reconnectDeadline !== null) {
-          this.withIndexTransaction(() => {
-            const current = this.readRoom();
-            if (current === null) return null;
-            const next = roomSchema.parse({
-              ...current,
-              players: current.players.map((entry) =>
-                entry.id === player.id ? { ...entry, reconnectDeadline: null } : entry,
-              ),
-            });
-            this.ctx.storage.kv.put(roomStorageKey, next);
-            return next;
-          });
-        }
-        const connectedRoom = this.readRoom();
-        if (connectedRoom !== null) this.broadcastRoom(connectedRoom);
-        socket.send(JSON.stringify(this.authenticationMessage(socket, result.membership)));
-        await this.advanceTournamentStart();
-        await this.advanceMatchmakingStart();
-        return;
-      }
-
-      const attachment: unknown = socket.deserializeAttachment();
-      const tokenHash =
-        typeof attachment === "object" && attachment !== null && "tokenHash" in attachment
-          ? membershipTokenSchema.safeParse(attachment.tokenHash)
-          : null;
-      if (parsed.data.type === "room.stamp.send") {
-        if (!this.ctx.getTags(socket).includes(stampTag)) {
-          this.sendSocketError(socket, "invalid_request");
-          return;
-        }
-        const result = tokenHash?.success
-          ? this.sendStamp(tokenHash.data, parsed.data)
-          : { status: "unauthorized" as const };
-        if (result.status === "sent") {
-          this.broadcastStamp(result.notification);
-        } else {
-          socket.send(
-            JSON.stringify(
-              roomSocketContract.message.parse({
-                type: "room.stamp.error",
-                requestId: parsed.data.requestId,
-                error: result.status,
-                ...("interactionAvailableAtMs" in result
-                  ? { interactionAvailableAtMs: result.interactionAvailableAtMs }
-                  : {}),
-              }),
-            ),
-          );
-        }
-        return;
-      }
-
-      if (tokenHash === null || !tokenHash.success) {
-        this.sendSocketError(socket, "unauthorized");
-        return;
-      }
-
-      const tournamentRoom = this.readRoom();
-      if (
-        tournamentRoom &&
-        ((isTournamentGameRoom(tournamentRoom) && tournamentRoom.tournamentId !== undefined) ||
-          ("matchmaking" in tournamentRoom && tournamentRoom.matchmaking)) &&
-        ([
-          "room.ready.set",
-          "room.settings.apply",
-          "room.three-player-attack.set",
-          "room.time-control.set",
-          "room.mode.set",
-          "room.cpu.add",
-          "room.cpu.remove",
-          "room.cpu.level.set",
-          "room.game.start",
-        ].includes(parsed.data.type) ||
-          (parsed.data.type === "room.game.draw.set" &&
-            !this.gameAdapter(tournamentRoom).allowsCompetitiveDraw))
-      ) {
-        this.rejectAction(socket, "forbidden");
-        return;
-      }
-
-      if (parsed.data.type === "room.ready.set") {
-        const result = this.setReady(tokenHash.data, parsed.data.ready);
-        if (result.status === "updated") {
-          this.broadcastRoom(result.room);
-        } else if (result.status === "unchanged") {
-          const room = this.readRoom();
-          if (room !== null) {
-            this.sendRoomSnapshot(socket, room);
-          }
-        } else {
-          this.rejectAction(socket, result.status);
-        }
-        return;
-      }
-
-      if (parsed.data.type === "room.chat.send") {
-        const status = this.sendChat(tokenHash.data, parsed.data.text);
-        if (status === "sent") this.broadcastChat();
-        else
-          socket.send(
-            JSON.stringify(
-              roomSocketContract.message.parse({ type: "room.chat.error", error: status }),
-            ),
-          );
-        return;
-      }
-
-      if (parsed.data.type === "room.settings.apply") {
-        const result = this.applySettings(tokenHash.data, parsed.data);
-        if (result.status === "updated") this.broadcastRoom(result.room);
-        else if (result.status === "unchanged") {
-          const room = this.readRoom();
-          if (room) this.sendRoomSnapshot(socket, room);
-        } else this.rejectAction(socket, result.status);
-        return;
-      }
-      if (parsed.data.type === "room.gomoku-forbidden.set") {
-        const result = this.updateGameSettings(tokenHash.data, parsed.data);
-        if (result.status === "updated") this.broadcastRoom(result.room);
-        else if (result.status === "unchanged") {
-          const room = this.readRoom();
-          if (room) this.sendRoomSnapshot(socket, room);
-        } else this.rejectAction(socket, result.status);
-        return;
-      }
-      if (parsed.data.type === "room.three-player-attack.set") {
-        const result = this.updateGameSettings(tokenHash.data, parsed.data);
-        if (result.status === "updated") this.broadcastRoom(result.room);
-        else if (result.status === "unchanged") {
-          const room = this.readRoom();
-          if (room) this.sendRoomSnapshot(socket, room);
-        } else this.rejectAction(socket, result.status);
-        return;
-      }
-      if (parsed.data.type === "room.time-control.set") {
-        const result = this.setTimeControl(tokenHash.data, parsed.data.timeControl);
-        if (result.status === "updated") this.broadcastRoom(result.room);
-        else if (result.status === "unchanged") {
-          const room = this.readRoom();
-          if (room) this.sendRoomSnapshot(socket, room);
-        } else this.rejectAction(socket, result.status);
-        return;
-      }
-      if (parsed.data.type === "room.mode.set") {
-        const result = this.updateGameSettings(tokenHash.data, parsed.data);
-        if (result.status === "updated") this.broadcastRoom(result.room);
-        else if (result.status === "unchanged") {
-          const room = this.readRoom();
-          if (room !== null) this.sendRoomSnapshot(socket, room);
-        } else this.rejectAction(socket, result.status);
-        return;
-      }
-
-      if (
-        parsed.data.type === "room.cpu.add" ||
-        parsed.data.type === "room.cpu.remove" ||
-        parsed.data.type === "room.cpu.level.set"
-      ) {
-        const result = this.updateGameSettings(tokenHash.data, parsed.data);
-        if (result.status === "updated") this.broadcastRoom(result.room);
-        else if (result.status === "unchanged") {
-          const room = this.readRoom();
-          if (room !== null) this.sendRoomSnapshot(socket, room);
-        } else this.rejectAction(socket, result.status);
-        return;
-      }
-
-      if (parsed.data.type === "room.game.start") {
-        const result = await this.startGame(tokenHash.data);
-        if (result.status === "started") {
-          this.broadcastRoom(result.room);
-        } else this.rejectAction(socket, result.status);
-        return;
-      }
-
-      if (parsed.data.type === "room.game.draw.set" || parsed.data.type === "room.game.declare") {
-        const result =
-          parsed.data.type === "room.game.declare"
-            ? this.declareShogi(tokenHash.data, parsed.data)
-            : this.setShogiDrawProposal(tokenHash.data, parsed.data);
-        if (result.status === "updated") {
-          if (result.room === null) this.closeSockets();
-          else this.broadcastRoom(result.room);
-        } else if (result.status === "unchanged") {
-          if (result.room) this.sendRoomSnapshot(socket, result.room);
-        } else if (result.status === "time_expired") {
-          await this.reconcileDeadlines();
-          this.rejectAction(socket, result.status);
-        } else this.rejectAction(socket, result.status);
-        return;
-      }
-
-      if (parsed.data.type === "room.game.resign") {
-        const result = this.resign(tokenHash.data);
-        if (result.status === "resigned") {
-          if (result.room === null) this.closeSockets();
-          else this.broadcastRoom(result.room);
-        } else if (result.status === "time_expired") {
-          await this.reconcileDeadlines();
-          this.rejectAction(socket, result.status);
-        } else this.rejectAction(socket, result.status);
-        return;
-      }
-
-      const result = this.play(tokenHash.data, parsed.data);
-      if (result.status === "placed") {
-        if (result.room === null) this.closeSockets();
-        else this.broadcastRoom(result.room);
-      } else if (result.status === "time_expired") {
-        await this.reconcileDeadlines();
-        this.rejectAction(socket, result.status);
-      } else this.rejectAction(socket, result.status);
-    } catch {
-      if (parsed.data.type === "room.stamp.send" && this.ctx.getTags(socket).includes(stampTag)) {
-        socket.send(
-          JSON.stringify({
-            type: "room.stamp.error",
-            requestId: parsed.data.requestId,
-            error: "internal_error",
-          }),
-        );
-      } else this.sendSocketError(socket, "internal_error");
-    }
-  }
-
-  private async socketGone(socket: WebSocket): Promise<void> {
-    const attachment: unknown = socket.deserializeAttachment();
-    if (
-      typeof attachment !== "object" ||
-      attachment === null ||
-      !("tokenHash" in attachment) ||
-      typeof attachment.tokenHash !== "string"
-    )
-      return;
-    const tokenHash = attachment.tokenHash;
-    if (this.hasOpenConnection(tokenHash, socket)) return;
-    await this.reconcileDeadlines();
-    if (this.hasOpenConnection(tokenHash, socket)) return;
-    const membership = this.readMembership(tokenHash);
-    const room = this.readRoom();
-    if (membership === null || room === null) return;
-    const player = room.players.find((entry) => entry.id === membership.playerId);
-    if (
-      player !== undefined &&
-      this.ctx.storage.kv.get(disconnectedAtKey(player.id)) === undefined
-    ) {
-      this.ctx.storage.kv.put(disconnectedAtKey(player.id), Date.now());
-    }
-    if (
-      player === undefined ||
-      !this.isHumanParticipant(player) ||
-      player.reconnectDeadline !== null
-    ) {
-      this.broadcastRoom(room);
-      return;
-    }
-    const updated = this.withIndexTransaction(() => {
-      const current = this.readRoom();
-      if (current === null) return null;
-      this.ctx.storage.kv.put(disconnectedAtKey(player.id), Date.now());
-      const next = roomSchema.parse({
-        ...current,
-        players: current.players.map((entry) =>
-          entry.id === player.id
-            ? { ...entry, reconnectDeadline: Date.now() + reconnectGraceMs }
-            : entry,
-        ),
-      });
-      this.ctx.storage.kv.put(roomStorageKey, next);
-      return next;
-    });
-    if (updated !== null) this.broadcastRoom(updated);
+    return webSocketMessage(this.runtime, socket, message);
   }
 
   async webSocketClose(socket: WebSocket, code: number, reason: string): Promise<void> {
-    try {
-      socket.close(code, reason);
-    } catch {
-      // 切断済みの接続は、そのまま無視します。
-    }
-    await this.socketGone(socket);
+    return webSocketClose(this.runtime, socket, code, reason);
   }
 
   async webSocketError(socket: WebSocket): Promise<void> {
-    try {
-      socket.close(1011, "Connection error");
-    } catch {
-      // 切断済みの接続は、そのまま無視します。
-    }
-    await this.socketGone(socket);
+    return webSocketError(this.runtime, socket);
   }
 }
 

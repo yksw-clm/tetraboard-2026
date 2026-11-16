@@ -34,7 +34,7 @@ import {
   move as engineMove,
 } from "../../../packages/four-shogi/bench/positionFixture";
 import { ShogiStore } from "../src/rooms/shogiStore";
-import { GameRoom } from "../src/rooms/gameRoom";
+import { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 import { formationAction, formationState } from "../../../test-fixtures/shogiFormations";
 import { tacticalCases } from "../../../packages/four-shogi/bench/tactics";
 import {
