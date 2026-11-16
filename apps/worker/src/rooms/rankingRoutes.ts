@@ -31,11 +31,11 @@ export async function readRatingRankings(db: D1Database, game: RatedMatchmakingG
   // SQLiteのroundは負の半整数でMath.roundと異なるため、公開表示と同じ丸めを使います。
   const rows = await db
     .prepare(`WITH latest AS (
-    SELECT account_id, MAX(rated_games) AS games FROM ${store.changesTable} GROUP BY account_id
+    SELECT account_id, MAX(rated_games) AS games FROM ${store.changesTable} WHERE game='${game}' GROUP BY account_id
   ), public_values AS (
     SELECT u.id AS accountId, u.publicProfileId AS profileId, u.username, u.name,
       u.avatarKey, u.avatarPresetId, CAST(floor((${rawRating}) + 0.5) AS INTEGER) AS value
-    FROM latest l JOIN ${store.changesTable} r ON r.account_id=l.account_id AND r.rated_games=l.games
+    FROM latest l JOIN ${store.changesTable} r ON r.game='${game}' AND r.account_id=l.account_id AND r.rated_games=l.games
     JOIN user u ON u.id=r.account_id
     WHERE l.games>=?1 AND u.profileCompleted=1 AND COALESCE(u.isAnonymous,0)=0
       AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)

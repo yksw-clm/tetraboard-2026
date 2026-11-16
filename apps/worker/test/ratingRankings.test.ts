@@ -60,13 +60,13 @@ async function seed(
     .run();
   if (four) {
     await env.APP_DB.prepare(
-      `INSERT INTO ${table}(match_id,account_id,mu_before,sigma_before,mu_after,sigma_after,rated_games,human_games) VALUES (?,?,25,8,?,7,?,?)`,
+      `INSERT INTO ${table}(game,match_id,account_id,mu_before,sigma_before,mu_after,sigma_after,rated_games,human_games) VALUES ('${game}',?,?,25,8,?,7,?,?)`,
     )
       .bind(id, accountId, 25 + (value - 1500) / 50, games, humanGames)
       .run();
   } else {
     await env.APP_DB.prepare(
-      `INSERT INTO ${table}(match_id,account_id,rating_before,rating_after,rated_games,human_games) VALUES (?,?,1500,?,?,?)`,
+      `INSERT INTO ${table}(game,match_id,account_id,rating_before,rating_after,rated_games,human_games) VALUES ('${game}',?,?,1500,?,?,?)`,
     )
       .bind(id, accountId, value, games, humanGames)
       .run();
@@ -174,14 +174,26 @@ test("レート0・負値も表示でき、負の半整数も公開表示と同�
   }
 });
 
+test("同じアカウントのゲームごとの最新局数とレートを混ぜない", async () => {
+  const player = await playerFixture();
+  for (const [index, game] of ratedMatchmakingGameIds.entries())
+    await seed(game, player.id, 1600 + index * 100, 5 + index, 1);
+  for (const [index, game] of ratedMatchmakingGameIds.entries()) {
+    expect((await rankings(game)).entries.map((row) => row.value)).toEqual([1600 + index * 100]);
+    expect(
+      await ratedMatchmakingPolicy(game).store.latest(env.APP_DB, player.id).first("rated_games"),
+    ).toBe(5 + index);
+  }
+});
+
 test("D1取得失敗は空一覧にせず503を返し、非対応ゲームにAPIを追加しない", async () => {
-  await env.APP_DB.exec("ALTER TABLE shogi_rating_changes RENAME TO shogi_rating_unavailable");
+  await env.APP_DB.exec("ALTER TABLE elo_rating_changes RENAME TO elo_rating_unavailable");
   try {
     const response = await boundaryRequest(ratingRankingContracts.shogi.path);
     expect(response.status).toBe(503);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
   } finally {
-    await env.APP_DB.exec("ALTER TABLE shogi_rating_unavailable RENAME TO shogi_rating_changes");
+    await env.APP_DB.exec("ALTER TABLE elo_rating_unavailable RENAME TO elo_rating_changes");
   }
   expect((await boundaryRequest("/games/gomoku/rankings/rating")).status).toBe(404);
 });

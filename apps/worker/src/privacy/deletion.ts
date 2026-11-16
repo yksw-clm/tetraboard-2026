@@ -1,7 +1,6 @@
 import { matchmakingQueueKeys } from "@tetraboard/protocol";
 import { unsealToken } from "./tokens";
-import type { AuthEnv } from "../accounts/auth";
-import { avatarKeyPattern } from "../accounts/auth";
+import { avatarKeyPattern, type AuthEnv } from "../accounts/auth";
 export const flowCookie = "tetraboard-2026.deletion-flow";
 export const challengeCookie = "tetraboard-2026.deletion-challenge";
 export const cookieValue = (request: Request, name: string) =>
@@ -58,18 +57,20 @@ export async function requestDeletion(env: AuthEnv, id: string, receipt: string)
     env.APP_DB.prepare(
       `INSERT OR IGNORE INTO deletion_rooms SELECT account_id,room_id FROM privacy_room_accounts WHERE account_id=? AND EXISTS(SELECT 1 FROM deleted_accounts WHERE id=? AND receipt_hash=?)`,
     ).bind(id, id, tokenHash),
-    env.APP_DB.prepare(
-      "DELETE FROM deletion_flows WHERE account_id=? AND EXISTS(SELECT 1 FROM deleted_accounts WHERE id=? AND receipt_hash=?)",
-    ).bind(id, id, tokenHash),
-    env.APP_DB.prepare(
-      "DELETE FROM deletion_challenges WHERE account_id=? AND EXISTS(SELECT 1 FROM deleted_accounts WHERE id=? AND receipt_hash=?)",
-    ).bind(id, id, tokenHash),
-    env.APP_DB.prepare(
-      "DELETE FROM tournament_wait_reservations WHERE account_id=? AND EXISTS(SELECT 1 FROM deleted_accounts WHERE id=? AND receipt_hash=?)",
-    ).bind(id, id, tokenHash),
-    env.APP_DB.prepare(
-      "DELETE FROM matchmaking_wait_reservations WHERE account_id=? AND EXISTS(SELECT 1 FROM deleted_accounts WHERE id=? AND receipt_hash=?)",
-    ).bind(id, id, tokenHash),
+    ...[
+      "deletion_flows",
+      "deletion_challenges",
+      "tournament_wait_reservations",
+      "matchmaking_wait_reservations",
+      "elo_rating_changes",
+      "skill_rating_changes",
+      "elo_rating_pending",
+      "skill_rating_pending",
+    ].map((table) =>
+      env.APP_DB.prepare(
+        `DELETE FROM ${table} WHERE account_id=? AND EXISTS(SELECT 1 FROM deleted_accounts WHERE id=? AND receipt_hash=?)`,
+      ).bind(id, id, tokenHash),
+    ),
     env.APP_DB.prepare(
       "UPDATE tournament_entries SET deleted=1 WHERE account_id=? AND EXISTS(SELECT 1 FROM deleted_accounts WHERE id=? AND receipt_hash=?)",
     ).bind(id, id, tokenHash),
@@ -264,7 +265,6 @@ async function feedbackAccountHash(env: AuthEnv, id: string) {
     .map((n) => n.toString(16).padStart(2, "0"))
     .join("");
 }
-
 export async function completeReauthentication(request: Request, response: Response, env: AuthEnv) {
   if (
     response.status >= 400 ||

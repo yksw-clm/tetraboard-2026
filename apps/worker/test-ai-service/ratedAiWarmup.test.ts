@@ -2,6 +2,7 @@ import { env, exports } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { matchmakingQueues, matchmakingStateSchema } from "@tetraboard/protocol";
 import { expect, test, vi } from "vitest";
+import { ratedMatchmakingPolicy } from "../src/matchmaking/ratedMatchmaking";
 import { accountFixture, origin } from "../test/accountFixtures";
 import { AcceptedGameRequest } from "../test/acceptedGameRequest";
 
@@ -162,7 +163,7 @@ test.each([
       });
       expect(
         await env.APP_DB.prepare(
-          `SELECT 1 FROM ${game.replaceAll("-", "_")}_rating_pending WHERE account_id=?`,
+          `SELECT 1 FROM ${ratedMatchmakingPolicy(game).store.pendingTable} WHERE game='${game}' AND account_id=?`,
         )
           .bind(account.id)
           .first(),

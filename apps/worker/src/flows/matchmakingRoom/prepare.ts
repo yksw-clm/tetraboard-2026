@@ -95,7 +95,7 @@ async function checkMatchmakingAdmissions(
             ${
               policy
                 ? `AND COALESCE(u.isAnonymous,0)=0 AND EXISTS (
-              SELECT 1 FROM ${policy.store.pendingTable} p WHERE p.account_id=s.account_id AND p.match_id=?
+              SELECT 1 FROM ${policy.store.pendingTable} p WHERE p.game='${policy.store.game}' AND p.account_id=s.account_id AND p.match_id=?
             )`
                 : ""
             }`,

@@ -53,7 +53,7 @@ async function changes(matchId: string) {
   return (
     await env.APP_DB.prepare(`
     SELECT account_id, mu_before, mu_after, sigma_before, sigma_after, rated_games, human_games
-    FROM four_reversi_rating_changes WHERE match_id=? ORDER BY account_id
+    FROM skill_rating_changes WHERE game='four-reversi' AND match_id=? ORDER BY account_id
   `)
       .bind(matchId)
       .all<{
