@@ -1,3 +1,4 @@
+import { shogiCpu } from "./shogiCpu";
 import { shogiRoomSchema } from "@tetraboard/protocol";
 import { gameProgress } from "../gameProgress";
 import type { ShogiProgress } from "../standardShogiProgress";
@@ -66,7 +67,7 @@ export function createShogiAdapter(dependencies: AdapterDependencies) {
     }),
     ...replayOperations(progress),
     ...leaveOperations(progress),
-    progress,
+    cpu: shogiCpu(progress, dependencies),
     start: (room, context) => progress.start(room, rating(context)),
     play: (room, hash, command) => {
       if (command.action.type !== "movePiece" && command.action.type !== "dropPiece")

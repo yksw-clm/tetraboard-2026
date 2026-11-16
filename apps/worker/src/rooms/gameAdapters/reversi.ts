@@ -1,3 +1,4 @@
+import { reversiCpu } from "./reversiCpu";
 import { gameProgress } from "../gameProgress";
 import { adapterDefaults, invalidMatchmakingRoom } from "./base";
 import {
@@ -19,7 +20,7 @@ export function createReversiAdapter(dependencies: AdapterDependencies) {
       waitingSeat: { color: null },
       supportsMode: false,
     }),
-    progress,
+    cpu: reversiCpu(progress, dependencies),
     start: (room, context) => progress.start(room, rating(context)),
     play: (room, hash, command) => {
       if (command.action.type !== "placeStone") return rejected("invalid_move");

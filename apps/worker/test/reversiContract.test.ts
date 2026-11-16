@@ -56,7 +56,7 @@ test("局ID・版の古い着手を手番・時計より先に拒否し、受理
   const unchanged = reversiRoomSchema.parse((await fixtures.snapshot(entry.room.id)).room);
   expect(unchanged).toEqual(room);
   await runInDurableObject(stub, (instance) => {
-    const progress = Reflect.get(instance, "standardProgress");
+    const progress = Reflect.get(instance, "gameAdapter").call(instance, room);
     const expired = { ...room, clock: { ...room.clock, turnExpiresAt: Date.now() - 1 } };
     expect(
       progress.play(expired, "invalid-token", {
