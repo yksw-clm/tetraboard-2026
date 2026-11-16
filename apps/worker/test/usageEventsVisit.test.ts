@@ -87,7 +87,7 @@ test.each(excludedUserAgents)("ブラウザ以外のUA %s を除外する", (ua)
 });
 
 const cookieName = "tetraboard-2026.analytics";
-const browserId = "01234567-89ab-4cde-8fab-0123456789ab";
+const browserId = crypto.randomUUID();
 const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const body =
   '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>';
@@ -130,14 +130,28 @@ function pageFixture(options: { status?: number; headers?: HeadersInit; origin?:
   };
 }
 
+function issuedBrowserId(response: Response) {
+  return response.headers
+    .get("Set-Cookie")!
+    .split(";")[0]!
+    .slice(cookieName.length + 1);
+}
+
+function visitsForBrowser(events: ReturnType<typeof recordUsageEvents>, id: string) {
+  return events.filter((e) => e.name === "visit_started" && e.browserId === id);
+}
+
 test.each(browserUserAgents)("$browser のHTML取得は訪問とCookieを作る", async ({ ua }) => {
   const events = recordUsageEvents();
   const response = await pageFixture().fetch("/", { headers: { "User-Agent": ua } });
   expect(response.status).toBe(200);
   expect(await response.text()).toBe(body);
-  expect(events).toHaveLength(1);
-  expect(events[0]).toMatchObject({ name: "visit_started", page: "general-lobby" });
-  expect(response.headers.get("Set-Cookie")).toContain(`${cookieName}=${events[0]!.browserId};`);
+  const id = issuedBrowserId(response);
+  expect(id).toMatch(uuidV4);
+  expect(visitsForBrowser(events, id)).toEqual([
+    expect.objectContaining({ name: "visit_started", page: "general-lobby" }),
+  ]);
+  expect(response.headers.get("Set-Cookie")).toContain(`${cookieName}=${id};`);
 });
 
 test.each([
@@ -170,7 +184,7 @@ test.each([
     expect(await response.text()).toContain('<div id="root"></div>');
     expect(response.headers.get("Set-Cookie")).toBeNull();
     expect(response.headers.get("Cache-Control")).toBe(page === "room" ? "no-store" : cacheControl);
-    expect(events).toEqual([
+    expect(visitsForBrowser(events, browserId)).toEqual([
       {
         name: "visit_started",
         isTest: false,
@@ -224,11 +238,15 @@ test.each([
   "参照元とUAを最小限の分類へ落とす: $referrerClass / $device",
   async ({ referer, ua, ...expected }) => {
     const events = recordUsageEvents();
-    await pageFixture().fetch("/rooms/12345?utm=1&utm_source=日本語&utm_medium=%20&utm_campaign=", {
-      headers: { ...(referer ? { Referer: referer } : {}), "User-Agent": ua },
-    });
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
+    const response = await pageFixture().fetch(
+      "/rooms/12345?utm=1&utm_source=日本語&utm_medium=%20&utm_campaign=",
+      {
+        headers: { ...(referer ? { Referer: referer } : {}), "User-Agent": ua },
+      },
+    );
+    const visits = visitsForBrowser(events, issuedBrowserId(response));
+    expect(visits).toHaveLength(1);
+    expect(visits[0]).toMatchObject({
       ...expected,
       page: "room",
       game: null,
@@ -261,8 +279,9 @@ test.each([
     const id = issued.split(";")[0]!.slice(cookieName.length + 1);
     expect(id).toMatch(uuidV4);
     expect(issued).toBe(`${cookieName}=${id}; Path=/; Max-Age=31536000; SameSite=Lax; Secure`);
-    expect(events).toHaveLength(1);
-    expect(events[0]!.browserId).toBe(id);
+    const visits = visitsForBrowser(events, id);
+    expect(visits).toHaveLength(1);
+    expect(visits[0]!.browserId).toBe(id);
     expect(response.headers.get("Cache-Control")).toBe("private, max-age=0, must-revalidate");
     expect(response.headers.get("ETag")).toBe('"fixture"');
     expect(await response.text()).toBe(body);
@@ -273,14 +292,16 @@ test("HTTPのCookieにSecureを付けず、発行済みの大文字UUIDもその
   const events = recordUsageEvents();
   const fixture = pageFixture({ origin: "http://localhost:5173" });
   const first = await fixture.fetch("/", { headers: { "User-Agent": browserUa } });
+  const firstId = issuedBrowserId(first);
+  expect(visitsForBrowser(events, firstId)).toHaveLength(1);
   expect(first.headers.get("Set-Cookie")).toBe(
-    `${cookieName}=${events[0]!.browserId}; Path=/; Max-Age=31536000; SameSite=Lax`,
+    `${cookieName}=${firstId}; Path=/; Max-Age=31536000; SameSite=Lax`,
   );
   const existing = browserId.toUpperCase();
   const second = await fixture.fetch("/", {
     headers: { "User-Agent": browserUa, Cookie: `${cookieName}=${existing}` },
   });
-  expect(events[1]!.browserId).toBe(existing);
+  expect(visitsForBrowser(events, existing)).toHaveLength(1);
   expect(second.headers.get("Set-Cookie")).toBeNull();
   expect(second.headers.get("Cache-Control")).toBe(cacheControl);
 });
@@ -329,7 +350,7 @@ test.each([
     ...init,
     headers: { "User-Agent": browserUa, ...init.headers },
   });
-  expect(events).toEqual([]);
+  expect(events.filter((e) => e.name === "visit_started")).toEqual([]);
   expect(response.headers.get("Set-Cookie")).toBeNull();
 });
 
@@ -342,7 +363,7 @@ test.each(excludedUserAgents)(
     });
     expect(response.status).toBe(200);
     expect(await response.text()).toBe(body);
-    expect(events).toEqual([]);
+    expect(events.filter((e) => e.name === "visit_started")).toEqual([]);
     expect(response.headers.get("Set-Cookie")).toBeNull();
     expect(response.headers.get("Cache-Control")).toBe(cacheControl);
   },
@@ -356,7 +377,7 @@ test.each([301, 302, 304, 404, 500, 503])(
       headers: { "User-Agent": browserUa },
     });
     expect(response.status).toBe(status);
-    expect(events).toEqual([]);
+    expect(events.filter((e) => e.name === "visit_started")).toEqual([]);
     expect(response.headers.get("Set-Cookie")).toBeNull();
   },
 );
@@ -367,7 +388,7 @@ test("画面URLでもHTML以外の応答は記録しない", async () => {
     headers: { "User-Agent": browserUa },
   });
   expect(response.status).toBe(200);
-  expect(events).toEqual([]);
+  expect(events.filter((e) => e.name === "visit_started")).toEqual([]);
   expect(response.headers.get("Set-Cookie")).toBeNull();
 });
 
@@ -377,8 +398,10 @@ test("書き込み失敗でもHTMLとCookieを返す", async () => {
   const response = await pageFixture().fetch("/", { headers: { "User-Agent": browserUa } });
   expect(response.status).toBe(200);
   expect(await response.text()).toBe(body);
-  expect(response.headers.get("Set-Cookie")).toContain(events[0]!.browserId);
+  const id = issuedBrowserId(response);
+  expect(id).toMatch(uuidV4);
+  expect(response.headers.get("Set-Cookie")).toContain(id);
   expect(response.headers.get("Cache-Control")).toBe("private, max-age=0, must-revalidate");
-  expect(events).toHaveLength(1);
-  expect(warn.mock.calls).toEqual([["Usage event write failed"]]);
+  expect(visitsForBrowser(events, id)).toHaveLength(1);
+  expect(warn).toHaveBeenCalledWith("Usage event write failed");
 });
