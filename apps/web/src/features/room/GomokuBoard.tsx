@@ -3,6 +3,8 @@ import { boardPositionForDisplay } from "./boardRotation";
 import { useId } from "react";
 import type { GomokuState, Position } from "@tetraboard/gomoku";
 import type { QuarterTurn } from "./boardRotation";
+import { useBoardMotion } from "./useBoardMotion";
+import type { BoardMotionContext } from "./boardMotion";
 
 const boardExtent = 15.75;
 const gridStart = 1.1;
@@ -13,7 +15,9 @@ export function GomokuBoard({
   canPlay,
   onPlaceStone,
   label = "五目並べの盤面",
+  motion,
 }: {
+  motion?: BoardMotionContext | null;
   game: GomokuState | FourGomokuState;
   rotation?: QuarterTurn;
   canPlay: boolean;
@@ -21,6 +25,12 @@ export function GomokuBoard({
   label?: string;
   legalMoves?: Position[];
 }) {
+  const boardRef = useBoardMotion({
+    context: motion,
+    orientation: rotation,
+    cells: game.board,
+    destination: game.lastMove,
+  });
   const id = useId();
   const display = (x: number, y: number) =>
     boardPositionForDisplay({ x, y }, 15, ((4 - rotation) % 4) as QuarterTurn);
@@ -32,6 +42,7 @@ export function GomokuBoard({
   );
   return (
     <div
+      ref={boardRef}
       role="group"
       aria-label={label}
       className="relative aspect-square w-full overflow-hidden rounded-md bg-[#e7c48c] shadow-md [grid-area:board]"
@@ -99,7 +110,11 @@ export function GomokuBoard({
             const cy = display(x, y).y + gridStart;
             const ink = color === "white" ? "#171717" : "#ffffff";
             return (
-              <g key={`${x},${y}`}>
+              <g
+                key={`${x},${y}`}
+                data-board-piece={`${x},${y}`}
+                className="origin-center [transform-box:fill-box]"
+              >
                 <circle
                   cx={cx}
                   cy={cy}

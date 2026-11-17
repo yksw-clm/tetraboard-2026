@@ -6,7 +6,13 @@ import { roomSounds } from "../src/shared/soundEffects";
 import { act, clock, render, flush, wrap } from "./harness";
 
 afterEach(() => {
-  act(() => browserSettings.update({ soundEnabled: true, stampsVisible: true }));
+  act(() =>
+    browserSettings.update({
+      soundEnabled: true,
+      stampsVisible: true,
+      boardAnimationsEnabled: true,
+    }),
+  );
 });
 function switches() {
   return [...document.querySelectorAll<HTMLInputElement>('[role="switch"]')];
@@ -19,12 +25,13 @@ test("共通ヘッダーのゲスト向け入口から保存し、閉じても�
   const view = render(wrap()(<AppHeader homeTo="/games/shogi" homeLabel="ロビー" theme="shogi" />));
   open(view);
   await flush();
-  expect(switches()).toHaveLength(2);
+  expect(switches()).toHaveLength(3);
   expect(switches().every((button) => button.checked)).toBe(true);
   act(() => switches()[0]!.click());
   expect(JSON.parse(localStorage.getItem(browserSettingsKey)!)).toEqual({
     soundEnabled: false,
     stampsVisible: true,
+    boardAnimationsEnabled: true,
   });
   expect(document.querySelector('[role="dialog"]')!.closest(".game-theme-shogi")).not.toBeNull();
   act(() => document.querySelector<HTMLButtonElement>('[aria-label="閉じる"]')!.click());
@@ -48,7 +55,7 @@ test("共通設定とパネル用設定を共有し、別タブのOFFで再生�
     );
     open(view);
     await flush();
-    const raw = '{"soundEnabled":false,"stampsVisible":false}';
+    const raw = '{"soundEnabled":false,"stampsVisible":false,"boardAnimationsEnabled":false}';
     localStorage.setItem(browserSettingsKey, raw);
     act(() =>
       window.dispatchEvent(
@@ -56,9 +63,9 @@ test("共通設定とパネル用設定を共有し、別タブのOFFで再生�
       ),
     );
     expect(stop).toHaveBeenCalled();
-    expect(switches()).toHaveLength(3);
+    expect(switches()).toHaveLength(4);
     expect(switches().every((button) => !button.checked)).toBe(true);
-    const next = '{"soundEnabled":true,"stampsVisible":false}';
+    const next = '{"soundEnabled":true,"stampsVisible":false,"boardAnimationsEnabled":false}';
     localStorage.setItem(browserSettingsKey, next);
     act(() =>
       window.dispatchEvent(
@@ -110,7 +117,34 @@ test("保存不能でも切替・閉鎖・復帰で値を保持し、次の保�
   expect(JSON.parse(localStorage.getItem(browserSettingsKey)!)).toEqual({
     soundEnabled: false,
     stampsVisible: false,
+    boardAnimationsEnabled: true,
   });
+});
+
+test("着手アニメーションを設定からOFFにして保存し、開き直しても維持する", async () => {
+  const view = render(<BrowserSettingsButton />);
+  open(view);
+  await flush();
+  const animation = switches().find(
+    (input) => input.getAttribute("aria-label") === "着手アニメーション",
+  )!;
+  expect(animation.checked).toBe(true);
+  act(() => animation.click());
+  expect(animation.checked).toBe(false);
+  expect(browserSettings.getSnapshot().boardAnimationsEnabled).toBe(false);
+  expect(JSON.parse(localStorage.getItem(browserSettingsKey)!)).toEqual({
+    soundEnabled: true,
+    stampsVisible: true,
+    boardAnimationsEnabled: false,
+  });
+  act(() => document.querySelector<HTMLButtonElement>('[aria-label="閉じる"]')!.click());
+  clock.advance(500);
+  await flush();
+  open(view);
+  await flush();
+  expect(
+    switches().find((input) => input.getAttribute("aria-label") === "着手アニメーション")!.checked,
+  ).toBe(false);
 });
 
 test("保存済みOFFの復帰同期と保存キー削除を反映し、別キーの通知は無視する", () => {

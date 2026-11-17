@@ -1,4 +1,5 @@
 import { roomMatchKind } from "@tetraboard/protocol";
+import { roomBoardMotion } from "./boardMotion";
 import { useBoardRotation } from "./useBoardRotation";
 import { rotatedSeatIndex } from "./boardRotation";
 import { FourReversiBoard } from "./FourReversiBoard";
@@ -44,6 +45,7 @@ export function RoomView({
         />
       ))}
       <FourReversiBoard
+        motion={roomBoardMotion(session, replay)}
         rotation={viewerRotation}
         game={replay.frame?.game ?? session.displayGame}
         legalMoves={session.legalMoves}

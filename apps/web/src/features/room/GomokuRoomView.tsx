@@ -1,4 +1,5 @@
 import { roomMatchKind } from "@tetraboard/protocol";
+import { roomBoardMotion } from "./boardMotion";
 import { AppToastRegion } from "../../shared/ui/AppToastRegion";
 import { useState } from "react";
 import type { QuarterTurn } from "./boardRotation";
@@ -43,6 +44,7 @@ export function GomokuRoomView({
         />
       ))}
       <GomokuBoard
+        motion={roomBoardMotion(session, replay)}
         label="五目並べの盤面"
         game={replay.frame?.game ?? session.displayGame}
         rotation={displayRotation}
