@@ -8,10 +8,19 @@ const colors = {
   blue: "stone-blue",
 } satisfies Record<Color, string>;
 
-export function Stone({ color, className }: { color: Color; className?: string }) {
+export function Stone({
+  color,
+  className,
+  square,
+}: {
+  color: Color;
+  className?: string;
+  square?: string;
+}) {
   return (
     <span
       aria-hidden="true"
+      data-board-piece={square}
       className={cn(
         "stone block rounded-full border border-solid border-[#0003]",
         colors[color],

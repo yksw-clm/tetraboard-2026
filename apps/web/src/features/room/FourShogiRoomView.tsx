@@ -1,4 +1,5 @@
 import { roomMatchKind } from "@tetraboard/protocol";
+import { roomBoardMotion } from "./boardMotion";
 import { useBoardRotation } from "./useBoardRotation";
 import { rotatedShogiViewer } from "./boardRotation";
 import { sides, type Side } from "@tetraboard/four-shogi";
@@ -70,6 +71,7 @@ export function FourShogiRoomView({
   const board = (
     <>
       <FourShogiBoardLayout
+        motion={roomBoardMotion(session, replay)}
         formationNotice={formation.notice?.name}
         onFormationNoticeDismiss={formation.dismiss}
         game={replay.frame?.game ?? session.displayGame}

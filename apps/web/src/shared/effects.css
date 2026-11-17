@@ -26,19 +26,23 @@
   background: radial-gradient(ellipse at 48% 24%, #fffdf2, #fff1cf);
 }
 .stone-black {
-  background: radial-gradient(circle at 35% 25%, #53635c, #18241f 66%, #0d1812);
+  background: var(--stone-black);
 }
 .stone-white {
-  background: radial-gradient(circle at 35% 25%, #fff, #f4f7f5 60%, #d6ded9);
+  background: var(--stone-white);
 }
 .stone-red {
-  background: radial-gradient(circle at 35% 25%, #ff9197, #ed5661 65%, #c73748);
+  background: var(--stone-red);
 }
 .stone-blue {
-  background: radial-gradient(circle at 35% 25%, #93c2ff, #438fe2 65%, #2b68b7);
+  background: var(--stone-blue);
 }
 
 .stone {
+  --stone-black: radial-gradient(circle at 35% 25%, #53635c, #18241f 66%, #0d1812);
+  --stone-white: radial-gradient(circle at 35% 25%, #fff, #f4f7f5 60%, #d6ded9);
+  --stone-red: radial-gradient(circle at 35% 25%, #ff9197, #ed5661 65%, #c73748);
+  --stone-blue: radial-gradient(circle at 35% 25%, #93c2ff, #438fe2 65%, #2b68b7);
   box-shadow:
     inset 0 -3px 5px #0003,
     0 2px 3px #0003;
