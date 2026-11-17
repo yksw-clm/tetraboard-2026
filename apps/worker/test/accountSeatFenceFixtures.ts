@@ -1,5 +1,4 @@
 import { env } from "cloudflare:workers";
-import { applyD1Migrations } from "cloudflare:test";
 import { afterEach } from "vitest";
 import { accountFixture, origin } from "./accountFixtures";
 import { reserveAccountSeat } from "../src/accounts/roomAccounts";
@@ -14,19 +13,6 @@ export const fenceTriggers = [
   "matchmaking_tournament_fence",
   "tournament_wait_fence",
 ];
-const bindings = env as typeof env & {
-  ACCOUNT_SEAT_FENCE_TEST_DB: D1Database;
-  TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1];
-};
-export const fenceDatabases = [
-  ["トリガーあり", env.APP_DB, true],
-  ["トリガーなし", bindings.ACCOUNT_SEAT_FENCE_TEST_DB, false],
-] as const;
-export async function initializeFenceDatabase() {
-  const db = bindings.ACCOUNT_SEAT_FENCE_TEST_DB;
-  await applyD1Migrations(db, bindings.TEST_MIGRATIONS);
-  for (const name of fenceTriggers) await db.exec(`DROP TRIGGER IF EXISTS ${name}`);
-}
 const fixtures: { db: D1Database; key: string; ids: string[] }[] = [];
 afterEach(async () => {
   for (const { db, key, ids } of fixtures.splice(0)) {

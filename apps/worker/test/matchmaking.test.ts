@@ -30,6 +30,7 @@ import {
 } from "../src/adapters/matchmaking/reversiCpuProfiles";
 import { selectFourReversi } from "../src/adapters/matchmaking/fourReversiSelection";
 import { matchmakingCredential } from "../src/adapters/matchmaking/credential";
+import { D1TournamentQueueStore } from "../src/adapters/tournament/queue";
 import { requestDeletion } from "../src/privacy/deletion";
 import { requireGuestIdle } from "../src/accounts/guestLinking";
 import { accountIdentity } from "../src/accounts/auth";
@@ -1362,13 +1363,17 @@ test("大会待機との相互排他をD1で守り、取消後だけ待機先を
     .bind(key, now - 1, now + 60000, now, now)
     .run();
   const reserve = () =>
-    env.APP_DB.prepare(
-      "INSERT INTO tournament_wait_reservations(account_id,tournament_key,operation_id,lease_until_ms) VALUES(?,?,?,?)",
-    )
-      .bind(u!.account.id, key, crypto.randomUUID(), now + 30000)
-      .run();
+    new D1TournamentQueueStore(env.APP_DB).enqueue(
+      {
+        accountId: u!.account.id,
+        operationId: crypto.randomUUID(),
+        tokenHash: crypto.randomUUID(),
+        expiresAtMs: now + 30000,
+      },
+      key,
+    );
   try {
-    await expect(reserve()).rejects.toThrow();
+    await expect(reserve()).rejects.toThrow("matchmaking_waiting");
     await stub().control(
       u!.account.id,
       { operationId: u!.operationId, controllerId: u!.controllerId, version: 1 },
