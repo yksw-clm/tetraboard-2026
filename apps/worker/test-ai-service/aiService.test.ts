@@ -1,14 +1,8 @@
 import { env } from "cloudflare:workers";
 import { evictDurableObject, runInDurableObject } from "cloudflare:test";
-import { afterEach, expect, test, vi } from "vitest";
-import { fourReversiRoomSchema, roundReplaySchema } from "@tetraboard/protocol";
-import {
-  applyAction,
-  createInitialState,
-  getLegalMoves,
-  type GameMode,
-} from "@tetraboard/four-reversi";
-import { RoomBoundaryFixtures } from "../test/roomBoundaryFixtures";
+import { expect, test, vi } from "vitest";
+import { fourReversiRoomSchema } from "@tetraboard/protocol";
+import { getLegalMoves } from "@tetraboard/four-reversi";
 import {
   FourReversiProgress,
   fourReversiAiJobKey,
@@ -17,68 +11,9 @@ import {
 } from "../src/rooms/fourReversiProgress";
 import { aiServiceTimeout, requestAiMove } from "../src/rooms/aiService";
 import { profileIdSchema, profileMetadata } from "../src/rooms/aiServiceProfiles";
+import { FourReversiAiFixture } from "./fourReversiAiFixture";
 
-let fixtures = new RoomBoundaryFixtures();
-let now = 0;
-afterEach(async () => {
-  const previous = fixtures;
-  fixtures = new RoomBoundaryFixtures();
-  vi.restoreAllMocks();
-  await previous.dispose();
-});
-
-async function setup(level = 1, mode: GameMode = "singles") {
-  now = Date.now() + 60000;
-  vi.spyOn(Date, "now").mockImplementation(() => now);
-  const entry = await fixtures.create({
-    game: "four-reversi",
-    name: "ホスト",
-    quickPlay: true,
-    cpuLevel: level,
-    mode,
-  });
-  const host = await fixtures.connect(entry);
-  host.send({ type: "room.game.start" });
-  await host.waitFor("room.snapshot", (m) => m.room.status === "playing");
-  const stub = env.GAME_ROOM.getByName(entry.room.id);
-  const read = () =>
-    runInDurableObject(stub, (_, ctx) => fourReversiRoomSchema.parse(ctx.storage.kv.get("room")));
-  return { host, stub, read };
-}
-
-async function cpuSetup(mode: GameMode = "singles", level = 1, consecutive = false) {
-  const input = await setup(level, mode);
-  await runInDurableObject(input.stub, (_, ctx) => {
-    const room = fourReversiRoomSchema.parse(ctx.storage.kv.get("room"));
-    if (room.status !== "playing") throw Error("Expected playing");
-    const human = room.players.find((p) => p.kind === "human")!;
-    const colors = ["black", "white", "red", "blue"] as const;
-    const nextColor = colors[(colors.indexOf(human.color!) + 1) % colors.length];
-    const cpu = room.players.find(
-      (p) => p.kind === "cpu" && (!consecutive || p.color === nextColor),
-    )!;
-    ctx.storage.kv.put("room", { ...room, game: { ...room.game, turn: cpu.color } });
-  });
-  const room = await input.read();
-  if (room.status !== "playing") throw Error("Expected playing");
-  now = room.clock.turnStartedAt + 2000;
-  return { ...input, before: room };
-}
-
-function reply(body: Record<string, unknown>, position = { x: 2, y: 3 }) {
-  return {
-    api_version: 1,
-    game_id: "four-reversi",
-    ruleset_version: "four-reversi-singles-v1",
-    state_version: 1,
-    request_id: body.request_id,
-    position_revision: body.position_revision,
-    agent_id: body.agent_id,
-    engine_version: "0.1.0",
-    position,
-    diagnostics: { nodes: 0, completed_depth: 0, interrupted: false },
-  };
-}
+const { cpuSetup, reply, alarmWithProfile, clock } = new FourReversiAiFixture();
 
 test("WorkerのHTTP境界から実Serviceのhealthへ到達する", async () => {
   const response = await fetch(new URL("/health", env.AI_SERVICE_URL));
@@ -86,150 +21,6 @@ test("WorkerのHTTP境界から実Serviceのhealthへ到達する", async () => 
   const withRedirect = await fetch(new URL("/health", env.AI_SERVICE_URL), { redirect: "manual" });
   expect(withRedirect.status).toBe(200);
 });
-
-async function alarmWithProfile(
-  stub: ReturnType<typeof env.GAME_ROOM.getByName>,
-  selected?: { profile_id: string; limits?: { max_iterations: number; max_nodes: number } },
-) {
-  await runInDurableObject(stub, async (instance) => {
-    const original = Reflect.get(instance, "env");
-    if (selected)
-      Reflect.set(instance, "env", {
-        ...original,
-        AI_SERVICE_LEVEL2_PROFILE: selected.profile_id,
-        AI_SERVICE_LEVEL2_LIMITS: selected.limits ? JSON.stringify(selected.limits) : "",
-      });
-    try {
-      await instance.alarm();
-    } finally {
-      if (selected) Reflect.set(instance, "env", original);
-    }
-  });
-}
-
-async function completeGame(
-  level: number,
-  selected?: { profile_id: string; limits?: { max_iterations: number; max_nodes: number } },
-) {
-  const { host, stub, read } = await setup(level);
-  let cpuMoves = 0;
-  for (let step = 0; step < 57; step++) {
-    const room = await read();
-    if (room.status !== "playing") {
-      const replay = roundReplaySchema.parse(room.lastRound?.replay);
-      let game = createInitialState("singles");
-      for (const entry of replay.steps) {
-        if (entry.action.type !== "place") throw Error("Unexpected elimination");
-        const next = applyAction(game, { type: "placeStone", position: entry.action.position });
-        if (!next.ok) throw Error("Invalid saved move");
-        expect(next.state).toEqual(entry.game);
-        game = next.state;
-      }
-      expect(game.status).toBe("finished");
-      expect(cpuMoves).toBeGreaterThan(0);
-      return;
-    }
-    const player = room.players.find((p) => p.color === room.game.turn)!;
-    if (player.kind === "human") {
-      now = Math.max(now, room.clock.turnStartedAt) + 1;
-      host.send({
-        type: "room.game.action",
-        action: { type: "placeStone", position: getLegalMoves(room.game)[0] },
-      });
-      await host.waitFor(
-        "room.snapshot",
-        (m) => m.room.status === "waiting" || (m.room.game?.moveNumber ?? 0) > room.game.moveNumber,
-      );
-    } else {
-      now = room.clock.turnStartedAt + 2000;
-      await alarmWithProfile(stub, selected);
-      const job = await runInDurableObject(stub, (_, ctx) =>
-        ctx.storage.kv.get<FourReversiCpuJob>(fourReversiCpuJobKey),
-      );
-      expect(job?.source).toBe("external");
-      if (selected) expect(job?.serviceProfile).toEqual(expect.objectContaining(selected));
-      expect((await read()).game?.moveNumber).toBe(room.game.moveNumber);
-      if (cpuMoves === 2) await evictDurableObject(stub, { webSockets: "hibernate" });
-      now++;
-      await runInDurableObject(stub, (instance) => instance.alarm());
-      cpuMoves++;
-    }
-  }
-  throw Error("56着手以内に終局しませんでした");
-}
-test("四人リバーシの4局・12席を共有し、連続CPU手番を局ごとに1件ずつ処理する", async () => {
-  const rooms = await Promise.all(Array.from({ length: 4 }, () => cpuSetup("singles", 2, true)));
-  const fifth = await fixtures.create({
-    game: "four-reversi",
-    name: "次のホスト",
-    quickPlay: true,
-    cpuLevel: 1,
-    mode: "singles",
-  });
-  const host = await fixtures.connect(fifth);
-  host.send({ type: "room.game.start" });
-  expect((await host.waitFor("room.error")).error).toBe("cpu_capacity_full");
-  expect((await fixtures.snapshot(fifth.room.id)).room.status).toBe("waiting");
-
-  const fetchSpy = vi.spyOn(globalThis, "fetch");
-  // 初手を人間の次の色に固定しているため、各局でCPUが連続します。
-  for (let turn = 0; turn < 2; turn++) {
-    const positions = await Promise.all(rooms.map(({ read }) => read()));
-    now =
-      Math.max(
-        ...positions.map((room) => (room.status === "playing" ? room.clock.turnStartedAt : 0)),
-      ) + 2000;
-    await Promise.all(rooms.map(({ stub }) => alarmWithProfile(stub, { profile_id: "lv3-v1" })));
-    const jobs = await Promise.all(
-      rooms.map(({ stub }) =>
-        runInDurableObject(stub, (_, ctx) =>
-          ctx.storage.kv.get<FourReversiCpuJob>(fourReversiCpuJobKey),
-        ),
-      ),
-    );
-    for (const [i, job] of jobs.entries()) {
-      expect(job?.source).toBe("external");
-      expect(getLegalMoves(positions[i]!.game!)).toContainEqual(job?.move);
-    }
-    expect(fetchSpy).toHaveBeenCalledTimes(4 * (turn + 1));
-    now = Math.max(...jobs.map((job) => job!.applyAt));
-    await Promise.all(rooms.map(({ stub }) => alarmWithProfile(stub)));
-    const after = await Promise.all(rooms.map(({ read }) => read()));
-    for (const [i, room] of after.entries())
-      expect(room.game?.moveNumber).toBe(positions[i]!.game!.moveNumber + 1);
-  }
-
-  const released = rooms[0]!;
-  const roomId = released.before.id;
-  const member = await runInDurableObject(released.stub, (_, ctx) => {
-    const player = released.before.players.find((p) => p.kind === "human")!;
-    return ctx.storage.kv.get<string>(`player-token:${player.id}`)!;
-  });
-  expect(await released.stub.leaveRoom(member)).toBe("left");
-  fixtures.forgetClosedRoom(roomId);
-  await runInDurableObject(released.stub, (instance) => instance.alarm());
-  host.send({ type: "room.game.start" });
-  await host.waitFor("room.snapshot", (m) => m.room.status === "playing");
-}, 12000);
-
-for (const level of [1, 2])
-  test(
-    `実Rust Serviceと人間1人・CPU3人のLv${level}対局を終局まで進める`,
-    () => completeGame(level),
-    20000,
-  );
-for (const profile of ["lv1-v1", "lv2-v1", "lv3-v1", "lv4-v1", "lv5-v1"])
-  test(
-    `API v2の${profile}をGameRoomから指定し、復元を挟んで完走する`,
-    () =>
-      completeGame(2, {
-        profile_id: profile,
-        ...(profile === "lv4-v1" || profile === "lv5-v1"
-          ? { limits: { max_iterations: 4, max_nodes: 256 } }
-          : {}),
-      }),
-    20000,
-  );
 
 for (const kind of [
   "http_503",
@@ -263,7 +54,7 @@ for (const kind of [
     expect(job?.source).toBe("fallback");
     expect(job?.move).toEqual(getLegalMoves(before.game)[0]);
     expect(mock).toHaveBeenCalledTimes(kind === "http_503" ? 2 : 1);
-    now++;
+    clock.now++;
     await runInDurableObject(stub, (instance) => instance.alarm());
     const after = await read();
     expect(after.game?.moveNumber).toBe(before.game.moveNumber + 1);
@@ -296,10 +87,10 @@ test("保存済みの未完了リクエストは再起動後に期限切れで�
       membership: () => null,
       accountId: () => null,
     });
-    expect(progress.prepareExternalCpu(before, now, 100)).not.toBeNull();
+    expect(progress.prepareExternalCpu(before, clock.now, 100)).not.toBeNull();
   });
   await evictDurableObject(stub, { webSockets: "hibernate" });
-  now += 351;
+  clock.now += 351;
   const mock = vi.spyOn(globalThis, "fetch");
   await runInDurableObject(stub, (instance) => instance.alarm());
   expect(mock).not.toHaveBeenCalled();
@@ -340,7 +131,7 @@ test("timeout未設定なら1秒を超える起動待ちの候補を受け取る
       accountId: () => null,
     });
     const bindings = { ...env, AI_SERVICE_TIMEOUT_MS: undefined };
-    const work = progress.prepareExternalCpu(before, now, aiServiceTimeout(bindings))!;
+    const work = progress.prepareExternalCpu(before, clock.now, aiServiceTimeout(bindings))!;
     const position = getLegalMoves(before.game)[0]!;
     vi.spyOn(globalThis, "fetch").mockImplementation(
       (_, init) =>
@@ -368,7 +159,7 @@ test("応答待ちのtimeoutは上限内で中止し、認証や局面をログ�
       membership: () => null,
       accountId: () => null,
     });
-    const work = progress.prepareExternalCpu(before, now, 100)!;
+    const work = progress.prepareExternalCpu(before, clock.now, 100)!;
     vi.spyOn(globalThis, "fetch").mockImplementation(
       (_, init) =>
         new Promise((_, reject) => {
@@ -384,7 +175,7 @@ test("応答待ちのtimeoutは上限内で中止し、認証や局面をログ�
 
 test("四人リバーシ専用の10秒設定で5秒を超えた候補を採用する", async () => {
   const { stub, before } = await cpuSetup();
-  const requestAt = now;
+  const requestAt = clock.now;
   const position = getLegalMoves(before.game)[0]!;
   await runInDurableObject(stub, async (instance, ctx) => {
     const original = Reflect.get(instance, "env");
@@ -401,7 +192,7 @@ test("四人リバーシ専用の10秒設定で5秒を超えた候補を採用�
       expect(ctx.storage.kv.get(fourReversiAiJobKey)).toMatchObject({
         expiresAt: requestAt + 10_250,
       });
-      now = requestAt + 7500;
+      clock.now = requestAt + 7500;
       return Response.json(reply(JSON.parse(String(init?.body)), position));
     });
     try {
@@ -421,7 +212,7 @@ test("四人リバーシ専用の10秒設定で5秒を超えた候補を採用�
 test("応答中に時計が切れた場合は候補より脱落処理を優先する", async () => {
   const { stub, before, read } = await cpuSetup();
   vi.spyOn(globalThis, "fetch").mockImplementation(async (_, init) => {
-    now = before.clock.turnExpiresAt;
+    clock.now = before.clock.turnExpiresAt;
     return Response.json(reply(JSON.parse(String(init?.body)), getLegalMoves(before.game)[0]));
   });
   await runInDurableObject(stub, (instance) => instance.alarm());
