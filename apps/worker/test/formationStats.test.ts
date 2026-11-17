@@ -11,7 +11,7 @@ import { matchRequest } from "./matchFixtures";
 import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { emptyFormationUsage, type ShogiFormationUsage } from "../src/rooms/shogiFormationUsage";
-import { fourReversiRatingMethod } from "../../../packages/ai/fourReversiRating";
+import { fourReversiRatingMethod } from "@tetraboard/context-rating";
 
 beforeEach(async () => {
   await env.APP_DB.batch([

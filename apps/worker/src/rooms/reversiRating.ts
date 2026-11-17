@@ -6,5 +6,4 @@ export const {
   readResult: readReversiRatingResult,
   readPublic: readPublicReversiRating,
   readSummary: readReversiRatingSummary,
-  statement: reversiRatingStatement,
 } = createEloRating("reversi", reversiRatingResultSchema);

@@ -1,3 +1,6 @@
+import { applyFourShogiRating } from "./skillRating";
+import { prepareEloRating } from "@tetraboard/context-rating";
+import { D1RatingPublication } from "../../adapters/rating/publication";
 import {
   advanceShogiMatchSave as advanceRecordSave,
   type MatchSaveProgress,
@@ -20,8 +23,7 @@ import { redactParticipants } from "../../privacy/identity";
 import { applyMatchClaims } from "../../accounts/matchClaims";
 import { badgeAwardStatements } from "../../accounts/badgeAwards";
 import { tournamentMatchStatements } from "../../tournaments/store";
-import { shogiRatingStatement, shogiRatingStore } from "../../rooms/shogiRating";
-import { applyFourShogiRating, fourShogiRatingStore } from "../../rooms/fourReversiRating";
+import { fourShogiRatingStore } from "../../rooms/fourReversiRating";
 import {
   readShogiMatchRecord,
   type ShogiMatchRecord,
@@ -115,7 +117,7 @@ async function publishShogiMatch(
     ...(formationUsage ? [formationUsageStatement(db, record.id, formationUsage)] : []),
     ...badgeAwardStatements(db, record.settings.game, record.id),
     ...("rating" in record && record.rating
-      ? shogiRatingStore.finalize(db, record.id, shogiRatingStatement(db, record.id))
+      ? prepareEloRating(new D1RatingPublication(db), "shogi", record.id)
       : []),
     ...(tournament && record.settings.game === "four-shogi"
       ? tournamentMatchStatements(db, tournament, record as ShogiMatchRecord)

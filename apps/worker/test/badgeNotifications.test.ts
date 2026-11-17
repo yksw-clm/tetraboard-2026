@@ -10,7 +10,7 @@ import { createInitialState, eliminateColor } from "@tetraboard/four-reversi";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { badgeNotificationResponseSchema } from "@tetraboard/protocol";
 import { badgeAwardStatements, badgeAwardsSql } from "../src/accounts/badgeAwards";
-import { fourReversiRatingMethod } from "../../../packages/ai/fourReversiRating";
+import { fourReversiRatingMethod } from "@tetraboard/context-rating";
 
 const db = env.APP_DB;
 function winningRecord(accountId: string, index: number) {

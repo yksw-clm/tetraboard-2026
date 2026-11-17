@@ -1,7 +1,8 @@
+import { placementGames } from "./policy";
 import { predictWin, rate, type Rating } from "openskill";
 
 export const fourReversiRatingMethod = "openskill-5.0.1-plackett-luce";
-export const fourReversiPlacementGames = 5;
+export const fourReversiPlacementGames = placementGames;
 export const initialFourReversiRating = { mu: 25, sigma: 25 / 3 } as const;
 export const fourReversiRatingBeta = 25 / 6;
 

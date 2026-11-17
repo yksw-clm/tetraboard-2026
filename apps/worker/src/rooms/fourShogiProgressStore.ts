@@ -1,5 +1,5 @@
 import { savedProfileRatings } from "../accounts/profileRatings";
-import { fourReversiRatingMethod } from "../../../../packages/ai/fourReversiRating";
+import { fourReversiRatingMethod } from "@tetraboard/context-rating";
 import type { FourShogiRatingSource } from "../matchmaking/fourShogiSelection";
 import {
   fourShogiRoomSchema,
