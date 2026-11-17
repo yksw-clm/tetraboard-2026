@@ -12,12 +12,16 @@ export const pendingRatedGames = ratedMatchmakingGameIds.map((game) => ({
   table: ratedMatchmakingPolicy(game).store.pendingTable,
 }));
 
-export const noPendingRatedMatch = pendingRatedGames
-  .map(
-    ({ game, table }) =>
-      `NOT EXISTS (SELECT 1 FROM ${table} WHERE game='${game}' AND account_id=?5)`,
-  )
-  .join(" AND ");
+export function noPendingRatedMatch(accountId: string) {
+  const clauses = pendingRatedGames.map(({ game, table }) => ({
+    sql: `NOT EXISTS (SELECT 1 FROM ${table} WHERE game='${game}' AND account_id=?)`,
+    value: accountId,
+  }));
+  return {
+    sql: clauses.map(({ sql }) => sql).join(" AND "),
+    values: clauses.map(({ value }) => value),
+  };
+}
 
 export function readPreviousRatedMatch(env: Env, accountId: string, game: RatedMatchmakingGame) {
   return previousMatch(

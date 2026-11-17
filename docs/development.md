@@ -569,6 +569,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
   - ゲームの違いは `apps/worker/src/rooms/gameAdapters/` のアダプター（ゲームのポートの実装）に閉じ込め、殻と use-case ではゲームの種類で分岐しません。
 - ゲームごとの進行は `*Progress.ts` にあり、ゲーム契約（`gameDefinitions.ts`）と room の文脈の `checkGameCommand` を使います。外部 AI のジョブは `externalCpu.ts` です。
 - 時計は `clockCore.ts`（席 ID を型パラメータとする純粋な計算）と、ゲームごとの wrapper（`clock.ts`、`shogiClock.ts`、`reversiClock.ts`）です。期限の選択は `roomDeadlines.ts` の純粋関数です。
+- 1 アカウント 1 席（通常ルームの席、レート戦の待機、大会の待機を合わせて 1 つ）は、`flows/accountSeats/fences.ts` の条件で守ります（TB-118）。3 つの表（`account_room_seats`、`matchmaking_wait_reservations`、`tournament_wait_reservations`）への挿入は、すべてこの条件をつけた `INSERT ... SELECT ... WHERE` です。挿入されなかったときは、同じファイルの関数で理由を読み直します。挿入する場所が決めたファイルの外に増えていないことは、`test-bun/accountSeatFenceBoundaries.test.ts` が確かめます。同じ働きの古いトリガー 5 つは、TB-120 で消すまで残ります（条件で行が作られないので発火しません）。
 - CPU の最低待ち時間は `progressHelpers.ts` の `cpuMoveDelayMs` を全ゲームで共用します。
 - CPU 付きのルームの作成（`POST /rooms`）は、任意の `cpuLevel: 1 | 2` を受け取ります。未指定は Lv1、不正な値は 400 です。`waitingRoomFactories` が全ての CPU に当てます。
 

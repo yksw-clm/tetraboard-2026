@@ -1,5 +1,6 @@
 import { accountAvatarPresetId } from "@tetraboard/protocol";
 import { legalVersion } from "@tetraboard/protocol/privacy";
+import { seatFence, readSeatFence } from "../flows/accountSeats/fences";
 import { consentStatement } from "../privacy/consent";
 import { profileInputSchema, type RoomError } from "@tetraboard/protocol";
 import { accountIdentity, avatarKeyPattern, type StoredProfile } from "./auth";
@@ -118,6 +119,7 @@ export async function reserveAccountSeat(
     };
     // Both the identity snapshot and image retention are registered atomically.
     // If profile editing won the race, its obsolete image cannot gain a new reference.
+    const fence = seatFence("user.id", admission.operationId);
     const result = await env.APP_DB.batch([
       env.APP_DB.prepare(
         "DELETE FROM matchmaking_wait_reservations WHERE account_id=? AND lease_until_ms<=? AND match_operation_id IS NULL",
@@ -128,7 +130,7 @@ export async function reserveAccountSeat(
       env.APP_DB.prepare(`INSERT OR IGNORE INTO account_room_seats
         (account_id, operation_id, room_id, instance_id, player_id, name, avatar_key, avatar_preset_id, created_at_ms)
         SELECT id, ?, ?, ?, ?, name, ?, ?, ? FROM user
-        WHERE id = ? AND profileCompleted = 1 AND name = ? AND avatarKey IS ? AND avatarPresetId IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id)`).bind(
+        WHERE id = ? AND profileCompleted = 1 AND name = ? AND avatarKey IS ? AND avatarPresetId IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id) AND ${fence.sql}`).bind(
         admission.operationId,
         room.id,
         room.instanceId,
@@ -140,6 +142,7 @@ export async function reserveAccountSeat(
         user.name,
         user.avatarKey,
         user.avatarPresetId ?? null,
+        ...fence.values,
       ),
       env.APP_DB.prepare(`INSERT OR IGNORE INTO room_avatar_refs
         (operation_id, room_id, instance_id, player_id, avatar_key)
@@ -154,17 +157,15 @@ export async function reserveAccountSeat(
         "INSERT OR IGNORE INTO privacy_room_players SELECT account_id,room_id,instance_id,player_id,avatar_key FROM account_room_seats WHERE operation_id=?",
       ).bind(admission.operationId),
     ]).catch(async (error: unknown) => {
-      const waiting = await env.APP_DB.prepare(
-        "SELECT 1 FROM tournament_wait_reservations WHERE account_id=? UNION ALL SELECT 1 FROM matchmaking_wait_reservations WHERE account_id=?",
-      )
-        .bind(user.id, user.id)
-        .first();
+      const waiting = await readSeatFence(env.APP_DB, user.id, admission.operationId);
       if (waiting) throw new RoomAccountError("account_busy", 409);
       throw error;
     });
     if (result[2].meta.changes === 1) {
       return admission;
     }
+    if (await readSeatFence(env.APP_DB, user.id, admission.operationId))
+      throw new RoomAccountError("account_busy", 409);
     const existing = await existingReservation(env.APP_DB, user.id);
     if (existing) {
       // A committed seat is checked even during the grace period so departure
