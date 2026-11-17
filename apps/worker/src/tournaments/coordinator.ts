@@ -1,11 +1,19 @@
+import { enroll } from "@tetraboard/context-tournament";
+import { D1TournamentReader } from "../adapters/tournament/reader";
+import { D1TournamentEntries } from "../adapters/tournament/entries";
 import { reserveMatchSequence } from "../rooms/matchSequences";
-import { settingsForTournament } from "./store";
+import { settingsForTournament } from "../adapters/tournament/store";
 import { accountAvatarPresetId } from "@tetraboard/protocol";
 import { DurableObject } from "cloudflare:workers";
 import { tournamentRules, type TournamentParticipation } from "@tetraboard/protocol";
 import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
 import { avatarKeyPattern } from "../accounts/auth";
-import { finalizeTournament, readTournament, stage, type TournamentRow } from "./store";
+import {
+  finalizeTournament,
+  readTournament,
+  stage,
+  type TournamentRow,
+} from "../adapters/tournament/store";
 import { tournamentCredential } from "./credentials";
 
 type Waiting = {
@@ -68,18 +76,8 @@ export class TournamentCoordinator extends DurableObject<Env> {
   private save(state: State) {
     this.ctx.storage.kv.put("state", state);
   }
-  private async valid(accountId: string, key: string) {
-    return this.env.APP_DB.prepare(`SELECT u.id,u.name,u.avatarKey,u.avatarPresetId,u.isAnonymous,e.id AS entryId FROM user u
-      JOIN tournament_entries e ON e.account_id=u.id AND e.tournament_key=? AND e.deleted=0
-      WHERE u.id=? AND u.profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)`)
-      .bind(key, accountId)
-      .first<{
-        id: string;
-        name: string;
-        avatarKey: string | null;
-        avatarPresetId: string | null;
-        entryId: string;
-      }>();
+  private valid(accountId: string, key: string) {
+    return new D1TournamentEntries(this.env.APP_DB).eligible(accountId, key);
   }
   private async waitingProfiles(key: string) {
     const rows =
@@ -493,18 +491,15 @@ export class TournamentCoordinator extends DurableObject<Env> {
     });
   }
   async enroll(key: string, accountId: string): Promise<Result> {
-    return this.serial(async () => {
-      const row = await readTournament(this.env.APP_DB, key);
-      if (!row || !["upcoming", "active"].includes(stage(row)))
-        return fail("エントリー受付は終了しました。");
-      await this.env.APP_DB.prepare(`INSERT OR IGNORE INTO tournament_entries(id,tournament_key,account_id,entered_at_ms)
-        SELECT ?,?,id,? FROM user WHERE id=? AND profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=user.id)`)
-        .bind(crypto.randomUUID(), key, Date.now(), accountId)
-        .run();
-      return (await this.valid(accountId, key))
-        ? ok
-        : fail("プロフィール登録を完了してください。", 403);
-    });
+    return this.serial(() =>
+      enroll(
+        new D1TournamentReader(this.env.APP_DB),
+        new D1TournamentEntries(this.env.APP_DB),
+        key,
+        accountId,
+        { id: () => crypto.randomUUID(), now: Date.now },
+      ),
+    );
   }
   private async participation(
     state: State,

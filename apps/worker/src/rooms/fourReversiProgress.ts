@@ -19,7 +19,7 @@ import type {
   FinishedProgress,
   RematchFor,
 } from "./gameProgress";
-import type { TournamentRoomContext } from "./tournamentRoom";
+import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 import type { FourReversiRatingSource } from "@tetraboard/context-matchmaking";
 import type { ServiceProfile } from "./aiServiceProfiles";
 import {

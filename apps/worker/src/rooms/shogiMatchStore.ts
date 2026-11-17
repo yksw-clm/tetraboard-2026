@@ -16,7 +16,7 @@ import type {
 import type { Side } from "@tetraboard/four-shogi";
 import type { FourShogiRatedMatch } from "./fourReversiRating";
 import type { ShogiRatingSource } from "./shogiRating";
-import type { TournamentRoomContext } from "./tournamentRoom";
+import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 import type { ShogiFormationUsage } from "./shogiFormationUsage";
 
 export type ShogiMatchParticipant = {

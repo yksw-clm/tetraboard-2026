@@ -6,7 +6,8 @@ import { expect, test, vi } from "vitest";
 import * as accounts from "../src/accounts/roomAccounts";
 import { publicMetadata } from "../src/adapters/room/metadata";
 import * as indexes from "../src/rooms/roomIndex";
-import * as tournaments from "../src/rooms/tournamentRoom";
+import { pendingTournamentStatePrefix } from "@tetraboard/context-tournament";
+import * as tournaments from "../src/adapters/tournament/state";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 
 function holdWrite(kind: "index" | "cleanup" | "tournament") {
@@ -195,7 +196,7 @@ test.each(["index", "cleanup", "tournament"] as const)(
               { reservation: rows.reservation, releaseAvatar: true, retryAtMs: Date.now() },
             ]);
           } else {
-            pendingKey = tournaments.pendingTournamentStatePrefix + rows.matchId;
+            pendingKey = pendingTournamentStatePrefix + rows.matchId;
             ctx.storage.kv.put(pendingKey, {
               phase: "playing",
               retryAtMs: Date.now(),

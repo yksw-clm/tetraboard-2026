@@ -12,7 +12,7 @@ import {
   tournamentReturnKey,
   tournamentRoomKey,
   type TournamentReturn,
-} from "../../rooms/tournamentRoom";
+} from "@tetraboard/context-tournament";
 import { playerTokenHash } from "./state";
 
 export function closeReservations(runtime: RoomRuntime, room: Room | null): void {

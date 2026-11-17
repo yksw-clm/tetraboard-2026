@@ -4,7 +4,7 @@ import { afterEach, beforeAll, expect, test } from "vitest";
 import { gameIds } from "@tetraboard/protocol/games";
 import { tournamentListSchema, tournamentDetailSchema } from "@tetraboard/protocol";
 import worker from "../src/worker";
-import { publicTournamentList } from "../src/tournaments/store";
+import { publicTournamentList } from "../src/adapters/tournament/store";
 import { requestDeletion } from "../src/privacy/deletion";
 import { mergeGuestAccounts } from "../src/accounts/guestLinking";
 import { accountFixture, origin } from "./accountFixtures";

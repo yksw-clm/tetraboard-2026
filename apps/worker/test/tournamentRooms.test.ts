@@ -1,6 +1,7 @@
+import { writeTournamentState } from "../src/adapters/tournament/state";
 import { expectVersionedRoom } from "./roomStateVersionAssertions";
 import { roomSchema, type TournamentSettings } from "@tetraboard/protocol";
-import { isTournamentGameRoom } from "../src/rooms/tournamentRoom";
+import { isTournamentGameRoom } from "@tetraboard/context-tournament";
 import { pendingMatchPrefix, type PendingMatch } from "../src/rooms/matchStore";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm, applyD1Migrations } from "cloudflare:test";
@@ -16,8 +17,7 @@ import {
 } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
-import type { PrepareTournamentRoomInput } from "../src/rooms/tournamentRoom";
-import { writeTournamentState } from "../src/rooms/tournamentRoom";
+import type { PrepareTournamentRoomInput } from "@tetraboard/context-tournament";
 import {
   pendingShogiMatchPrefix,
   type PendingShogiMatch,

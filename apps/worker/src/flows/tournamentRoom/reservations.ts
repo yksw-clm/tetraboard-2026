@@ -11,7 +11,7 @@ import {
   tournamentRoomKey,
   type PendingTournamentState,
   type TournamentRoomReservation,
-} from "../../rooms/tournamentRoom";
+} from "@tetraboard/context-tournament";
 
 export function tournamentReservation(
   runtime: RoomRuntime,
