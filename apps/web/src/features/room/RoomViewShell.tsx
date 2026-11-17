@@ -41,6 +41,7 @@ import { FeedbackForm } from "../feedback/FeedbackForm";
 import { usePostGameFeedback } from "../feedback/usePostGameFeedback";
 import { PostGameFeedbackDialog } from "../feedback/PostGameFeedbackDialog";
 import { RoomShareDialog } from "./RoomShareDialog";
+import { ResultShareButton } from "./ResultShareButton";
 import { RoomStartCountdown } from "./RoomStartCountdown";
 import { RatedMatchStartCountdown } from "./RatedMatchStartCountdown";
 import {
@@ -549,6 +550,13 @@ export function RoomViewShell({
             >
               {typeof result === "function" ? result(rating.result) : result}
               {showRating && <RatingResultStatus {...rating} />}
+              {participated && resultMatchId && membership && (
+                <ResultShareButton
+                  key={resultMatchId}
+                  matchId={resultMatchId}
+                  selfId={membership.playerId}
+                />
+              )}
               {managedPath !== null && membership && !guestLinkResult && !linkedGuestResult && (
                 <AppButton
                   className="mt-4 w-full"
