@@ -55,6 +55,7 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
             TOURNAMENT_PRIVACY_TEST_DB: "tournament-privacy-tests",
             ANALYTICS_ACQUISITION_TEST_DB: "analytics-acquisition-tests",
             SCHEDULED_MAINTENANCE_TEST_DB: "scheduled-maintenance-tests",
+            PRIVACY_CONCURRENCY_TEST_DB: "privacy-concurrency-tests",
           },
           bindings: {
             APP_ORIGIN: "http://localhost:5173",
