@@ -1,3 +1,5 @@
+import { fixTestTime } from "./fixedTimeFixture";
+import { seedFourReversiEnd } from "./roomPositionFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env, exports } from "cloudflare:workers";
 import {
@@ -883,6 +885,8 @@ test("終局したルームを保存・配信し、以後の着手を拒否す�
   connections[0].send({ type: "room.game.start" });
   let room = await connections[0].nextSnapshotWhere((snapshot) => snapshot.status === "playing");
 
+  room = await seedFourReversiEnd(env.GAME_ROOM.getByName(id), room);
+
   for (let move = 0; move < 64 && room.status === "playing"; move++) {
     const turn = room.game.turn;
     const playerIndex = room.players.findIndex((player) => player.color === turn);
@@ -1730,6 +1734,7 @@ test("古い索引更新は部屋番号再利用後の新しい更新を上書�
 });
 
 test("D1障害中も部屋を作成し、Alarmで索引反映を再試行する", async () => {
+  fixTestTime();
   await env.APP_DB.exec("ALTER TABLE room_index RENAME TO room_index_unavailable");
   let created!: Awaited<ReturnType<typeof createRoom>>;
   try {
@@ -1771,15 +1776,30 @@ test("チャットは認証・文字数・間隔を検証し、直近100件を�
   expect((await host.nextType("room.chat.error")).error).toBe("invalid_request");
   host.send({ type: "room.chat.send", text: "あ".repeat(101) });
   expect((await host.nextType("room.chat.error")).error).toBe("invalid_request");
-  for (let index = 1; index <= 100; index++) {
-    await runInDurableObject(env.GAME_ROOM.getByName(created.room.id), (_instance, state) => {
-      state.storage.kv.put(`last-chat-at:${created.membership.playerId}`, Date.now() - 3_001);
-    });
-    host.send({ type: "room.chat.send", text: `投稿${index}` });
-    await spectator.nextChatWhere((messages) => messages.at(-1)?.text === `投稿${index}`);
-  }
+  await runInDurableObject(env.GAME_ROOM.getByName(created.room.id), (_instance, state) => {
+    const history = state.storage.kv.get<import("@tetraboard/protocol").ChatEntry[]>("chat")!;
+    const sentAtMs = Date.now() - 300_001;
+    history[history.length - 1].sentAtMs = sentAtMs - 3_001;
+    const posts = Array.from({ length: 99 }, (_, index) => ({
+      id: crypto.randomUUID(),
+      senderId: created.membership.playerId,
+      senderName: created.room.players[0].name,
+      text: `投稿${index + 1}`,
+      sentAtMs: sentAtMs + index * 3_001,
+    }));
+    state.storage.kv.put("chat", [...history, ...posts].slice(-100));
+    state.storage.kv.put(`last-chat-at:${created.membership.playerId}`, Date.now() - 3_001);
+  });
+  host.send({ type: "room.chat.send", text: "投稿100" });
+  const broadcast = await spectator.nextChatWhere(
+    (messages) => messages.at(-1)?.text === "投稿100",
+  );
   const reloaded = await openRoom(created.room.id);
   const history = await reloaded.nextChatWhere((messages) => messages.length === 100);
+  expect(history).toEqual(broadcast);
+  expect(history.map((message) => message.text)).toEqual(
+    Array.from({ length: 100 }, (_, index) => `投稿${index + 1}`),
+  );
   expect(history[0].text).toBe("投稿1");
   expect(history.at(-1)?.text).toBe("投稿100");
   expect((await getRoom(created.room.id)).status).toBe("waiting");

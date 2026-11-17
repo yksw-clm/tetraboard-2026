@@ -1,3 +1,4 @@
+import { seedStoredMatches } from "./storedMatchFixtures";
 import { encodeSnapshotMatch } from "../src/rooms/snapshotMatchEvents";
 import { writeOutcomeFixture } from "./matchFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
@@ -59,13 +60,16 @@ beforeAll(async () => {
   );
 });
 afterEach(async () => {
-  for (const id of ids.splice(0))
-    await db.batch([
+  const statements = ids
+    .splice(0)
+    .flatMap((id) => [
       db.prepare("DELETE FROM account_match_history WHERE match_id = ?").bind(id),
       db.prepare("DELETE FROM matches WHERE id = ?").bind(id),
       db.prepare("DELETE FROM match_event_chunks WHERE match_id = ?").bind(id),
       db.prepare("DELETE FROM match_uploads WHERE id = ?").bind(id),
     ]);
+  for (let start = 0; start < statements.length; start += 80)
+    await db.batch(statements.slice(start, start + 80));
 });
 test("extended stats rejects unsupported opt-in values", async () => {
   expect(
@@ -387,6 +391,7 @@ test("room generation, host handoff and legacy room indexes preserve identity an
 
 test("badge opt-in derives independent games from historical human singles including ties, excluding CPU and doubles", async () => {
   const user = await accountFixture(true, crypto.randomUUID(), db);
+  const historical: Parameters<typeof seedStoredMatches>[1][number][] = [];
   let reversiTarget: PlayerProfileTarget | undefined;
   let shogiTarget: PlayerProfileTarget | undefined;
   for (let index = 1; index <= 5; index++) {
@@ -397,12 +402,12 @@ test("badge opt-in derives independent games from historical human singles inclu
       rank: entry.color === "black" ? 1 : entry.rank,
     }));
     ids.push(record.id);
-    await writeOutcomeFixture(db, record);
+    historical.push({ record });
     reversiTarget = { source: "match", matchId: record.id, playerId: record.participants[0]!.id };
   }
   for (const record of [fixtureRecord(user.id, 6), humanFixtureRecord(user.id, 7, "doubles")]) {
     ids.push(record.id);
-    await writeMatch(db, record);
+    historical.push({ record });
   }
   for (const [knockouts, kind] of [
     [3, "win"],
@@ -429,7 +434,7 @@ test("badge opt-in derives independent games from historical human singles inclu
         })),
       };
     ids.push(fixture.record.id);
-    await saveShogiFixture(fixture, db);
+    historical.push(fixture);
     shogiTarget = {
       source: "match",
       matchId: fixture.record.id,
@@ -439,8 +444,9 @@ test("badge opt-in derives independent games from historical human singles inclu
   for (const fixture of [shogiRecord(user.id), humanShogiRecord(user.id, "south", "doubles")]) {
     if (fixture.record.settings.mode === "singles") fixture.record.knockouts.south = 3;
     ids.push(fixture.record.id);
-    await saveShogiFixture(fixture, db);
+    historical.push(fixture);
   }
+  await seedStoredMatches(db, historical);
   for (const [game, target, expected] of [
     [
       "four-reversi",

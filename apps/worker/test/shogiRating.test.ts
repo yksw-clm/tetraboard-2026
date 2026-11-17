@@ -1,3 +1,4 @@
+import { seedStoredMatches } from "./storedMatchFixtures";
 import { env } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -103,9 +104,7 @@ test("CPU戦の認定5局目にはK=48を使い、6局目には固定CPUレー�
   expect(rows[0].rating_after).toBeCloseTo(1524 - 16 / (1 + 10 ** 0.25), 10);
 });
 
-test("認定中の進捗は本人だけに返し、5局目の保存後から公開プロフィールにレートを載せる", async () => {
-  const user = await accountFixture();
-  const other = await accountFixture();
+async function ratingApi(user: Awaited<ReturnType<typeof accountFixture>>) {
   const { publicProfileId } = (await env.APP_DB.prepare(
     "SELECT publicProfileId FROM user WHERE id=?",
   )
@@ -133,6 +132,13 @@ test("認定中の進捗は本人だけに返し、5局目の保存後から公�
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     return shogiRatingResultSchema.parse(await response.json());
   };
+  return { publicProfile, resultPath, summaryPath, summary, read };
+}
+
+test("認定中の進捗は本人だけに返し、公開プロフィールへレートを載せない", async () => {
+  const user = await accountFixture();
+  const other = await accountFixture();
+  const { publicProfile, resultPath, summaryPath, summary, read } = await ratingApi(user);
   const first = ratedCpuRecord(user.id, "draw");
   expect(await summary(user.headers)).toEqual({ status: "placement", games: 0 });
   expect((await boundaryRequest(summaryPath)).status).toBe(401);
@@ -154,8 +160,23 @@ test("認定中の進捗は本人だけに返し、5局目の保存後から公�
     ).status,
   ).toBe(404);
   expect((await boundaryRequest(resultPath(first.record.id))).status).toBe(401);
+});
 
-  for (let i = 0; i < 3; i++) await saveStandardShogiFixture(ratedCpuRecord(user.id, "draw"));
+test("5局目の保存後から公開プロフィールへレートを載せ、代替手の局は除外する", async () => {
+  const user = await accountFixture();
+  const { publicProfile, summary, read } = await ratingApi(user);
+  const draws = Array.from({ length: 4 }, () => ratedCpuRecord(user.id, "draw"));
+  await seedStoredMatches(env.APP_DB, draws);
+  await env.APP_DB.batch(
+    draws.map(({ record }, index) =>
+      env.APP_DB.prepare(`INSERT INTO elo_rating_changes
+    (game, match_id, account_id, rating_before, rating_after, rated_games, human_games)
+    VALUES ('shogi', ?, ?, 1500, 1500, ?, 0)`).bind(record.id, user.id, index + 1),
+    ),
+  );
+
+  expect(await summary(user.headers)).toEqual({ status: "placement", games: 4 });
+  expect(await publicProfile()).not.toHaveProperty("shogiRating");
   const fifth = ratedCpuRecord(user.id);
   await env.APP_DB.prepare(
     "INSERT INTO elo_rating_pending(game,account_id,match_id) VALUES ('shogi',?,?)",

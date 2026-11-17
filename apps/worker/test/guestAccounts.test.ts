@@ -1,3 +1,4 @@
+import { fixTestTime } from "./fixedTimeFixture";
 import { adminIdentity } from "../src/admin/auth";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
@@ -282,6 +283,7 @@ test("ゲストのログアウトを拒否して、本人認証と記録への�
   });
 });
 test("自動名と名前設定済みを区別し、180日Cookieで同じゲストを復元・更新する", async () => {
+  fixTestTime();
   const req = new AcceptedGameRequest(origin, { headers: { Origin: origin } });
   let identity: Awaited<ReturnType<typeof createGuestAccount>>;
   const response = await withAccountSessionCookies(req, async () => {
