@@ -36,7 +36,7 @@ import {
   updateDraft,
   settingsForTournament,
   type TournamentRow,
-} from "./store";
+} from "../adapters/tournament/store";
 
 type Variables = { tournament: TournamentRow; user: StoredProfile };
 export const tournamentRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();

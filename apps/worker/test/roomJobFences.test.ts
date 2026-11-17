@@ -5,7 +5,11 @@ import * as accounts from "../src/accounts/roomAccounts";
 import { publicMetadata } from "../src/adapters/room/metadata";
 import * as indexes from "../src/rooms/roomIndex";
 import type { RoomJob } from "../src/rooms/roomJobs";
-import * as tournaments from "../src/rooms/tournamentRoom";
+import {
+  pendingTournamentStatePrefix,
+  type PendingTournamentState,
+} from "@tetraboard/context-tournament";
+import * as tournaments from "../src/adapters/tournament/state";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 
 function barrier(fail: boolean) {
@@ -123,7 +127,7 @@ for (const fail of [false, true]) {
       const job = Reflect.get(instance, "runtime").jobs.tournamentStateJob as RoomJob<unknown>;
       const gate = barrier(fail);
       const spy = vi.spyOn(tournaments, "writeTournamentState").mockImplementation(gate.execute);
-      const pending: tournaments.PendingTournamentState = {
+      const pending: PendingTournamentState = {
         phase: "playing",
         retryAtMs: Date.now(),
         reservation: {
@@ -141,7 +145,7 @@ for (const fail of [false, true]) {
           },
         },
       };
-      const key = tournaments.pendingTournamentStatePrefix + pending.reservation.context.matchId;
+      const key = pendingTournamentStatePrefix + pending.reservation.context.matchId;
       try {
         ctx.storage.kv.put(key, pending);
         const running = job.flush();

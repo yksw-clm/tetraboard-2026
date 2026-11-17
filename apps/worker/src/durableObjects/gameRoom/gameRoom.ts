@@ -38,7 +38,7 @@ import { wrapRoomAlarmEvents } from "../../rooms/roomAlarmEvents";
 import {
   type PrepareTournamentRoomInput,
   type RekeyTournamentPlayerInput,
-} from "../../rooms/tournamentRoom";
+} from "@tetraboard/context-tournament";
 import { type AnalyticsIdentity } from "../../usageEvents/matches";
 import { webSocketClose, webSocketError } from "./connections";
 import { fetch } from "./fetch";

@@ -21,7 +21,7 @@ import {
 } from "@tetraboard/four-shogi/definition";
 import { checkGameCommand } from "@tetraboard/context-room";
 import { ShogiStore } from "./shogiStore";
-import type { TournamentRoomContext } from "./tournamentRoom";
+import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 import type { FourShogiRatingSource } from "../matchmaking/fourShogiSelection";
 import { advanceShogiClock } from "./shogiClock";
 import { isClockExpired } from "./clock";

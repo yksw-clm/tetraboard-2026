@@ -583,6 +583,15 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 - `apps/worker/src/adapters/rating/`: ポートの D1 の実装。テーブルは `elo_rating_changes`、`skill_rating_changes`、`elo_rating_pending`、`skill_rating_pending`（`game` の列でゲームを分ける）。
 - レートの zod のスキーマ（`rooms/eloRating.ts`、`fourReversiRating.ts` など）、ルートの入口（`rooms/rankingRoutes.ts`、`accounts/profileRatings.ts`）、マッチングからの呼び出しは worker に残ります。Elo は棋譜の公開と同じ batch、skill は公開の直後に反映します（`flows/matchSave/`）。
 
+## 大会の入口
+
+大会の処理は、ADR 0010 の形へ順に移しています（TB-116。待機、組み合わせ、DO の殻、ルートは次のタスクで移します）。
+
+- `packages/contexts/tournament/src/domain/`: 段階、設定の照合、順位と同順位、勝ち点の単位、大会の対局結果の検証、大会ルームの型と保存キー。純粋な関数です。
+- `packages/contexts/tournament/src/use-cases/`: エントリー、管理画面の下書き、公開の一覧・詳細・順位表、結果の確定、勝ち点の書き込みの準備。D1 は `ports.ts` のポートで読み書きし、棋譜の公開と同じ batch に入れる勝ち点の書き込みは実行せずに返します。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
+- `apps/worker/src/adapters/tournament/`: ポートの D1 の実装。`store.ts` が Worker の呼び出し元へ、use-case を D1 につないだ関数を渡します。
+- 大会の待機、組み合わせ、入室、参加資格の引き継ぎ（`tournaments/coordinator.ts`）と、ルート（`tournaments/routes.ts`）は、まだ worker にあります。
+
 ## 棋譜の保存と読み取りの入口
 
 棋譜の保存（TB-108）と読み取り（TB-109）は、ADR 0010 の形に分かれています。戦績、ランキング、バッジ、使用戦型は、まだ `apps/worker/src/accounts/` と `rooms/` にあります。
@@ -743,7 +752,7 @@ D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳
 - `0024_tournament_chat.sql` が共用チャットの投稿・再送台帳・通報へ大会番号を追加し、大会定義に受付設定を追加します。既存行は総合ロビーとして保持します。`lobby/chatRoutes.ts`・`chatStore.ts` の `/api/tournaments/:id/chat` と `/reports` が公開大会・本人・有効エントリー・名前設定・24時間の締切を検査し、共通の送信者台帳とINSERT／triggerで10秒制限・再送・大会別500件を確定します。大会の待機DOや盤面へチャットを保存しません。
 - 大会管理の公開済み詳細に共用の `apps/admin/src/LobbyChat.tsx` を組み込みます。`/api/admin/lobby-chat?tournamentId=:id` で対象の受付・通報を取得し、受付操作にだけ任意の `tournamentId` を渡します。全体設定・利用者停止・削除・通報証拠・退会・毎時削除は既存の公開チャット基盤を使います。ゲスト統合では大会番号・再送台帳・過去投稿の非表示用識別子を維持します。
 
-- 公開APIとAdmin APIは `apps/worker/src/tournaments/routes.ts`、定義・名簿・順位と確定は `store.ts`、待機・抽選・入室配信・席移譲・補償は `coordinator.ts`、本人用の参加資格の導出は `credentials.ts` です。定義は内部UUID、公開URLは公開時の数字連番です。Adminは `/admin/tournaments` から一覧・新規・編集・名簿へ進みます。
+- 公開APIとAdmin APIは `apps/worker/src/tournaments/routes.ts`、定義・名簿・順位と確定は[大会の入口](#大会の入口)の文脈と adapter、待機・抽選・入室配信・席移譲・補償は `coordinator.ts`、本人用の参加資格の導出は `credentials.ts` です。定義は内部UUID、公開URLは公開時の数字連番です。Adminは `/admin/tournaments` から一覧・新規・編集・名簿へ進みます。
 - ロビーの `TournamentEntrance` は全ゲームの共通 `LobbyView` からゲームIDを受け、対局操作とお知らせの後に「大会」「次回の大会」を配置します。対象3ゲームで公開情報の初回取得中に共通のスケルトンを1枚表示します。新UIは `/api/tournaments/lobby?view=sections&game=<GameId>` の `current`・`upcoming`・`serverTimeMs` を使い、公開済みの開催中／終了後24時間未満と開催前を別々に全件表示します。対象なしの見出し・余白は出しません。`TournamentEntranceCard` は開催前の「次回の大会」では `tournamentSettingsDescription` のルール説明を省き、大会名・状態・日時・人数と詳細／エントリー操作を表示します。対象ゲームの保存設定とルールを返し、対象外の2人用ゲームは空一覧にします。旧形式の指定なしAPIは1件の `tournament` を返す既存契約を維持します。分類・状態・件数は同じサーバー時刻を使います。大会設定には0030のmigrationが必要です。
 - 大会カードは5秒更新、非表示停止と復帰時取得、失敗時の取得済み表示保持を使います。参加状態は大会IDと本人を区別し、本人を切り替えた後に古い応答を反映しません。ロビーと大会詳細の見出しでは日時の日本時間ラベルを外し、共有の日付整形の既定表記と次回案内は維持します。ロビーの人数は詳細／結果リンク左へ数字を大きく配置し、開催中は詳細ページとともに「参加中」と表記します。大会詳細は開催前の帯に「開催前です。」を加え、見出しの簡易条件から「人間4人・」を外してルールの記載へ集約します。詳細の人数・参加操作はPCで右寄せ、スマートフォンでは左寄せと全幅ボタンにします。
 - 大会詳細の全状態で `TournamentRules` の直後に大会チャットを置きます。大会用 `LobbyChat` はPC560px／スマートフォン480pxにし、履歴の内部スクロールと下部の投稿操作を保ちます。総合ロビーの公開チャットは既存の600pxです。
@@ -752,7 +761,7 @@ D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳
 - 大会一覧はPCで本文の全幅（ゲーム別のグリッドは2列分）を使い、カード幅320px・間隔12pxの横一列を一覧内でスクロールします。既存の `AppHorizontalScrollButtons` を共用し、スマートフォンでは矢印を隠してカードを縦に並べます。同じ一覧要素を維持して更新時の横位置を保持し、APIの新しい順を左から表示します。「優勝／同率優勝」と画像・名前は横に並べます。
 - 大会一覧は取得済みページを5秒更新で先頭から再取得し、全成功時だけ差し替えます。追加取得と更新を直列化し、非表示時中断・復帰時取得、ゲーム切替時の旧応答破棄、失敗時の既存表示保持を行います。優勝者は `AppAvatar` と名前の静的表示を使います。ローカルで過去大会・アカウント・画像が既にある場合はそれを確認に使い、存在しない場合だけ少数の表示用データをローカルD1へ追加します。本番・開発の共有環境や本番画面のフォールバックへ架空データを混ぜません。
 - 設定契約・ルール説明・整数点数とゲーム別順位比較は `packages/protocol/src/tournaments.ts`。`0018_tournaments.sql` の基盤と `0030_tournament_settings.sql` の設定移行、各環境の既存 `TOURNAMENT_COORDINATOR` bindingを使用します。新しいSecretsや外部サービスの設定はありません。環境への適用は既存のdb:migrateコマンドとデプロイ手順に従い、開発・本番への適用を区別します。
-- 対局側は `rooms/tournamentRoom.ts` とGameRoomの専用RPCを使い、通常のホスト開始を維持します。大会contextは `ActiveShogiMatch`・`PendingShogiMatch` の外側へ保持し、既存の厳密な棋譜JSONを変えません。将棋の最終保存batchで得点イベントと保存済み台帳を一緒に確定します。
+- 対局側は大会の文脈の `domain/room.ts`（大会ルームの型と保存キー）とGameRoomの専用RPCを使い、通常のホスト開始を維持します。大会contextは `ActiveShogiMatch`・`PendingShogiMatch` の外側へ保持し、既存の厳密な棋譜JSONを変えません。将棋の最終保存batchで得点イベントと保存済み台帳を一緒に確定します。
 - Webの実画面は `features/tournaments`、入口は `features/lobby/LobbyView.tsx`。`tournamentController.ts` がdocumentの操作元とブラウザ内の生存確認、`tournamentRoomRecovery.ts` が入室先の復旧を扱います。ブラウザ内のロックと通知は補助であり、権限はサーバーの世代照合で確定します。`registrationReturn.ts` がエントリー意図付きの認証復帰を許可し、ルームの次局操作は旧席の退室成功後に大会へ戻ります。専用mock HTMLは開発時の参照として残し、実画面へは読み込みません。
 - Adminの画面は `apps/admin/src/Tournaments.tsx`、追加ページ取得は `useAdminPages.ts`。権限喪失時に取得中の一覧と編集状態を破棄し、version競合時は入力を保持します。大会ごとの自由文は改行付きテキストとして表示し、機械条件は編集させません。
 

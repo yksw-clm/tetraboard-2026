@@ -19,7 +19,7 @@ import {
   tournamentRoomKey,
   type PrepareTournamentRoomInput,
   type TournamentRoomReservation,
-} from "../../rooms/tournamentRoom";
+} from "@tetraboard/context-tournament";
 import { analyticsPlayerKey } from "../../usageEvents/matches";
 
 export function persistTournamentRoom(

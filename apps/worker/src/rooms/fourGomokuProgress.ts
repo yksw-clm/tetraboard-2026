@@ -1,5 +1,5 @@
 import { migrateLegacyFourGomokuRoom } from "./legacyRoomMigrations";
-import type { TournamentRoomContext } from "./tournamentRoom";
+import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 import { checkGameCommand } from "@tetraboard/context-room";
 import { gameDefinitions } from "./gameDefinitions";
 import {

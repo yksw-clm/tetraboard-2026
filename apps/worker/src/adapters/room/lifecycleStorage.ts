@@ -14,7 +14,7 @@ import { matchStartKey } from "../../rooms/matchStore";
 import { replayKey, roomStorageKey, shogiCpuJobKey } from "../../rooms/progressHelpers";
 import { currentRoomStateVersion, roomStateVersionKey } from "../../rooms/roomStateVersion";
 import { shogiMatchStartKey, standardShogiMatchStartKey } from "../../rooms/shogiMatchStore";
-import { tournamentCredentialVersionKey } from "../../rooms/tournamentRoom";
+import { tournamentCredentialVersionKey } from "@tetraboard/context-tournament";
 import { departedKey } from "./state";
 export function clearRoom(runtime: RoomRuntime): void {
   runtime.ctx.storage.kv.delete(roomStorageKey);

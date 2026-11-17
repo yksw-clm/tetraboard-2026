@@ -22,7 +22,7 @@ import {
 import { redactParticipants } from "../../privacy/identity";
 import { applyMatchClaims } from "../../accounts/matchClaims";
 import { badgeAwardStatements } from "../../accounts/badgeAwards";
-import { tournamentMatchStatements } from "../../tournaments/store";
+import { tournamentMatchStatements } from "../../adapters/tournament/store";
 import { fourShogiRatingStore } from "../../rooms/fourReversiRating";
 import {
   readShogiMatchRecord,
@@ -34,7 +34,7 @@ import {
   isFormationMatchEligible,
   type ShogiFormationUsage,
 } from "../../rooms/shogiFormationUsage";
-import type { TournamentRoomContext } from "../../rooms/tournamentRoom";
+import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 import { normalizeMatchUpload } from "./validation";
 
 type ShogiRecord = ShogiMatchRecord | StandardShogiMatchRecord;

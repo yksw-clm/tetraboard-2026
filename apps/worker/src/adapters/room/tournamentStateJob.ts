@@ -1,11 +1,11 @@
+import { writeTournamentState } from "../tournament/state";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { updatePendingTournamentState } from "../../flows/tournamentRoom/reservations";
 import { RoomJob } from "../../rooms/roomJobs";
 import {
   pendingTournamentStatePrefix,
-  writeTournamentState,
   type PendingTournamentState,
-} from "../../rooms/tournamentRoom";
+} from "@tetraboard/context-tournament";
 
 export function createTournamentStateJob(runtime: RoomRuntime) {
   return new RoomJob(runtime.alarms, {

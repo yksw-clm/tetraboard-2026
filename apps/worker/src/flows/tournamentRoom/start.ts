@@ -13,8 +13,8 @@ import {
   tournamentReservationKey,
   type TournamentGameRoom,
   type TournamentRoomReservation,
-} from "../../rooms/tournamentRoom";
-import { readTournament, tournamentSettingsMatch } from "../../tournaments/store";
+} from "@tetraboard/context-tournament";
+import { readTournament, tournamentSettingsMatch } from "../../adapters/tournament/store";
 import { recordTournamentState, tournamentReservation } from "./reservations";
 
 export function tournamentPlayersConnected(

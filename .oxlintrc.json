@@ -54,7 +54,6 @@
         "apps/worker/src/rooms/roomRoutes.ts",
         "apps/worker/src/tournaments/coordinator.ts",
         "apps/worker/src/tournaments/routes.ts",
-        "apps/worker/src/tournaments/store.ts",
         "apps/worker/test/accountRooms.test.ts",
         "apps/worker/test/feedback.test.ts",
         "apps/worker/test/fourShogiRoom.test.ts",
@@ -103,7 +102,6 @@
         "apps/worker/src/rooms/roomIndex.ts",
         "apps/worker/src/rooms/roomRoutes.ts",
         "apps/worker/src/tournaments/coordinator.ts",
-        "apps/worker/src/tournaments/store.ts",
         "apps/worker/src/usageEvents/visit.ts"
       ],
       "rules": {

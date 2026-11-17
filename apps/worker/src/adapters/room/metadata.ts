@@ -11,7 +11,7 @@ import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { tournamentReservation } from "../../flows/tournamentRoom/reservations";
 import type { MatchmakingRoomReservation } from "../../matchmaking/coordinator";
 import { type IndexedRoomParticipant } from "../../rooms/roomIndex";
-import { isTournamentGameRoom } from "../../rooms/tournamentRoom";
+import { isTournamentGameRoom } from "@tetraboard/context-tournament";
 import { playerTokenHash, readMembership } from "./state";
 
 export function publicMetadata(

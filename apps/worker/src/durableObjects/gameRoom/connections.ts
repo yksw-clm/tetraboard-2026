@@ -2,7 +2,7 @@ import { roomSchema } from "@tetraboard/protocol";
 import { isHumanParticipant, readMembership, readRoom } from "../../adapters/room/state";
 import { withIndexTransaction } from "../../adapters/room/transaction";
 import { roomStorageKey } from "../../rooms/progressHelpers";
-import { tournamentReturnKey, type TournamentReturn } from "../../rooms/tournamentRoom";
+import { tournamentReturnKey, type TournamentReturn } from "@tetraboard/context-tournament";
 import type { RoomRuntime } from "./runtime";
 import { broadcastRoom, sendSocketError } from "./snapshots";
 import { hasOpenConnection } from "./socket/membership";
