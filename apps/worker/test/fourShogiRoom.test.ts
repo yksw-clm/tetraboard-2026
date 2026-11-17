@@ -1,3 +1,4 @@
+import { fixTestTime } from "./fixedTimeFixture";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
@@ -635,14 +636,15 @@ test("接続復帰は期限を解除し、通信期限切れと時計期限は�
   await runInDurableObject(env.GAME_ROOM.getByName(prepared.id), (_instance, state) => {
     const current = fourShogiRoomSchema.parse(state.storage.kv.get("room"));
     if (current.status !== "playing") throw new Error("Not playing");
+    const at = Date.now();
     state.storage.kv.put(
       "room",
       fourShogiRoomSchema.parse({
         ...current,
         players: current.players.map((player) =>
-          player.side === "east" ? { ...player, reconnectDeadline: Date.now() - 2 } : player,
+          player.side === "east" ? { ...player, reconnectDeadline: at - 2 } : player,
         ),
-        clock: { ...current.clock, turnExpiresAt: Date.now() - 1 },
+        clock: { ...current.clock, turnExpiresAt: at - 1 },
       }),
     );
   });
@@ -1492,6 +1494,7 @@ test("導入前の進行局は開始メタデータを推測して恒久保存�
 });
 
 test("将棋の保存失敗中も再戦・未決着の打ち切り・番号再利用をまたいで棋譜を保持し、5秒再送で復旧する", async () => {
+  fixTestTime();
   const prepared = await start();
   const stub = env.GAME_ROOM.getByName(prepared.id);
   const ids: string[] = [];

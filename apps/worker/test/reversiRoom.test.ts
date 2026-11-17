@@ -1,3 +1,4 @@
+import { fixTestTime } from "./fixedTimeFixture";
 import { env } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -231,6 +232,7 @@ test("時計の期限ちょうどで敗北し、棋譜へ時間切れを1回だ�
 });
 
 test("保存失敗後に部屋を閉鎖しても保存待ちを保持し、復旧後の再送で1局だけ保存する", async () => {
+  fixTestTime();
   const { entry, host, guest, room } = await setup();
   if (room.status !== "playing") throw Error("not playing");
   const turn = room.game.turn;

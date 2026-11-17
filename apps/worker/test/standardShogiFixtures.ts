@@ -35,7 +35,7 @@ export function standardShogiRecord(
   for (let index = 0; index < (outcome === "draw" ? 12 : plies); index++) {
     if (game.status !== "playing") throw Error("Fixture finished early");
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    const legal = getLegalActions(game);
+    const legal = outcome === "draw" ? [] : getLegalActions(game);
     const action = outcome === "draw" ? goldCycle[index % 4] : legal[seed % legal.length];
     const next = applyAction(game, game.turn, action);
     if (!next.ok) throw Error(next.reason);

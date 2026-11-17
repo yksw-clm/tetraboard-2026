@@ -1,3 +1,4 @@
+import { fixTestTime } from "./fixedTimeFixture";
 import { env } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -180,12 +181,24 @@ test("五目並べはモード不要で2席、3人目を拒否し、公開一覧
 test("2人が合法手で終局まで進み、棋譜を保存して再戦待機へ戻る", async () => {
   const { entry, joined, host, guest } = await setup();
   let room = standard((await fixtures.snapshot(entry.room.id)).room);
+  const positions = [
+    [0, 7],
+    [0, 0],
+    [1, 7],
+    [2, 0],
+    [2, 7],
+    [4, 0],
+    [3, 7],
+    [6, 0],
+    [4, 7],
+  ];
   let moves = 0;
-  while (room.status === "playing") {
+  for (const [x, y] of positions) {
+    if (room.status !== "playing") throw Error("finished early");
     const turn = room.game.turn;
     const current = room.players.find((p) => p.color === turn)!;
     const client = current.id === entry.membership.playerId ? host : guest!;
-    const move = getLegalMoves(room.game)[0];
+    const move = { x, y };
     const result = applyAction(room.game, { type: "placeStone", position: move });
     if (!result.ok) throw Error("illegal");
     const expected = result.state;
@@ -208,8 +221,11 @@ test("2人が合法手で終局まで進み、棋譜を保存して再戦待機�
     expect(room.status === "playing" ? room.game.board : room.lastRound?.game.board).toEqual(
       expected.board,
     );
-    if (++moves > 225) throw Error("Too many moves");
+    moves++;
   }
+  expect(room.status).toBe("waiting");
+  if (room.status !== "waiting") throw Error("not finished");
+  expect(room.lastRound?.game.result).toMatchObject({ winner: "black", reason: "five" });
   expect(room.players).toHaveLength(2);
   expect(room.players.every((p) => !p.ready)).toBe(true);
   expect(room.lastRound?.replay.steps.filter((s) => s.action.type === "place")).toHaveLength(moves);
@@ -384,6 +400,7 @@ test("時計の期限ちょうどで敗北し、棋譜へ時間切れを1回だ�
 });
 
 test("保存失敗後に部屋を閉鎖しても保存待ちを保持し、復旧後の再送で1局だけ保存する", async () => {
+  fixTestTime();
   const { entry, host, guest, room } = await setup();
   if (room.status !== "playing") throw Error("not playing");
   const turn = room.game.turn;

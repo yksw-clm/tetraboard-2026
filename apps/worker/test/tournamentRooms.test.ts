@@ -1,3 +1,4 @@
+import { fixTestTime } from "./fixedTimeFixture";
 import { writeTournamentState } from "../src/adapters/tournament/state";
 import { expectVersionedRoom } from "./roomStateVersionAssertions";
 import { roomSchema, type TournamentSettings } from "@tetraboard/protocol";
@@ -538,6 +539,7 @@ test("大会は4人接続後の5秒で固定IDの対局を一度だけ開始し�
 
 test("終局保存と大会得点を一括確定し、保存再送・閉鎖後も同局を二重加算しない", async () => {
   const prepared = await playing();
+  fixTestTime(prepared.startsAtMs);
   await env.APP_DB.exec(
     "ALTER TABLE tournament_point_events RENAME TO tournament_points_unavailable",
   );
@@ -941,6 +943,7 @@ for (const game of ["four-reversi", "four-gomoku", "four-shogi"] as const) {
       (await prepared.stub.getTournamentReservationState(prepared.input.context.matchId)).status,
     ).toBe("waiting");
     await alarmAt(prepared, startsAtMs);
+    fixTestTime(startsAtMs);
     room = roomSchema.parse(await prepared.stub.getRoom());
     expect(room.status).toBe("playing");
     expect(room).not.toHaveProperty("tournamentStartsAtMs");

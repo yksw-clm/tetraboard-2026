@@ -1,3 +1,4 @@
+import { fixTestTime } from "./fixedTimeFixture";
 import { expectVersionedRoom } from "./roomStateVersionAssertions";
 import { resetDurableObjectStorage } from "./durableObjectCleanup";
 import { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
@@ -310,15 +311,25 @@ test.each(["four-reversi", "four-shogi"] as const)(
       .run();
     await leave(1);
     await leave(2);
-    await vi.waitFor(async () => {
-      now += 1;
-      await runInDurableObject(room, (instance) => instance.alarm());
-      expect(
-        await env.APP_DB.prepare(`SELECT 1 FROM ${table} WHERE game='${game}' AND account_id=?`)
-          .bind(users[0]!.account.id)
-          .first(),
-      ).toBeNull();
-    });
+    await vi.waitFor(
+      async () => {
+        now += 1;
+        await runInDurableObject(room, async (instance) => {
+          await instance.alarm();
+          const runtime = Reflect.get(
+            instance,
+            "runtime",
+          ) as import("../src/durableObjects/gameRoom/runtime").RoomRuntime;
+          await Promise.all([runtime.jobs.matchJob.running, runtime.jobs.shogiMatchJob.running]);
+        });
+        expect(
+          await env.APP_DB.prepare(`SELECT 1 FROM ${table} WHERE game='${game}' AND account_id=?`)
+            .bind(users[0]!.account.id)
+            .first(),
+        ).toBeNull();
+      },
+      { interval: 1 },
+    );
     for (const target of Object.keys(matchmakingQueues) as (keyof typeof matchmakingQueues)[])
       expect((await status(target)).previousMatch).toBeUndefined();
     expect(
@@ -432,36 +443,20 @@ afterEach(async () => {
     await resetDurableObjectStorage(env.GAME_ROOM.getByName(id));
   }
   rooms.clear();
-  for (const id of accounts.splice(0)) {
-    await env.APP_DB.prepare("DELETE FROM elo_rating_pending WHERE game='shogi' AND account_id=?")
-      .bind(id)
-      .run();
-    await env.APP_DB.prepare("DELETE FROM elo_rating_pending WHERE game='reversi' AND account_id=?")
-      .bind(id)
-      .run();
-    await env.APP_DB.prepare(
-      "DELETE FROM skill_rating_pending WHERE game='four-reversi' AND account_id=?",
-    )
-      .bind(id)
-      .run();
-    await env.APP_DB.prepare(
-      "DELETE FROM skill_rating_pending WHERE game='four-shogi' AND account_id=?",
-    )
-      .bind(id)
-      .run();
-    await env.APP_DB.prepare("DELETE FROM tournament_wait_reservations WHERE account_id=?")
-      .bind(id)
-      .run();
-    await env.APP_DB.prepare("DELETE FROM matchmaking_wait_reservations WHERE account_id=?")
-      .bind(id)
-      .run();
-    await env.APP_DB.prepare(
-      "DELETE FROM room_avatar_refs WHERE operation_id IN(SELECT operation_id FROM account_room_seats WHERE account_id=?)",
-    )
-      .bind(id)
-      .run();
-    await env.APP_DB.prepare("DELETE FROM account_room_seats WHERE account_id=?").bind(id).run();
-  }
+  const cleanup = accounts
+    .splice(0)
+    .flatMap((id) =>
+      [
+        "DELETE FROM elo_rating_pending WHERE game IN ('shogi','reversi') AND account_id=?",
+        "DELETE FROM skill_rating_pending WHERE game IN ('four-reversi','four-shogi') AND account_id=?",
+        "DELETE FROM tournament_wait_reservations WHERE account_id=?",
+        "DELETE FROM matchmaking_wait_reservations WHERE account_id=?",
+        "DELETE FROM room_avatar_refs WHERE operation_id IN(SELECT operation_id FROM account_room_seats WHERE account_id=?)",
+        "DELETE FROM account_room_seats WHERE account_id=?",
+      ].map((sql) => env.APP_DB.prepare(sql).bind(id)),
+    );
+  for (let start = 0; start < cleanup.length; start += 80)
+    await env.APP_DB.batch(cleanup.slice(start, start + 80));
   for (const queue of [
     stub(),
     ...Object.values(matchmakingQueues).map(({ key }) =>
@@ -1481,6 +1476,7 @@ test("待機・再読み込み・旧操作元の取消が重複割当や待機�
   expect((await stub().join(u!.account.id, u!.operationId, controllerId)).ok).toBe(false);
 });
 test("全員の接続後だけカウントダウンし、再起動しても1回だけ開始する", async () => {
+  fixTestTime();
   const usage = recordUsageEvents();
   const users = await fixture(4);
   const states = await Promise.all(users.map((u) => stub().status(u.account.id, u.controllerId)));

@@ -1,3 +1,4 @@
+import { seedStoredMatches } from "./storedMatchFixtures";
 import { env } from "cloudflare:workers";
 import { beforeEach, expect, test } from "vitest";
 import { sides } from "@tetraboard/four-shogi";
@@ -57,11 +58,15 @@ test("戦法別は本人・方向・全件・保存済みだけ集計し、複�
     await publish(fixture, usage);
     await publish(fixture, usage);
   }
-  for (let i = 0; i < 21; i++) {
-    const usage = emptyFormationUsage();
-    usage.bySide.south = ["e-shape"];
-    await publish(humanShogiRecord(user.id), usage);
-  }
+  const usage = emptyFormationUsage();
+  usage.bySide.south = ["e-shape"];
+  await seedStoredMatches(
+    env.APP_DB,
+    Array.from({ length: 21 }, () => ({
+      ...humanShogiRecord(user.id),
+      usage,
+    })),
+  );
   const ignoredUsage = emptyFormationUsage();
   ignoredUsage.bySide.south = ["right-king"];
   await publish(humanShogiRecord(other.id), ignoredUsage);

@@ -1,3 +1,5 @@
+import { fixTestTime } from "./fixedTimeFixture";
+import { seedFourGomokuWinner } from "./roomPositionFixtures";
 import { env } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { beforeEach, afterEach, expect, test, vi } from "vitest";
@@ -179,8 +181,9 @@ test("勝ち抜け後の切断期限は順位を変えず、未確定者の時�
     const saved = gameRoom(state.storage.kv.get("room") as FourGomokuRoom);
     if (saved.status !== "playing") throw Error();
     const p = saved.players.find((p) => p.id === winner.id)!;
-    p.reconnectDeadline = Date.now() - 1;
-    saved.clock.turnExpiresAt = Date.now();
+    const at = Date.now();
+    p.reconnectDeadline = at - 1;
+    saved.clock.turnExpiresAt = at;
     state.storage.kv.put("room", saved);
   });
   await runDurableObjectAlarm(stub);
@@ -270,6 +273,7 @@ test.each([1, 2] as const)("すぐ遊ぶのCPU3人と、CPU候補の期限優先
 });
 
 test("保存失敗後に部屋を閉鎖しても保存待ちを保持し、復旧後の再送で1局だけ保存する", async () => {
+  fixTestTime();
   const { entry, host, clients, room } = await setup("doubles");
   if (room.status !== "playing") throw Error("not playing");
   const turn = room.game.turn;
@@ -402,7 +406,7 @@ test("各色の最終手を配信し、旧進行局の再読込でも永続棋�
 
 test("共通の確認順序で拒否し、投了は局面照合を要求せず盤面・時計・棋譜を保つ", async () => {
   const { entry, host, clients, room: initial } = await setup();
-  const room = await firstWinner(initial, clients, host);
+  const room = await seedFourGomokuWinner(env.GAME_ROOM.getByName(entry.room.id), initial);
   if (room.status !== "playing") throw Error("Expected playing");
   await runInDurableObject(env.GAME_ROOM.getByName(entry.room.id), (_instance, state) => {
     const before = structuredClone(room);
