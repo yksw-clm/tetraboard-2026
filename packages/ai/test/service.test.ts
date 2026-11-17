@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { checkProbe, deploymentProbes } from "../scripts/deploymentChecks";
 import {
   applyAction,
@@ -10,50 +10,16 @@ import {
   type FourShogiState,
 } from "../../four-shogi/src/index";
 import { applyReplayEvent, type FourShogiReplayEvent } from "../../four-shogi/src/replay";
+import { useLocalAiService } from "./localAiService";
 
-const token = "test-ai-service-token-at-least-32-characters";
-let server: ReturnType<typeof Bun.spawn>;
-let baseUrl = "";
+const service = useLocalAiService();
 const aiDirectory = new URL("..", import.meta.url).pathname;
-beforeAll(async () => {
-  server = Bun.spawn(
-    ["cargo", "run", "--release", "--quiet", "--locked", "-p", "tetraboard-ai-server"],
-    {
-      cwd: aiDirectory,
-      env: {
-        ...process.env,
-        AI_SERVICE_TOKEN: token,
-        AI_SERVICE_LISTEN: "127.0.0.1:0",
-        AI_SERVICE_CONCURRENCY: "4",
-      },
-      stdout: "pipe",
-      stderr: "pipe",
-    },
-  );
-  const reader = (server.stdout as ReadableStream<Uint8Array>).getReader();
-  let text = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done)
-      throw Error(
-        `AI Service did not start: ${await new Response(server.stderr as ReadableStream).text()}`,
-      );
-    text += new TextDecoder().decode(value);
-    if (text.includes("\n")) break;
-  }
-  reader.releaseLock();
-  baseUrl = `http://${JSON.parse(text.split("\n")[0]).listen}`;
-}, 30000);
-afterAll(async () => {
-  server?.kill("SIGTERM");
-  if (server) await server.exited;
-});
 
 test("実HTTPのhealthと認証境界を確認する", async () => {
-  expect((await fetch(`${baseUrl}/health`)).status).toBe(200);
+  expect((await fetch(`${service.url}/health`)).status).toBe(200);
   expect(
     (
-      await fetch(`${baseUrl}/v1/move`, {
+      await fetch(`${service.url}/v1/move`, {
         method: "POST",
         body: "{}",
         headers: { "Content-Type": "application/json" },
@@ -64,7 +30,7 @@ test("実HTTPのhealthと認証境界を確認する", async () => {
 
 test("公開確認用の全四人ゲームprofileが実Rust Serviceの合法手と版に一致する", async () => {
   for (const probe of deploymentProbes().filter((p) => p.game.startsWith("four-")))
-    await checkProbe(baseUrl, token, probe, 5000);
+    await checkProbe(service.url, service.token, probe, 5000);
 });
 
 type FourShogiReplay = {
@@ -173,11 +139,11 @@ test("四人将棋の実AI Serviceが3設定の上限を守り、棋譜に対す
     events,
   };
   function post(body: unknown, authenticated = true, padding = 0) {
-    return fetch(`${baseUrl}/v1/four-shogi/move`, {
+    return fetch(`${service.url}/v1/four-shogi/move`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        ...(authenticated ? { authorization: `Bearer ${token}` } : {}),
+        ...(authenticated ? { authorization: `Bearer ${service.token}` } : {}),
       },
       body: JSON.stringify(body) + " ".repeat(padding),
     });
@@ -243,8 +209,8 @@ test.each(workerSuites)(
         cwd: workerDirectory,
         env: {
           ...process.env,
-          TETRABOARD_AI_TEST_URL: baseUrl,
-          TETRABOARD_AI_TEST_TOKEN: token,
+          TETRABOARD_AI_TEST_URL: service.url,
+          TETRABOARD_AI_TEST_TOKEN: service.token,
           TETRABOARD_AI_TEST_WARMUP: suite.endsWith("/ratedAiWarmup.test.ts") ? "1" : "0",
         },
         stdout: "inherit",
