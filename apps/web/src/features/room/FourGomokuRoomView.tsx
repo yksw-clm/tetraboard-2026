@@ -1,4 +1,5 @@
 import { roomMatchKind } from "@tetraboard/protocol";
+import { roomBoardMotion } from "./boardMotion";
 import { useBoardRotation } from "./useBoardRotation";
 import { rotatedSeatIndex } from "./boardRotation";
 import { seatPositions } from "./roomCommonPresentation";
@@ -40,6 +41,7 @@ export function FourGomokuRoomView({
         />
       ))}
       <GomokuBoard
+        motion={roomBoardMotion(session, replay)}
         label="四人五目並べの盤面"
         game={replay.frame?.game ?? session.displayGame}
         rotation={displayRotation}

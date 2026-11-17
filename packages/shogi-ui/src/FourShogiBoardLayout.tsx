@@ -8,6 +8,7 @@ import {
   type CSSProperties,
   type PointerEvent,
   type ReactNode,
+  type Ref,
 } from "react";
 import boardImage from "../assets/board-wood.png";
 import { RoomBoardGroup } from "./RoomBoardGroup";
@@ -95,6 +96,7 @@ const groupClasses = {
 } as const;
 
 export type FourShogiBoardLayoutProps<A extends FourShogiAction = LegacyAction> = {
+  boardRef?: Ref<HTMLDivElement>;
   game: ShogiBoardView;
   eliminatedHands?: EliminatedHands;
   pendingAction?: A;
@@ -115,6 +117,7 @@ export type FourShogiBoardLayoutProps<A extends FourShogiAction = LegacyAction> 
 };
 
 export function FourShogiBoardLayout({
+  boardRef,
   game,
   eliminatedHands = {},
   standard = false,
@@ -433,6 +436,7 @@ export function FourShogiBoardLayout({
         );
       })}
       <div
+        ref={boardRef}
         data-testid="shogi-board"
         className="[grid-area:board] relative w-[var(--shogi-board-width)] aspect-square place-self-center bg-[#cb8900] bg-cover bg-center shadow-[0_8px_24px_#71531c25]"
         style={{ backgroundImage: `url("${boardImage}")` }}
@@ -551,13 +555,15 @@ export function FourShogiBoardLayout({
                   <span
                     className={`relative pointer-events-none ${dead && piece.kind !== "king" ? "opacity-55" : ""} ${dragging ? "invisible" : canSelect || selectedSquare ? shogiPieceLiftClasses(!!selectedSquare) : ""}`}
                   >
-                    <ShogiPiece
-                      royalKing={standard && piece.side === "south"}
-                      kind={piece.kind}
-                      promoted={piece.promoted}
-                      deadKing={piece.kind === "king" && dead}
-                      direction={shogiPieceDirection(piece.side, viewerSide)}
-                    />
+                    <span data-board-piece={`${position.x},${position.y}`} className="block">
+                      <ShogiPiece
+                        royalKing={standard && piece.side === "south"}
+                        kind={piece.kind}
+                        promoted={piece.promoted}
+                        deadKing={piece.kind === "king" && dead}
+                        direction={shogiPieceDirection(piece.side, viewerSide)}
+                      />
+                    </span>
                   </span>
                 )}
                 {(destination || forbiddenDestination) && (
