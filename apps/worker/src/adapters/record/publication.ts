@@ -1,10 +1,11 @@
 import type { ShogiFormationUsage } from "../../rooms/shogiFormationUsage";
+import { mergedAccountIdSql } from "./guestMerges";
 
 export function snapshotHistoryStatement(db: D1Database, matchId: string) {
   return db
     .prepare(`INSERT INTO account_match_history
     (account_id, match_id, mode, started_at_ms, game)
-    SELECT json_extract(p.value, '$.accountId'), m.id, m.mode, m.started_at_ms, m.game
+    SELECT ${mergedAccountIdSql("json_extract(p.value, '$.accountId')")}, m.id, m.mode, m.started_at_ms, m.game
     FROM matches m, json_each(m.record_json, '$.participants') p
     WHERE m.id = ? AND json_extract(p.value, '$.kind') = 'human'
       AND json_extract(p.value, '$.accountId') IS NOT NULL
@@ -15,7 +16,7 @@ export function snapshotHistoryStatement(db: D1Database, matchId: string) {
 export function shogiHistoryStatement(db: D1Database, matchId: string) {
   return db
     .prepare(`INSERT INTO account_match_history (account_id, match_id, mode, started_at_ms, game)
-      SELECT json_extract(p.value, '$.accountId'), m.id, m.mode, m.started_at_ms, m.game
+      SELECT ${mergedAccountIdSql("json_extract(p.value, '$.accountId')")}, m.id, m.mode, m.started_at_ms, m.game
       FROM matches m, json_each(m.record_json, '$.participants') p
       WHERE m.id = ? AND m.game IN ('four-shogi', 'shogi') AND json_extract(p.value, '$.kind') = 'human'
         AND json_extract(p.value, '$.accountId') IS NOT NULL

@@ -1,4 +1,5 @@
 import type { ChunkRow, MatchRecordStore, UploadRecord } from "@tetraboard/context-record";
+import { mergedRecordJsonSql } from "./guestMerges";
 
 export class D1MatchRecordStore implements MatchRecordStore<D1PreparedStatement> {
   constructor(private readonly db: D1Database) {}
@@ -11,9 +12,11 @@ export class D1MatchRecordStore implements MatchRecordStore<D1PreparedStatement>
   }
   async insertUpload(record: UploadRecord, json: string, chunkCount: number) {
     await this.db
-      .prepare(`INSERT INTO match_uploads VALUES (?, ?, ?, ?)
+      .prepare(`INSERT INTO match_uploads
+    SELECT ?, ${mergedRecordJsonSql("input.record_json")}, ?, ? FROM (SELECT ? AS record_json) input
+    WHERE true
     ON CONFLICT(id) DO NOTHING`)
-      .bind(record.id, json, record.replay.eventCount, chunkCount)
+      .bind(record.id, record.replay.eventCount, chunkCount, json)
       .run();
   }
   async readUpload(matchId: string) {
@@ -56,7 +59,7 @@ export function publishMatchStatement(db: D1Database, matchId: string) {
   return db
     .prepare(`INSERT INTO matches (id, game, mode, started_at_ms, ended_at_ms, record_json)
     SELECT id, json_extract(record_json, '$.settings.game'), COALESCE(json_extract(record_json, '$.settings.mode'), 'standard'),
-      json_extract(record_json, '$.startedAtMs'), json_extract(record_json, '$.endedAtMs'), record_json
+      json_extract(record_json, '$.startedAtMs'), json_extract(record_json, '$.endedAtMs'), ${mergedRecordJsonSql("u.record_json")}
     FROM match_uploads u WHERE id = ?
       AND (SELECT COUNT(*) FROM match_event_chunks WHERE match_id = u.id) = u.chunk_count
       AND COALESCE((SELECT SUM(event_count) FROM match_event_chunks WHERE match_id = u.id), 0) = u.event_count
