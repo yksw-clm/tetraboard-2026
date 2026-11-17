@@ -1,4 +1,4 @@
-import { guestIdentity, suspendGuestSession } from "./guestAccounts";
+import { guestIdentity, suspendGuestSession } from "../routes/guestSession";
 import { authSecret } from "../privacy/tokens";
 import { isDeleted } from "../privacy/identity";
 import { betterAuth } from "better-auth";

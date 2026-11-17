@@ -6,11 +6,11 @@ import {
   guestTokenHash,
   clearGuestSession,
   suspendGuestSession,
-} from "./guestAccounts";
+} from "../routes/guestSession";
 import { responseCookies } from "../privacy/deletion";
 import { badgeAwardsSql } from "./badgeAwards";
 import { guestChatMergeStatements } from "../lobby/mergeGuestChat";
-import { readRegistrationFlow, type RegistrationFlow } from "./registrationFlows";
+import { readRegistrationFlow, type RegistrationFlow } from "../flows/guestRegistration/account";
 
 export class GuestLinkError extends Error {}
 export async function requireGuestIdle(env: Env, id: string) {

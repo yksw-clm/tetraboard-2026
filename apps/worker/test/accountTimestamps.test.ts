@@ -2,7 +2,7 @@ import { env, exports } from "cloudflare:workers";
 import { afterEach, expect, test } from "vitest";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { createAuth, withAccountSessionCookies, type StoredProfile } from "../src/accounts/auth";
-import { createGuestAccount } from "../src/accounts/guestAccounts";
+import { createGuestAccount } from "../src/routes/guestSession";
 import { completeGuestLink, rememberGuestLink } from "../src/accounts/guestLinking";
 import { accountFixture, origin } from "./accountFixtures";
 

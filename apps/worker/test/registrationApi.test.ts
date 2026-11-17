@@ -7,9 +7,9 @@ import {
   joinRoomContract,
   registrationStatusSchema,
 } from "@tetraboard/protocol";
-import { registrationRoutes } from "../src/accounts/registrationRoutes";
+import { registrationRoutes } from "../src/routes/registrationRoutes";
 import { accountRoutes } from "../src/routes/accountRoutes";
-import { readRegistrationFlow } from "../src/accounts/registrationFlows";
+import { readRegistrationFlow } from "../src/flows/guestRegistration/account";
 import { accountSessionIdentity } from "../src/accounts/auth";
 import { digest } from "../src/privacy/deletion";
 import { acceptMatchClaim, applyMatchClaims } from "../src/accounts/matchClaims";

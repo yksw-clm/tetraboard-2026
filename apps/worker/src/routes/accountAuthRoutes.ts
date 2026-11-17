@@ -10,7 +10,7 @@ import {
   completeGuestLink,
   GuestLinkError,
 } from "../accounts/guestLinking";
-import { clearGuestSession } from "../accounts/guestAccounts";
+import { clearGuestSession } from "../routes/guestSession";
 import { completeLegalAuthentication } from "../privacy/oauthConsent";
 import { completeReauthentication } from "../privacy/deletion";
 import { legalVersion } from "@tetraboard/protocol/privacy";
@@ -19,7 +19,7 @@ import {
   prepareRegistrationOAuth,
   rememberRegistrationOAuth,
   type RegistrationFlow,
-} from "../accounts/registrationFlows";
+} from "../flows/guestRegistration/account";
 import { Hono } from "hono";
 import { accountIdentity, createAuth, type AuthEnv, type StoredProfile } from "../accounts/auth";
 export const accountAuthRoutes = new Hono<{ Bindings: AuthEnv }>();
