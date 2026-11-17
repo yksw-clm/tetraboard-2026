@@ -32,7 +32,9 @@ type PreparedFixture = {
   tokens: string[];
   accounts: Awaited<ReturnType<typeof accountFixture>>[];
   stub: DurableObjectStub<GameRoom>;
-  coordinator?: DurableObjectStub<import("../src/tournaments/coordinator").TournamentCoordinator>;
+  coordinator?: DurableObjectStub<
+    import("../src/durableObjects/tournamentCoordinator/coordinator").TournamentCoordinator
+  >;
 };
 
 const sockets: WebSocket[] = [];

@@ -3,7 +3,7 @@ import { evictDurableObject, runInDurableObject } from "cloudflare:test";
 import { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 import type { RoomRuntime } from "../src/durableObjects/gameRoom/runtime";
 import { MatchmakingCoordinator } from "../src/durableObjects/matchmakingCoordinator/coordinator";
-import { TournamentCoordinator } from "../src/tournaments/coordinator";
+import { TournamentCoordinator } from "../src/durableObjects/tournamentCoordinator/coordinator";
 import { CleanupDeadline, cleanupTimeoutMs } from "./cleanupDeadline";
 
 const pending = new Map<DurableObjectNamespace, Map<string, DurableObjectId>>();
