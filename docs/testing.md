@@ -136,7 +136,7 @@ CIの入口は `.github/workflows/ci.yml` です。設計判断は [ADR 0007](ad
 
 - `checks` ジョブは、PRとmain・developへのpushのたびに、`packages/ai` を除く全workspaceのformat・lint・型・全テスト、環境分離の検査、本番と開発のWeb・Adminビルド、Workerのdry-runを実行します。
 - `ai` ジョブは、AIのパス（ワークフローの `Detect AI changes` に列挙）に差分があるときと、mainへのpushのときだけ走ります。`bun run check:ai`（Rustのfmt・clippy・testとAIサービスの統合テスト）、本番AIのコンテナ4つのビルドと起動確認、開発AIのdry-runを行います。開発AIのdry-runもDockerイメージをビルドするため、`checks` では行いません。mainへのpushでは本番AIのdry-runも行います。
-- `ai` がskipされたら、AIの検査は実行されていません。skipを成功とみなしません。AIのテストやスクリプトが新しいファイルを読むようにしたら、同じ変更でAIのパスの一覧に足してください。
+- `ai` がskipされたら、AIの検査は実行されていません。skipを成功とみなしません。AIのテストやスクリプトが新しいファイルを読むようにしたら、同じ変更でAIのパスの一覧に足してください。AIのテストが通るWorkerのコード（ルート、文脈のパッケージ、adapter、flow）を別の場所へ移したときも、同じ変更で一覧を直します。消えた場所は一覧から外します。
 - `deploy` ジョブは、main・developへのpushで `checks` が成功し、`ai` が成功またはskipのときに走ります。本番AIのデプロイは、AIのパスに差分があるときだけ行います。
 - 差分の基準は、PRではPRのベース、pushではpush前のコミットです。マージ後のpushでも `checks` を再実行し、PRの成果物をデプロイへ流用しません。PR更新時には同じPRの古い検証を取り消します。
 
