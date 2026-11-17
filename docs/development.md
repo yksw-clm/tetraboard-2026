@@ -569,7 +569,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
   - ゲームの違いは `apps/worker/src/rooms/gameAdapters/` のアダプター（ゲームのポートの実装）に閉じ込め、殻と use-case ではゲームの種類で分岐しません。
 - ゲームごとの進行は `*Progress.ts` にあり、ゲーム契約（`gameDefinitions.ts`）と room の文脈の `checkGameCommand` を使います。外部 AI のジョブは `externalCpu.ts` です。
 - 時計は `clockCore.ts`（席 ID を型パラメータとする純粋な計算）と、ゲームごとの wrapper（`clock.ts`、`shogiClock.ts`、`reversiClock.ts`）です。期限の選択は `roomDeadlines.ts` の純粋関数です。
-- 1 アカウント 1 席（通常ルームの席、レート戦の待機、大会の待機を合わせて 1 つ）は、`flows/accountSeats/fences.ts` の条件で守ります（TB-118）。3 つの表（`account_room_seats`、`matchmaking_wait_reservations`、`tournament_wait_reservations`）への挿入は、すべてこの条件をつけた `INSERT ... SELECT ... WHERE` です。挿入されなかったときは、同じファイルの関数で理由を読み直します。挿入する場所が決めたファイルの外に増えていないことは、`test-bun/accountSeatFenceBoundaries.test.ts` が確かめます。同じ働きの古いトリガー 5 つは、TB-120 で消すまで残ります（条件で行が作られないので発火しません）。
+- 1 アカウント 1 席（通常ルームの席、レート戦の待機、大会の待機を合わせて 1 つ）は、`flows/accountSeats/fences.ts` の条件で守ります（TB-118）。3 つの表（`account_room_seats`、`matchmaking_wait_reservations`、`tournament_wait_reservations`）への挿入は、すべてこの条件をつけた `INSERT ... SELECT ... WHERE` です。挿入されなかったときは、同じファイルの関数で理由を読み直します。挿入する場所が決めたファイルの外に増えていないことは、`test-bun/accountSeatFenceBoundaries.test.ts` が確かめます。以前は D1 のトリガー 5 つが同じことを守っていましたが、TB-130 で消しました。トリガーがないので、この条件とテストが唯一の守りです。
 - CPU の最低待ち時間は `progressHelpers.ts` の `cpuMoveDelayMs` を全ゲームで共用します。
 - CPU 付きのルームの作成（`POST /rooms`）は、任意の `cpuLevel: 1 | 2` を受け取ります。未指定は Lv1、不正な値は 400 です。`waitingRoomFactories` が全ての CPU に当てます。
 
@@ -598,7 +598,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 大会の処理は、ADR 0010 の形に分かれています（TB-116、TB-119）。仕様は [docs/specs/tournament.md](specs/tournament.md) です。
 
 - `packages/contexts/tournament/src/domain/`: 段階、設定の照合、順位と同順位、勝ち点の単位、大会の対局結果の検証、大会ルームの型と保存キー。純粋な関数です。
-- `packages/contexts/tournament/src/use-cases/`: エントリー、管理画面の下書き、公開の一覧・詳細・順位表、結果の確定、勝ち点の書き込みの準備。D1 は `ports.ts` のポートで読み書きし、棋譜の公開と同じ batch に入れる勝ち点の書き込みは実行せずに返します。成績（`tournament_scores`）は、同じ batch の中で勝ち点の記録（`tournament_point_events`）から参加者ごとに集計し直して上書きします。再送しても加算は増えません（TB-117）。古いトリガー `tournament_score_apply` も残っていますが、同じ batch の中で集計し直しが上書きするので値は変わりません。トリガーは、この処理が本番に出た後で消します。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
+- `packages/contexts/tournament/src/use-cases/`: エントリー、管理画面の下書き、公開の一覧・詳細・順位表、結果の確定、勝ち点の書き込みの準備。D1 は `ports.ts` のポートで読み書きし、棋譜の公開と同じ batch に入れる勝ち点の書き込みは実行せずに返します。成績（`tournament_scores`）は、同じ batch の中で勝ち点の記録（`tournament_point_events`）から参加者ごとに集計し直して上書きします。再送しても加算は増えません（TB-117）。以前は D1 のトリガー `tournament_score_apply` が加算していましたが、TB-130 で消しました。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
 - `apps/worker/src/adapters/tournament/`: ポートの D1 の実装。`store.ts` が Worker の呼び出し元へ、use-case を D1 につないだ関数を渡します。
 - 待機、組み合わせ、入室、操作元の引き継ぎ、席の移譲、期限の回収、公開、復旧の判定も文脈の use-case です（`use-cases/` の `tick.ts` など）。DO の殻は `apps/worker/src/durableObjects/tournamentCoordinator/`、HTTP の入口は `apps/worker/src/routes/tournaments.ts`、参加資格の導出は `adapters/tournament/credentials.ts` です。
 
@@ -1342,6 +1342,8 @@ Workerの `publicMatches.test.ts` で最新20件・同時刻・ゲーム分離�
 対人フィルタのWorker回帰では両ゲーム・両モードでCPU1人の除外・ゲスト4人の採用・0件・絞り込み後の最新20件と同時刻順序を確認し、最新21件がCPU戦でも古い対人戦を取得できることを検証します。Webでは条件の送信・CPU入り応答の拒否・取得中止と中止後の遅延応答の拒否を確認します。
 
 ## 保存済み棋譜の閲覧
+
+結果共有の仕様は[対局結果のX共有](specs/result-sharing.md)。`ResultShareButton` は公開棋譜の保存を確認してXの投稿画面を開きます。共有本文と対局別メタ情報はprotocolの `match-sharing` を共用し、公開棋譜の初期HTMLにも同じメタ情報を挿入します。HTML用の読取りはrecordの `readPublicMatchMetadata` で公開済み本体だけを既存の保存形式で検証し、対局ID・ゲーム種別を返します。チャンクの取得・棋譜再生・プロフィール解決は公開棋譜APIで行い、初期HTMLはこれらを待ちません。メタ情報の読取りが1500ms以内に終わらない場合は共通カードでHTMLを配信します。画像は既存のゲーム別固定OGPを使い、対局ごとの画像生成・保存・外部サービス呼び出しは行いません。確認対象は `matchSharing.test.ts`（Web・Worker）と `resultSharing.test.tsx` です。
 
 `GET /api/account/matches/:matchId` はCookieで本人を確認し、`account_match_history` と `matches` を結合して本人の対局だけを取得します。応答は `{ match: MatchDetail }` で、対局ID・元の部屋番号・開始／終了日時・設定・開始時の参加者と本人のプレイヤーID・最終ゲーム状態・脱落理由・棋譜を含みます。アカウント参加者の名前・アイコンは取得時の現在のプロフィール、未引き継ぎのゲスト・CPUと退会者以外の参照先のないアカウントの名前は保存名を使います。退会者は [確定した退会仕様](../README.md#アカウント削除) に従い、保存名へのフォールバックを禁止します。内部アカウントID・instanceId・参加トークン・チャットは返しません。不正IDは400、未認証は401、他人／存在しない対局は404、認証／D1取得失敗は503です。全応答に `Cache-Control: no-store` を付けます。将棋の詳細は棋譜本体に代えて `{ rulesVersion: 1, initial, eventCount }` と方向別 `knockouts` を返し、脱落は最終ゲーム状態の `eliminations` に含みます。
 
