@@ -183,7 +183,9 @@ test.each([
     expect(response.status).toBe(200);
     expect(await response.text()).toContain('<div id="root"></div>');
     expect(response.headers.get("Set-Cookie")).toBeNull();
-    expect(response.headers.get("Cache-Control")).toBe(page === "room" ? "no-store" : cacheControl);
+    expect(response.headers.get("Cache-Control")).toBe(
+      page === "room" || path.startsWith("/matches/") ? "no-store" : cacheControl,
+    );
     expect(visitsForBrowser(events, browserId)).toEqual([
       {
         name: "visit_started",

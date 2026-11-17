@@ -8,8 +8,9 @@ import {
 } from "./lobbyMetadata";
 import { roomShareMetadata, type ShareRoom } from "@tetraboard/protocol/room-sharing";
 import { legalDocuments } from "@tetraboard/protocol/privacy";
+import { matchShareMetadata, type ShareMatch } from "@tetraboard/protocol/match-sharing";
 
-export function updatePageMetadata(path: string, room?: ShareRoom): void {
+export function updatePageMetadata(path: string, room?: ShareRoom, match?: ShareMatch): void {
   const game = lobbyGameForPath(path);
   const metadata = path === "/" ? generalLobbyMetadata : game ? lobbyMetadata[game] : null;
   const legalDocument =
@@ -28,6 +29,21 @@ export function updatePageMetadata(path: string, room?: ShareRoom): void {
   robots.name = "robots";
   robots.content = metadata && searchIndexable ? "index,follow" : "noindex,follow";
   document.head.append(robots);
+  if (
+    match &&
+    /^\/matches\/[^/]+\/?$/.test(path) &&
+    path.replace(/\/$/, "") === `/matches/${match.id}`
+  ) {
+    const metadata = matchShareMetadata(window.location.origin, match);
+    document.title = metadata.title;
+    for (const { kind, key, value } of metadata.tags) {
+      const tag = document.createElement("meta");
+      tag.setAttribute(kind, key);
+      tag.content = value;
+      document.head.append(tag);
+    }
+    return;
+  }
   if (/^\/rooms\/[^/]+\/?$/.test(path)) {
     const currentRoom = room && path.replace(/\/$/, "") === `/rooms/${room.id}` ? room : null;
     const metadata = roomShareMetadata(window.location.origin, currentRoom);

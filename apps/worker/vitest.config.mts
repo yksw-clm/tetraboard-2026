@@ -47,6 +47,7 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
             LOBBY_TEST_DB: "lobby-tests",
             MATCH_COMPATIBILITY_TEST_DB: "match-compatibility-tests",
             PUBLIC_MATCH_TEST_DB: "public-match-tests",
+            MATCH_SHARE_TEST_DB: "match-share-tests",
             NOTIFICATION_TEST_DB: "notification-tests",
             NOTIFICATION_MIGRATION_TEST_DB: "notification-migration-tests",
             BADGE_MIGRATION_TEST_DB: "badge-migration-tests",

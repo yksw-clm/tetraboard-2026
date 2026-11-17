@@ -114,6 +114,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "/matches/:matchId",
+        id: "public-match",
         Component: MatchReplayPage,
         loader: publicMatchReplayLoader,
         ErrorBoundary: MatchReplayErrorPage,

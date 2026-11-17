@@ -45,6 +45,15 @@ export async function serveRoomShareHtml(
   const url = new URL(request.url);
   const room = await readShareRoom(url, env);
   const metadata = roomShareMetadata(url.origin, room);
+  return serveShareHtml(request, assets, metadata);
+}
+
+export async function serveShareHtml(
+  request: Request,
+  assets: Fetcher,
+  metadata: ReturnType<typeof roomShareMetadata>,
+): Promise<Response> {
+  const url = new URL(request.url);
   const assetUrl = new URL("/app.html", url);
   const assetHeaders = new Headers(request.headers);
   assetHeaders.delete("If-None-Match");

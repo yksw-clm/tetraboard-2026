@@ -15,6 +15,18 @@ export type MatchReadValidation<D extends StoredMatch, R extends RecordMatch> = 
 export type MatchReadOptions = { includeMoveCount?: boolean; includeMatchKind?: boolean };
 export type LoadProfiles<D> = (records: D[]) => Promise<ParticipantProfiles>;
 
+export async function readPublicMatchMetadata<D extends StoredMatch>(
+  store: Pick<MatchReadStore, "readMatch">,
+  matchId: string,
+  decode: (json: string, game: string) => D,
+) {
+  const row = await store.readMatch(matchId);
+  if (!row) return null;
+  const match = decode(row.record_json, row.game);
+  if (match.record.id !== matchId) throw new Error("Stored match ID mismatch");
+  return { id: match.record.id, game: match.game };
+}
+
 export async function readMatchDetailRecord<D extends StoredMatch, R extends RecordMatch>(
   store: MatchReadStore,
   row: MatchRow,
