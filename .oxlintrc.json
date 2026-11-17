@@ -45,7 +45,6 @@
       "files": [
         "apps/worker/src/accounts/accountRoutes.ts",
         "apps/worker/src/accounts/guestLinking.ts",
-        "apps/worker/src/accounts/matchDataContracts.ts",
         "apps/worker/src/accounts/registrationRoutes.ts",
         "apps/worker/src/feedback/routes.ts",
         "apps/worker/src/feedback/store.ts",

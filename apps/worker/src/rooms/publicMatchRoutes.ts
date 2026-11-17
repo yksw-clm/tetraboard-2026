@@ -1,6 +1,6 @@
-import { readMatchDetailRecord } from "./snapshotMatchStore";
-import { readMatchKinds, withMatchKind } from "../accounts/matchKinds";
-import { gameCapacity } from "@tetraboard/protocol/games";
+import { readPublicMatches, readMatchDetail } from "@tetraboard/context-record";
+import { D1MatchReadStore } from "../adapters/record/matchReadStore";
+import { matchReadValidation } from "../adapters/record/readValidation";
 import { Hono } from "hono";
 import {
   listPublicMatchesContract,
@@ -8,7 +8,7 @@ import {
   getPublicMatchReplayContract,
 } from "@tetraboard/protocol";
 import { participantProfiles } from "../accounts/matchProfiles";
-import { readStoredMatch, matchSummary, publicMatchDetail } from "../accounts/matchDataContracts";
+import { readStoredMatch } from "../accounts/matchDataContracts";
 import { readShogiMatchReplayPage } from "./shogiMatchStore";
 
 export const publicMatchRoutes = new Hono<{ Bindings: Env }>();
@@ -22,27 +22,20 @@ publicMatchRoutes.get(listPublicMatchesContract.path, async (c) => {
   });
   if (!query.success) return c.json({ message: "対局の取得条件が正しくありません。" }, 400);
   try {
-    const humanFilter = query.data.humanOnly
-      ? `AND json_array_length(record_json, '$.participants') = ${gameCapacity(query.data.game)}
-         AND NOT EXISTS (
-           SELECT 1 FROM json_each(record_json, '$.participants') participant
-           WHERE json_extract(participant.value, '$.kind') IS NOT 'human'
-         )`
-      : "";
-    const rows = await c.env.APP_DB.prepare(`SELECT game, record_json FROM matches
-      WHERE game = ? ${humanFilter} ORDER BY started_at_ms DESC, id DESC LIMIT 20`)
-      .bind(query.data.game)
-      .all<{ game: string; record_json: string }>();
-    const records = rows.results.map((row) => readStoredMatch(row.record_json, row.game));
-    const profiles = await participantProfiles(c.env.APP_DB, records);
-    const kinds =
-      query.data.includeMatchKind === "1" ? await readMatchKinds(c.env.APP_DB, records) : undefined;
     return c.json(
-      listPublicMatchesContract.response.parse({
-        matches: records.map((record) =>
-          withMatchKind(matchSummary(record, profiles, query.data.includeMoveCount === "1"), kinds),
+      listPublicMatchesContract.response.parse(
+        await readPublicMatches(
+          new D1MatchReadStore(c.env.APP_DB),
+          query.data.game,
+          query.data.humanOnly,
+          readStoredMatch,
+          (records) => participantProfiles(c.env.APP_DB, records),
+          {
+            includeMoveCount: query.data.includeMoveCount === "1",
+            includeMatchKind: query.data.includeMatchKind === "1",
+          },
         ),
-      }),
+      ),
     );
   } catch {
     console.error("Public match list request failed");
@@ -59,21 +52,16 @@ publicMatchRoutes.get(getPublicMatchContract.path, async (c) => {
   if (!query.success) return c.json({ message: "棋譜の取得条件が正しくありません。" }, 400);
   if (!params.success) return c.json({ message: "棋譜のURLが正しくありません。" }, 400);
   try {
-    const row = await c.env.APP_DB.prepare("SELECT game, record_json FROM matches WHERE id = ?")
-      .bind(params.data.matchId)
-      .first<{ game: string; record_json: string }>();
-    if (!row) return c.json({ message: "この棋譜は閲覧できません。" }, 404);
-    const record = await readMatchDetailRecord(c.env.APP_DB, row.record_json, row.game);
-    const profiles = await participantProfiles(c.env.APP_DB, [record]);
-    const kinds =
-      query.data.includeMatchKind === "1"
-        ? await readMatchKinds(c.env.APP_DB, [record])
-        : undefined;
-    return c.json(
-      getPublicMatchContract.response.parse({
-        match: withMatchKind(publicMatchDetail(record, profiles), kinds),
-      }),
+    const result = await readMatchDetail(
+      new D1MatchReadStore(c.env.APP_DB),
+      params.data.matchId,
+      undefined,
+      matchReadValidation,
+      (records) => participantProfiles(c.env.APP_DB, records),
+      query.data.includeMatchKind === "1",
     );
+    if (!result) return c.json({ message: "この棋譜は閲覧できません。" }, 404);
+    return c.json(getPublicMatchContract.response.parse(result));
   } catch {
     console.error("Public match detail request failed");
     return c.json({ message: "棋譜を取得できませんでした。もう一度お試しください。" }, 503);
@@ -87,9 +75,7 @@ publicMatchRoutes.get(getPublicMatchReplayContract.path, async (c) => {
   if (!params.success || !query.success)
     return c.json({ message: "棋譜の取得条件が正しくありません。" }, 400);
   try {
-    const row = await c.env.APP_DB.prepare("SELECT game, record_json FROM matches WHERE id = ?")
-      .bind(params.data.matchId)
-      .first<{ game: string; record_json: string }>();
+    const row = await new D1MatchReadStore(c.env.APP_DB).readMatch(params.data.matchId);
     if (!row) return c.json({ message: "この棋譜は閲覧できません。" }, 404);
     const record = readStoredMatch(row.record_json, row.game);
     if (record.game !== "four-shogi" && record.game !== "shogi")
