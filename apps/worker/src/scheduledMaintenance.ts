@@ -4,7 +4,7 @@ import { recoverAccountReservations } from "./accounts/roomAccounts";
 import { retryPendingMatchClaims } from "./accounts/matchClaims";
 import { deleteExpiredReports } from "./rooms/reportStore";
 import { cleanupFeedback } from "./feedback/store";
-import { deleteUnusedAvatars } from "./accounts/accountRoutes";
+import { deleteUnusedAvatars } from "./routes/accountAvatars";
 import { recoverTournaments } from "./adapters/tournament/recovery";
 import { matchmakingQueueKeys } from "@tetraboard/protocol";
 import { savePreviousMonthKpi } from "./kpi/monthly";

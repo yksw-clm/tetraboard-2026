@@ -1,3 +1,4 @@
+import { identifyGuest } from "../adapters/account/guestIdentity";
 import { authSecret } from "../privacy/tokens";
 import { createGuestUsername, isGuestUsernameCollision } from "./guestUsernames";
 import { readLimitedBody } from "../feedback/images";
@@ -23,17 +24,8 @@ function guestCookie(token: string, env: Env, maxAge = guestLifetimeMs / 1000) {
 export async function guestIdentity(request: Request, env: Env): Promise<StoredProfile | null> {
   const hash = await guestTokenHash(request);
   if (!hash) return null;
-  const user =
-    await env.APP_DB.prepare(`SELECT u.* FROM guest_sessions s JOIN user u ON u.id=s.account_id
-    WHERE s.token_hash=? AND s.expires_at_ms>? AND s.registered_at_ms IS NULL AND u.isAnonymous=1
-    AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=u.id)
-    AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=u.id)`)
-      .bind(hash, Date.now())
-      .first<StoredProfile>();
+  const user = await identifyGuest(env.APP_DB, hash, Date.now(), guestLifetimeMs);
   if (!user) return null;
-  await env.APP_DB.prepare("UPDATE guest_sessions SET expires_at_ms=? WHERE token_hash=?")
-    .bind(Date.now() + guestLifetimeMs, hash)
-    .run();
   const token = request.headers
     .get("Cookie")!
     .match(/(?:^|;\s*)tetraboard-2026\.guest=([a-f0-9]{64})/)![1]!;

@@ -2,13 +2,14 @@ import { guestIdentity, suspendGuestSession } from "./guestAccounts";
 import { authSecret } from "../privacy/tokens";
 import { isDeleted } from "../privacy/identity";
 import { betterAuth } from "better-auth";
-import { readProfileDetails } from "./profileDetails";
-import {
-  accountAvatarPresetId,
-  avatarPresetUrl,
-  isAvatarPresetId,
-  type AccountProfile,
-} from "@tetraboard/protocol";
+import { D1AccountProfiles } from "../adapters/account/profiles";
+export type { StoredProfile } from "@tetraboard/context-account";
+export {
+  publicProfile,
+  accountAvatarUrl,
+  profileAvatarUrl,
+  avatarKeyPattern,
+} from "../adapters/account/profilePolicy";
 
 export type AuthEnv = Env & {
   BETTER_AUTH_SECRET?: string;
@@ -139,11 +140,7 @@ export async function accountSessionIdentity(request: Request, env: AuthEnv) {
   sessionCookies.get(request)?.push(...headers.getSetCookie());
   if (!session) return null;
   // CookieキャッシュやOAuthの再ログインによって古いプロフィールを使わないようにします。
-  const user = await env.APP_DB.prepare(
-    'SELECT id, name, username, image, profileCompleted, avatarKey, avatarPresetId, profileMessage, favoriteGames, isTestUser, publicProfileId, isAnonymous, guestNameCustomized FROM "user" WHERE id = ? AND COALESCE(isAnonymous, 0) = 0 AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id)',
-  )
-    .bind(session.user.id)
-    .first<StoredProfile>();
+  const user = await new D1AccountProfiles(env.APP_DB).sessionProfile(session.user.id);
   return user ? { user, sessionId: session.session.id } : null;
 }
 export async function accountIdentity(request: Request, env: AuthEnv) {
@@ -155,52 +152,6 @@ export async function accountIdentity(request: Request, env: AuthEnv) {
   // 登録セッションの失効時に、別のゲストへ自動で切り替えません。
   if (hasAccountSessionCookie(request)) return null;
   return guestIdentity(request, env);
-}
-export type StoredProfile = {
-  id: string;
-  name: string;
-  username: string | null;
-  image: string | null;
-  profileCompleted: number;
-  avatarKey: string | null;
-  avatarPresetId?: string | null;
-  profileMessage?: string;
-  favoriteGames?: string;
-  isTestUser?: number | null;
-  publicProfileId?: string | null;
-  isAnonymous?: number | null;
-  guestNameCustomized?: number | null;
-};
-export function publicProfile(user: StoredProfile): AccountProfile {
-  return {
-    profileId: user.publicProfileId ?? null,
-    name: user.name,
-    username: user.username,
-    avatarUrl: accountAvatarUrl(user),
-    avatarPresetId: accountAvatarPresetId(user.id, user.avatarPresetId),
-    profileCompleted: Boolean(user.profileCompleted),
-    ...(!user.isAnonymous ? readProfileDetails(user) : {}),
-    ...(user.isAnonymous
-      ? { isGuest: true, nameCustomized: Boolean(user.guestNameCustomized) }
-      : {}),
-  };
-}
-
-export const avatarKeyPattern =
-  /^avatars\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/;
-export function profileAvatarUrl(key: string | null, presetId?: string | null): string | null {
-  return key && avatarKeyPattern.test(key)
-    ? `/api/avatars/${key.slice(8, -5)}`
-    : isAvatarPresetId(presetId)
-      ? avatarPresetUrl(presetId)
-      : null;
-}
-export function accountAvatarUrl(user: {
-  id: string;
-  avatarKey: string | null;
-  avatarPresetId?: string | null;
-}): string {
-  return profileAvatarUrl(user.avatarKey, accountAvatarPresetId(user.id, user.avatarPresetId))!;
 }
 
 export async function registeredIdentity(request: Request, env: AuthEnv) {

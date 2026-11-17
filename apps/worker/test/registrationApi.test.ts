@@ -8,7 +8,7 @@ import {
   registrationStatusSchema,
 } from "@tetraboard/protocol";
 import { registrationRoutes } from "../src/accounts/registrationRoutes";
-import { accountRoutes } from "../src/accounts/accountRoutes";
+import { accountRoutes } from "../src/routes/accountRoutes";
 import { readRegistrationFlow } from "../src/accounts/registrationFlows";
 import { accountSessionIdentity } from "../src/accounts/auth";
 import { digest } from "../src/privacy/deletion";
