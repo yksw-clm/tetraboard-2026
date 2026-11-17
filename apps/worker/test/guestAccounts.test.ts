@@ -1,7 +1,8 @@
 import { adminIdentity } from "../src/admin/auth";
 import { env, exports } from "cloudflare:workers";
-import { runInDurableObject, evictDurableObject } from "cloudflare:test";
+import { runInDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
+import { resetDurableObjectStorage } from "./durableObjectCleanup";
 import {
   avatarPresets,
   avatarPresetUrl,
@@ -19,7 +20,7 @@ import { accountIdentity, withAccountSessionCookies } from "../src/accounts/auth
 import { createGuestAccount, guestTokenHash, guestLifetimeMs } from "../src/accounts/guestAccounts";
 import { completeGuestLink, rememberGuestLink } from "../src/accounts/guestLinking";
 import { humanFixtureRecord, fixtureRecord } from "./matchFixtures";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { requestDeletion } from "../src/privacy/deletion";
 import worker from "../src/worker";
 import { lobbyChatSchema, lobbyPostResultSchema } from "@tetraboard/protocol/general-lobby";
@@ -915,11 +916,7 @@ afterEach(async () => {
   // 他のファイルの障害注入中に、このシナリオのAlarmを残しません。
   for (const id of createdRooms) {
     const stub = env.GAME_ROOM.getByName(id);
-    await runInDurableObject(stub, async (_instance, ctx) => {
-      await ctx.storage.deleteAll();
-      await ctx.storage.deleteAlarm();
-    });
-    await evictDurableObject(stub);
+    await resetDurableObjectStorage(stub);
   }
   createdRooms.clear();
   for (const key of createdTournaments.splice(0)) {

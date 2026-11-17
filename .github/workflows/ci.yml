@@ -34,6 +34,7 @@ jobs:
           filters: |
             ai:
               - 'packages/ai/**'
+              - 'packages/contexts/rating/**'
               - 'packages/contexts/room/**'
               - 'packages/four-reversi/**'
               - 'packages/four-shogi/**'
@@ -52,6 +53,8 @@ jobs:
               - 'apps/worker/test/roomBoundaryFixtures.ts'
               - 'apps/worker/test/accountFixtures.ts'
               - 'apps/worker/test/acceptedGameRequest.ts'
+              - 'apps/worker/test/setup.ts'
+              - 'apps/worker/test/durableObjectCleanup.ts'
               - 'mise.toml'
               - 'bun.lock'
               - '.github/workflows/**'

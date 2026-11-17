@@ -1,5 +1,5 @@
 import { savedProfileRatings } from "../accounts/profileRatings";
-import { fourReversiRatingMethod } from "../../../../packages/ai/fourReversiRating";
+import { fourReversiRatingMethod } from "@tetraboard/context-rating";
 import type { FourReversiRatingSource } from "../matchmaking/fourReversiSelection";
 import { activeTournamentContextKey, type TournamentRoomContext } from "./tournamentRoom";
 import {

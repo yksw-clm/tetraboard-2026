@@ -15,7 +15,7 @@ import {
   hasUnreadNotifications,
   readNotifications,
 } from "../src/notifications/store";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { humanFixtureRecord } from "./matchFixtures";
 import { requestDeletion, processDeletions } from "../src/privacy/deletion";
 

@@ -10,12 +10,13 @@ import {
   fourReversiRatingMethod,
   initialFourReversiRating,
   rateFourReversi,
-} from "../../../packages/ai/fourReversiRating";
+} from "@tetraboard/context-rating";
 import { accountFixture } from "./accountFixtures";
 import { boundaryRequest } from "./roomBoundaryFixtures";
-import { fixtureRecord, writeLegacyOutcomeFixture } from "./matchFixtures";
+import { fixtureRecord, writeOutcomeFixture } from "./matchFixtures";
 import { namedCpuProfile } from "../src/matchmaking/cpuProfiles";
-import { writeMatch, type MatchRecord } from "../src/rooms/matchStore";
+import { type MatchRecord } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { publicRatingForMu } from "../src/rooms/fourReversiRating";
 import { readAccountStats } from "../src/accounts/statsRoutes";
 
@@ -53,7 +54,7 @@ async function changes(matchId: string) {
   return (
     await env.APP_DB.prepare(`
     SELECT account_id, mu_before, mu_after, sigma_before, sigma_after, rated_games, human_games
-    FROM four_reversi_rating_changes WHERE match_id=? ORDER BY account_id
+    FROM skill_rating_changes WHERE game='four-reversi' AND match_id=? ORDER BY account_id
   `)
       .bind(matchId)
       .all<{
@@ -226,7 +227,7 @@ test("CPU混在局は全員の確定順位で人間2人を更新し、通常戦�
     rank: [1, 1, 3, 4][index]!,
     stoneCount: [20, 20, 15, 9][index]!,
   }));
-  await writeLegacyOutcomeFixture(env.APP_DB, excluded);
+  await writeOutcomeFixture(env.APP_DB, excluded);
   expect(await changes(excluded.id)).toEqual([]);
   expect(
     await env.APP_DB.prepare("SELECT id FROM matches WHERE id=?").bind(excluded.id).first(),

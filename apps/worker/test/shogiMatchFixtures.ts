@@ -8,11 +8,11 @@ import {
 } from "@tetraboard/four-shogi";
 import { finishedFourShogiStateSchema, type FourShogiReplayEvent } from "@tetraboard/protocol";
 import {
-  advanceShogiMatchSave,
   emptyKnockouts,
   type ShogiMatchRecord,
   type ShogiSaveProgress,
 } from "../src/rooms/shogiMatchStore";
+import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 
 export function shogiRecord(
   accountId: string | null,

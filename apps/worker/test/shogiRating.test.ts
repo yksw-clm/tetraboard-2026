@@ -4,10 +4,10 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import { shogiRoomSchema } from "@tetraboard/protocol";
 import { ShogiProgress, type ShogiCpuJob } from "../src/rooms/standardShogiProgress";
 import {
-  advanceShogiMatchSave,
   pendingStandardShogiMatchPrefix,
   type PendingStandardShogiMatch,
 } from "../src/rooms/shogiMatchStore";
+import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { accountFixture } from "./accountFixtures";
 import { boundaryRequest, RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 import { saveStandardShogiFixture, standardShogiRecord } from "./standardShogiFixtures";
@@ -26,7 +26,7 @@ async function changes(matchId: string) {
   return (
     await env.APP_DB.prepare(
       `SELECT account_id, rating_before, rating_after, rated_games, human_games
-       FROM shogi_rating_changes WHERE match_id = ?`,
+       FROM elo_rating_changes WHERE game='shogi' AND match_id = ?`,
     )
       .bind(matchId)
       .all<Change>()
@@ -157,7 +157,9 @@ test("認定中の進捗は本人だけに返し、5局目の保存後から公�
 
   for (let i = 0; i < 3; i++) await saveStandardShogiFixture(ratedCpuRecord(user.id, "draw"));
   const fifth = ratedCpuRecord(user.id);
-  await env.APP_DB.prepare("INSERT INTO shogi_rating_pending(account_id,match_id) VALUES (?,?)")
+  await env.APP_DB.prepare(
+    "INSERT INTO elo_rating_pending(game,account_id,match_id) VALUES ('shogi',?,?)",
+  )
     .bind(user.id, fifth.record.id)
     .run();
   expect(await read(fifth.record.id)).toEqual({ status: "pending" });

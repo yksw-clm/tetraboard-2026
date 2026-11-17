@@ -7,11 +7,11 @@ import { roomSchema } from "@tetraboard/protocol";
 import {
   matchStartKey,
   pendingMatchPrefix,
-  writeMatch,
   type MatchStart,
   type MatchRecord,
   type PendingMatch,
 } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import {
   matchClients,
   matchSetup,

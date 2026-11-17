@@ -8,7 +8,8 @@ import {
   shogiMatchSummarySchema,
   shogiMatchReplayPageSchema,
 } from "@tetraboard/protocol";
-import { advanceShogiMatchSave, readShogiMatchReplayPage } from "../src/rooms/shogiMatchStore";
+import { readShogiMatchReplayPage } from "../src/rooms/shogiMatchStore";
+import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { readStoredMatch, publicMatchDetail } from "../src/accounts/matchDataContracts";
 import { accountFixture } from "./accountFixtures";
 import { boundaryRequest } from "./roomBoundaryFixtures";
@@ -126,6 +127,7 @@ test("通常将棋の棋譜は公開前の破損を検出し、再試行と100�
   expect(await readShogiMatchReplayPage(env.APP_DB, fixture.record.id, 0, "four-shogi")).toBeNull();
   const json = JSON.stringify(fixture.record);
   const parsed = readStoredMatch(json, "shogi");
+  if (parsed.game !== "shogi") throw new Error("Unexpected stored game");
   expect(publicShogiMatchDetailSchema.parse(publicMatchDetail(parsed, new Map())).game).toEqual(
     fixture.record.game,
   );

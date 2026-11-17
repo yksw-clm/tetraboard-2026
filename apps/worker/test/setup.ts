@@ -1,5 +1,8 @@
 import { applyD1Migrations, env } from "cloudflare:test";
-import { beforeAll } from "vitest";
+import { beforeAll, beforeEach } from "vitest";
+import { trackDurableObjects } from "./durableObjectCleanup";
+
+beforeEach(trackDurableObjects);
 
 beforeAll(async () => {
   const migrations = (

@@ -1,3 +1,5 @@
+import { readPendingRating } from "@tetraboard/context-rating";
+import { D1RatingReader } from "../adapters/rating/reader";
 import {
   matchmakingQueues,
   ratedMatchmakingGameIds,
@@ -12,7 +14,10 @@ export const pendingRatedGames = ratedMatchmakingGameIds.map((game) => ({
 }));
 
 export const noPendingRatedMatch = pendingRatedGames
-  .map(({ table }) => `NOT EXISTS (SELECT 1 FROM ${table} WHERE account_id=?5)`)
+  .map(
+    ({ game, table }) =>
+      `NOT EXISTS (SELECT 1 FROM ${table} WHERE game='${game}' AND account_id=?5)`,
+  )
   .join(" AND ");
 
 export async function readPreviousRatedMatch(
@@ -20,24 +25,12 @@ export async function readPreviousRatedMatch(
   accountId: string,
   game: RatedMatchmakingGame,
 ): Promise<MatchmakingState["previousMatch"]> {
-  const ordered = [...pendingRatedGames].sort(
-    (a, b) => Number(b.game === game) - Number(a.game === game),
+  const pending = await readPendingRating(
+    new D1RatingReader(env.APP_DB),
+    accountId,
+    game,
+    ratedMatchmakingGameIds,
   );
-  const pending = await env.APP_DB.prepare(
-    ordered
-      .map(
-        ({ game, table }) =>
-          `SELECT '${game}' AS game, match_id, room_id, instance_id FROM ${table} AS pending WHERE account_id=?1`,
-      )
-      .join(" UNION ALL ") + " LIMIT 1",
-  )
-    .bind(accountId)
-    .first<{
-      game: RatedMatchmakingGame;
-      match_id: string;
-      room_id: string | null;
-      instance_id: string | null;
-    }>();
   if (!pending) return;
   const previous = { game: pending.game, matchId: pending.match_id };
   try {

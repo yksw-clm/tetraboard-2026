@@ -39,6 +39,7 @@
   },
   "dependencies": {
     "@cloudflare/containers": "0.3.7",
+    "@tetraboard/context-rating": "workspace:*",
     "openskill": "5.0.1"
   }
 }

@@ -3,7 +3,7 @@ import {
   initialFourReversiRating,
   predictFourReversiPair,
   rateFourReversi,
-} from "../fourReversiRating";
+} from "@tetraboard/context-rating";
 
 const colors = ["black", "white", "red", "blue"];
 type Outcome = { color: string; rank: number; score: number | null };

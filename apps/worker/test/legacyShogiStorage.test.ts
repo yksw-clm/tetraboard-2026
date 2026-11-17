@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
-import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
-import { afterEach, expect, test, vi } from "vitest";
+import { runInDurableObject } from "cloudflare:test";
+import { afterEach, expect, test } from "vitest";
 import { createInitialState as createShogiState } from "@tetraboard/shogi";
 import {
   createRoomContract,
@@ -10,18 +10,10 @@ import {
 } from "@tetraboard/protocol";
 import legacy from "../../../test-fixtures/matches/shogi-legacy.json";
 import { waitingRoomFactories } from "../src/rooms/waitingRoomFactories";
-import { ShogiStore } from "../src/rooms/shogiStore";
-import { StandardShogiStore } from "../src/rooms/standardShogiStore";
-import {
-  pendingShogiMatchPrefix,
-  pendingStandardShogiMatchPrefix,
-  advanceShogiMatchSave,
-  readShogiMatchReplayPage,
-  type PendingShogiMatch,
-  type PendingStandardShogiMatch,
-  type ShogiMatchRecord,
-} from "../src/rooms/shogiMatchStore";
+import { type ShogiMatchRecord } from "../src/rooms/shogiMatchStore";
+import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { standardShogiRecord } from "./standardShogiFixtures";
+import { resetDurableObjectStorage } from "./durableObjectCleanup";
 
 const stubs: ReturnType<typeof env.GAME_ROOM.getByName>[] = [];
 const ids: string[] = [];
@@ -31,11 +23,7 @@ function durableObject() {
   return stub;
 }
 afterEach(async () => {
-  for (const stub of stubs.splice(0))
-    await runInDurableObject(stub, async (_, state) => {
-      await state.storage.deleteAll();
-      await state.storage.deleteAlarm();
-    });
+  for (const stub of stubs.splice(0)) await resetDurableObjectStorage(stub);
   for (const id of ids.splice(0))
     await env.APP_DB.batch([
       env.APP_DB.prepare("DELETE FROM account_match_history WHERE match_id=?").bind(id),
@@ -166,133 +154,56 @@ function archiveFixture(game: "four-shogi" | "shogi") {
         }
       : standardShogiRecord(null);
   const record: typeof fixture.record = JSON.parse(JSON.stringify(fixture.record));
-  delete (record.game as Partial<typeof record.game>).drawProposals;
+  record.game.drawProposals = [];
   ids.push(record.id);
   return { record, events: fixture.events };
 }
 
-async function storeArchive(
-  stub: ReturnType<typeof durableObject>,
-  fixture: ReturnType<typeof archiveFixture>,
-  phase: "upload" | "verify",
-) {
-  const { record, events } = fixture;
-  const prefix = record.settings.game === "shogi" ? "standard_shogi" : "shogi";
-  const key =
-    (record.settings.game === "shogi" ? pendingStandardShogiMatchPrefix : pendingShogiMatchPrefix) +
-    record.id;
-  await runInDurableObject(stub, async (_, state) => {
-    if (record.settings.game === "shogi") new StandardShogiStore(state.storage.sql);
-    else new ShogiStore(state.storage.sql);
-    state.storage.sql.exec(
-      `INSERT INTO ${prefix}_rounds VALUES(?,?,?)`,
-      record.id,
-      JSON.stringify(record.replay.initial),
-      events.length,
-    );
-    for (const [index, event] of events.entries())
-      state.storage.sql.exec(
-        `INSERT INTO ${prefix}_events VALUES(?,?,?)`,
-        record.id,
-        index,
-        JSON.stringify(event),
-      );
-    state.storage.sql.exec(`INSERT INTO ${prefix}_archives VALUES(?)`, record.id);
-    state.storage.kv.put(key, {
-      record,
-      progress: { phase, cursor: 0 },
-      retryAtMs: Date.now() + 60000,
-    });
-    await state.storage.setAlarm(Date.now() + 60000);
-  });
-  return { key, prefix };
-}
-
-async function resumeArchive(stub: ReturnType<typeof durableObject>, key: string) {
-  for (let pass = 0; pass < 3; pass++) {
-    await runInDurableObject(stub, async (_, state) => {
-      const job = state.storage.kv.get<PendingShogiMatch | PendingStandardShogiMatch>(key);
-      if (job) state.storage.kv.put(key, { ...job, retryAtMs: Date.now() - 1 });
-      await state.storage.setAlarm(Date.now() + 60000);
-    });
-    await runDurableObjectAlarm(stub);
-  }
-}
-
 for (const game of ["four-shogi", "shogi"] as const)
   for (const scenario of [
-    { name: "旧DO・manifestなし", manifest: false, current: false },
-    { name: "旧DO・旧manifest", manifest: true, current: false },
-    { name: "現行DO・旧manifest", manifest: true, current: true },
+    { name: "引分提案のない保存待ち", manifest: false, current: false },
+    { name: "引分提案のない保存待ちとmanifest", manifest: true, current: false },
+    { name: "現行の保存待ちと引分提案のないmanifest", manifest: true, current: true },
   ]) {
-    test(`${game}: ${scenario.name}のアーカイブ保存を完了する`, async () => {
-      const stub = durableObject();
-      const fixture = archiveFixture(game);
-      const { record, events } = fixture;
-      const original = JSON.stringify(record);
-      const pendingRecord: typeof record = JSON.parse(original);
-      if (scenario.current) pendingRecord.game.drawProposals = [];
-      const pending = { ...fixture, record: pendingRecord };
-      const { key, prefix } = await storeArchive(
-        stub,
-        pending,
-        scenario.manifest ? "verify" : "upload",
-      );
-      if (scenario.manifest) {
+    test(`${game}: ${scenario.name}を補完せずに拒否する`, async () => {
+      const { record, events } = archiveFixture(game);
+      const legacyRecord = structuredClone(record);
+      delete (legacyRecord.game as Partial<typeof legacyRecord.game>).drawProposals;
+      const original = JSON.stringify(legacyRecord);
+      const pending = scenario.current ? record : legacyRecord;
+      const pendingJson = JSON.stringify(pending);
+      if (scenario.manifest)
         await env.APP_DB.prepare("INSERT INTO match_uploads VALUES(?,?,?,?)")
           .bind(record.id, original, events.length, Math.ceil(events.length / 100))
           .run();
-        for (let cursor = 0; cursor < events.length; cursor += 100) {
-          const chunk = events.slice(cursor, cursor + 100);
-          await env.APP_DB.prepare("INSERT INTO match_event_chunks VALUES(?,?,?,?,?)")
-            .bind(record.id, cursor / 100, cursor, chunk.length, JSON.stringify(chunk))
-            .run();
-        }
-      }
-
-      await resumeArchive(stub, key);
-
-      await vi.waitFor(async () => {
-        const saved = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id=?")
+      await expect(
+        advanceShogiMatchSave(env.APP_DB, pending, { phase: "upload", cursor: 0 }, (cursor) =>
+          events.slice(cursor, cursor + 100),
+        ),
+      ).rejects.toThrow();
+      expect(JSON.stringify(pending)).toBe(pendingJson);
+      expect(
+        await env.APP_DB.prepare("SELECT record_json FROM match_uploads WHERE id=?")
           .bind(record.id)
-          .first<string>("record_json");
-        expect(saved).not.toBeNull();
-        expect(JSON.parse(saved!)).toEqual({
-          ...record,
-          game: { ...record.game, drawProposals: [] },
-        });
-        expect(
-          await env.APP_DB.prepare("SELECT id FROM match_uploads WHERE id=?")
-            .bind(record.id)
-            .first(),
-        ).toBeNull();
-        expect(
-          await runInDurableObject(stub, (_, state) => ({
-            pending: state.storage.kv.get(key),
-            archives: state.storage.sql.exec(`SELECT COUNT(*) AS n FROM ${prefix}_archives`).one(),
-            events: state.storage.sql.exec(`SELECT COUNT(*) AS n FROM ${prefix}_events`).one(),
-          })),
-        ).toEqual({ pending: undefined, archives: { n: 0 }, events: { n: 0 } });
-      });
-      const replay = await readShogiMatchReplayPage(env.APP_DB, record.id, 0, game);
-      expect(replay?.events.map(({ event }) => event)).toEqual(events.slice(0, 100));
-      expect(JSON.stringify(record)).toBe(original);
+          .first("record_json"),
+      ).toBe(scenario.manifest ? original : null);
+      expect(
+        await env.APP_DB.prepare("SELECT id FROM matches WHERE id=?").bind(record.id).first(),
+      ).toBeNull();
     });
   }
 
-test("旧manifestでも引分提案以外が異なる再送は拒否し、元のmanifestを保持する", async () => {
+test("現行manifestと結果が異なる再送を拒否し、元のmanifestを保持する", async () => {
   const { record, events } = archiveFixture("four-shogi");
   const json = JSON.stringify({ ...record, endedAtMs: record.endedAtMs + 1 });
   await env.APP_DB.prepare("INSERT INTO match_uploads VALUES(?,?,?,?)")
     .bind(record.id, json, events.length, Math.ceil(events.length / 100))
     .run();
-
   await expect(
     advanceShogiMatchSave(env.APP_DB, record, { phase: "upload", cursor: 0 }, (cursor) =>
       events.slice(cursor, cursor + 100),
     ),
   ).rejects.toThrow("Conflicting Shogi match upload");
-
   expect(
     await env.APP_DB.prepare("SELECT record_json FROM match_uploads WHERE id=?")
       .bind(record.id)

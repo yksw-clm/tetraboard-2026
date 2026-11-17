@@ -1,13 +1,17 @@
 import {
-  ratedMatchmakingRules,
   type GameId,
   type ProfileRating,
   type ProfileRatings,
   type RatedMatchmakingGame,
 } from "@tetraboard/protocol";
-import { ratedMatchmakingPolicy, type QueueRatingSource } from "../matchmaking/ratedMatchmaking";
-import { publicRatingForMu } from "../rooms/fourReversiRating";
-import type { DecodedMatch } from "./matchDataContracts";
+import { type QueueRatingSource } from "../matchmaking/ratedMatchmaking";
+import {
+  publicRatingForMu,
+  readProfileRating as readContextProfileRating,
+  readBeforeRating,
+} from "@tetraboard/context-rating";
+import { D1RatingReader } from "../adapters/rating/reader";
+import type { ReadableMatch } from "./matchDataContracts";
 
 export function hasProfileRating(game: GameId): game is RatedMatchmakingGame {
   return game === "shogi" || game === "reversi" || game === "four-shogi" || game === "four-reversi";
@@ -19,20 +23,7 @@ export async function readProfileRating(
   game: RatedMatchmakingGame,
   timing: "current" | "before",
 ): Promise<ProfileRating> {
-  const row = await ratedMatchmakingPolicy(game)
-    .store.latest(db, accountId)
-    .first<{ rating_after: number; rated_games: number; human_games: number }>();
-  if (!row || row.rated_games < ratedMatchmakingRules[game].placementGames)
-    return { timing, status: "placement" };
-  return {
-    timing,
-    status: "rated",
-    ...(timing === "current" ? { humanPlayed: row.human_games > 0 } : {}),
-    rating:
-      game === "shogi" || game === "reversi"
-        ? row.rating_after
-        : publicRatingForMu(row.rating_after),
-  };
+  return readContextProfileRating(new D1RatingReader(db), game, accountId, timing);
 }
 
 export function cpuReferenceRating(source: QueueRatingSource): ProfileRating | undefined {
@@ -60,7 +51,7 @@ export function savedProfileRatings(storage: DurableObjectStorage, matchId: stri
 
 export async function readMatchProfileRating(
   db: D1Database,
-  match: DecodedMatch,
+  match: ReadableMatch,
   playerId: string,
 ): Promise<ProfileRating | undefined> {
   if (match.game === "gomoku" || match.game === "four-gomoku") return;
@@ -96,21 +87,5 @@ export async function readMatchProfileRating(
       : { timing: "reference", status: "rated", rating: publicRatingForMu(mu) };
   }
   if (!player.accountId) return;
-  const ranked = match.game === "four-shogi" || match.game === "four-reversi";
-  const store = ratedMatchmakingPolicy(match.game).store;
-  const row = await db
-    .prepare(
-      `SELECT ${ranked ? "mu_before" : "rating_before"} AS rating, rated_games
-      FROM ${store.changesTable} WHERE match_id=? AND account_id=?`,
-    )
-    .bind(record.id, player.accountId)
-    .first<{ rating: number; rated_games: number }>();
-  if (!row) return { timing: "before", status: "unavailable" };
-  if (row.rated_games <= ratedMatchmakingRules[match.game].placementGames)
-    return { timing: "before", status: "placement" };
-  return {
-    timing: "before",
-    status: "rated",
-    rating: ranked ? publicRatingForMu(row.rating) : row.rating,
-  };
+  return readBeforeRating(new D1RatingReader(db), match.game, record.id, player.accountId);
 }

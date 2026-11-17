@@ -1,72 +1,28 @@
 import { badgeAwardStatements } from "./badgeAwards";
-import { readStoredMatch, type DecodedMatch } from "./matchDataContracts";
+import { readStoredMatch, type ReadableMatch } from "./matchDataContracts";
 import { isDeleted, redactRetiredParticipants } from "../privacy/identity";
 
-export type MatchClaimInput = {
-  matchId: string;
-  playerId: string;
-  accountId: string;
-  roomId: string;
-  instanceId: string;
-};
-export type MatchClaimState = "pending" | "applied" | "retired" | "rejected";
-export type MatchClaimGuard = { registrationId: string; sessionId: string };
-type ClaimRow = {
-  match_id: string;
-  player_id: string;
-  account_id: string | null;
-  room_id: string;
-  instance_id: string;
-  state: MatchClaimState;
-};
-export class MatchClaimError extends Error {
-  constructor(public readonly code: "conflict" | "ineligible" | "retired") {
-    super(`Match claim ${code}`);
-  }
-}
+export { MatchClaimError } from "@tetraboard/context-record";
+export type { MatchClaimInput, MatchClaimState, MatchClaimGuard } from "@tetraboard/context-record";
+import {
+  checkMatchClaim,
+  readClaimState,
+  prepareMatchClaimTransitions,
+  MatchClaimError,
+  type MatchClaimInput,
+  type MatchClaimState,
+  type MatchClaimGuard,
+  type ClaimRow,
+} from "@tetraboard/context-record";
+import { D1MatchClaimReadStore } from "../adapters/record/matchClaimReadStore";
 
-async function storedMatch(db: D1Database, matchId: string) {
-  const row = await db
-    .prepare("SELECT game,record_json FROM matches WHERE id=?")
-    .bind(matchId)
-    .first<{ game: string; record_json: string }>();
-  return row ? readStoredMatch(row.record_json, row.game) : null;
-}
-
-function validateParticipant(record: DecodedMatch, input: MatchClaimInput) {
-  const data = record.record;
-  const player = data.participants.find((p) => p.id === input.playerId);
-  if (
-    data.id !== input.matchId ||
-    data.roomId !== input.roomId ||
-    data.instanceId !== input.instanceId ||
-    !player ||
-    player.kind !== "human" ||
-    player.accountId !== null ||
-    player.retired
-  )
-    throw new MatchClaimError("ineligible");
-  if (data.participants.some((p) => p.kind === "human" && p.accountId === input.accountId))
-    throw new MatchClaimError("conflict");
-}
-
-export async function readMatchClaimState(
+export function readMatchClaimState(
   db: D1Database,
   matchId: string,
   playerId: string,
   accountId: string,
 ): Promise<MatchClaimState | null> {
-  const row = await db
-    .prepare(
-      "SELECT state,account_id FROM match_participant_accounts WHERE match_id=? AND player_id=?",
-    )
-    .bind(matchId, playerId)
-    .first<Pick<ClaimRow, "state" | "account_id">>();
-  return row?.state === "retired" || row?.state === "rejected"
-    ? row.state
-    : row?.account_id === accountId
-      ? row.state
-      : null;
+  return readClaimState(new D1MatchClaimReadStore(db), matchId, playerId, accountId);
 }
 
 /** ゲスト本人の資格をサーバーで検証した後だけ呼び、保存待ちでも受付を永続化します。 */
@@ -75,12 +31,7 @@ export async function acceptMatchClaim(
   input: MatchClaimInput,
   guard?: MatchClaimGuard,
 ): Promise<"pending" | "applied"> {
-  if (await isDeleted(db, input.accountId)) throw new MatchClaimError("retired");
-  const previous = await readMatchClaimState(db, input.matchId, input.playerId, input.accountId);
-  if (previous === "retired") throw new MatchClaimError("retired");
-  if (previous === "rejected") throw new MatchClaimError("conflict");
-  const record = await storedMatch(db, input.matchId);
-  if (record) validateParticipant(record, input);
+  await checkMatchClaim(new D1MatchClaimReadStore(db), input, readStoredMatch);
   const now = Date.now();
   await db.batch([
     db
@@ -140,29 +91,15 @@ export async function acceptMatchClaim(
 
 /** 公開済みの棋譜を正本として、本人索引・獲得通知と紐付けを同時に確定します。 */
 export async function applyMatchClaims(db: D1Database, matchId: string): Promise<void> {
-  const rows = await db
-    .prepare("SELECT * FROM match_participant_accounts WHERE match_id=? AND state='pending'")
-    .bind(matchId)
-    .all<ClaimRow>();
-  if (!rows.results.length) return;
-  const record = await storedMatch(db, matchId);
-  if (!record) return;
+  const prepared = await prepareMatchClaimTransitions(
+    new D1MatchClaimReadStore(db),
+    matchId,
+    readStoredMatch,
+  );
+  if (!prepared) return;
+  const { record } = prepared;
   const transitions: D1PreparedStatement[] = [];
-  for (const row of rows.results) {
-    let valid = true;
-    try {
-      if (!row.account_id) throw new MatchClaimError("ineligible");
-      validateParticipant(record, {
-        matchId,
-        playerId: row.player_id,
-        accountId: row.account_id,
-        roomId: row.room_id,
-        instanceId: row.instance_id,
-      });
-    } catch (error) {
-      if (!(error instanceof MatchClaimError)) throw error;
-      valid = false;
-    }
+  for (const { row, valid } of prepared.transitions) {
     // 保存前に受け付けた不適格な1件で、他の本人索引や棋譜保存を停止しません。
     transitions.push(
       db
@@ -212,7 +149,7 @@ export async function retryPendingMatchClaims(db: D1Database, roomId?: string): 
 /** 保存済みJSONは変えず、読取り用の本人関係と退会状態だけを重ねます。 */
 export async function resolveMatchParticipants(
   db: D1Database,
-  record: DecodedMatch,
+  record: ReadableMatch,
 ): Promise<void> {
   await resolveMatchParticipantList(db, [record]);
 }
@@ -220,7 +157,7 @@ export async function resolveMatchParticipants(
 /** 一覧の最大20局をまとめて解決し、参加者IDは対局IDと組にして扱います。 */
 export async function resolveMatchParticipantList(
   db: D1Database,
-  records: DecodedMatch[],
+  records: ReadableMatch[],
 ): Promise<void> {
   const matchIds = [...new Set(records.map((record) => record.record.id))];
   if (!matchIds.length) return;
@@ -253,7 +190,7 @@ export async function resolveMatchParticipantList(
           throw new Error("Conflicting match participant identity");
         return { ...player, accountId: claimedId };
       }),
-    } as DecodedMatch["record"];
+    } as ReadableMatch["record"];
   }
   const accountIds = [
     ...new Set(

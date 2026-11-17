@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { expect, test } from "vitest";
-import { fourReversiRatingMethod } from "../../../packages/ai/fourReversiRating";
+import { fourReversiRatingMethod } from "@tetraboard/context-rating";
 import { accountFixture } from "./accountFixtures";
 import { saveShogiFixture, shogiRecord } from "./shogiMatchFixtures";
 
@@ -38,7 +38,7 @@ test.each([
     await saveShogiFixture(fixture);
     await saveShogiFixture(fixture);
     const { results } = await env.APP_DB.prepare(
-      "SELECT account_id, rated_games FROM four_shogi_rating_changes WHERE match_id=?",
+      "SELECT account_id, rated_games FROM skill_rating_changes WHERE game='four-shogi' AND match_id=?",
     )
       .bind(fixture.record.id)
       .all();

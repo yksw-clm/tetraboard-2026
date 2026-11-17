@@ -1,7 +1,9 @@
+import { prepareStoredMatchFixture } from "./snapshotMatchFixtures";
 import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { createInitialState, eliminateColor } from "@tetraboard/four-reversi";
-import { writeMatch, type MatchRecord } from "../src/rooms/matchStore";
+import { type MatchRecord } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { env, exports } from "cloudflare:workers";
 import {
   createRoomContract,
@@ -205,8 +207,7 @@ export function fixtureRecord(
   };
 }
 
-// 任意の順位を与える集計用fixtureは、合法なイベント列を表さないため旧形式で用意します。
-export async function writeLegacyOutcomeFixture(db: D1Database, record: MatchRecord) {
+export async function writeOutcomeFixture(db: D1Database, record: MatchRecord) {
   await db
     .prepare(`INSERT INTO matches (id, game, mode, started_at_ms, ended_at_ms, record_json)
     VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`)
@@ -216,7 +217,7 @@ export async function writeLegacyOutcomeFixture(db: D1Database, record: MatchRec
       record.settings.mode,
       record.startedAtMs,
       record.endedAtMs,
-      JSON.stringify(record),
+      await prepareStoredMatchFixture(db, JSON.stringify(record)),
     )
     .run();
   await writeMatch(db, record);

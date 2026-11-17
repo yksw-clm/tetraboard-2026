@@ -7,9 +7,9 @@ import {
   listMatchesContract,
 } from "@tetraboard/protocol";
 import { accountFixture } from "./accountFixtures";
-import { humanFixtureRecord, matchRequest, writeLegacyOutcomeFixture } from "./matchFixtures";
+import { humanFixtureRecord, matchRequest, writeOutcomeFixture } from "./matchFixtures";
 import { humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { readGameRankings } from "../src/rooms/rankingRoutes";
 
 beforeEach(async () => {
@@ -61,7 +61,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
           kind: "cpu",
           level: 1,
         };
-        await writeLegacyOutcomeFixture(env.APP_DB, record);
+        await writeOutcomeFixture(env.APP_DB, record);
       }
     }
     for (const draw of [false, true]) {
@@ -93,7 +93,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
           kind: "cpu",
           level: 1,
         };
-        await writeLegacyOutcomeFixture(env.APP_DB, record);
+        await writeOutcomeFixture(env.APP_DB, record);
       }
     }
     const response = await matchRequest("/account/stats?game=" + game, {

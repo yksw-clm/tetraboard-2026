@@ -1,3 +1,4 @@
+import { encodeSnapshotMatch } from "../src/rooms/snapshotMatchEvents";
 import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
 import { expect, test } from "vitest";
@@ -6,10 +7,10 @@ import { accountFixture, origin } from "./accountFixtures";
 import { humanFixtureRecord, fixtureRecord } from "./matchFixtures";
 import { humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
 import { createInitialState, eliminateColor } from "@tetraboard/four-reversi";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { badgeNotificationResponseSchema } from "@tetraboard/protocol";
 import { badgeAwardStatements, badgeAwardsSql } from "../src/accounts/badgeAwards";
-import { fourReversiRatingMethod } from "../../../packages/ai/fourReversiRating";
+import { fourReversiRatingMethod } from "@tetraboard/context-rating";
 
 const db = env.APP_DB;
 function winningRecord(accountId: string, index: number) {
@@ -250,6 +251,7 @@ test("migration snapshots historical badges without notifications and detects th
     migrations.filter((m) => m.name < last.name),
   );
   const user = await accountFixture(true, crypto.randomUUID(), database);
+  // チャンク表ができる前のmigrationを検証するため、集計に使う本体だけを現行形式で入れます。
   for (let i = 1; i <= 19; i++) {
     const record = winningRecord(user.id, i);
     await database.batch([
@@ -261,7 +263,7 @@ test("migration snapshots historical badges without notifications and detects th
           "singles",
           record.startedAtMs,
           record.endedAtMs,
-          JSON.stringify(record),
+          JSON.stringify(encodeSnapshotMatch(record).record),
         ),
       database
         .prepare(
@@ -307,7 +309,12 @@ test("migration snapshots historical badges without notifications and detects th
     await database.batch([
       database
         .prepare("INSERT INTO matches VALUES (?, 'four-reversi', 'singles', ?, ?, ?)")
-        .bind(record.id, record.startedAtMs, record.endedAtMs, JSON.stringify(record)),
+        .bind(
+          record.id,
+          record.startedAtMs,
+          record.endedAtMs,
+          JSON.stringify(encodeSnapshotMatch(record).record),
+        ),
       database
         .prepare(
           "INSERT INTO account_match_history (account_id, match_id, mode, started_at_ms, game) VALUES (?, ?, 'singles', ?, 'four-reversi')",
@@ -352,7 +359,12 @@ async function writeHistoricalMatch(
   await database.batch([
     database
       .prepare("INSERT INTO matches VALUES (?, 'four-reversi', 'singles', ?, ?, ?)")
-      .bind(record.id, record.startedAtMs, record.endedAtMs, JSON.stringify(record)),
+      .bind(
+        record.id,
+        record.startedAtMs,
+        record.endedAtMs,
+        JSON.stringify(encodeSnapshotMatch(record).record),
+      ),
     database
       .prepare(`INSERT INTO account_match_history
       SELECT json_extract(p.value, '$.accountId'), m.id, m.mode, m.started_at_ms, m.game

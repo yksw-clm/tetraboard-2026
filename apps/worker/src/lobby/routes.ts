@@ -1,4 +1,5 @@
-import { readMatchKinds, withMatchKind } from "../accounts/matchKinds";
+import { readPublicMatches } from "@tetraboard/context-record";
+import { D1MatchReadStore } from "../adapters/record/matchReadStore";
 import { Hono } from "hono";
 import { z } from "zod";
 import {
@@ -13,7 +14,7 @@ import { accountIdentity } from "../accounts/auth";
 import { ratedMatchmakingPolicy } from "../matchmaking/ratedMatchmaking";
 import { listGeneralRooms, listLobbyRoomCards } from "../rooms/roomIndex";
 import { participantProfiles } from "../accounts/matchProfiles";
-import { readStoredMatch, matchSummary } from "../accounts/matchDataContracts";
+import { readStoredMatch } from "../accounts/matchDataContracts";
 export const generalLobbyRoutes = new Hono<{ Bindings: Env }>();
 generalLobbyRoutes.use("/lobby/*", async (c, next) => {
   c.header("Cache-Control", "no-store");
@@ -77,23 +78,19 @@ generalLobbyRoutes.get("/lobby/matches", async (c) => {
     })
     .safeParse(c.req.query());
   if (!query.success) return c.json({ message: "取得条件が正しくありません。" }, 400);
-  const rows = await c.env.APP_DB.prepare(`SELECT game,record_json FROM matches
- ${
-   query.data.humanOnly === "true"
-     ? `WHERE json_array_length(record_json,'$.participants')=CASE WHEN game IN ('reversi','shogi','gomoku') THEN 2 ELSE 4 END
- AND NOT EXISTS(SELECT 1 FROM json_each(record_json,'$.participants') p WHERE json_extract(p.value,'$.kind') IS NOT 'human')`
-     : ""
- }
- ORDER BY started_at_ms DESC,id DESC LIMIT 20`).all<{ game: string; record_json: string }>();
-  const records = rows.results.map((row) => readStoredMatch(row.record_json, row.game));
-  const profiles = await participantProfiles(c.env.APP_DB, records);
-  const kinds =
-    query.data.includeMatchKind === "1" ? await readMatchKinds(c.env.APP_DB, records) : undefined;
   return c.json(
-    lobbyMatchesSchema.parse({
-      matches: records.map((record) =>
-        withMatchKind(matchSummary(record, profiles, query.data.includeMoveCount === "1"), kinds),
+    lobbyMatchesSchema.parse(
+      await readPublicMatches(
+        new D1MatchReadStore(c.env.APP_DB),
+        undefined,
+        query.data.humanOnly === "true",
+        readStoredMatch,
+        (records) => participantProfiles(c.env.APP_DB, records),
+        {
+          includeMoveCount: query.data.includeMoveCount === "1",
+          includeMatchKind: query.data.includeMatchKind === "1",
+        },
       ),
-    }),
+    ),
   );
 });

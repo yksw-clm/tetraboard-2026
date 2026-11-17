@@ -1,5 +1,3 @@
-import { snapshotRecord } from "../src/rooms/eventRecord";
-import type { SnapshotMatch } from "../src/rooms/snapshotMatchEvents";
 import { env } from "cloudflare:workers";
 import { expect, test } from "vitest";
 import { gameIds, type GameId } from "@tetraboard/protocol/games";
@@ -14,11 +12,16 @@ import {
   readMatchClaimState,
   retryPendingMatchClaims,
 } from "../src/accounts/matchClaims";
-import { readStoredMatch, type DecodedMatch } from "../src/accounts/matchDataContracts";
+import {
+  readStoredMatch,
+  readMatchRecord,
+  type ReadableMatch,
+} from "../src/accounts/matchDataContracts";
 import { readAccountStats } from "../src/accounts/statsRoutes";
 import { readFormationStats } from "../src/accounts/formationStatsRoutes";
-import { writeMatch } from "../src/rooms/matchStore";
-import { advanceShogiMatchSave, type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
+import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
+import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { emptyFormationUsage } from "../src/rooms/shogiFormationUsage";
 import { requestDeletion } from "../src/privacy/deletion";
 import { accountFixture } from "./accountFixtures";
@@ -46,7 +49,7 @@ function fixture(game: GameId, cpu = false) {
                 instanceId: crypto.randomUUID(),
               };
   const id = crypto.randomUUID();
-  const record = readStoredMatch(
+  const record = readMatchRecord(
     JSON.stringify({
       ...snapshot,
       id,
@@ -76,12 +79,12 @@ function fixture(game: GameId, cpu = false) {
       await saveShogiFixture({ record: record.record, events: fourShogi.events });
     else if (record.game === "shogi")
       await saveStandardShogiFixture({ record: record.record, events: shogi.events });
-    else await writeMatch(env.APP_DB, snapshotRecord<SnapshotMatch>(record.record));
+    else await writeMatch(env.APP_DB, record.record);
   }
   return { record, save };
 }
 function input(
-  record: DecodedMatch,
+  record: ReadableMatch,
   accountId: string,
   playerId = record.record.participants.at(-1)!.id,
 ) {
@@ -227,7 +230,7 @@ test("保存後に不適格と分かった受付は終端化し、別人の引�
   const native = await accountFixture();
   const guest = await accountFixture();
   const record = humanFixtureRecord(native.id, 1);
-  const decoded = readStoredMatch(JSON.stringify(record), "four-reversi");
+  const decoded = readMatchRecord(JSON.stringify(record), "four-reversi");
   const invalid = input(decoded, native.id, record.participants[1].id);
   const valid = input(decoded, guest.id, record.participants[2].id);
   expect(await acceptMatchClaim(env.APP_DB, invalid)).toBe("pending");

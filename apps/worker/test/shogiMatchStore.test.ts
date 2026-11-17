@@ -7,13 +7,13 @@ import {
   type FourShogiReplayEvent,
 } from "@tetraboard/protocol";
 import {
-  advanceShogiMatchSave,
   emptyKnockouts,
   readShogiMatchRecord,
   readShogiMatchReplayPage,
   type ShogiMatchRecord,
   type ShogiSaveProgress,
 } from "../src/rooms/shogiMatchStore";
+import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { accountFixture } from "./accountFixtures";
 
 function record(accountId: string | null, eventCount = 3): ShogiMatchRecord {

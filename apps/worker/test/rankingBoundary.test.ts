@@ -5,7 +5,7 @@ import { boundaryRequest } from "./roomBoundaryFixtures";
 import { accountFixture } from "./accountFixtures";
 import { humanFixtureRecord } from "./matchFixtures";
 import { humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 const users: Awaited<ReturnType<typeof accountFixture>>[] = [];
 const records: string[] = [];
 beforeEach(async () => {

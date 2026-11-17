@@ -11,7 +11,7 @@ import {
   matchRequest,
   fixtureRecord,
 } from "./matchFixtures";
-import { writeMatch } from "../src/rooms/matchStore";
+import { writeMatch } from "../src/flows/matchSave/snapshot";
 
 async function history(
   user: Awaited<ReturnType<typeof accountFixture>>,

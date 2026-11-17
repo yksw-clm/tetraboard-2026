@@ -55,7 +55,8 @@ const digest = async (path: string) => Bun.CryptoHasher.hash("sha256", await rea
 const identity = {
   ...(await sourceIdentity(root, [
     "configs/characters-v1.json",
-    "fourReversiRating.ts",
+    "../contexts/rating/src/domain/skill.ts",
+    "../contexts/rating/src/domain/policy.ts",
     "scripts/fourReversiCalibration.ts",
     "scripts/fourReversiCalibrationStatistics.ts",
     "../../bun.lock",

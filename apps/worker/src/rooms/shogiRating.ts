@@ -11,5 +11,4 @@ export const {
   readResult: readShogiRatingResult,
   readPublic: readPublicShogiRating,
   readSummary: readShogiRatingSummary,
-  statement: shogiRatingStatement,
 } = createEloRating("shogi", shogiRatingResultSchema);

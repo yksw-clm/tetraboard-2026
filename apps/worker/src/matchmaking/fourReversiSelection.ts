@@ -1,5 +1,5 @@
 import { fourReversiRatedMatchmakingRules, ratedMatchmakingRules } from "@tetraboard/protocol";
-import { fourReversiRatingBeta } from "../../../../packages/ai/fourReversiRating";
+import { fourReversiRatingBeta } from "@tetraboard/context-rating";
 import type { FourReversiCpuRating } from "../rooms/fourReversiRating";
 import { findNamedCpuProfile } from "./cpuProfiles";
 
