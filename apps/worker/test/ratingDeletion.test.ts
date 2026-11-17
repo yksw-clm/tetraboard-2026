@@ -3,7 +3,7 @@ import { afterEach, expect, test } from "vitest";
 import { ratedMatchmakingGameIds } from "@tetraboard/protocol";
 import { requestDeletion, digest } from "../src/privacy/deletion";
 import { deletionRoutes } from "../src/privacy/deletionRoutes";
-import { ratedMatchmakingPolicy } from "../src/matchmaking/ratedMatchmaking";
+import { ratedMatchmakingPolicy } from "../src/adapters/matchmaking/ratedMatchmaking";
 import { accountFixture, origin } from "./accountFixtures";
 
 const accounts: string[] = [];

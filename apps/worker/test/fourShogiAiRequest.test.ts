@@ -3,7 +3,10 @@ import fixture from "../../../test-fixtures/matches/shogi-singles.json";
 import { fourShogiReplayEventSchema } from "@tetraboard/protocol";
 import { expect, test } from "vitest";
 import { requestFourShogiAiMove } from "../src/rooms/aiService";
-import { calibratedFourShogiProfile, selectFourShogi } from "../src/matchmaking/fourShogiSelection";
+import {
+  calibratedFourShogiProfile,
+  selectFourShogi,
+} from "../src/adapters/matchmaking/fourShogiSelection";
 
 const histories = [
   [],

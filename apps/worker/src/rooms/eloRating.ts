@@ -7,7 +7,7 @@ import {
   type EloGame,
 } from "@tetraboard/context-rating";
 import { D1RatingReader } from "../adapters/rating/reader";
-import { createRatingStore } from "../matchmaking/ratingStore";
+import { createRatingStore } from "../adapters/rating/matchmakingStore";
 export { eloInitialRating } from "@tetraboard/context-rating";
 export const eloRatingSourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("human") }),

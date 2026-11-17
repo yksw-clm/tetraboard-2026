@@ -9,7 +9,7 @@ import {
   type SkillGame,
 } from "@tetraboard/context-rating";
 import { D1RatingReader } from "../adapters/rating/reader";
-import { createRatingStore } from "../matchmaking/ratingStore";
+import { createRatingStore } from "../adapters/rating/matchmakingStore";
 export { publicRatingBase, publicRatingScale, publicRatingForMu } from "@tetraboard/context-rating";
 const cpuRating = z.strictObject({
   mu: z.number(),

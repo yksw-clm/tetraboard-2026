@@ -9,7 +9,7 @@ import type { PlayingFor } from "./gameProgress";
 import type { StandardShogiStore } from "./standardShogiStore";
 import type { ActiveShogiMatch } from "./standardShogiProgressStore";
 import { standardShogiMatchStartKey } from "./shogiMatchStore";
-import { shogiCpuProfile } from "../matchmaking/shogiCpuProfiles";
+import { shogiCpuProfile } from "@tetraboard/context-matchmaking";
 import type { ShogiAiWork } from "./aiService";
 import { isClockExpired } from "./clock";
 import {

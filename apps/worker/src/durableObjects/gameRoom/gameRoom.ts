@@ -27,7 +27,7 @@ import {
   abortTournamentRoom,
   getTournamentReservationState,
 } from "../../flows/tournamentRoom/reservations";
-import type { MatchmakingRoomInput } from "../../matchmaking/coordinator";
+import type { MatchmakingRoomInput } from "@tetraboard/context-matchmaking";
 import {
   type BeginGuestRegistrationResult,
   type CompleteGuestRegistrationResult,

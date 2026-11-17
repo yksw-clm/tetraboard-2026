@@ -13,8 +13,8 @@ import { accountIdentity } from "../accounts/auth";
 import { roomEntryProfile, RoomAccountError } from "../accounts/roomAccounts";
 import { readLimitedBody } from "../feedback/images";
 import { gameCatalog } from "@tetraboard/protocol/games";
-import { ratedMatchmakingPolicy } from "./ratedMatchmaking";
-import { readPreviousRatedMatch } from "./previousMatch";
+import { ratedMatchmakingPolicy } from "../adapters/matchmaking/ratedMatchmaking";
+import { readPreviousRatedMatch } from "../adapters/matchmaking/previousMatch";
 export const matchmakingRoutes = new Hono<{ Bindings: Env }>();
 export const matchmakingEnabled = (env: Env, game: MatchmakingGame = "four-reversi") =>
   ratedMatchmakingPolicy(game).enabled(env);

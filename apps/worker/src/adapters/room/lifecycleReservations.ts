@@ -6,7 +6,7 @@ import {
   recordTournamentState,
   tournamentReservation,
 } from "../../flows/tournamentRoom/reservations";
-import type { MatchmakingRoomReservation } from "../../matchmaking/coordinator";
+import type { MatchmakingRoomReservation } from "@tetraboard/context-matchmaking";
 import {
   tournamentReservationKey,
   tournamentReturnKey,

@@ -11,7 +11,7 @@ import type {
   ShogiReplayPage,
   SystemChatMessage,
 } from "@tetraboard/protocol";
-import type { QueueRatingSource } from "../../matchmaking/ratedMatchmaking";
+import type { QueueRatingSource } from "@tetraboard/context-matchmaking";
 import type { AiServiceBindings } from "../aiService";
 import type { PlayingFor, ProgressDependencies, ProgressError, WaitingFor } from "../gameProgress";
 import type { TournamentRoomContext } from "../tournamentRoom";

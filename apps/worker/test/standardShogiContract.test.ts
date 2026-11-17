@@ -13,7 +13,7 @@ import {
 import { shogiDefinition as definition, usiMove } from "@tetraboard/shogi/definition";
 import { ShogiProgress, type ShogiCpuJob } from "../src/rooms/standardShogiProgress";
 import { requestShogiAiMove, type ShogiAiWork } from "../src/rooms/aiService";
-import { shogiCpuProfile, selectShogiCpu } from "../src/matchmaking/shogiCpuProfiles";
+import { shogiCpuProfile, selectShogiCpu } from "@tetraboard/context-matchmaking";
 import { enteringState } from "./standardShogiFixtures";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 

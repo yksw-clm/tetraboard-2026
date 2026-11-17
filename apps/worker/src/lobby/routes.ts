@@ -11,7 +11,7 @@ import {
 } from "@tetraboard/protocol/general-lobby";
 import { ratedMatchmakingGameIds } from "@tetraboard/protocol";
 import { accountIdentity } from "../accounts/auth";
-import { ratedMatchmakingPolicy } from "../matchmaking/ratedMatchmaking";
+import { ratedMatchmakingPolicy } from "../adapters/matchmaking/ratedMatchmaking";
 import { listGeneralRooms, listLobbyRoomCards } from "../rooms/roomIndex";
 import { participantProfiles } from "../accounts/matchProfiles";
 import { readStoredMatch } from "../accounts/matchDataContracts";

@@ -22,14 +22,17 @@ import {
 import { getLegalMoves } from "@tetraboard/reversi";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
-import { selectShogiCpu, shogiCpuProfile } from "../src/matchmaking/shogiCpuProfiles";
-import { selectReversiCpu, reversiCpuProfile } from "../src/matchmaking/reversiCpuProfiles";
-import { selectFourReversi } from "../src/matchmaking/fourReversiSelection";
-import { matchmakingCredential } from "../src/matchmaking/coordinator";
+import { selectShogiCpu, shogiCpuProfile } from "@tetraboard/context-matchmaking";
+import {
+  selectReversiCpu,
+  reversiCpuProfile,
+} from "../src/adapters/matchmaking/reversiCpuProfiles";
+import { selectFourReversi } from "../src/adapters/matchmaking/fourReversiSelection";
+import { matchmakingCredential } from "../src/adapters/matchmaking/credential";
 import { requestDeletion } from "../src/privacy/deletion";
 import { requireGuestIdle } from "../src/accounts/guestLinking";
 import { accountIdentity } from "../src/accounts/auth";
-import { matchmakingRoutes } from "../src/matchmaking/routes";
+import { matchmakingRoutes } from "../src/routes/matchmaking";
 import { standardShogiRecord, saveStandardShogiFixture } from "./standardShogiFixtures";
 import { reversiMatchData } from "../src/accounts/reversiMatchData";
 import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";

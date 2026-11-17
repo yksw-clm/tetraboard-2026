@@ -4,7 +4,7 @@ import { lobbyGameRatingsSchema } from "@tetraboard/protocol/general-lobby";
 import { ratedMatchmakingGameIds, type RatedMatchmakingGame } from "@tetraboard/protocol";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import worker from "../src/worker";
-import { ratedMatchmakingPolicy } from "../src/matchmaking/ratedMatchmaking";
+import { ratedMatchmakingPolicy } from "../src/adapters/matchmaking/ratedMatchmaking";
 import { accountFixture, origin } from "./accountFixtures";
 
 const request = (headers?: HeadersInit) =>

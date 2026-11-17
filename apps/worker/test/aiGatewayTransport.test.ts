@@ -1,7 +1,7 @@
 import { createInitialState } from "@tetraboard/four-reversi";
 import { fourReversiStateSchema } from "@tetraboard/protocol";
 import { afterEach, expect, test, vi } from "vitest";
-import { namedCpuProfile } from "../src/matchmaking/cpuProfiles";
+import { namedCpuProfile } from "../src/adapters/matchmaking/cpuProfiles";
 import {
   aiServiceConfigured,
   aiServiceEnabled,
