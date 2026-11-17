@@ -17,7 +17,9 @@ type Account = Awaited<ReturnType<typeof accountFixture>>;
 const cleanup: {
   key: string;
   users: Account[];
-  stub: DurableObjectStub<import("../src/tournaments/coordinator").TournamentCoordinator>;
+  stub: DurableObjectStub<
+    import("../src/durableObjects/tournamentCoordinator/coordinator").TournamentCoordinator
+  >;
 }[] = [];
 const sockets: WebSocket[] = [];
 async function connect(roomId: string, token: string) {

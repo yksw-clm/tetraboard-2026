@@ -6,3 +6,4 @@ export * from "./cursor";
 export * from "./room";
 export * from "./result";
 export * from "./ranking";
+export * from "./queue";
