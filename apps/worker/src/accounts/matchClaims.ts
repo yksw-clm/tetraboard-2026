@@ -15,6 +15,7 @@ import {
   type ClaimRow,
 } from "@tetraboard/context-record";
 import { D1MatchClaimReadStore } from "../adapters/record/matchClaimReadStore";
+import { mergedAccountIdSql } from "../adapters/record/guestMerges";
 
 export function readMatchClaimState(
   db: D1Database,
@@ -114,7 +115,7 @@ export async function applyMatchClaims(db: D1Database, matchId: string): Promise
     ...transitions,
     db
       .prepare(`INSERT INTO account_match_history(account_id,match_id,mode,started_at_ms,game)
-      SELECT c.account_id,m.id,m.mode,m.started_at_ms,m.game
+      SELECT ${mergedAccountIdSql("c.account_id")},m.id,m.mode,m.started_at_ms,m.game
       FROM match_participant_accounts c JOIN matches m ON m.id=c.match_id
       WHERE c.match_id=? AND c.state='applied'
       ON CONFLICT(account_id,match_id) DO NOTHING`)
