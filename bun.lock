@@ -107,6 +107,7 @@
       "name": "@tetraboard/worker",
       "version": "0.0.0",
       "dependencies": {
+        "@tetraboard/context-rating": "workspace:*",
         "@tetraboard/context-record": "workspace:*",
         "@tetraboard/context-room": "workspace:*",
         "@tetraboard/four-gomoku": "workspace:*",
@@ -136,6 +137,7 @@
       "version": "0.2.0",
       "dependencies": {
         "@cloudflare/containers": "0.3.7",
+        "@tetraboard/context-rating": "workspace:*",
         "openskill": "5.0.1",
       },
       "devDependencies": {
@@ -179,6 +181,9 @@
     "packages/contexts/rating": {
       "name": "@tetraboard/context-rating",
       "version": "0.0.0",
+      "dependencies": {
+        "openskill": "5.0.1",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^5.5.2",

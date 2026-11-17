@@ -1,3 +1,5 @@
+import { readPendingRatingAccounts } from "@tetraboard/context-rating";
+import { D1RatingReader } from "../adapters/rating/reader";
 import type { UsageEvent } from "../usageEvents/events";
 import { createUsageEventWriter, type UsageEventWriter } from "../usageEvents/writer";
 import { reserveMatchSequence } from "../rooms/matchSequences";
@@ -11,7 +13,7 @@ import {
 } from "@tetraboard/protocol";
 import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
 import { authSecret } from "../privacy/tokens";
-import { noPendingRatedMatch, pendingRatedGames } from "./previousMatch";
+import { noPendingRatedMatch } from "./previousMatch";
 import {
   ratedMatchmakingPolicy,
   ratingOpponentKind,
@@ -507,17 +509,10 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
   }
   private async tick(state: State) {
     if (this.ratingPolicy && state.waiting.length) {
-      const pending = await this.env.APP_DB.prepare(
-        pendingRatedGames
-          .map(
-            ({ table }) =>
-              `SELECT account_id FROM ${table} WHERE account_id IN (SELECT value FROM json_each(?1))`,
-          )
-          .join(" UNION ALL "),
-      )
-        .bind(JSON.stringify(state.waiting.map((wait) => wait.accountId)))
-        .all<{ account_id: string }>();
-      const blocked = new Set(pending.results.map((row) => row.account_id));
+      const blocked = await readPendingRatingAccounts(
+        new D1RatingReader(this.env.APP_DB),
+        state.waiting.map((wait) => wait.accountId),
+      );
       for (const wait of state.waiting)
         if (blocked.has(wait.accountId)) await this.forget(wait, state, "invalidated");
       state.waiting = state.waiting.filter((wait) => !blocked.has(wait.accountId));

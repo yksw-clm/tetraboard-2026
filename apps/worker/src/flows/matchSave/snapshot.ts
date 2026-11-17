@@ -1,3 +1,6 @@
+import { applyFourReversiRating } from "./skillRating";
+import { prepareEloRating } from "@tetraboard/context-rating";
+import { D1RatingPublication } from "../../adapters/rating/publication";
 import { prepareSnapshotMatch } from "@tetraboard/context-record";
 import { D1MatchRecordStore } from "../../adapters/record/matchRecordStore";
 import {
@@ -11,13 +14,12 @@ import { matchEventSchema } from "../../rooms/snapshotMatchEvents";
 import type { MatchRecord } from "../../rooms/matchStore";
 import { tournamentMatchStatements } from "../../tournaments/store";
 import { readStoredMatch } from "../../accounts/matchDataContracts";
-import { applyFourReversiRating, fourReversiRatingStore } from "../../rooms/fourReversiRating";
+import { fourReversiRatingStore } from "../../rooms/fourReversiRating";
 import type { TournamentRoomContext } from "../../rooms/tournamentRoom";
 import { redactParticipants } from "../../privacy/identity";
 import { applyMatchClaims } from "../../accounts/matchClaims";
 import type { MatchRecord as FourGomokuMatchRecord } from "../../rooms/fourGomokuMatchStore";
 import type { MatchRecord as GomokuMatchRecord } from "../../rooms/gomokuMatchStore";
-import { reversiRatingStatement, reversiRatingStore } from "../../rooms/reversiRating";
 import type { MatchRecord as ReversiMatchRecord } from "../../rooms/reversiMatchStore";
 import { badgeAwardStatements } from "../../accounts/badgeAwards";
 export async function writeMatch(
@@ -43,9 +45,7 @@ export async function writeMatch(
   // 再送の内容が異なっても、保存済みの本人情報を索引へ反映します。
   statements.push(snapshotHistoryStatement(db, record.id));
   if (record.settings.game === "reversi" && "rating" in record && record.rating)
-    statements.push(
-      ...reversiRatingStore.finalize(db, record.id, reversiRatingStatement(db, record.id)),
-    );
+    statements.push(...prepareEloRating(new D1RatingPublication(db), "reversi", record.id));
   statements.push(...badgeAwardStatements(db, record.settings.game, record.id));
   statements.push(...tournamentStatements);
   await db.batch(statements);

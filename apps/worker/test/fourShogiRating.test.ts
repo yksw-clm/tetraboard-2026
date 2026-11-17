@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { expect, test } from "vitest";
-import { fourReversiRatingMethod } from "../../../packages/ai/fourReversiRating";
+import { fourReversiRatingMethod } from "@tetraboard/context-rating";
 import { accountFixture } from "./accountFixtures";
 import { saveShogiFixture, shogiRecord } from "./shogiMatchFixtures";
 

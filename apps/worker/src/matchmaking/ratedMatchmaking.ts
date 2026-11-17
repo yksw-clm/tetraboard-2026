@@ -23,7 +23,7 @@ import {
 } from "../rooms/reversiRating";
 import type { EloRatingSource } from "../rooms/eloRating";
 
-import { initialFourReversiRating } from "../../../../packages/ai/fourReversiRating";
+import { initialFourReversiRating } from "@tetraboard/context-rating";
 import {
   fourShogiRatingStore,
   readFourShogiRatingResult,

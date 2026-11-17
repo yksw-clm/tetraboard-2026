@@ -1,35 +1,22 @@
-import type { RatedMatchmakingGame } from "@tetraboard/protocol";
-
-export function createRatingStore(game: RatedMatchmakingGame) {
-  const elo = game === "shogi" || game === "reversi";
-  const pendingTable = elo ? "elo_rating_pending" : "skill_rating_pending";
-  const changesTable = elo ? "elo_rating_changes" : "skill_rating_changes";
-  const ratingColumns = elo ? "rating_after" : "mu_after AS rating_after, sigma_after";
-  const clearPending = (db: D1Database, matchId: string) =>
-    db.prepare(`DELETE FROM ${pendingTable} WHERE game='${game}' AND match_id=?`).bind(matchId);
+import {
+  reserveRating,
+  cancelRating,
+  prepareLatestRating,
+  type RatingGame,
+} from "@tetraboard/context-rating";
+import { D1RatingPublication } from "../adapters/rating/publication";
+import { ratingStatements } from "../adapters/rating/tables";
+export function createRatingStore(game: RatingGame) {
+  const tables = ratingStatements(game);
   return {
     game,
-    pendingTable,
-    changesTable,
+    pendingTable: tables.pendingTable,
+    changesTable: tables.changesTable,
     latest: (db: D1Database, accountId: string) =>
-      db
-        .prepare(`SELECT ${ratingColumns}, rated_games, human_games FROM ${changesTable}
-        WHERE game='${game}' AND account_id=? ORDER BY rated_games DESC LIMIT 1`)
-        .bind(accountId),
+      prepareLatestRating(new D1RatingPublication(db), game, accountId),
     reserve: (db: D1Database, matchId: string, accountId: string, operationId: string) =>
-      db
-        .prepare(`INSERT INTO ${pendingTable}(game,account_id,match_id,room_id,instance_id)
-        SELECT '${game}',account_id,?,room_id,instance_id FROM account_room_seats WHERE account_id=? AND operation_id=?
-        ON CONFLICT(game,account_id) DO NOTHING`)
-        .bind(matchId, accountId, operationId),
-    clearPending,
-    unappliedMatch: `NOT EXISTS (SELECT 1 FROM ${changesTable} WHERE game='${game}' AND match_id = ?1)`,
-    finalize: (db: D1Database, matchId: string, update: D1PreparedStatement) => [
-      update,
-      db
-        .prepare(`DELETE FROM ${pendingTable} WHERE game='${game}' AND match_id = ?1
-        AND EXISTS (SELECT 1 FROM matches WHERE id = ?1 AND game = ?2)`)
-        .bind(matchId, game),
-    ],
+      reserveRating(new D1RatingPublication(db), game, matchId, accountId, operationId),
+    clearPending: (db: D1Database, matchId: string) =>
+      cancelRating(new D1RatingPublication(db), game, matchId),
   };
 }

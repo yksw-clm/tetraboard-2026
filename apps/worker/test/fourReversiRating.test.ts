@@ -10,7 +10,7 @@ import {
   fourReversiRatingMethod,
   initialFourReversiRating,
   rateFourReversi,
-} from "../../../packages/ai/fourReversiRating";
+} from "@tetraboard/context-rating";
 import { accountFixture } from "./accountFixtures";
 import { boundaryRequest } from "./roomBoundaryFixtures";
 import { fixtureRecord, writeOutcomeFixture } from "./matchFixtures";
