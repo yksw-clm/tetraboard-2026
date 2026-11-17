@@ -164,7 +164,7 @@ test("既知SPA画面はnoindexで配信し、未知画面と欠落資産は本�
     expect(head.headers.get("X-Robots-Tag")).toBe("noindex, follow");
     expect(await head.text()).toBe("");
     const conditional = await assets.fetch(path, { headers: { "If-None-Match": '"fixture"' } });
-    expect(conditional.status).toBe(path.startsWith("/rooms/") ? 200 : 304);
+    expect(conditional.status).toBe(/^\/(rooms|matches)\//.test(path) ? 200 : 304);
     expect(conditional.headers.get("X-Robots-Tag")).toBe("noindex, follow");
   }
   for (const path of [

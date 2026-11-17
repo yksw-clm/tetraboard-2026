@@ -256,6 +256,6 @@ test("公開棋譜の直接URLはSPAを配信し、検索対象外にする", as
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
-    expect(await response.text()).toBe("asset:/app.html");
+    expect(await response.text()).toBe(method === "HEAD" ? "" : "asset:/app.html");
   }
 });

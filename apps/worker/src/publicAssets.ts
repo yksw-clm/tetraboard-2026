@@ -1,6 +1,7 @@
 import { legalHtml } from "./privacy/legalHtml";
 import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { serveRoomShareHtml } from "./roomShareHtml";
+import { serveMatchShareHtml } from "./matchSharing/html";
 import { withVisitStarted } from "./usageEvents/visit";
 
 export function withoutIndexing(response: Response): Response {
@@ -68,6 +69,8 @@ export async function servePublicAssets(
     /^\/tournaments\/[1-9]\d*\/?$/.test(path) ||
     /^\/account\/matches\/[^/]+\/?$/.test(path);
   if (spa) {
+    if (env && /^\/matches\/[^/]+\/?$/.test(path))
+      return html(await serveMatchShareHtml(request, env, assets));
     if (env && /^\/rooms\/[^/]+\/?$/.test(path))
       return html(await serveRoomShareHtml(request, env, assets));
     url.pathname = "/app.html";
