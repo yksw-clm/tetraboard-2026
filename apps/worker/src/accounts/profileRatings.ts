@@ -4,7 +4,7 @@ import {
   type ProfileRatings,
   type RatedMatchmakingGame,
 } from "@tetraboard/protocol";
-import { type QueueRatingSource } from "../matchmaking/ratedMatchmaking";
+import type { QueueRatingSource } from "@tetraboard/context-matchmaking";
 import {
   publicRatingForMu,
   readProfileRating as readContextProfileRating,

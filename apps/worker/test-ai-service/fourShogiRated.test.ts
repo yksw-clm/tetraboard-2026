@@ -12,7 +12,10 @@ import { AcceptedGameRequest } from "../test/acceptedGameRequest";
 import { fourShogiAiJobKey, type ShogiCpuJob } from "../src/rooms/fourShogiProgress";
 import { shogiCpuJobKey } from "../src/rooms/progressHelpers";
 import { requestFourShogiAiMove } from "../src/rooms/aiService";
-import { calibratedFourShogiProfile, selectFourShogi } from "../src/matchmaking/fourShogiSelection";
+import {
+  calibratedFourShogiProfile,
+  selectFourShogi,
+} from "../src/adapters/matchmaking/fourShogiSelection";
 
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));

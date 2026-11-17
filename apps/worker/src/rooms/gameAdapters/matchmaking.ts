@@ -4,13 +4,14 @@ import {
   ratedCpuNames,
   type RatedMatchmakingGame,
 } from "@tetraboard/protocol";
-import type { MatchmakingRoomInput } from "../../matchmaking/coordinator";
-import { calibratedFourShogiProfile } from "../../matchmaking/fourShogiSelection";
-import { calibratedFourReversiProfile } from "../../matchmaking/fourReversiSelection";
-import { namedCpuProfile } from "../../matchmaking/cpuProfiles";
-import { reversiCpuProfile } from "../../matchmaking/reversiCpuProfiles";
-import { shogiCpuProfile } from "../../matchmaking/shogiCpuProfiles";
-import { ratedMatchmakingPolicy, ratingOpponentKind } from "../../matchmaking/ratedMatchmaking";
+import type { MatchmakingRoomInput } from "@tetraboard/context-matchmaking";
+import { calibratedFourShogiProfile } from "../../adapters/matchmaking/fourShogiSelection";
+import { calibratedFourReversiProfile } from "../../adapters/matchmaking/fourReversiSelection";
+import { namedCpuProfile } from "../../adapters/matchmaking/cpuProfiles";
+import { reversiCpuProfile } from "../../adapters/matchmaking/reversiCpuProfiles";
+import { shogiCpuProfile } from "@tetraboard/context-matchmaking";
+import { ratedMatchmakingPolicy } from "../../adapters/matchmaking/ratedMatchmaking";
+import { ratingOpponentKind } from "@tetraboard/context-matchmaking";
 
 export function matchmakingRoomConfiguration(input: MatchmakingRoomInput) {
   const rating = input.rating;

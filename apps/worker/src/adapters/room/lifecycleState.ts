@@ -41,7 +41,7 @@ import {
 import { hasCpuCapacity } from "./cpuCapacity";
 import { tournamentReservation } from "../../flows/tournamentRoom/reservations";
 import { tournamentPlayersConnected } from "../../flows/tournamentRoom/start";
-import { isTournamentGameRoom } from "../../rooms/tournamentRoom";
+import { isTournamentGameRoom } from "@tetraboard/context-tournament";
 import { collectMatchEnded, collectMatchStarted } from "./usage";
 
 export type LifecycleIdentity = { admission?: AccountAdmission; analytics?: AnalyticsIdentity };

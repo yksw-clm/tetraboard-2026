@@ -5,7 +5,7 @@ import { retryPendingMatchClaims } from "./accounts/matchClaims";
 import { deleteExpiredReports } from "./rooms/reportStore";
 import { cleanupFeedback } from "./feedback/store";
 import { deleteUnusedAvatars } from "./accounts/accountRoutes";
-import { recoverTournaments } from "./tournaments/routes";
+import { recoverTournaments } from "./adapters/tournament/recovery";
 import { matchmakingQueueKeys } from "@tetraboard/protocol";
 import { savePreviousMonthKpi } from "./kpi/monthly";
 

@@ -12,7 +12,7 @@ import { cancelledAdmissionKey, cpuCapacityKey } from "../../durableObjects/game
 import type {
   MatchmakingRoomInput,
   MatchmakingRoomReservation,
-} from "../../matchmaking/coordinator";
+} from "@tetraboard/context-matchmaking";
 import {
   matchmakingCpuAppearance,
   matchmakingRoomConfiguration,

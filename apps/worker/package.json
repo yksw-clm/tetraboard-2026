@@ -30,9 +30,11 @@
     "wrangler": "^4.145.0"
   },
   "dependencies": {
+    "@tetraboard/context-matchmaking": "workspace:*",
     "@tetraboard/context-rating": "workspace:*",
     "@tetraboard/context-record": "workspace:*",
     "@tetraboard/context-room": "workspace:*",
+    "@tetraboard/context-tournament": "workspace:*",
     "@tetraboard/four-gomoku": "workspace:*",
     "@tetraboard/four-reversi": "workspace:*",
     "@tetraboard/four-shogi": "workspace:*",

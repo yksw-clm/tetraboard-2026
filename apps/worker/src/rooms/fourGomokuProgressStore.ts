@@ -1,4 +1,7 @@
-import { activeTournamentContextKey, type TournamentRoomContext } from "./tournamentRoom";
+import {
+  activeTournamentContextKey,
+  type TournamentRoomContext,
+} from "@tetraboard/context-tournament";
 import type { GameTransition } from "@tetraboard/game-contract";
 import type { FourGomokuState } from "@tetraboard/four-gomoku";
 import type { FourGomokuEvent } from "@tetraboard/four-gomoku/definition";

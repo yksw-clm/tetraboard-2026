@@ -4,7 +4,7 @@ import {
   type RoomSocketClientMessage,
 } from "@tetraboard/protocol";
 import { readRoom } from "../../../adapters/room/state";
-import { isTournamentGameRoom } from "../../../rooms/tournamentRoom";
+import { isTournamentGameRoom } from "@tetraboard/context-tournament";
 import type { RoomRuntime } from "../runtime";
 import { rejectAction, sendSocketError } from "../snapshots";
 import { stampTag } from "../storageKeys";

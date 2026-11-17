@@ -1,3 +1,4 @@
+import { seedStoredMatches } from "./storedMatchFixtures";
 import { env } from "cloudflare:workers";
 import { afterEach, expect, test, vi } from "vitest";
 import { getAccountStatsContract, type AccountStats } from "@tetraboard/protocol";
@@ -96,8 +97,13 @@ test("黒赤・白青の両チームで勝敗を求め、引き分けも対局�
 test("20件を超える全保存履歴を集計し、別人・ゲスト・再送は件数を増やさない", async () => {
   const user = await accountFixture();
   const other = await accountFixture();
-  for (let index = 1; index <= 41; index++)
-    await writeMatch(env.APP_DB, fixtureRecord(user.id, index));
+  await seedStoredMatches(
+    env.APP_DB,
+    Array.from({ length: 40 }, (_, index) => ({
+      record: fixtureRecord(user.id, index + 1),
+    })),
+  );
+  await writeMatch(env.APP_DB, fixtureRecord(user.id, 41));
   await writeMatch(env.APP_DB, fixtureRecord(user.id, 41));
   const conflicting = fixtureRecord(other.id, 1);
   conflicting.id = fixtureRecord(user.id, 41).id;

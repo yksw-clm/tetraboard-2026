@@ -1,3 +1,4 @@
+import { fixTestTime } from "./fixedTimeFixture";
 import { env } from "cloudflare:workers";
 import {
   applyD1Migrations,
@@ -420,6 +421,7 @@ test("NULL補完はDOの応答をそのまま返さず、退会trigger適用後�
 });
 
 test("補完のD1失敗は取得失敗として返し、既存の索引再送で復旧できる", async () => {
+  fixTestTime();
   const { entry, stub } = await accountRoom();
   await waitForIndex(entry.room.id, (row) => row.participants_json !== null);
   await env.APP_DB.exec("ALTER TABLE room_index RENAME TO lobby_room_index_unavailable");

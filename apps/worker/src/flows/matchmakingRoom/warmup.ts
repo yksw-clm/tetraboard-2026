@@ -3,7 +3,7 @@ import { readRoom } from "../../adapters/room/state";
 import { withIndexTransaction } from "../../adapters/room/transaction";
 import { closeRoom } from "../../adapters/room/useCases";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import type { MatchmakingRoomReservation } from "../../matchmaking/coordinator";
+import type { MatchmakingRoomReservation } from "@tetraboard/context-matchmaking";
 import { requestRatedAiWarmup, type RatedAiGame } from "../../rooms/aiService";
 import { advanceMatchmakingStart } from "./start";
 

@@ -14,6 +14,7 @@ import { gomokuMatchData } from "../src/accounts/gomokuMatchData";
 import { publicMatchDetail } from "../src/accounts/matchDataContracts";
 import { reversiMatchData } from "../src/accounts/reversiMatchData";
 import type { RoomRuntime } from "../src/durableObjects/gameRoom/runtime";
+import type { PendingRoomIndex } from "../src/rooms/roomIndex";
 import {
   challengeCookie,
   completeReauthentication,
@@ -31,6 +32,7 @@ import type { AnalyticsMatch } from "../src/usageEvents/matches";
 import worker from "../src/worker";
 import { accountFixture, origin } from "./accountFixtures";
 import { humanFixtureRecord } from "./matchFixtures";
+import { privacyConcurrencyFixture, unrelatedDeletionFixture } from "./privacyConcurrencyFixture";
 import { humanShogiRecord } from "./shogiMatchFixtures";
 import { standardShogiRecord } from "./standardShogiFixtures";
 const request = (path: string, init?: RequestInit) =>
@@ -355,18 +357,22 @@ for (const standard of [false, true])
 async function verified(
   user: Awaited<ReturnType<typeof accountFixture>>,
   expiry = Date.now() + 600000,
+  db = env.APP_DB,
 ) {
   const challenge = crypto.randomUUID();
-  const session = await env.APP_DB.prepare("SELECT id FROM session WHERE token=?")
+  const session = await db
+    .prepare("SELECT id FROM session WHERE token=?")
     .bind(user.token)
     .first<{ id: string }>();
-  await env.APP_DB.prepare(
-    "INSERT INTO deletion_challenges(id,account_id,provider,created_at_ms,expires_at_ms,verified_at_ms,verified_session_id) VALUES (?,?,?,?,?,?,?)",
-  )
+  await db
+    .prepare(
+      "INSERT INTO deletion_challenges(id,account_id,provider,created_at_ms,expires_at_ms,verified_at_ms,verified_session_id) VALUES (?,?,?,?,?,?,?)",
+    )
     .bind(challenge, user.id, "google", Date.now(), expiry, Date.now(), session!.id)
     .run();
   const flow = crypto.randomUUID();
-  await env.APP_DB.prepare("INSERT INTO deletion_flows VALUES (?,?,?)")
+  await db
+    .prepare("INSERT INTO deletion_flows VALUES (?,?,?)")
     .bind(flow, user.id, Date.now() + 86400000)
     .run();
   return `${user.cookie}; ${challengeCookie}=${challenge}; ${flowCookie}=${flow}`;
@@ -1034,10 +1040,13 @@ test("削除対象のflowは別人や期限切れで切り替わらず、取消�
 });
 
 test("同時に再認証を始めても1分5回を超えず、削除後のCookieはゲスト参加を妨げない", async () => {
+  const expectUnrelatedDeletionUnchanged = await unrelatedDeletionFixture();
+  const { db, accountFixture, request } = await privacyConcurrencyFixture();
   const user = await accountFixture();
-  await env.APP_DB.prepare(
-    "INSERT INTO account(id,accountId,providerId,userId,createdAt,updatedAt) VALUES (?,?,?,?,?,?)",
-  )
+  await db
+    .prepare(
+      "INSERT INTO account(id,accountId,providerId,userId,createdAt,updatedAt) VALUES (?,?,?,?,?,?)",
+    )
     .bind(crypto.randomUUID(), crypto.randomUUID(), "google", user.id, Date.now(), Date.now())
     .run();
   const results = await Promise.all(
@@ -1051,7 +1060,7 @@ test("同時に再認証を始めても1分5回を超えず、削除後のCookie
   expect(results.filter((r) => r.status === 200)).toHaveLength(5);
   expect(results.filter((r) => r.status === 429)).toHaveLength(1);
   const second = await accountFixture(),
-    cookie = await verified(second);
+    cookie = await verified(second, undefined, db);
   const response = await request("/account/deletion/confirm", {
     method: "POST",
     headers: { Origin: origin, Cookie: cookie, "Content-Type": "application/json" },
@@ -1079,6 +1088,7 @@ test("同時に再認証を始めても1分5回を超えず、削除後のCookie
     body: JSON.stringify({ name: "ゲスト", mode: "singles", quickPlay: false }),
   });
   expect(guest.status).toBe(201);
+  await expectUnrelatedDeletionUnchanged();
 });
 
 test("退会受付中に到着する新しいプロフィール画像も発見し、R2失敗を再試行する", async () => {
@@ -1281,14 +1291,23 @@ test("閉鎖済みDOの索引保存待ちだけに残ったホスト名も保持
     ctx.storage.kv.put("room-index-pending", {
       revision: 1,
       closed: true,
-      retryAtMs: Date.now(),
+      // 匿名化後の保存待ちを確認するまで、Alarmによる索引反映を止めます。
+      retryAtMs: Date.now() + 60_000,
       metadata: {
         id: room,
+        game: "reversi",
+        timeControl: { mainTimeMs: 300_000, byoyomiMs: 0 },
+        status: "waiting",
+        humanCount: 1,
+        cpuCount: 0,
+        capacity: 2,
+        openSeats: 1,
+        updatedAtMs: Date.now(),
         hostPlayerId: player,
         hostName: "閉鎖後の保存名",
         hostAvatarUrl: "/api/avatars/private",
       },
-    });
+    } satisfies PendingRoomIndex);
   });
   await stub.purgeAccount(user.id);
   await runInDurableObject(stub, async (_, ctx) => {

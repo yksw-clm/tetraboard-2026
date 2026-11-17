@@ -107,9 +107,11 @@
       "name": "@tetraboard/worker",
       "version": "0.0.0",
       "dependencies": {
+        "@tetraboard/context-matchmaking": "workspace:*",
         "@tetraboard/context-rating": "workspace:*",
         "@tetraboard/context-record": "workspace:*",
         "@tetraboard/context-room": "workspace:*",
+        "@tetraboard/context-tournament": "workspace:*",
         "@tetraboard/four-gomoku": "workspace:*",
         "@tetraboard/four-reversi": "workspace:*",
         "@tetraboard/four-shogi": "workspace:*",
@@ -165,6 +167,9 @@
     "packages/contexts/matchmaking": {
       "name": "@tetraboard/context-matchmaking",
       "version": "0.0.0",
+      "dependencies": {
+        "@tetraboard/protocol": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^5.5.2",
@@ -223,6 +228,9 @@
     "packages/contexts/tournament": {
       "name": "@tetraboard/context-tournament",
       "version": "0.0.0",
+      "dependencies": {
+        "@tetraboard/protocol": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^5.5.2",

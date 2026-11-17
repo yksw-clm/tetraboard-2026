@@ -5,7 +5,7 @@ import type { PlayingFor } from "./gameProgress";
 import { matchStartKey, type MatchStart } from "./reversiMatchStore";
 import { externalCpuJobKey } from "./reversiProgressStore";
 import { isClockExpired } from "./reversiClock";
-import { reversiCpuProfile } from "../matchmaking/reversiCpuProfiles";
+import { reversiCpuProfile } from "../adapters/matchmaking/reversiCpuProfiles";
 
 type Playing = PlayingFor<"reversi">;
 type ExternalCpuJob = ReversiAiWork["job"] & { position?: Position | null };

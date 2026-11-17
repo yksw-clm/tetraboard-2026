@@ -8,8 +8,9 @@ import {
   readTournament,
   standingsPage,
   type TournamentRow,
-} from "../src/tournaments/store";
+} from "../src/adapters/tournament/store";
 import { requestDeletion } from "../src/privacy/deletion";
+import { resultPublication } from "./tournamentResultFixtures";
 
 const fixtureKeys = new Set<string>();
 const fixtureAccounts = new Set<string>();
@@ -22,6 +23,9 @@ afterEach(async () => {
       env.APP_DB.prepare("DELETE FROM tournament_scores WHERE tournament_key=?").bind(key),
       env.APP_DB.prepare(
         "DELETE FROM tournament_match_players WHERE match_id IN (SELECT id FROM tournament_matches WHERE tournament_key=?)",
+      ).bind(key),
+      env.APP_DB.prepare(
+        "DELETE FROM matches WHERE id IN (SELECT id FROM tournament_matches WHERE tournament_key=?)",
       ).bind(key),
       env.APP_DB.prepare("DELETE FROM tournament_matches WHERE tournament_key=?").bind(key),
       env.APP_DB.prepare("DELETE FROM tournament_wait_reservations WHERE tournament_key=?").bind(
@@ -128,32 +132,18 @@ test("同順位の勝ち点イベントを累計し、再送で対局数・順�
     { rank: 3, points: 12, knockouts: 0 },
     { rank: 4, points: 0, knockouts: 0 },
   ];
-  const events = [
-    ...players.map((player, index) => ({
-      matchId: firstMatch,
-      entryId: player.entryId,
-      ...first[index]!,
-    })),
-    ...players.map((player) => ({
-      matchId: secondMatch,
-      entryId: player.entryId,
-      rank: 1,
-      points: 21,
-      knockouts: 0,
-    })),
-  ];
-  for (let attempt = 0; attempt < 2; attempt++)
-    await env.APP_DB.batch(
-      events.map((event) =>
-        env.APP_DB.prepare("INSERT OR IGNORE INTO tournament_point_events VALUES(?,?,?,?,?)").bind(
-          event.matchId,
-          event.entryId,
-          event.rank,
-          event.knockouts,
-          event.points,
-        ),
-      ),
-    );
+  const saveFirst = await resultPublication(
+    row,
+    players,
+    firstMatch,
+    first.map((p) => p.rank),
+    first.map((p) => p.knockouts),
+  );
+  const saveSecond = await resultPublication(row, players, secondMatch, [1, 1, 1, 1], [0, 0, 0, 0]);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await saveFirst();
+    await saveSecond();
+  }
   const values = await allStandings(env.APP_DB, row);
   expect(
     values.map((value) => ({

@@ -1,7 +1,10 @@
 import { savedProfileRatings } from "../accounts/profileRatings";
 import { fourReversiRatingMethod } from "@tetraboard/context-rating";
-import type { FourReversiRatingSource } from "../matchmaking/fourReversiSelection";
-import { activeTournamentContextKey, type TournamentRoomContext } from "./tournamentRoom";
+import type { FourReversiRatingSource } from "@tetraboard/context-matchmaking";
+import {
+  activeTournamentContextKey,
+  type TournamentRoomContext,
+} from "@tetraboard/context-tournament";
 import {
   fourReversiRoomSchema,
   roundReplaySchema,

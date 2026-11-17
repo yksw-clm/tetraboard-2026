@@ -1,6 +1,6 @@
 import { savedProfileRatings } from "../accounts/profileRatings";
 import { fourReversiRatingMethod } from "@tetraboard/context-rating";
-import type { FourShogiRatingSource } from "../matchmaking/fourShogiSelection";
+import type { FourShogiRatingSource } from "@tetraboard/context-matchmaking";
 import {
   fourShogiRoomSchema,
   isFourShogiRoom,
@@ -16,7 +16,7 @@ import {
 } from "@tetraboard/four-shogi";
 import { fourShogiDefinition as definition } from "@tetraboard/four-shogi/definition";
 import type { ShogiStore } from "./shogiStore";
-import type { TournamentRoomContext } from "./tournamentRoom";
+import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 import {
   emptyKnockouts,
   pendingShogiMatchPrefix,

@@ -1,6 +1,8 @@
+import { fixTestTime } from "./fixedTimeFixture";
+import { writeTournamentState } from "../src/adapters/tournament/state";
 import { expectVersionedRoom } from "./roomStateVersionAssertions";
 import { roomSchema, type TournamentSettings } from "@tetraboard/protocol";
-import { isTournamentGameRoom } from "../src/rooms/tournamentRoom";
+import { isTournamentGameRoom } from "@tetraboard/context-tournament";
 import { pendingMatchPrefix, type PendingMatch } from "../src/rooms/matchStore";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm, applyD1Migrations } from "cloudflare:test";
@@ -16,8 +18,7 @@ import {
 } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
-import type { PrepareTournamentRoomInput } from "../src/rooms/tournamentRoom";
-import { writeTournamentState } from "../src/rooms/tournamentRoom";
+import type { PrepareTournamentRoomInput } from "@tetraboard/context-tournament";
 import {
   pendingShogiMatchPrefix,
   type PendingShogiMatch,
@@ -32,7 +33,9 @@ type PreparedFixture = {
   tokens: string[];
   accounts: Awaited<ReturnType<typeof accountFixture>>[];
   stub: DurableObjectStub<GameRoom>;
-  coordinator?: DurableObjectStub<import("../src/tournaments/coordinator").TournamentCoordinator>;
+  coordinator?: DurableObjectStub<
+    import("../src/durableObjects/tournamentCoordinator/coordinator").TournamentCoordinator
+  >;
 };
 
 const sockets: WebSocket[] = [];
@@ -536,6 +539,7 @@ test("大会は4人接続後の5秒で固定IDの対局を一度だけ開始し�
 
 test("終局保存と大会得点を一括確定し、保存再送・閉鎖後も同局を二重加算しない", async () => {
   const prepared = await playing();
+  fixTestTime(prepared.startsAtMs);
   await env.APP_DB.exec(
     "ALTER TABLE tournament_point_events RENAME TO tournament_points_unavailable",
   );
@@ -939,6 +943,7 @@ for (const game of ["four-reversi", "four-gomoku", "four-shogi"] as const) {
       (await prepared.stub.getTournamentReservationState(prepared.input.context.matchId)).status,
     ).toBe("waiting");
     await alarmAt(prepared, startsAtMs);
+    fixTestTime(startsAtMs);
     room = roomSchema.parse(await prepared.stub.getRoom());
     expect(room.status).toBe("playing");
     expect(room).not.toHaveProperty("tournamentStartsAtMs");

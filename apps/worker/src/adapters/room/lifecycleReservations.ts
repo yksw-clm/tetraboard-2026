@@ -6,13 +6,13 @@ import {
   recordTournamentState,
   tournamentReservation,
 } from "../../flows/tournamentRoom/reservations";
-import type { MatchmakingRoomReservation } from "../../matchmaking/coordinator";
+import type { MatchmakingRoomReservation } from "@tetraboard/context-matchmaking";
 import {
   tournamentReservationKey,
   tournamentReturnKey,
   tournamentRoomKey,
   type TournamentReturn,
-} from "../../rooms/tournamentRoom";
+} from "@tetraboard/context-tournament";
 import { playerTokenHash } from "./state";
 
 export function closeReservations(runtime: RoomRuntime, room: Room | null): void {

@@ -1,3 +1,4 @@
+import { seedStoredMatches } from "./storedMatchFixtures";
 import { encodeSnapshotMatch } from "../src/rooms/snapshotMatchEvents";
 import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
@@ -90,8 +91,15 @@ test("committed human singles cross thresholds once, including upgrades; CPU, do
   });
   await writeMatch(db, guest);
   expect(await claim(user, token)).toBeNull();
+  const pending: { record: ReturnType<typeof winningRecord> }[] = [];
+  const checkpoints = new Set([1, 2, 3, 4, 5, 14, 15, 19, 20, 49, 50, 99, 100]);
   for (let i = 1; i <= 100; i++) {
     const record = winningRecord(user.id, i);
+    if (!checkpoints.has(i)) {
+      pending.push({ record });
+      continue;
+    }
+    await seedStoredMatches(db, pending.splice(0));
     await writeMatch(db, record);
     if (i === 3) {
       const notice = (await claim(user, token))!;

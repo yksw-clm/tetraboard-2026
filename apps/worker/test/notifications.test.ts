@@ -8,7 +8,7 @@ import { notificationListSchema, notificationSchema } from "@tetraboard/protocol
 import worker from "../src/worker";
 import { accountFixture as baseAccountFixture, origin } from "./accountFixtures";
 import { create, update } from "../src/announcements/store";
-import { finalizeTournament } from "../src/tournaments/store";
+import { finalizeTournament } from "../src/adapters/tournament/store";
 import {
   initializeNotifications,
   mergeNotificationStatements,

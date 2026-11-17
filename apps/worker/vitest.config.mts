@@ -39,6 +39,7 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
           r2Buckets: ["OBJECT_STORAGE"],
           d1Databases: {
             APP_DB: "app-tests",
+            ACCOUNT_SEAT_FENCE_TEST_DB: "account-seat-fence-tests",
             ADMIN_USERS_TEST_DB: "admin-users-tests",
             MATCH_LIFECYCLE_TEST_DB: "match-lifecycle-tests",
             ANALYTICS_REGISTRATION_TEST_DB: "analytics-registration-tests",
@@ -52,9 +53,11 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
             ROOM_INDEX_TEST_DB: "room-index-tests",
             LOBBY_ROOM_CARDS_TEST_DB: "lobby-room-cards-tests",
             TOURNAMENT_MIGRATION_TEST_DB: "tournament-migration-tests",
+            TOURNAMENT_PUBLICATION_TEST_DB: "tournament-publication-tests",
             TOURNAMENT_PRIVACY_TEST_DB: "tournament-privacy-tests",
             ANALYTICS_ACQUISITION_TEST_DB: "analytics-acquisition-tests",
             SCHEDULED_MAINTENANCE_TEST_DB: "scheduled-maintenance-tests",
+            PRIVACY_CONCURRENCY_TEST_DB: "privacy-concurrency-tests",
           },
           bindings: {
             APP_ORIGIN: "http://localhost:5173",

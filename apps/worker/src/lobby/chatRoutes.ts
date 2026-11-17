@@ -10,7 +10,7 @@ import {
   tournamentChatSchema,
 } from "@tetraboard/protocol/general-lobby";
 import { tournamentIdSchema } from "@tetraboard/protocol";
-import { publicTournament } from "../tournaments/store";
+import { publicTournament } from "../adapters/tournament/store";
 import { accountIdentity, type StoredProfile } from "../accounts/auth";
 import { adminIdentity } from "../admin/auth";
 import { readLimitedBody } from "../feedback/images";

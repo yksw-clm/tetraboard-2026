@@ -1,3 +1,4 @@
+import { fixTestTime } from "./fixedTimeFixture";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 import { env, exports } from "cloudflare:workers";
@@ -440,6 +441,7 @@ test("プロフィール編集が予約に先行した場合は再取得し、�
 });
 
 test("D1解放失敗を永続化して再試行し、古い処理で新しい席を削除しない", async () => {
+  fixTestTime();
   const user = await accountFixture();
   const result = await created(user);
   expect((await join(result.room.id)).status).toBe(200);

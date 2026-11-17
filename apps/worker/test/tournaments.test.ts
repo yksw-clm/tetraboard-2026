@@ -19,7 +19,7 @@ import {
 } from "@tetraboard/protocol";
 import worker from "../src/worker";
 import { gameIds } from "@tetraboard/protocol/games";
-import { lobbySections, publicSummary, readTournament } from "../src/tournaments/store";
+import { lobbySections, publicSummary, readTournament } from "../src/adapters/tournament/store";
 import type { AdminEnv } from "../src/admin/auth";
 import { accountFixture, origin } from "./accountFixtures";
 
