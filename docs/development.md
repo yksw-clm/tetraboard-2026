@@ -597,7 +597,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 大会の処理は、ADR 0010 の形に分かれています（TB-116、TB-119）。仕様は [docs/specs/tournament.md](specs/tournament.md) です。
 
 - `packages/contexts/tournament/src/domain/`: 段階、設定の照合、順位と同順位、勝ち点の単位、大会の対局結果の検証、大会ルームの型と保存キー。純粋な関数です。
-- `packages/contexts/tournament/src/use-cases/`: エントリー、管理画面の下書き、公開の一覧・詳細・順位表、結果の確定、勝ち点の書き込みの準備。D1 は `ports.ts` のポートで読み書きし、棋譜の公開と同じ batch に入れる勝ち点の書き込みは実行せずに返します。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
+- `packages/contexts/tournament/src/use-cases/`: エントリー、管理画面の下書き、公開の一覧・詳細・順位表、結果の確定、勝ち点の書き込みの準備。D1 は `ports.ts` のポートで読み書きし、棋譜の公開と同じ batch に入れる勝ち点の書き込みは実行せずに返します。成績（`tournament_scores`）は、同じ batch の中で勝ち点の記録（`tournament_point_events`）から参加者ごとに集計し直して上書きします。再送しても加算は増えません（TB-117）。古いトリガー `tournament_score_apply` も残っていますが、同じ batch の中で集計し直しが上書きするので値は変わりません。トリガーは、この処理が本番に出た後で消します。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
 - `apps/worker/src/adapters/tournament/`: ポートの D1 の実装。`store.ts` が Worker の呼び出し元へ、use-case を D1 につないだ関数を渡します。
 - 待機、組み合わせ、入室、操作元の引き継ぎ、席の移譲、期限の回収、公開、復旧の判定も文脈の use-case です（`use-cases/` の `tick.ts` など）。DO の殻は `apps/worker/src/durableObjects/tournamentCoordinator/`、HTTP の入口は `apps/worker/src/routes/tournaments.ts`、参加資格の導出は `adapters/tournament/credentials.ts` です。
 

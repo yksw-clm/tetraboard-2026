@@ -34,6 +34,24 @@ export class D1TournamentPublication implements TournamentPublication<D1Prepared
         game,
       );
   }
+  scores(context: TournamentRoomContext, points: TournamentPoints) {
+    return this.db
+      .prepare(`INSERT INTO tournament_scores(entry_id,tournament_key,points_units,games,first,second,third,fourth,knockouts,rank_sum)
+      SELECT p.entry_id,m.tournament_key,SUM(e.points_units),COUNT(*),
+        SUM(e.rank=1),SUM(e.rank=2),SUM(e.rank=3),SUM(e.rank=4),SUM(e.knockouts),SUM(e.rank)
+      FROM tournament_matches m
+      JOIN tournament_match_players p ON p.match_id=m.id
+      JOIN tournament_point_events e ON e.entry_id=p.entry_id
+      JOIN tournaments t ON t.key=m.tournament_key
+      WHERE m.id=? AND m.tournament_key=? AND p.player_id=?
+        AND m.phase IN ('reserved','playing','saving','saved') AND t.finalized_at_ms IS NULL
+      GROUP BY p.entry_id,m.tournament_key
+      ON CONFLICT(entry_id) DO UPDATE SET
+        points_units=excluded.points_units,games=excluded.games,
+        first=excluded.first,second=excluded.second,third=excluded.third,fourth=excluded.fourth,
+        knockouts=excluded.knockouts,rank_sum=excluded.rank_sum`)
+      .bind(context.matchId, context.tournamentKey, points.playerId);
+  }
   saved(context: TournamentRoomContext, record: TournamentMatchRecord, now: number) {
     return this.db
       .prepare(

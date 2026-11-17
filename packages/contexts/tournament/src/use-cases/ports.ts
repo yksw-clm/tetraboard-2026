@@ -64,6 +64,7 @@ export interface TournamentPublication<Write> {
     game: TournamentSettings["game"],
     points: TournamentPoints,
   ): Write;
+  scores(context: TournamentRoomContext, points: TournamentPoints): Write;
   saved(context: TournamentRoomContext, record: TournamentMatchRecord, now: number): Write;
 }
 
