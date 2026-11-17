@@ -68,7 +68,7 @@ test("マッチングの開始イベントと検索情報の消去も、transact
         operationId = crypto.randomUUID(),
         at = Date.now();
       const playerId = entry.membership.playerId;
-      const reservation: import("../src/matchmaking/coordinator").MatchmakingRoomReservation = {
+      const reservation: import("@tetraboard/context-matchmaking").MatchmakingRoomReservation = {
         matchId,
         roomId: saved.id,
         instanceId: saved.instanceId,

@@ -1,4 +1,4 @@
-import { ratedMatchmakingPolicy } from "../src/matchmaking/ratedMatchmaking";
+import { ratedMatchmakingPolicy } from "../src/adapters/matchmaking/ratedMatchmaking";
 import { prepareStoredMatchFixture } from "./snapshotMatchFixtures";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";

@@ -29,7 +29,7 @@ CPUの探索方式・上限・評価値など、現在の採用仕様はルー�
 
 進行中レート戦の観戦カードを表示するWebは、`previousMatch=1` に対応した本変更以降のWorkerを必要とします。先にD1 migration `0042_rating_pending_rooms.sql` を適用し、既存のレート保存待ち台帳へルーム番号と世代を追加します。新規の予約時に席の参照を同じD1 batchへ記録し、退室後も保存完了まで参照を維持します。移行時に席がある旧予約は操作IDで補完し、参照のない旧予約はCoordinatorに割当が残っていれば復元します。復元できないときも保存完了までは検索を止めます。
 
-`matchmaking/previousMatch.ts` は4ゲームの保存待ち台帳を本人IDで照会し、`previousMatch=1` を指定した登録者向けのidle・playing応答に前局を追加します。受付確認・旧クライアントのGETには前局用の照会・応答項目を増やしません。GameRoomの対局ID・部屋世代を検査した公開メタ情報だけを返します。joinと待機列の成立処理も全台帳を確認し、別ゲームや旧待機からの重複参加を拒否します。Webの `PreviousRatedMatchCard` は既存のカード・盤面アイコンを使い、`watch=1` の観戦URLを案内します。`useMatchmaking` は確認済み状態と前局の有無を検索条件にし、状態GET失敗後も検索を開始しません。POSTの通信失敗は従来どおり本人の明示再試行を許可します。
+前局の照会（`apps/worker/src/adapters/matchmaking/previousMatch.ts` と文脈の `domain/previousMatch.ts`）は4ゲームの保存待ち台帳を本人IDで照会し、`previousMatch=1` を指定した登録者向けのidle・playing応答に前局を追加します。受付確認・旧クライアントのGETには前局用の照会・応答項目を増やしません。GameRoomの対局ID・部屋世代を検査した公開メタ情報だけを返します。joinと待機列の成立処理も全台帳を確認し、別ゲームや旧待機からの重複参加を拒否します。Webの `PreviousRatedMatchCard` は既存のカード・盤面アイコンを使い、`watch=1` の観戦URLを案内します。`useMatchmaking` は確認済み状態と前局の有無を検索条件にし、状態GET失敗後も検索を開始しません。POSTの通信失敗は従来どおり本人の明示再試行を許可します。
 
 Webの最低対応Workerは2026-11-06時点の本番main `35ddc5ee32127425ea875f1e2bc6457c3e09163d` 以降です。ルームの `eliminatedHands`、ランキングの `profilePreview`・`includeKnockouts`、公開プロフィールの `includeBadges`・`includeStats` を受理することを前提とします。ひとこと・お気に入りゲームを表示するWebには、追加の `includeDetails=1` を受理する本変更以降のWorkerが必要です。400を受けてオプションを除去する自動再取得は行いません。古いWorkerへ切り戻す場合は対応するWebも戻し、欠落公開IDや平文トークンを現行環境へ持ち込まない移行・復元確認が必要です。新Workerの省略可能な応答項目は維持するため、既存Webのタブも引き続き利用できます。
 
@@ -121,31 +121,31 @@ Workerの`analysis-replay`は進行中シングルスの初期ルール設定と
 
 ルームの盤面は紹介の背後で描画し続けます。紹介の背景は既存の `--lobby-background` を72%にした半透明色と3pxの `backdrop-filter` にし、帯の不透明色は既存テーマのまま保ちます。相手は `translateX(-100vw)` から600ms、本人は `translateX(100vw)` から700msで入れ、終端で減速します。相手を80msずつ遅らせ、本人は200ms後に開始します。登場中の横スクロールは背景幕で抑止します。
 
-表示仕様は[READMEの開始演出](../README.md#レート戦の開始演出)です。`RoomViewShell` はレート戦の初回待機中に `RatedMatchStartCountdown` をマウントし、開始予定時刻の通知前から既存の `PlayerProfileStore` へルーム・instance・プレイヤーIDを指定して並列に先読みします。帯は同じstoreを購読し、入室時の名前・アイコンを維持して公開ID・対象ゲームの通算成績・成立時の対局前レートを補います。現在レートで代用せず、CPUの基準レートと認定中を区別します。
+表示仕様は[開始演出の仕様](specs/matchmaking.md#レート戦の開始演出)です。`RoomViewShell` はレート戦の初回待機中に `RatedMatchStartCountdown` をマウントし、開始予定時刻の通知前から既存の `PlayerProfileStore` へルーム・instance・プレイヤーIDを指定して並列に先読みします。帯は同じstoreを購読し、入室時の名前・アイコンを維持して公開ID・対象ゲームの通算成績・成立時の対局前レートを補います。現在レートで代用せず、CPUの基準レートと認定中を区別します。
 
 カウントダウンはサーバー時刻から求め、プロフィール取得を開始条件に含めません。表示が中断しても入室中のstoreを利用し、通常ルーム・大会・旧ランダムマッチは既存の `RoomStartCountdown` を維持します。`ratedMatchStartCountdown.css` は帯の切り欠き・配置・登場アニメーションだけを担当し、配色は既存のゲームテーマ変数を使います。
 
 ## レート戦の時計変更
 
-ゲーム別の時計の正本は[README](../README.md#レート戦の持ち時間)です。新規ルームはprotocolの `matchmakingQueues` の `timeControl` を使い、成立後はルームへ保存した設定で時計と開始画面を表示します。待機列キーはDO・D1予約・入室資格の識別子なので、文字列に残る旧時計の数値を書き換えません。通常ルーム・大会・旧ランダムマッチの設定は維持します。
+ゲーム別の時計の正本は[レート戦の仕様](specs/matchmaking.md#レート戦の持ち時間)です。新規ルームはprotocolの `matchmakingQueues` の `timeControl` を使い、成立後はルームへ保存した設定で時計と開始画面を表示します。待機列キーはDO・D1予約・入室資格の識別子なので、文字列に残る旧時計の数値を書き換えません。通常ルーム・大会・旧ランダムマッチの設定は維持します。
 
 rating の文脈の `ratedTimeControls`（`packages/contexts/rating/src/domain/policy.ts`）は新旧のレート戦の時計を許容し、四人ゲームの順位更新と二人ゲームのElo保存SQLで共用します。変更前の成立済み対局・保存待ちもレートへ反映し、既存履歴とCPUの基準値は変更しません。過去のCPU較正は対象コミットと測定時の時計を保持し、新しい時計での較正は別の検証として扱います。
 
 ## レート戦の待機人数
 
-表示の正本は[READMEの待機人数](../README.md#レート戦の待機人数)です。`CpuCapacity.availableSeats()` は既存のゲーム別上限と予約台帳を読み取り、「残り席数」と「残り対局枠×1局のCPU席上限」の小さい方を0以上で返します。`MatchmakingCoordinator` は有効な人間の待機者数を加え、既存の `waitingCount` に入れます。取得失敗はこの項目を省略し、検索・取消などの状態応答は返します。通常対局とレート戦で共有する予約台帳をそのまま参照し、予約・解放の処理や照会時の状態を変更しません。
+表示の正本は[待機人数の仕様](specs/matchmaking.md#レート戦の待機人数)です。`CpuCapacity.availableSeats()` は既存のゲーム別上限と予約台帳を読み取り、「残り席数」と「残り対局枠×1局のCPU席上限」の小さい方を0以上で返します。`MatchmakingCoordinator` は有効な人間の待機者数を加え、既存の `waitingCount` に入れます。取得失敗はこの項目を省略し、検索・取消などの状態応答は返します。通常対局とレート戦で共有する予約台帳をそのまま参照し、予約・解放の処理や照会時の状態を変更しません。
 
 人数を要求しない受付確認GETではCoordinatorへ照会フラグを渡し、CPU枠への追加RPCを省きます。`waitingCount=1` と省略可能な整数項目の契約を維持し、Webは既存の3秒更新と表示条件を使います。旧Workerとの組合せでは従来の人数表示になり、新しいWorkerへの切替後に空き枠を含む計算になります。DB移行はありません。
 
 ## レート戦のマッチング時間の目安
 
-表示の正本は[READMEのマッチング時間の目安](../README.md#レート戦のマッチング時間の目安)です。`MatchmakingCoordinator` は期限内かつ再試行待ちでない待機者について、既存の `ratingPolicy.select` を補充時刻の条件で読み取り、先頭から最大4組を見積もります。先行するCPU入りの組が使う同時対局枠を差し引き、本人が含まれる組の先頭の待機開始＋補充待ち時間を返します。過去の時刻、空き枠を割り当てられない組、CPU枠取得失敗・再試行待ちでは省略します。既存の待機人数と同じCPU照会結果を使い、状態・予約台帳を書き換えません。
+表示の正本は[マッチング時間の目安の仕様](specs/matchmaking.md#レート戦のマッチング時間の目安)です。`MatchmakingCoordinator` は期限内かつ再試行待ちでない待機者について、既存の `ratingPolicy.select` を補充時刻の条件で読み取り、先頭から最大4組を見積もります。先行するCPU入りの組が使う同時対局枠を差し引き、本人が含まれる組の先頭の待機開始＋補充待ち時間を返します。過去の時刻、空き枠を割り当てられない組、CPU枠取得失敗・再試行待ちでは省略します。既存の待機人数と同じCPU照会結果を使い、状態・予約台帳を書き換えません。
 
 公開APIは `estimate=1` を指定したGET・検索・継続などの応答にだけ、省略可能な `estimatedMatchAtMs` を返します。本人の有効な待機と操作元が一致する場合だけ設定し、未指定の既存クライアントへ新項目を返しません。受付確認だけのGETでは引き続きCPU枠を照会しません。Webは `MatchmakingWaitTime` で既存の `serverNowMs` と応答受信時の `performance.now()` を使い、毎秒の表示と背景復帰時の追いつきを処理します。操作IDをkeyに前回検索の目安を分離し、同じ表示中の目安を延長せず、見積もれない回・期限超過では経過時間へ切り替えます。旧Workerは要求を無視して目安項目を省略でき、その場合も経過時間を表示します。DB移行はありません。
 
 ## 四人リバーシの待機列とルーム
 
-採用仕様は[レート戦](matchmaking.md#四人リバーシのレート戦)、ゲームの裁定は[四人リバーシ正本](rules/four-reversi.md)です。Workerの`matchmaking/routes.ts`が本人・Origin・同意・入力を検証し、`MatchmakingCoordinator`がFIFO・lease・操作元・割当と回復を扱います。migration `0031_matchmaking.sql`はD1の通常席・大会待機との排他、ゲスト統合のfence、公開索引の印を追加します。GameRoomは専用ルームの接続・期限・自動開始と既存の時計・脱落・保存を担当します。状態GETは本人の状態を参照するだけで、組合せや全ルーム巡回を行いません。割当・期限・再試行は変更操作とAlarmで処理します。毎時保守は解放済みの割当をD1の席予約と照合して片付け、対局中のGameRoomへ巡回RPCを送りません。
+採用仕様は[レート戦](specs/matchmaking.md#四人リバーシのレート戦の詳細)、ゲームの裁定は[四人リバーシ正本](rules/four-reversi.md)です。Workerの`matchmaking/routes.ts`が本人・Origin・同意・入力を検証し、`MatchmakingCoordinator`がFIFO・lease・操作元・割当と回復を扱います。migration `0031_matchmaking.sql`はD1の通常席・大会待機との排他、ゲスト統合のfence、公開索引の印を追加します。GameRoomは専用ルームの接続・期限・自動開始と既存の時計・脱落・保存を担当します。状態GETは本人の状態を参照するだけで、組合せや全ルーム巡回を行いません。割当・期限・再試行は変更操作とAlarmで処理します。毎時保守は解放済みの割当をD1の席予約と照合して片付け、対局中のGameRoomへ巡回RPCを送りません。
 
 Webの`features/matchmaking`は登録者の参加、10秒の継続、再読み込み・明示引継ぎと入室を担当します。`QueueDocumentController`は大会と共用し、scopeを分離します。Web Locks非対応時も明示参加・引継ぎは可能とし、自動の資格引継ぎはしません。非同期応答は本人・操作元・要求世代で破棄し。
 
@@ -155,10 +155,10 @@ Rust CPUの名前・判断方法・Engine版は`packages/ai/configs/characters-v
 
 ## 四人リバーシのレート戦の実装順序
 
-登録者向けの[四人リバーシのレート戦](matchmaking.md#四人リバーシのレート戦)へ切り替えます。2026-11-08に文書化したフェーズ4.5-Aのうち、[CPU評価と実力推定の較正仕様](../packages/ai/docs/calibration.md)を引き継ぎます。
+登録者向けの[四人リバーシのレート戦](specs/matchmaking.md#四人リバーシのレート戦の詳細)へ切り替えます。2026-11-08に文書化したフェーズ4.5-Aのうち、[CPU評価と実力推定の較正仕様](../packages/ai/docs/calibration.md)を引き継ぎます。
 
 1. 将棋で使っているロビーダイアログ、待機・取消・自動入室・再参加、認定と対局結果の表示、終局時の二重反映防止を共通化しました。ゲーム別の参加人数・持ち時間・待機上限はprotocolの `matchmakingQueues`、相手選びとレート保存はWorkerの `matchmaking/ratedMatchmaking.ts` のゲーム別設定から参照します。将棋は既存のD1テーブルとAPI形式でレートを読み書きします。
-2. 四人リバーシのCPUを較正し、順位ベースのレート計算と保存を追加します。同順位、認定5局目、CPU混在、代替手使用時の除外、再試行を確認します。[公開レートの仕様](matchmaking.md#公開レート)を本人向けの `GET /api/matchmaking/four-reversi/rating` に適用し、開発環境の対局結果で見直します。四人リバーシ・四人将棋のレートAPIは認定後の数値レートと対人戦の有無を返します。Webは旧Workerの応答にあるランク項目を読み捨てます。
+2. 四人リバーシのCPUを較正し、順位ベースのレート計算と保存を追加します。同順位、認定5局目、CPU混在、代替手使用時の除外、再試行を確認します。[公開レートの仕様](specs/matchmaking.md#公開レート)を本人向けの `GET /api/matchmaking/four-reversi/rating` に適用し、開発環境の対局結果で見直します。四人リバーシ・四人将棋のレートAPIは認定後の数値レートと対人戦の有無を返します。Webは旧Workerの応答にあるランク項目を読み捨てます。
 3. 四人リバーシを共通の導線に接続しました。最長20秒で人間を優先し、不足席を較正済みCPUで補います。新旧の待機列を分離し、旧対局の接続と保存を継続します。新しい待機列は `0035_four_reversi_rating_pending.sql` の保存待ち予約で、終局結果が確定するまで次の参加を制限します。
 4. 必須ローカル検証とCIを通し、開発環境で人間1〜4人、20秒前後の参加・取消、AI障害、終局後の再参加を確認します。対人戦とCPU入りの局でのレートの推移、稼働費用、受付停止手順をまとめ、本番公開は別途承認を得て実施します。
 
@@ -582,6 +582,15 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 - `packages/contexts/rating/src/use-cases/`: 対局の結果からレートの変化を決める処理、要約と結果、ランキング、保存待ちの予約と取り消し、最新のレート。D1 は `ports.ts` の `RatingReader`、`RatingPublication`、`SkillRatingStore` で読み書きし、棋譜の公開と同じ batch に入れる書き込みは実行せずに返します。Cloudflare と zod に依存しません。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
 - `apps/worker/src/adapters/rating/`: ポートの D1 の実装。テーブルは `elo_rating_changes`、`skill_rating_changes`、`elo_rating_pending`、`skill_rating_pending`（`game` の列でゲームを分ける）。
 - レートの zod のスキーマ（`rooms/eloRating.ts`、`fourReversiRating.ts` など）、ルートの入口（`rooms/rankingRoutes.ts`、`accounts/profileRatings.ts`）、マッチングからの呼び出しは worker に残ります。Elo は棋譜の公開と同じ batch、skill は公開の直後に反映します（`flows/matchSave/`）。
+
+## マッチングの入口
+
+レート戦の待機列は、ADR 0010 の形に分かれています（TB-115）。仕様は [docs/specs/matchmaking.md](specs/matchmaking.md) です。
+
+- `packages/contexts/matchmaking/src/domain/`: 待機の状態と順序、組み合わせの選び方（四人リバーシ、四人将棋）、CPU のプロフィールの選び方、成立までの目安時間、レート戦の規則、前局の判定。純粋な関数です。
+- `packages/contexts/matchmaking/src/use-cases/`: 参加、操作元の切り替え、退出、tick（組み合わせと CPU の補充）、状態の読み取り、退会の消去、解放済みの組の掃除。DO の storage、D1、参加資格、席の予約、ルームの RPC、CPU の枠、時刻は `ports.ts` のポートで受け取ります。席とレートの予約は書き込みを返し、殻が同じ batch で確定します。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
+- `apps/worker/src/durableObjects/matchmakingCoordinator/`: DO の殻。`apps/worker/src/adapters/matchmaking/`: ポートの実装（D1 の SQL、DO の storage、CPU のプロフィールの設定）。`apps/worker/src/routes/matchmaking.ts`: HTTP の入口。
+- 専用ルームの準備と開始は `flows/matchmakingRoom/` が room の側と結びます。
 
 ## 大会の入口
 
@@ -1297,7 +1306,7 @@ migration 0021はゲストセッション、OAuth対応、統合済み内部ID�
 
 `RatingGrowthPreview` はレート戦の連携案内だけで使う独立した演出です。1秒のtimeoutを段階ごとに予約し、1600到達・unmount・動きを減らす設定で停止します。ゲーム切替では再作成し、通常の再描画では継続します。CSS keyframesは数字の小さな跳ねと増分の浮上だけに使い、固定幅と配置済みの余白でレイアウトを保ちます。`useSyncExternalStore` で端末の動きを減らす設定の変更を購読し、静止表示へ切り替えます。数値は演出用の固定値で、API・保存データ・公開レートと接続しません。
 
-レート戦の未ログイン・ゲスト向け表示は[共通仕様](../README.md#未ログイン時のレート戦の連携案内)に従い、`RatedMatchmakingDialog` の中で `SocialSignInButtons` と `useSocialSignIn` を使います。新しいダイアログを重ねず、ボタン群は任意の `layout="vertical"` で縦に並べます。省略時は既存のレスポンシブ配置です。`registrationPath` は対象4ゲームの固定の `?matchmaking=1` 付きURLも許可し、任意のクエリ・ハッシュは許可しません。`RegistrationCompletion` の既存処理でプロフィール設定・統合後に復帰し、再検索のstateは付けません。認証開始中は閉鎖・戻る・履歴の戻るを防ぎ、失敗後に再操作できます。
+レート戦の未ログイン・ゲスト向け表示は[共通仕様](specs/matchmaking.md#未ログイン時のレート戦の連携案内)に従い、`RatedMatchmakingDialog` の中で `SocialSignInButtons` と `useSocialSignIn` を使います。新しいダイアログを重ねず、ボタン群は任意の `layout="vertical"` で縦に並べます。省略時は既存のレスポンシブ配置です。`registrationPath` は対象4ゲームの固定の `?matchmaking=1` 付きURLも許可し、任意のクエリ・ハッシュは許可しません。`RegistrationCompletion` の既存処理でプロフィール設定・統合後に復帰し、再検索のstateは付けません。認証開始中は閉鎖・戻る・履歴の戻るを防ぎ、失敗後に再操作できます。
 
 `features/account/AccountLinkDialog.tsx` は機能名・テーマ・閉じる操作を受け取り、どの画面からも使える共通の連携案内です。任意の `beforeSignIn` と `beforeSignInNotice` で、事前処理とその説明を渡せます。任意の `destination` は既存の登録復帰情報で扱えるアプリ内の遷移先に限定します。Google・Discordの認証開始と同意表示を共用し、事前処理の失敗ではOAuthへ進みません。`onBusyChange` で親の操作・閉鎖をロックできます。
 
@@ -1506,7 +1515,7 @@ Webの `useMatchHistoryFilter` は本人の公開識別子と選択をブラウ�
 
 ## レート戦開幕ダイアログ
 
-仕様の正本は[開幕の案内](../README.md#レート戦開幕の案内)です。`RatedLaunchAnnouncement` が総合ロビーと対応4ゲームの共通 `LobbyView` に入り、固定キー `tetraboard:rated-launch:seen` を受付情報の取得前に確認します。`ratedLaunch.ts` に既読確認・表示直前の保存・目的付き遷移の判定を集約します。保存不可では自動表示を見送り、既読は本人の切替やデプロイで消去しません。
+仕様の正本は[開幕の案内](specs/matchmaking.md#レート戦開幕の案内)です。`RatedLaunchAnnouncement` が総合ロビーと対応4ゲームの共通 `LobbyView` に入り、固定キー `tetraboard:rated-launch:seen` を受付情報の取得前に確認します。`ratedLaunch.ts` に既読確認・表示直前の保存・目的付き遷移の判定を集約します。保存不可では自動表示を見送り、既読は本人の切替やデプロイで消去しません。
 
 総合ロビーは既存 `useLobbyGameRatings` の結果を渡し、ゲーム別は未読かつ目的付き遷移でないときだけ同じAPIを取得します。読み込み・非表示・停止・失敗では既読にしません。表示待ち中のpointerdown・keydown・wheel、別ダイアログの出現、別タブの既読を監視し、利用者の操作を優先します。破棄時に取得・タイマー・イベント・Observerを解除します。
 

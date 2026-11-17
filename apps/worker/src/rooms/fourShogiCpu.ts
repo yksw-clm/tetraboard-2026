@@ -4,7 +4,7 @@ import {
 } from "@tetraboard/four-shogi/definition";
 import type { FourShogiReplayEvent } from "@tetraboard/protocol";
 import type { Side, FourShogiAction } from "@tetraboard/four-shogi";
-import { calibratedFourShogiProfile } from "../matchmaking/fourShogiSelection";
+import { calibratedFourShogiProfile } from "../adapters/matchmaking/fourShogiSelection";
 import type { FourShogiAiFailure, FourShogiAiResult } from "./aiService";
 import type { PlayingFor } from "./gameProgress";
 import type { ShogiStore } from "./shogiStore";

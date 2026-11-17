@@ -1,6 +1,6 @@
 # TetraBoard AI
 
-フェーズ0〜4のRust Workspaceです。四人リバーシの**シングルス（脱落後を含む）**について、ルールエンジン、Lv1〜5のAgent候補、比較Benchmark、外部AI Serviceを提供します。[フェーズ1](docs/phase1.md)に評価と探索、[フェーズ2](docs/phase2.md)にAPI・認証・Worker接続・コンテナの実行方法を記載しています。[フェーズ3](docs/phase3.md)に多人数MCTS・API v2・棋力の採用基準を記載します。[フェーズ4](../../docs/matchmaking.md)では、3分切れ負け・レートなしのランダムマッチへヨミ（Lv3）を接続します。レベル名だけで比較条件外の棋力順序を保証しません。
+フェーズ0〜4のRust Workspaceです。四人リバーシの**シングルス（脱落後を含む）**について、ルールエンジン、Lv1〜5のAgent候補、比較Benchmark、外部AI Serviceを提供します。[フェーズ1](docs/phase1.md)に評価と探索、[フェーズ2](docs/phase2.md)にAPI・認証・Worker接続・コンテナの実行方法を記載しています。[フェーズ3](docs/phase3.md)に多人数MCTS・API v2・棋力の採用基準を記載します。[フェーズ4](../../docs/specs/matchmaking.md)では、3分切れ負け・レートなしのランダムマッチへヨミ（Lv3）を接続します。レベル名だけで比較条件外の棋力順序を保証しません。
 
 ゲームの正本は[四人リバーシルール](../../docs/rules/four-reversi.md)です。[対応ルールと検証範囲](docs/rules-four-player-reversi.md)に確認元コミットと対象範囲を記載しています。既存CPU・探索・評価・Benchmarkの移植や流用は行っていません。TypeScriptのルールエンジンは比較テストだけから参照します。
 

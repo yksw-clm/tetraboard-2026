@@ -1,4 +1,4 @@
-import type { ShogiRatingSource } from "../rooms/shogiRating";
+import type { EloRatingSource as ShogiRatingSource } from "./ratedMatchmaking";
 
 const profiles = (
   [

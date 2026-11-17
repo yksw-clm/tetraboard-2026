@@ -3,7 +3,7 @@ import { roomMatchKind, type Room } from "@tetraboard/protocol";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { storedAccount } from "../../flows/accountSeats/seats";
 import { clearMatchmakingSearches } from "../../flows/matchmakingRoom/reservations";
-import type { MatchmakingRoomReservation } from "../../matchmaking/coordinator";
+import type { MatchmakingRoomReservation } from "@tetraboard/context-matchmaking";
 import {
   analyticsActiveKey,
   analyticsPlayerKey,

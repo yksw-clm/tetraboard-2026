@@ -2,7 +2,7 @@ import { env, exports } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { matchmakingQueues, matchmakingStateSchema } from "@tetraboard/protocol";
 import { expect, test, vi } from "vitest";
-import { ratedMatchmakingPolicy } from "../src/matchmaking/ratedMatchmaking";
+import { ratedMatchmakingPolicy } from "../src/adapters/matchmaking/ratedMatchmaking";
 import { accountFixture, origin } from "../test/accountFixtures";
 import { AcceptedGameRequest } from "../test/acceptedGameRequest";
 

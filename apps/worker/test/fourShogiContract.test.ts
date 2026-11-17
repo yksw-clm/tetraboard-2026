@@ -9,7 +9,7 @@ import {
   type ShogiCpuJob,
 } from "../src/rooms/fourShogiProgress";
 import type { FourShogiCpuResponse } from "../src/rooms/fourShogiCpu";
-import { selectFourShogi } from "../src/matchmaking/fourShogiSelection";
+import { selectFourShogi } from "../src/adapters/matchmaking/fourShogiSelection";
 import { shogiCpuJobKey } from "../src/rooms/progressHelpers";
 import { shogiMatchStartKey, type ActiveShogiMatch } from "../src/rooms/shogiMatchStore";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";

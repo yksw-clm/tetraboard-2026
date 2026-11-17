@@ -20,7 +20,7 @@ import type {
   RematchFor,
 } from "./gameProgress";
 import type { TournamentRoomContext } from "@tetraboard/context-tournament";
-import type { FourReversiRatingSource } from "../matchmaking/fourReversiSelection";
+import type { FourReversiRatingSource } from "@tetraboard/context-matchmaking";
 import type { ServiceProfile } from "./aiServiceProfiles";
 import {
   startFourReversiRound,

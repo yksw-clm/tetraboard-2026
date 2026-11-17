@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { createInitialState, eliminateColor } from "@tetraboard/four-reversi";
 import { fourReversiStateSchema } from "@tetraboard/protocol";
-import { namedCpuProfile } from "../src/matchmaking/cpuProfiles";
+import { namedCpuProfile } from "../src/adapters/matchmaking/cpuProfiles";
 import { requestAiMove } from "../src/rooms/aiService";
 import type { ExternalCpuWork } from "../src/rooms/fourReversiProgress";
 

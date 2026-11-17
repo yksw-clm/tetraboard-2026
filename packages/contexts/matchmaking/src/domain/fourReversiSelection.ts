@@ -1,60 +1,18 @@
-import { fourReversiRatedMatchmakingRules, ratedMatchmakingRules } from "@tetraboard/protocol";
-import { fourReversiRatingBeta } from "@tetraboard/context-rating";
-import type { FourReversiCpuRating } from "../rooms/fourReversiRating";
-import { findNamedCpuProfile } from "./cpuProfiles";
-
+import type { CpuProfile } from "@tetraboard/protocol";
+export type FourReversiCpuRating = {
+  profileId: string;
+  profileHash: string;
+  mu: number;
+  sigma: number;
+};
+export type QueueRating = { rating?: number; sigma?: number; ratedGames?: number };
+export const fourReversiWidenAfterMs = 10_000;
 export const fourReversiCalibrationVersion = "four-reversi-lv1-lv5-v1";
-const references = [
-  ["lv1-v1", "efa9502656a959bcfd993e7ba42ac0c705d4b20ee53fda63316e9538097271f0", 11.62695152723769],
-  [
-    "lv2-v1",
-    "e9d73d9f70c9784667348f31b732ac396e1fba8422d37828698a61e311ee3305",
-    22.450170489740945,
-  ],
-  ["lv3-v1", "c2b327ed2e4beebdaee84931b35cea50bf8cbaf54831e6e116219a5913cbc748", 25],
-  ["lv5-v1", "c16ee482750b7ba37e554beaa776317dd4b00fe071a9c47f66f186adab575163", 29.13612058222954],
-] as const;
-
-export function calibratedFourReversiProfile(reference: FourReversiCpuRating) {
-  const fixed = references.find(([id]) => id === reference.profileId);
-  if (
-    !fixed ||
-    reference.profileHash !== fixed[1] ||
-    reference.mu !== fixed[2] ||
-    reference.sigma !== 1
-  )
-    return;
-  const profile = findNamedCpuProfile(reference.profileId);
-  if (
-    profile?.hash === reference.profileHash &&
-    profile.engineVersion === "0.2.0" &&
-    profile.rulesetVersion === "four-reversi-singles-v2" &&
-    profile.stateVersion === 2
-  )
-    return profile;
-}
-
-const profiles = references.map(([profileId, profileHash, mu]) => ({
-  profileId,
-  profileHash,
-  mu,
-  sigma: 1,
-}));
-const availableProfiles = () => profiles.filter(calibratedFourReversiProfile);
-export const hasCalibratedFourReversiProfiles = () => availableProfiles().length > 0;
-
 export type FourReversiRatingSource = {
   kind: "four-reversi";
   calibrationVersion: string;
   cpu?: FourReversiCpuRating;
 };
-const ratedMatch = {
-  kind: "four-reversi",
-  calibrationVersion: fourReversiCalibrationVersion,
-} as const;
-export type QueueRating = { rating?: number; sigma?: number; ratedGames?: number };
-export const fourReversiWidenAfterMs = 10_000;
-
 export function nearestRankedCpu<T extends { mu: number; profileId: string }>(
   players: QueueRating[],
   profiles: T[],
@@ -79,30 +37,13 @@ export function nearestRankedCpu<T extends { mu: number; profileId: string }>(
   )[0];
 }
 
-export function selectFourReversi<T extends QueueRating>(
-  eligible: T[],
-  elapsed: number,
-): { selected: T[]; rating: FourReversiRatingSource } | undefined {
-  return selectFourPlayerRated(
-    eligible,
-    elapsed,
-    fourReversiRatedMatchmakingRules,
-    ratedMatch,
-    (players) =>
-      nearestRankedCpu(
-        players,
-        availableProfiles(),
-        ratedMatchmakingRules["four-reversi"].placementGames,
-      ),
-  );
-}
-
 export function selectFourPlayerRated<T extends QueueRating, R extends object, C>(
   eligible: T[],
   elapsed: number,
   rules: { seats: number; fillAfterMs: number },
   ratedMatch: R,
   chooseCpu: (players: T[]) => C | undefined,
+  fourReversiRatingBeta: number,
 ): { selected: T[]; rating: R & { cpu?: C } } | undefined {
   const candidates = eligible.slice(0, 16);
   const [oldest, ...others] = candidates;
@@ -145,4 +86,75 @@ export function selectFourPlayerRated<T extends QueueRating, R extends object, C
     }
   }
   if (best) return { selected: best, rating: ratedMatch };
+}
+const references = [
+  ["lv1-v1", "efa9502656a959bcfd993e7ba42ac0c705d4b20ee53fda63316e9538097271f0", 11.62695152723769],
+  [
+    "lv2-v1",
+    "e9d73d9f70c9784667348f31b732ac396e1fba8422d37828698a61e311ee3305",
+    22.450170489740945,
+  ],
+  ["lv3-v1", "c2b327ed2e4beebdaee84931b35cea50bf8cbaf54831e6e116219a5913cbc748", 25],
+  ["lv5-v1", "c16ee482750b7ba37e554beaa776317dd4b00fe071a9c47f66f186adab575163", 29.13612058222954],
+] as const;
+
+export function createFourReversiSelection({
+  rules,
+  placementGames,
+  beta,
+  findNamedCpuProfile,
+}: {
+  rules: { seats: number; fillAfterMs: number };
+  placementGames: number;
+  beta: number;
+  findNamedCpuProfile: (id: string) => CpuProfile | undefined;
+}) {
+  function calibratedFourReversiProfile(reference: FourReversiCpuRating) {
+    const fixed = references.find(([id]) => id === reference.profileId);
+    if (
+      !fixed ||
+      reference.profileHash !== fixed[1] ||
+      reference.mu !== fixed[2] ||
+      reference.sigma !== 1
+    )
+      return;
+    const profile = findNamedCpuProfile(reference.profileId);
+    if (
+      profile?.hash === reference.profileHash &&
+      profile.engineVersion === "0.2.0" &&
+      profile.rulesetVersion === "four-reversi-singles-v2" &&
+      profile.stateVersion === 2
+    )
+      return profile;
+  }
+
+  const profiles = references.map(([profileId, profileHash, mu]) => ({
+    profileId,
+    profileHash,
+    mu,
+    sigma: 1,
+  }));
+  const availableProfiles = () => profiles.filter(calibratedFourReversiProfile);
+  const hasCalibratedFourReversiProfiles = () => availableProfiles().length > 0;
+
+  const ratedMatch = {
+    kind: "four-reversi",
+    calibrationVersion: fourReversiCalibrationVersion,
+  } as const;
+
+  function selectFourReversi<T extends QueueRating>(
+    eligible: T[],
+    elapsed: number,
+  ): { selected: T[]; rating: FourReversiRatingSource } | undefined {
+    return selectFourPlayerRated(
+      eligible,
+      elapsed,
+      rules,
+      ratedMatch,
+      (players) => nearestRankedCpu(players, availableProfiles(), placementGames),
+      beta,
+    );
+  }
+
+  return { calibratedFourReversiProfile, hasCalibratedFourReversiProfiles, selectFourReversi };
 }

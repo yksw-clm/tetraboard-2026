@@ -5,7 +5,7 @@ import { hasProfileRating, profileRatingsKey } from "../../accounts/profileRatin
 import { isHumanParticipant, playerTokenHash } from "../../adapters/room/state";
 import { storedAccount } from "../../flows/accountSeats/seats";
 import { registrationForPlayer } from "../../flows/guestRegistration/records";
-import type { MatchmakingRoomReservation } from "../../matchmaking/coordinator";
+import type { MatchmakingRoomReservation } from "@tetraboard/context-matchmaking";
 import { replayKey, roomStorageKey } from "../../rooms/progressHelpers";
 import {
   currentRoomStateVersion,

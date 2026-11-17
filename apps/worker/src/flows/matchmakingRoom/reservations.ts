@@ -6,7 +6,7 @@ import { closeRoom } from "../../adapters/room/useCases";
 import { closeSockets } from "../../durableObjects/gameRoom/connections";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { hasOpenConnection } from "../../durableObjects/gameRoom/socket/membership";
-import type { MatchmakingRoomReservation } from "../../matchmaking/coordinator";
+import type { MatchmakingRoomReservation } from "@tetraboard/context-matchmaking";
 import { storedAccount } from "../accountSeats/seats";
 
 export function clearMatchmakingSearches(

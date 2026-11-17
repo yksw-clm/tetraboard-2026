@@ -4,8 +4,8 @@ import {
   prepareLatestRating,
   type RatingGame,
 } from "@tetraboard/context-rating";
-import { D1RatingPublication } from "../adapters/rating/publication";
-import { ratingStatements } from "../adapters/rating/tables";
+import { D1RatingPublication } from "./publication";
+import { ratingStatements } from "./tables";
 export function createRatingStore(game: RatingGame) {
   const tables = ratingStatements(game);
   return {

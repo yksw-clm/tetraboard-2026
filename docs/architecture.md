@@ -25,7 +25,7 @@
 
 ## ランダムマッチの状態分担
 
-[ランダムマッチ](matchmaking.md)では既存のWorkers・D1・Durable Objectsを使います。待機列のDOはゲーム・ルール版・固定時計・casual種別のキーで分離し、初回は1列です。待機のFIFO・lease・操作元・世代・割当はCoordinator、全ゲームとの同時参加禁止はD1の条件付き予約とtrigger、開始・時計・合法手・勝敗はGameRoomへ置きます。AI Serviceには盤面と探索条件だけを渡します。
+[レート戦](specs/matchmaking.md)では既存のWorkers・D1・Durable Objectsを使います。待機列のDOはゲーム・ルール版・固定時計・casual種別のキーで分離し、初回は1列です。待機のFIFO・lease・操作元・世代・割当はCoordinator、全ゲームとの同時参加禁止はD1の条件付き予約とtrigger、開始・時計・合法手・勝敗はGameRoomへ置きます。AI Serviceには盤面と探索条件だけを渡します。
 
 D1とDOの間を単一transactionと見なさず、永続化した割当IDから転送・ルーム準備・取消を再実行します。取消はGameRoomの開始確定と競合を判定してから席を解放し、未開始の部分失敗は同じ待機優先度へ戻します。引継ぎは世代と資格hashを先に保存し、ルームへの配送に失敗してもAlarmから復旧します。状態GETは本人の待機または席だけを参照し、全対局へのRPCや期限処理を実行しません。playing確定後のGameRoomへ全体巡回のRPCは行いません。解放済みの割当情報は毎時保守でD1の席予約をまとめて照合して消去します。
 

@@ -5,7 +5,7 @@ import {
   ratingRankingContracts,
   type RatedMatchmakingGame,
 } from "@tetraboard/protocol";
-import { ratedMatchmakingPolicy } from "../src/matchmaking/ratedMatchmaking";
+import { ratedMatchmakingPolicy } from "../src/adapters/matchmaking/ratedMatchmaking";
 import { boundaryRequest } from "./roomBoundaryFixtures";
 import { accountFixture } from "./accountFixtures";
 
