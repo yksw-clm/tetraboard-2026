@@ -1,3 +1,4 @@
+import { tournamentWaitFence, prepareTournamentWaitFence } from "../../flows/accountSeats/fences";
 import type {
   TournamentQueueStore,
   Waiting,
@@ -49,12 +50,19 @@ export class D1TournamentQueueStore implements TournamentQueueStore {
       .run();
   }
   async restore(player: Player, key: string) {
-    await this.db
-      .prepare(`INSERT INTO tournament_wait_reservations(account_id,tournament_key,operation_id,lease_until_ms)
-        VALUES(?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET match_operation_id=NULL,lease_until_ms=excluded.lease_until_ms
+    const fence = tournamentWaitFence(player.accountId);
+    const results = await this.db.batch<{ code: string | null }>([
+      this.db
+        .prepare(`INSERT INTO tournament_wait_reservations(account_id,tournament_key,operation_id,lease_until_ms)
+        SELECT ?,?,?,? WHERE ${fence.sql} ON CONFLICT(account_id) DO UPDATE SET match_operation_id=NULL,lease_until_ms=excluded.lease_until_ms
         WHERE tournament_wait_reservations.operation_id=excluded.operation_id`)
-      .bind(player.accountId, key, player.operationId, player.expiresAtMs)
-      .run();
+        .bind(player.accountId, key, player.operationId, player.expiresAtMs, ...fence.values),
+      prepareTournamentWaitFence(this.db, player.accountId),
+    ]);
+    if (!results[0].meta.changes) {
+      const reason = results[1].results[0]?.code;
+      if (reason) throw new Error(reason);
+    }
   }
   preparePlayer(player: Player, profile: WaitingProfile, key: string) {
     return prepareTournamentPlayer(this.db, player, profile, key);
@@ -124,7 +132,8 @@ export class D1TournamentQueueStore implements TournamentQueueStore {
       .first<ParticipationProfile>();
   }
   async enqueue(wait: Waiting, key: string) {
-    await this.db.batch([
+    const fence = tournamentWaitFence(wait.accountId);
+    const results = await this.db.batch<{ code: string | null }>([
       this.db
         .prepare(
           "DELETE FROM matchmaking_wait_reservations WHERE account_id=? AND lease_until_ms<=? AND match_operation_id IS NULL",
@@ -137,10 +146,15 @@ export class D1TournamentQueueStore implements TournamentQueueStore {
         .bind(wait.accountId, Date.now()),
       this.db
         .prepare(
-          "INSERT INTO tournament_wait_reservations(account_id,tournament_key,operation_id,lease_until_ms) VALUES(?,?,?,?)",
+          `INSERT INTO tournament_wait_reservations(account_id,tournament_key,operation_id,lease_until_ms) SELECT ?,?,?,? WHERE ${fence.sql}`,
         )
-        .bind(wait.accountId, key, wait.operationId, wait.expiresAtMs),
+        .bind(wait.accountId, key, wait.operationId, wait.expiresAtMs, ...fence.values),
+      prepareTournamentWaitFence(this.db, wait.accountId),
     ]);
+    if (!results[2].meta.changes) {
+      const reason = results[3].results[0]?.code;
+      throw new Error(reason ?? "account_busy");
+    }
   }
   async heartbeat(wait: Waiting, expiresAtMs: number) {
     const updated = await this.db

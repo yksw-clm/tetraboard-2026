@@ -1,3 +1,4 @@
+import { seatFence } from "../../flows/accountSeats/fences";
 import type { Player, WaitingProfile } from "@tetraboard/context-tournament";
 export function prepareTournamentPlayer(
   db: D1Database,
@@ -6,6 +7,7 @@ export function prepareTournamentPlayer(
   key: string,
 ) {
   const a = player.admission;
+  const fence = seatFence("u.id", a.operationId);
   return [
     db
       .prepare(
@@ -17,7 +19,7 @@ export function prepareTournamentPlayer(
         SELECT u.id,?,?,?,?,u.name,?,?,? FROM user u JOIN tournament_wait_reservations w ON w.account_id=u.id
         JOIN tournament_entries e ON e.account_id=u.id AND e.tournament_key=w.tournament_key AND e.deleted=0
         WHERE u.id=? AND w.operation_id=? AND w.tournament_key=? AND w.match_operation_id=? AND u.profileCompleted=1 AND u.name=? AND u.avatarKey IS ? AND u.avatarPresetId IS ?
-          AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)
+          AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id) AND ${fence.sql}
         ON CONFLICT(account_id) DO NOTHING`)
       .bind(
         a.operationId,
@@ -34,6 +36,7 @@ export function prepareTournamentPlayer(
         profile.name,
         profile.avatarKey,
         profile.avatarPresetId,
+        ...fence.values,
       ),
     db
       .prepare(`INSERT OR IGNORE INTO room_avatar_refs(operation_id,room_id,instance_id,player_id,avatar_key)
