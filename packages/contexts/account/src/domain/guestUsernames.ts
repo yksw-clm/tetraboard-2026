@@ -1,5 +1,5 @@
-export function createGuestUsername(): string {
-  return `guest_${crypto.randomUUID().replaceAll("-", "").slice(0, 14)}`;
+export function createGuestUsername(id: string): string {
+  return `guest_${id.replaceAll("-", "").slice(0, 14)}`;
 }
 
 export function isGuestUsernameCollision(error: unknown): boolean {

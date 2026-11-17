@@ -9,7 +9,7 @@ import {
   withAccountSessionCookies,
   type AuthEnv,
 } from "../src/accounts/auth";
-import { createGuestAccount } from "../src/accounts/guestAccounts";
+import { createGuestAccount } from "../src/routes/guestSession";
 import { accountFixture, origin } from "./accountFixtures";
 
 function observeDatabase(db: D1Database) {

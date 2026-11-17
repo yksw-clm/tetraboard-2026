@@ -10,7 +10,7 @@ import {
   validateRegistrationSetup,
   RegistrationError,
   type RegistrationFlow,
-} from "../accounts/registrationFlows";
+} from "../flows/guestRegistration/account";
 import { accountIdentity, publicProfile, type AuthEnv, type StoredProfile } from "../accounts/auth";
 import { D1ProfileWriter } from "../adapters/account/profileWrites";
 import { avatarRoutes, deleteUnusedAvatars } from "./accountAvatars";

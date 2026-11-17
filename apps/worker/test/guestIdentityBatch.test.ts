@@ -6,7 +6,7 @@ import {
   createGuestAccount,
   guestTokenHash,
   guestLifetimeMs,
-} from "../src/accounts/guestAccounts";
+} from "../src/routes/guestSession";
 import { withAccountSessionCookies } from "../src/accounts/auth";
 import { accountFixture, origin } from "./accountFixtures";
 import { fixTestTime } from "./fixedTimeFixture";
