@@ -6,7 +6,7 @@ import type {
 } from "@tetraboard/protocol";
 import type { FourReversiState } from "@tetraboard/four-reversi";
 import type { FourReversiRatedMatch } from "./fourReversiRating";
-import type { TournamentRoomContext } from "./tournamentRoom";
+import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 
 export type MatchParticipant = {
   id: string;

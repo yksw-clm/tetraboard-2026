@@ -12,10 +12,10 @@ import {
 import { encodeValidatedSnapshot, normalizeMatchUpload } from "./validation";
 import { matchEventSchema } from "../../rooms/snapshotMatchEvents";
 import type { MatchRecord } from "../../rooms/matchStore";
-import { tournamentMatchStatements } from "../../tournaments/store";
+import { tournamentMatchStatements } from "../../adapters/tournament/store";
 import { readStoredMatch } from "../../accounts/matchDataContracts";
 import { fourReversiRatingStore } from "../../rooms/fourReversiRating";
-import type { TournamentRoomContext } from "../../rooms/tournamentRoom";
+import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 import { redactParticipants } from "../../privacy/identity";
 import { applyMatchClaims } from "../../accounts/matchClaims";
 import type { MatchRecord as FourGomokuMatchRecord } from "../../rooms/fourGomokuMatchStore";

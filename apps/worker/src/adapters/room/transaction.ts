@@ -3,7 +3,7 @@ import type { RoomCpuCapacity, RoomRuntime } from "../../durableObjects/gameRoom
 import { cpuCapacityKey } from "../../durableObjects/gameRoom/storageKeys";
 import { accountCleanupKey, type AccountCleanup } from "../../flows/accountSeats/types";
 import { type PendingRoomIndex } from "../../rooms/roomIndex";
-import { pendingTournamentStatePrefix } from "../../rooms/tournamentRoom";
+import { pendingTournamentStatePrefix } from "@tetraboard/context-tournament";
 import { indexRevisionKey, pendingIndexKey } from "./indexJob";
 import { pendingMatches } from "./matchJob";
 import { publicMetadata } from "./metadata";

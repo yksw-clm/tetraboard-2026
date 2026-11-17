@@ -8,7 +8,7 @@ import {
   readTournament,
   standingsPage,
   type TournamentRow,
-} from "../src/tournaments/store";
+} from "../src/adapters/tournament/store";
 import { requestDeletion } from "../src/privacy/deletion";
 
 const fixtureKeys = new Set<string>();

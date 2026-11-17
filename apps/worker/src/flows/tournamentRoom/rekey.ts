@@ -20,7 +20,7 @@ import {
   type TournamentGameRoom,
   type TournamentReturn,
   type TournamentRoomReservation,
-} from "../../rooms/tournamentRoom";
+} from "@tetraboard/context-tournament";
 import { storedAccount } from "../accountSeats/seats";
 
 export async function rekeyTournamentPlayer(

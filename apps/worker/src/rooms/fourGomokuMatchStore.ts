@@ -1,4 +1,4 @@
-import type { TournamentRoomContext } from "./tournamentRoom";
+import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 import {
   type FourGomokuRoom as Room,
   type FourGomokuReplay,

@@ -1,7 +1,7 @@
 import { env, applyD1Migrations } from "cloudflare:test";
 import { expect, test } from "vitest";
 import { accountFixture } from "./accountFixtures";
-import { record, readTournament, updateDraft } from "../src/tournaments/store";
+import { record, readTournament, updateDraft } from "../src/adapters/tournament/store";
 import { legacyTournamentSettings } from "@tetraboard/protocol";
 
 test("大会設定の移行は既存大会・参照・確定得点を保持し、旧下書きだけを保存時に版2へ移す", async () => {

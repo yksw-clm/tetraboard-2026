@@ -134,7 +134,7 @@ Webは同じタブの待機とルーム参照をsessionStorageへ保存します
 
 公開・Adminの一覧更新は索引／集計から読み、各GameRoomを毎回巡回しません。予約・保存の復旧だけが対象DOを照合します。管理変更は既存の管理認証・Origin・version条件を使い、自由文・下書き・エントリー者の管理情報と一般の公開プロフィールを分離します。退会受付後は新しい参加と本人名の配信を止め、保存待ち・確定結果にも既存の匿名化と削除再試行を適用します。
 
-実装の入口は `packages/protocol/src/tournaments.ts`、Workerの `tournaments/routes.ts`・`store.ts`・`coordinator.ts` です。`TOURNAMENT_COORDINATOR` を各環境へ追加し、大会UUIDをDO名に使います。公開採番だけは同じnamespaceの `publication` で直列化し、D1のversion条件と一意制約を併用します。大会ごとのDOは待機・入室・配信の世代をSQLite-backed KVへ保存し、操作とAlarmの両方で期限を再検査します。すでに開始が確認された対局はD1の台帳と席を読み、公開更新のたびに全GameRoomを呼びません。
+実装の入口は `packages/protocol/src/tournaments.ts`、Workerの `tournaments/routes.ts`・`coordinator.ts` と、[大会の入口](development.md#大会の入口)の文脈と adapter です。`TOURNAMENT_COORDINATOR` を各環境へ追加し、大会UUIDをDO名に使います。公開採番だけは同じnamespaceの `publication` で直列化し、D1のversion条件と一意制約を併用します。大会ごとのDOは待機・入室・配信の世代をSQLite-backed KVへ保存し、操作とAlarmの両方で期限を再検査します。すでに開始が確認された対局はD1の台帳と席を読み、公開更新のたびに全GameRoomを呼びません。
 
 `0018_tournaments.sql` が大会定義・エントリー・対象局／4人の対応・得点イベント・集計・待機予約を追加します。得点イベントの複合主キーと加算triggerにより再送を一度だけ集計し、各ゲームの保存確定batchへ組み込みます。確定batchは未解決局0・参加者スナップショットの一致・未確定を再検査し、退会や保存と競合した場合は再取得して確定し直します。未開始の失敗はGameRoomの取消フェンスを確定してから席を解放し、開始済みの応答なら補償で消しません。
 
