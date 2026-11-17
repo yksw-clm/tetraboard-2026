@@ -583,13 +583,13 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 - `apps/worker/src/adapters/rating/`: ポートの D1 の実装。テーブルは `elo_rating_changes`、`skill_rating_changes`、`elo_rating_pending`、`skill_rating_pending`（`game` の列でゲームを分ける）。
 - レートの zod のスキーマ（`rooms/eloRating.ts`、`fourReversiRating.ts` など）、ルートの入口（`rooms/rankingRoutes.ts`、`accounts/profileRatings.ts`）、マッチングからの呼び出しは worker に残ります。Elo は棋譜の公開と同じ batch、skill は公開の直後に反映します（`flows/matchSave/`）。
 
-## 棋譜の保存の入口
+## 棋譜の保存と読み取りの入口
 
-棋譜の保存は、ADR 0010 の形に分かれています（TB-108）。読み取り（詳細、履歴、一覧、引き継ぎ）は TB-109 で移すまで `apps/worker/src/accounts/` と `rooms/` にあります。
+棋譜の保存（TB-108）と読み取り（TB-109）は、ADR 0010 の形に分かれています。戦績、ランキング、バッジ、使用戦型は、まだ `apps/worker/src/accounts/` と `rooms/` にあります。
 
-- `packages/contexts/record/src/domain/`: イベント形式の本体の作り方、チャンクへの分け方と件数と連続の検査、チャンクからの再生と照合。純粋な関数です。
-- `packages/contexts/record/src/use-cases/`: 保存の進め方（アップロード → チャンク → 公開）、再送、内容の違う再送の拒否、保存済みの判定、将棋の 1 回のイベントの上限。D1 は `ports.ts` の `MatchRecordStore` で読み書きし、公開の書き込みは実行せずに返します。Cloudflare と zod に依存しません。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
-- `apps/worker/src/adapters/record/`: `MatchRecordStore` の D1 の実装と、公開の後の確認の SQL。
+- `packages/contexts/record/src/domain/`: イベント形式の本体の作り方、チャンクへの分け方と件数と連続の検査、チャンクからの再生と照合、棋譜を API の形（詳細、公開の詳細、要約）に整える関数。純粋な関数で、依存は `@tetraboard/protocol` だけです。ゲームの契約での再生は、worker から関数として渡します。
+- `packages/contexts/record/src/use-cases/`: 読み取り（詳細、本人の履歴の絞り込みとページング、公開の一覧とロビーの最近の対局、将棋の再生のページ、ゲストの棋譜の引き継ぎの判定。`readPorts.ts` の `MatchReadStore` と `MatchClaimReadStore`）と、保存の進め方（アップロード → チャンク → 公開）、再送、内容の違う再送の拒否、保存済みの判定、将棋の 1 回のイベントの上限。D1 は `ports.ts` の `MatchRecordStore` で読み書きし、公開の書き込みは実行せずに返します。Cloudflare と zod に依存しません。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
+- `apps/worker/src/adapters/record/`: ポートの D1 の実装、公開の後の確認の SQL、zod とゲームの契約での読み取りの検証（`readValidation.ts`）。ルートの入口（`accounts/matchRoutes.ts`、`rooms/publicMatchRoutes.ts`、`lobby/routes.ts`）は worker に残り、応答を protocol のスキーマで検証します。
 - `apps/worker/src/flows/matchSave/`: 文脈をまたぐ組み立て。退会の伏せ字、zod とゲームの契約での検証、履歴の索引、レート、バッジ、使用戦型、大会の結果、棋譜の引き継ぎを、record の公開と同じ batch か直後に並べます。batch の区切りと順序を変えるときは、保存の約束（[ルームの仕様](specs/room.md)）と照らし合わせます。
 
 ## 総合ロビーの実装計画

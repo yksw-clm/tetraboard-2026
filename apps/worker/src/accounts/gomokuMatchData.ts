@@ -1,3 +1,7 @@
+import {
+  matchDetail as formatDetail,
+  matchSummary as formatSummary,
+} from "@tetraboard/context-record";
 import { eventReplaySchema, type StoredRecord } from "../rooms/eventRecord";
 import { replayV1, sameState } from "@tetraboard/gomoku/replay";
 import { z } from "zod";
@@ -23,28 +27,10 @@ const participants = z
 const recordSchema = z
   .strictObject({ ...gomokuMatchDetailSchema.shape, instanceId: z.uuid(), participants })
   .omit({ selfPlayerId: true, matchKind: true });
-function publicPlayers(record: Omit<MatchRecord, "replay">, profiles: ParticipantProfiles) {
-  return record.participants.map((p) => {
-    const identity = p.kind === "human" && p.accountId ? profiles.get(p.accountId) : undefined;
-    return {
-      id: p.id,
-      color: p.color,
-      seat: p.seat,
-      name: identity?.name ?? p.name,
-      ...(p.kind === "human" && p.retired ? { retired: true } : {}),
-      ...(p.kind === "cpu"
-        ? { kind: p.kind, level: p.level }
-        : { kind: p.kind, avatarUrl: identity?.avatarUrl ?? null }),
-    };
-  });
-}
 function detail(record: MatchRecord, selfPlayerId: string, profiles: ParticipantProfiles) {
-  const { instanceId: _instance, ...data } = record;
-  return gomokuMatchDetailSchema.parse({
-    ...data,
-    selfPlayerId,
-    participants: publicPlayers(record, profiles),
-  });
+  return gomokuMatchDetailSchema.parse(
+    formatDetail({ game: "gomoku", record }, selfPlayerId, profiles),
+  );
 }
 const storedRecordSchema = recordSchema.extend({
   replay: eventReplaySchema(recordSchema.shape.replay),
@@ -62,14 +48,7 @@ export const gomokuMatchData = {
   },
   detail,
   summary(record: Omit<MatchRecord, "replay">, profiles: ParticipantProfiles) {
-    return gomokuMatchSummarySchema.parse({
-      id: record.id,
-      game: "gomoku",
-      startedAtMs: record.startedAtMs,
-      endedAtMs: record.endedAtMs,
-      participants: publicPlayers(record, profiles),
-      result: record.game.result,
-    });
+    return gomokuMatchSummarySchema.parse(formatSummary({ game: "gomoku", record }, profiles));
   },
   stats: (value: unknown) => gomokuAccountStatsSchema.parse(value),
   rankings: (value: unknown) => reversiRankingsSchema.parse(value),

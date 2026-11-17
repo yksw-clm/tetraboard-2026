@@ -17,5 +17,8 @@
   "devDependencies": {
     "@types/bun": "^1.4.2",
     "typescript": "^5.5.2"
+  },
+  "dependencies": {
+    "@tetraboard/protocol": "workspace:*"
   }
 }

@@ -192,6 +192,9 @@
     "packages/contexts/record": {
       "name": "@tetraboard/context-record",
       "version": "0.0.0",
+      "dependencies": {
+        "@tetraboard/protocol": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^5.5.2",

@@ -1,3 +1,7 @@
+import {
+  matchDetail as formatDetail,
+  matchSummary as formatSummary,
+} from "@tetraboard/context-record";
 import { profileRatingsSchema } from "@tetraboard/protocol";
 import { z } from "zod";
 import {
@@ -29,37 +33,14 @@ const recordSchema = z
     rating: shogiRatingSourceSchema.optional(),
   })
   .omit({ selfPlayerId: true, matchKind: true });
-function publicPlayers(record: StandardShogiMatchRecord, profiles: ParticipantProfiles) {
-  return record.participants.map((p) => {
-    const identity = p.kind === "human" && p.accountId ? profiles.get(p.accountId) : undefined;
-    return {
-      id: p.id,
-      side: p.side,
-      seat: p.seat,
-      name: identity?.name ?? p.name,
-      ...(p.kind === "human" && p.retired ? { retired: true } : {}),
-      ...(p.kind === "cpu"
-        ? { kind: p.kind, level: p.level }
-        : { kind: p.kind, avatarUrl: identity?.avatarUrl ?? null }),
-    };
-  });
-}
 function detail(
   record: StandardShogiMatchRecord,
   selfPlayerId: string,
   profiles: ParticipantProfiles,
 ) {
-  const {
-    instanceId: _instance,
-    rating: _rating,
-    profileRatings: _profileRatings,
-    ...data
-  } = record;
-  return shogiMatchDetailSchema.parse({
-    ...data,
-    selfPlayerId,
-    participants: publicPlayers(record, profiles),
-  });
+  return shogiMatchDetailSchema.parse(
+    formatDetail({ game: "shogi", record }, selfPlayerId, profiles),
+  );
 }
 export const shogiMatchData = {
   read(json: string): StandardShogiMatchRecord {
@@ -69,14 +50,7 @@ export const shogiMatchData = {
   },
   detail,
   summary(record: StandardShogiMatchRecord, profiles: ParticipantProfiles) {
-    return shogiMatchSummarySchema.parse({
-      id: record.id,
-      game: "shogi",
-      startedAtMs: record.startedAtMs,
-      endedAtMs: record.endedAtMs,
-      participants: publicPlayers(record, profiles),
-      result: record.game.result,
-    });
+    return shogiMatchSummarySchema.parse(formatSummary({ game: "shogi", record }, profiles));
   },
   stats: (value: unknown) => shogiAccountStatsSchema.parse(value),
   rankings: (value: unknown) => reversiRankingsSchema.parse(value),
