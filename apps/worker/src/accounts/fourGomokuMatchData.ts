@@ -1,3 +1,7 @@
+import {
+  matchDetail as formatDetail,
+  matchSummary as formatSummary,
+} from "@tetraboard/context-record";
 import { eventReplaySchema, type StoredRecord } from "../rooms/eventRecord";
 import { replayV1, sameState } from "@tetraboard/four-gomoku/replay";
 import { z } from "zod";
@@ -23,28 +27,10 @@ const participants = z
 const recordSchema = z
   .strictObject({ ...fourGomokuMatchDetailSchema.shape, instanceId: z.uuid(), participants })
   .omit({ selfPlayerId: true, matchKind: true });
-function publicPlayers(record: Omit<MatchRecord, "replay">, profiles: ParticipantProfiles) {
-  return record.participants.map((p) => {
-    const identity = p.kind === "human" && p.accountId ? profiles.get(p.accountId) : undefined;
-    return {
-      id: p.id,
-      color: p.color,
-      seat: p.seat,
-      name: identity?.name ?? p.name,
-      ...(p.kind === "human" && p.retired ? { retired: true } : {}),
-      ...(p.kind === "cpu"
-        ? { kind: p.kind, level: p.level }
-        : { kind: p.kind, avatarUrl: identity?.avatarUrl ?? null }),
-    };
-  });
-}
 function detail(record: MatchRecord, selfPlayerId: string, profiles: ParticipantProfiles) {
-  const { instanceId: _instance, ...data } = record;
-  return fourGomokuMatchDetailSchema.parse({
-    ...data,
-    selfPlayerId,
-    participants: publicPlayers(record, profiles),
-  });
+  return fourGomokuMatchDetailSchema.parse(
+    formatDetail({ game: "four-gomoku", record }, selfPlayerId, profiles),
+  );
 }
 const storedRecordSchema = recordSchema.extend({
   replay: eventReplaySchema(recordSchema.shape.replay),
@@ -70,15 +56,9 @@ export const fourGomokuMatchData = {
   },
   detail,
   summary(record: Omit<MatchRecord, "replay">, profiles: ParticipantProfiles) {
-    return fourGomokuMatchSummarySchema.parse({
-      id: record.id,
-      game: "four-gomoku",
-      mode: record.settings.mode,
-      startedAtMs: record.startedAtMs,
-      endedAtMs: record.endedAtMs,
-      participants: publicPlayers(record, profiles),
-      result: record.game.result,
-    });
+    return fourGomokuMatchSummarySchema.parse(
+      formatSummary({ game: "four-gomoku", record }, profiles),
+    );
   },
   stats: (value: unknown) => fourGomokuAccountStatsSchema.parse(value),
   rankings: (value: unknown) => fourReversiRankingsSchema.parse(value),

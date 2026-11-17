@@ -16,7 +16,6 @@ import type { MatchRecord as FourGomoku } from "./fourGomokuMatchStore";
 import { rebuildSnapshotMatch as rebuild, encodeSnapshotMatch } from "@tetraboard/context-record";
 export { encodeSnapshotMatch };
 import type { DecodedMatch } from "../accounts/matchDataContracts";
-import { readMatchChunks, type ChunkRow } from "@tetraboard/context-record";
 
 export type SnapshotMatch = Reversi | FourReversi | Gomoku | FourGomoku;
 const reversiStep = reversiReplaySchema.shape.steps.element.shape;
@@ -74,15 +73,4 @@ export function rebuildSnapshotMatch(match: DecodedMatch, events: unknown[]) {
     default:
       throw new Error("Expected snapshot game");
   }
-}
-export async function readSnapshotMatchEvents(db: D1Database, match: DecodedMatch) {
-  if (match.game === "shogi" || match.game === "four-shogi") return null;
-  const count = match.record.replay.eventCount;
-  const rows = await db
-    .prepare(`SELECT chunk_index, start_index, event_count, events_json
-    FROM match_event_chunks WHERE match_id = ? ORDER BY chunk_index`)
-    .bind(match.record.id)
-    .all<ChunkRow>();
-  const schema = matchEventSchema(match.game);
-  return readMatchChunks(rows.results, count, (event) => schema.parse(event));
 }
