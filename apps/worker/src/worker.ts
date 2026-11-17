@@ -28,12 +28,12 @@ import { Hono } from "hono";
 import { roomRoutes } from "./rooms/roomRoutes";
 import { feedbackRoutes, feedbackAdminRoutes } from "./feedback/routes";
 import { servePublicAssets } from "./publicAssets";
-import { tournamentRoutes, tournamentAdminRoutes } from "./tournaments/routes";
+import { tournamentRoutes, tournamentAdminRoutes } from "./routes/tournaments";
 
 export { CpuCapacity } from "./rooms/cpuCapacity";
 export { GameRoom } from "./durableObjects/gameRoom/gameRoom";
 export { MatchmakingCoordinator } from "./durableObjects/matchmakingCoordinator/coordinator";
-export { TournamentCoordinator } from "./tournaments/coordinator";
+export { TournamentCoordinator } from "./durableObjects/tournamentCoordinator/coordinator";
 
 const api = new Hono<{ Bindings: Env }>();
 

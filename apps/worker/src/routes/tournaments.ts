@@ -382,16 +382,3 @@ tournamentRoutes.post("/tournaments/:id/confirmation", member, async (c) => {
     );
   return result.ok ? c.json({ ok: true }) : c.json({ message: result.message }, result.status);
 });
-
-export async function recoverTournaments(env: Env) {
-  await env.APP_DB.prepare(
-    "DELETE FROM tournament_wait_reservations WHERE lease_until_ms<=? AND match_operation_id IS NULL",
-  )
-    .bind(Date.now())
-    .run();
-  const rows = await env.APP_DB.prepare(
-    "SELECT key FROM tournaments WHERE published=1 AND finalized_at_ms IS NULL ORDER BY public_id LIMIT 100",
-  ).all<{ key: string }>();
-  for (const row of rows.results)
-    await env.TOURNAMENT_COORDINATOR.getByName(row.key).refresh(row.key);
-}
