@@ -11,6 +11,7 @@ export function prepareTournamentMatch<Write>(
   const { settings, points } = tournamentMatchPoints(context, record, policy);
   return [
     ...points.map((points) => store.points(context, record, settings.game, points)),
+    ...points.map((points) => store.scores(context, points)),
     store.saved(context, record, now()),
   ];
 }

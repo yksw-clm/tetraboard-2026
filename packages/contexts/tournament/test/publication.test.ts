@@ -9,18 +9,21 @@ import {
 import { context, match, policy, settings } from "./fixtures";
 import type { Write } from "./memoryPorts";
 
-test("検証した参加者の順で得点4件と保存済み更新を返し、呼び出し時には実行しない", () => {
+test("検証した参加者の順で得点4件・成績4件・保存済み更新を返し、呼び出し時には実行しない", () => {
   const applied: (TournamentPoints | string)[] = [];
   const store: TournamentPublication<Write> = {
     points: (_context, _record, _game, points) => () => {
       applied.push(points);
+    },
+    scores: (context, points) => () => {
+      applied.push(`scores:${context.matchId}:${points.playerId}`);
     },
     saved: (_context, _record, now) => () => {
       applied.push(`saved:${now}`);
     },
   };
   const writes = prepareTournamentMatch(store, context, match(), policy, () => 4000);
-  expect(writes).toHaveLength(5);
+  expect(writes).toHaveLength(9);
   expect(applied).toEqual([]);
   writes.forEach((write) => write());
   expect(applied).toEqual([
@@ -28,6 +31,10 @@ test("検証した参加者の順で得点4件と保存済み更新を返し、�
     { playerId: "player-1", rank: 2, knockouts: 1, units: 24 },
     { playerId: "player-2", rank: 3, knockouts: 0, units: 12 },
     { playerId: "player-3", rank: 4, knockouts: 0, units: 0 },
+    `scores:${context.matchId}:player-0`,
+    `scores:${context.matchId}:player-1`,
+    `scores:${context.matchId}:player-2`,
+    `scores:${context.matchId}:player-3`,
     "saved:4000",
   ]);
 });

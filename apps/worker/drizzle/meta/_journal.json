@@ -29,6 +29,13 @@
       "when": 1794840130791,
       "tag": "0003_consolidate_rating_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794900826738,
+      "tag": "0004_tournament_point_events_entry",
+      "breakpoints": true
     }
   ]
 }

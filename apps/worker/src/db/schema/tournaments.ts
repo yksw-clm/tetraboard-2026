@@ -140,6 +140,7 @@ export const tournamentPointEvents = sqliteTable(
   },
   (t) => [
     primaryKey({ columns: [t.matchId, t.entryId] }),
+    index("tournament_point_events_entry").on(t.entryId),
     check("tournament_point_events_check_1", sql`rank BETWEEN 1 AND 4`),
     check("tournament_point_events_check_2", sql`knockouts BETWEEN 0 AND 3`),
     check("tournament_point_events_check_3", sql`points_units >= 0`),
