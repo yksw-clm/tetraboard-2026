@@ -586,6 +586,15 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 - `apps/worker/src/adapters/rating/`: ポートの D1 の実装。テーブルは `elo_rating_changes`、`skill_rating_changes`、`elo_rating_pending`、`skill_rating_pending`（`game` の列でゲームを分ける）。
 - レートの zod のスキーマ（`rooms/eloRating.ts`、`fourReversiRating.ts` など）、ルートの入口（`rooms/rankingRoutes.ts`、`accounts/profileRatings.ts`）、マッチングからの呼び出しは worker に残ります。Elo は棋譜の公開と同じ batch、skill は公開の直後に反映します（`flows/matchSave/`）。
 
+## アカウントの入口
+
+アカウントの本人確認とプロフィールは、ADR 0010 の形に分かれています（TB-134）。ゲストの登録と引き継ぎは、まだ `accounts/` にあります（TB-135 で移します）。
+
+- `packages/contexts/account/src/domain/`: 公開プロフィールの形、画像の URL、プロフィールの詳細、現在のプロフィール、時刻の表し方。純粋な関数です。
+- `packages/contexts/account/src/use-cases/`: 現在のプロフィールの読み取り、プレイヤー情報、プロフィールの保存。D1 は `ports.ts` のポートで受け取ります。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
+- `apps/worker/src/adapters/account/`: ポートの D1 の実装と、ゲストの本人確認（`guestIdentity.ts`）。ゲストの本人確認は、期限の延長（条件つきの UPDATE）と本人の読み取り（SELECT）を 1 回の batch で行います（C07）。最終利用から 180 日の期限と失効の判定は変えていません。
+- `apps/worker/src/routes/`: `accountRoutes.ts`、`accountAuthRoutes.ts`、`playerProfileRoutes.ts` など HTTP の入口。better-auth と Cookie は殻に残ります（`accounts/auth.ts`）。
+
 ## マッチングの入口
 
 レート戦の待機列は、ADR 0010 の形に分かれています（TB-115）。仕様は [docs/specs/matchmaking.md](specs/matchmaking.md) です。

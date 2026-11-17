@@ -1,8 +1,4 @@
-import { profileDetailsSchema } from "@tetraboard/protocol";
-
-export function readProfileDetails(user: { profileMessage?: string; favoriteGames?: string }) {
-  return profileDetailsSchema.parse({
-    profileMessage: user.profileMessage ?? "",
-    favoriteGames: JSON.parse(user.favoriteGames ?? "[]"),
-  });
-}
+import { readProfileDetails as readDetails } from "@tetraboard/context-account";
+import { profilePolicy } from "../adapters/account/profilePolicy";
+export const readProfileDetails = (user: Parameters<typeof readDetails>[0]) =>
+  readDetails(user, profilePolicy.parseDetails);

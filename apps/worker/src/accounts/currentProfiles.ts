@@ -1,41 +1,6 @@
-import { accountAvatarUrl } from "./auth";
-import { readProfileDetails } from "./profileDetails";
-export type CurrentProfile = {
-  name: string;
-  username: string | null;
-  avatarUrl: string | null;
-  publicProfileId: string | null;
-  profileCompleted: number;
-  isAnonymous: number | null;
-  profileMessage: string;
-  favoriteGames: ReturnType<typeof readProfileDetails>["favoriteGames"];
-};
-export async function readCurrentProfiles(
-  db: D1Database,
-  ids: readonly string[],
-): Promise<ReadonlyMap<string, CurrentProfile>> {
-  const unique = [...new Set(ids)];
-  const profiles = new Map<string, CurrentProfile>();
-  if (!unique.length) return profiles;
-  const rows = await db
-    .prepare(
-      `SELECT id, name, username, avatarKey, avatarPresetId, publicProfileId, profileCompleted, isAnonymous, profileMessage, favoriteGames FROM user WHERE NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id) AND id IN (${unique.map(() => "?").join(",")})`,
-    )
-    .bind(...unique)
-    .all<
-      Omit<CurrentProfile, "avatarUrl" | "favoriteGames"> & {
-        id: string;
-        avatarKey: string | null;
-        avatarPresetId: string | null;
-        favoriteGames: string;
-      }
-    >();
-  for (const { id, avatarKey, avatarPresetId, ...row } of rows.results) {
-    profiles.set(id, {
-      ...row,
-      ...readProfileDetails(row),
-      avatarUrl: accountAvatarUrl({ id, avatarKey, avatarPresetId }),
-    });
-  }
-  return profiles;
-}
+import { readCurrentProfiles as readProfiles } from "@tetraboard/context-account";
+import { D1AccountProfiles } from "../adapters/account/profiles";
+import { profilePolicy } from "../adapters/account/profilePolicy";
+export type { CurrentProfile } from "@tetraboard/context-account";
+export const readCurrentProfiles = (db: D1Database, ids: readonly string[]) =>
+  readProfiles(new D1AccountProfiles(db), profilePolicy, ids);
