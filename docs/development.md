@@ -1343,7 +1343,7 @@ Workerの `publicMatches.test.ts` で最新20件・同時刻・ゲーム分離�
 
 ## 保存済み棋譜の閲覧
 
-結果共有の仕様は[対局結果のX共有](specs/result-sharing.md)。`ResultShareButton` は公開棋譜の保存を確認してXの投稿画面を開きます。共有本文と対局別メタ情報はprotocolの `match-sharing` を共用し、公開棋譜の初期HTMLにも同じメタ情報を挿入します。画像は既存のゲーム別固定OGPを使い、対局ごとの画像生成・保存・外部サービス呼び出しは行いません。確認対象は `matchSharing.test.ts`（Web・Worker）と `resultSharing.test.tsx` です。
+結果共有の仕様は[対局結果のX共有](specs/result-sharing.md)。`ResultShareButton` は公開棋譜の保存を確認してXの投稿画面を開きます。共有本文と対局別メタ情報はprotocolの `match-sharing` を共用し、公開棋譜の初期HTMLにも同じメタ情報を挿入します。HTML用の読取りはrecordの `readPublicMatchMetadata` で公開済み本体だけを既存の保存形式で検証し、対局ID・ゲーム種別を返します。チャンクの取得・棋譜再生・プロフィール解決は公開棋譜APIで行い、初期HTMLはこれらを待ちません。メタ情報の読取りが1500ms以内に終わらない場合は共通カードでHTMLを配信します。画像は既存のゲーム別固定OGPを使い、対局ごとの画像生成・保存・外部サービス呼び出しは行いません。確認対象は `matchSharing.test.ts`（Web・Worker）と `resultSharing.test.tsx` です。
 
 `GET /api/account/matches/:matchId` はCookieで本人を確認し、`account_match_history` と `matches` を結合して本人の対局だけを取得します。応答は `{ match: MatchDetail }` で、対局ID・元の部屋番号・開始／終了日時・設定・開始時の参加者と本人のプレイヤーID・最終ゲーム状態・脱落理由・棋譜を含みます。アカウント参加者の名前・アイコンは取得時の現在のプロフィール、未引き継ぎのゲスト・CPUと退会者以外の参照先のないアカウントの名前は保存名を使います。退会者は [確定した退会仕様](../README.md#アカウント削除) に従い、保存名へのフォールバックを禁止します。内部アカウントID・instanceId・参加トークン・チャットは返しません。不正IDは400、未認証は401、他人／存在しない対局は404、認証／D1取得失敗は503です。全応答に `Cache-Control: no-store` を付けます。将棋の詳細は棋譜本体に代えて `{ rulesVersion: 1, initial, eventCount }` と方向別 `knockouts` を返し、脱落は最終ゲーム状態の `eliminations` に含みます。
 
