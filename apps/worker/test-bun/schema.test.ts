@@ -32,12 +32,25 @@ const uniqueNames = new Set(
     .filter((name) => name !== undefined),
 );
 
-test("既存migrationの全65テーブルと61トリガーを適用します", () => {
+test("既存migrationの全65テーブルと55トリガーを適用します", () => {
   expect(tableNames(migrated)).toHaveLength(65);
   expect(tableNames(defined)).toEqual(tableNames(migrated));
   expect(
     migrated.query("SELECT name FROM sqlite_master WHERE type = 'trigger'").all(),
-  ).toHaveLength(61);
+  ).toHaveLength(55);
+});
+
+test.each([
+  "tournament_score_apply",
+  "matchmaking_room_fence",
+  "tournament_room_fence",
+  "matchmaking_wait_fence",
+  "matchmaking_tournament_fence",
+  "tournament_wait_fence",
+])("アプリへ移したトリガー %s は残りません", (name) => {
+  expect(
+    migrated.query("SELECT name FROM sqlite_master WHERE type='trigger' AND name=?").all(name),
+  ).toEqual([]);
 });
 
 for (const table of tableNames(migrated)) {
