@@ -649,6 +649,8 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 - `apps/worker/src/adapters/record/`: ポートの D1 の実装、公開の後の確認の SQL、zod とゲームの契約での読み取りの検証（`readValidation.ts`）。ルートの入口（`accounts/matchRoutes.ts`、`rooms/publicMatchRoutes.ts`、`lobby/routes.ts`）は worker に残り、応答を protocol のスキーマで検証します。
 - `apps/worker/src/flows/matchSave/`: 文脈をまたぐ組み立て。退会の伏せ字、zod とゲームの契約での検証、履歴の索引、レート、バッジ、使用戦型、大会の結果、棋譜の引き継ぎを、record の公開と同じ batch か直後に並べます。batch の区切りと順序を変えるときは、保存の約束（[ルームの仕様](specs/room.md)）と照らし合わせます。
 
+統合済みのゲスト（`guest_account_merges`）の対局が統合の後に保存されたときは、`matches`、`match_uploads`、`account_match_history` への挿入の SQL の中で、参加者を統合先のアカウントに書き換えます（`adapters/record/guestMerges.ts`、TB-137）。3 つの表への挿入は決めたファイルにしかなく、そのことを `test-bun/guestMergeRecordBoundaries.test.ts` が確かめます。同じ働きの古いトリガー 3 つは、TB-138 で消すまで残ります。
+
 ## 総合ロビーの実装計画
 
 Goalは、全6ゲームの募集・観戦を探しやすいホームと、共通の上部ナビゲーション／スマートフォン固定下部タブを提供することです。2026-10-27の開発者の変更指示を採用し、現在の画面仕様は[README](../README.md#総合ロビーの確定仕様)、検証は[テスト方針](testing.md#総合ロビーの確認)を正本とします。ゲームのルール・対局参加資格・チャットの保存／認証契約は変更しません。
