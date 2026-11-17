@@ -1,3 +1,5 @@
+import { fixTestTime } from "./fixedTimeFixture";
+import { seedFourReversiEnd } from "./roomPositionFixtures";
 import { accountFixture } from "./accountFixtures";
 import { env } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
@@ -71,7 +73,7 @@ for (const mode of ["singles", "doubles"] as const) {
 
 test("通常終局の棋譜を初期盤面から再現でき、保存済み結果と一致する", async () => {
   const setup = await matchSetup();
-  let room = await matchStart(setup);
+  let room = await seedFourReversiEnd(env.GAME_ROOM.getByName(setup.id), await matchStart(setup));
   for (let move = 0; move < 64; move++) {
     const player = room.players.findIndex((p) => p.color === room.game.turn);
     const position = getLegalMoves(room.game)[0];
@@ -158,6 +160,7 @@ test("D1本体と全アカウント索引を一括保存し、再送では内容
 });
 
 test("保存失敗中の再戦・未決着の打ち切り・部屋番号再利用後も複数局をAlarmで復旧する", async () => {
+  fixTestTime();
   const setup = await matchSetup();
   await env.APP_DB.exec("ALTER TABLE matches RENAME TO matches_unavailable");
   const ids: string[] = [];

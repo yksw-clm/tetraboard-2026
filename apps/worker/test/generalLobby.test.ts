@@ -1,3 +1,4 @@
+import { fixTestTime } from "./fixedTimeFixture";
 import { humanFixtureRecord, fixtureRecord } from "./matchFixtures";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
@@ -430,20 +431,28 @@ test("6ゲームのルームは状態分類・更新日時をサーバーで並�
 });
 
 test("最近の対局はゲーム横断の開始順で最新20件、人間限定は先に絞る", async () => {
+  const clock = fixTestTime();
+  const loopStartedAtMs = Date.now();
   const user = await fixture();
+  const startedAtMs = 1700000000000;
+  const ids: string[] = [];
   for (let i = 0; i < 22; i++) {
     const record = fixtureRecord(user.id, i);
-    record.startedAtMs = Date.now() + i;
+    record.startedAtMs = startedAtMs + i;
+    ids.push(record.id);
     await writeMatch(db, record);
+    // 低速環境で準備中に1秒を超えても、対局の前後関係を変えません。
+    clock.mockReturnValue(loopStartedAtMs + (i + 1) * 100);
   }
   const human = humanFixtureRecord(user.id, 100);
-  human.startedAtMs = Date.now() - 1000;
+  human.startedAtMs = startedAtMs - 1000;
   await writeMatch(db, human);
   const shogi = humanShogiRecord(user.id);
-  shogi.record.startedAtMs = Date.now() - 2000;
+  shogi.record.startedAtMs = startedAtMs - 2000;
   await saveShogiFixture(shogi, db);
   const all = (await (await request("/lobby/matches")).json()) as { matches: { id: string }[] };
   expect(all.matches).toHaveLength(20);
+  expect(all.matches.map((m) => m.id)).toEqual(ids.slice(-20).reverse());
   expect(all.matches.some((m) => m.id === human.id)).toBe(false);
   const filtered = (await (await request("/lobby/matches?humanOnly=true")).json()) as {
     matches: { id: string; game: string }[];
