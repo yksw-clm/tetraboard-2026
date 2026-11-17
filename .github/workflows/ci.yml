@@ -55,6 +55,7 @@ jobs:
               - 'apps/worker/test/acceptedGameRequest.ts'
               - 'apps/worker/test/setup.ts'
               - 'apps/worker/test/durableObjectCleanup.ts'
+              - 'apps/worker/test/cleanupDeadline.ts'
               - 'mise.toml'
               - 'bun.lock'
               - '.github/workflows/**'
