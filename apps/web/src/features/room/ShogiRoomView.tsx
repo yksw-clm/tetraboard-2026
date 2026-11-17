@@ -1,4 +1,5 @@
 import { roomMatchKind } from "@tetraboard/protocol";
+import { roomBoardMotion } from "./boardMotion";
 import { useBoardRotation } from "./useBoardRotation";
 import { otherSide, canProposeImpasse } from "@tetraboard/shogi";
 import { useState } from "react";
@@ -63,6 +64,7 @@ export function ShogiRoomView({
   const board = (
     <>
       <ShogiBoardLayout
+        motion={roomBoardMotion(session, replay)}
         standard
         game={replay.frame?.game ?? session.displayGame}
         pendingAction={replay.frame === null ? session.pendingMove?.action : undefined}
