@@ -14,6 +14,7 @@ import { gomokuMatchData } from "../src/accounts/gomokuMatchData";
 import { publicMatchDetail } from "../src/accounts/matchDataContracts";
 import { reversiMatchData } from "../src/accounts/reversiMatchData";
 import type { RoomRuntime } from "../src/durableObjects/gameRoom/runtime";
+import type { PendingRoomIndex } from "../src/rooms/roomIndex";
 import {
   challengeCookie,
   completeReauthentication,
@@ -1281,14 +1282,23 @@ test("閉鎖済みDOの索引保存待ちだけに残ったホスト名も保持
     ctx.storage.kv.put("room-index-pending", {
       revision: 1,
       closed: true,
-      retryAtMs: Date.now(),
+      // 匿名化後の保存待ちを確認するまで、Alarmによる索引反映を止めます。
+      retryAtMs: Date.now() + 60_000,
       metadata: {
         id: room,
+        game: "reversi",
+        timeControl: { mainTimeMs: 300_000, byoyomiMs: 0 },
+        status: "waiting",
+        humanCount: 1,
+        cpuCount: 0,
+        capacity: 2,
+        openSeats: 1,
+        updatedAtMs: Date.now(),
         hostPlayerId: player,
         hostName: "閉鎖後の保存名",
         hostAvatarUrl: "/api/avatars/private",
       },
-    });
+    } satisfies PendingRoomIndex);
   });
   await stub.purgeAccount(user.id);
   await runInDurableObject(stub, async (_, ctx) => {
