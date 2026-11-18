@@ -1,9 +1,8 @@
 import { Hono, type Context } from "hono";
 import { accountSessionSchema } from "@tetraboard/protocol";
-import { saveProfile } from "@tetraboard/context-account";
+import { GuestLinkError, saveProfile } from "@tetraboard/context-account";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { writeProfileCompletionUsage } from "../usageEvents/registration";
-import { GuestLinkError } from "../accounts/guestLinking";
 import { finishAvatarUpload } from "../privacy/avatarUploads";
 import { isDeleted } from "../privacy/identity";
 import {

@@ -2,7 +2,7 @@ import { registrationEntryRoutes } from "./usageEvents/registrationRoutes";
 import { matchmakingRoutes } from "./routes/matchmaking";
 import { notificationRoutes } from "./notifications/routes";
 import { runScheduledMaintenance } from "./scheduledMaintenance";
-import { guestLinkRoutes } from "./accounts/guestLinking";
+import { guestLinkRoutes } from "./routes/guestLinkRoutes";
 import { guestRoutes } from "./routes/guestRoutes";
 import { generalLobbyRoutes } from "./lobby/routes";
 import { lobbyChatRoutes } from "./lobby/chatRoutes";

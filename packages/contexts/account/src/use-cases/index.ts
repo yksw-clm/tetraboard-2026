@@ -5,3 +5,6 @@ export * from "./saveProfile";
 export * from "./guestAccounts";
 export * from "./registration";
 export * from "./registrationWrites";
+export * from "./guestLinkChecks";
+export * from "./guestMerge";
+export * from "./guestLink";

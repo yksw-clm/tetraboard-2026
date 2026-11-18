@@ -6,7 +6,7 @@ import { tournamentListSchema, tournamentDetailSchema } from "@tetraboard/protoc
 import worker from "../src/worker";
 import { publicTournamentList } from "../src/adapters/tournament/store";
 import { requestDeletion } from "../src/privacy/deletion";
-import { mergeGuestAccounts } from "../src/accounts/guestLinking";
+import { mergeGuestAccounts } from "../src/flows/guestRegistration/guestLink";
 import { accountFixture, origin } from "./accountFixtures";
 
 const db = (env as typeof env & { TOURNAMENT_PRIVACY_TEST_DB: D1Database })
