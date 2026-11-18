@@ -1,4 +1,4 @@
-import { retiredName } from "../../privacy/identity";
+import { retiredName } from "@tetraboard/context-privacy";
 
 export function scrubbedRecordJsonSql(recordJson: string, matchId: string): string {
   // 統合後の JSON は一度だけ評価し、伏せ字の対象がなければ元の表記を保持します。
