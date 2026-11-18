@@ -5,29 +5,11 @@ import { D1RegistrationWrites } from "../src/adapters/account/registrationWrites
 
 const bindings = env as typeof env & {
   GUEST_FENCES_TEST_DB: D1Database;
-  GUEST_FENCES_WITHOUT_TRIGGERS_TEST_DB: D1Database;
   TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1];
 };
-export const guestFenceTriggers = [
-  "guest_merge_fence",
-  "matchmaking_guest_merge_fence",
-  "guest_promotion_fence",
-  "matchmaking_login_transition_fence",
-  "guest_room_link_commit_fence",
-  "guest_merged_seat_fence",
-  "guest_merged_wait_fence",
-  "guest_merged_entry_fence",
-  "registration_deleted_account_insert",
-  "registration_deleted_account_update",
-];
-const isolated = bindings.GUEST_FENCES_WITHOUT_TRIGGERS_TEST_DB;
-export const guestFenceDatabases = [
-  { db: bindings.GUEST_FENCES_TEST_DB, mode: "トリガーあり" },
-  { db: isolated, mode: "トリガーなし" },
-];
+export const guestFenceDb = bindings.GUEST_FENCES_TEST_DB;
 beforeAll(async () => {
-  for (const { db } of guestFenceDatabases) await applyD1Migrations(db, bindings.TEST_MIGRATIONS);
-  for (const name of guestFenceTriggers) await isolated.exec(`DROP TRIGGER ${name}`);
+  await applyD1Migrations(guestFenceDb, bindings.TEST_MIGRATIONS);
 });
 
 export async function guestFenceFixture(db: D1Database, promote = false) {
