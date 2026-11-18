@@ -1,6 +1,6 @@
 import { registrationEntryRoutes } from "./usageEvents/registrationRoutes";
 import { matchmakingRoutes } from "./routes/matchmaking";
-import { notificationRoutes } from "./notifications/routes";
+import { notificationRoutes } from "./routes/notificationRoutes";
 import { runScheduledMaintenance } from "./scheduledMaintenance";
 import { guestLinkRoutes } from "./routes/guestLinkRoutes";
 import { guestRoutes } from "./routes/guestRoutes";
@@ -9,7 +9,7 @@ import { lobbyChatRoutes } from "./routes/lobbyChatRoutes";
 import { deletionRoutes } from "./privacy/deletionRoutes";
 import { legalRoutes } from "./privacy/legalRoutes";
 import { defaultGameId, gameCatalog } from "@tetraboard/protocol/games";
-import { announcementRoutes, announcementAdminRoutes } from "./announcements/routes";
+import { announcementRoutes, announcementAdminRoutes } from "./routes/announcementRoutes";
 import { adminRoutes } from "./admin/routes";
 import { adminIdentity, type AdminEnv } from "./admin/auth";
 import { clientErrorRoutes } from "./usageEvents/clientErrors";
@@ -26,7 +26,8 @@ import { formationStatsRoutes } from "./routes/formationStatsRoutes";
 import { rankingRoutes } from "./rooms/rankingRoutes";
 import { Hono } from "hono";
 import { roomRoutes } from "./rooms/roomRoutes";
-import { feedbackRoutes, feedbackAdminRoutes } from "./feedback/routes";
+import { feedbackRoutes } from "./routes/feedbackRoutes";
+import { feedbackAdminRoutes } from "./routes/feedbackAdminRoutes";
 import { servePublicAssets } from "./publicAssets";
 import { tournamentRoutes, tournamentAdminRoutes } from "./routes/tournaments";
 

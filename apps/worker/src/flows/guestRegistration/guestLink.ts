@@ -29,7 +29,7 @@ import {
 } from "../../adapters/record/guestMergeWrites";
 import { guestSeatTransferStatement } from "../../adapters/room/guestMergeWrites";
 import { guestTournamentTransferStatements } from "../../adapters/tournament/guestMergeWrites";
-import { mergeNotificationStatements } from "../../notifications/store";
+import { mergeNotificationStatements } from "../../adapters/community/notifications";
 import {
   clearGuestSession,
   guestIdentity,

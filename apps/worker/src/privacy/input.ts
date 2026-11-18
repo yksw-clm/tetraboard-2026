@@ -1,4 +1,4 @@
-import { readLimitedBody } from "../feedback/images";
+import { readLimitedBody } from "../routes/readLimitedBody";
 export async function privacyInput(request: Request) {
   const bytes = await readLimitedBody(request, 1024);
   if (!bytes) return null;

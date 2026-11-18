@@ -2,14 +2,23 @@ import { Hono, type MiddlewareHandler } from "hono";
 import { z } from "zod";
 import {
   announcementDateSchema,
+  announcementFirstLine,
   announcementIdSchema,
   announcementInputSchema,
   announcementPatchSchema,
   gameIdSchema,
 } from "@tetraboard/protocol";
 import { adminIdentity, type AdminEnv } from "../admin/auth";
-import { readLimitedBody } from "../feedback/images";
-import { columns, create, detail, read, record, summary, update, type Row } from "./store";
+import { readLimitedBody } from "./readLimitedBody";
+import { announcementStore } from "../adapters/community/announcements";
+import {
+  createAnnouncement,
+  listAnnouncements,
+  readAnnouncement,
+  readLobbyAnnouncement,
+  updateAnnouncement,
+  type AnnouncementScope,
+} from "@tetraboard/context-community";
 
 type Bindings = AdminEnv;
 export const announcementRoutes = new Hono<{ Bindings: Bindings }>();
@@ -44,7 +53,7 @@ const cursorSchema = z
   })
   .strict();
 const querySchema = z.object({ cursor: z.string().max(512).optional() });
-async function list(db: D1Database, cursor: string | undefined, publicOnly: boolean) {
+async function list(db: D1Database, cursor: string | undefined, scope: AnnouncementScope) {
   let after: z.infer<typeof cursorSchema> | undefined;
   if (cursor !== undefined) {
     try {
@@ -53,53 +62,48 @@ async function list(db: D1Database, cursor: string | undefined, publicOnly: bool
       return null;
     }
   }
-  const limit = publicOnly ? 20 : 50;
-  const conditions = [publicOnly ? "a.published = 1" : "1 = 1"];
-  if (after) conditions.push("(a.date, a.created_at_ms, a.id) < (?, ?, ?)");
-  const statement = db.prepare(
-    `SELECT ${columns} FROM announcements a WHERE ${conditions.join(" AND ")} ORDER BY a.date DESC, a.created_at_ms DESC, a.id DESC LIMIT ?`,
-  );
-  const rows = await statement
-    .bind(...(after ? [after.date, after.at, after.id] : []), limit + 1)
-    .all<Row>();
-  const page = rows.results.slice(0, limit);
-  const last = page.at(-1);
+  const page = await listAnnouncements(announcementStore(db), scope, after, announcementFirstLine);
   return {
-    announcements: page.map((row) => (publicOnly ? summary(row) : record(row))),
-    nextCursor:
-      rows.results.length > limit && last
-        ? btoa(JSON.stringify({ date: last.date, at: last.created_at_ms, id: last.id }))
-        : null,
+    ...page,
+    nextCursor: page.nextCursor ? btoa(JSON.stringify(page.nextCursor)) : null,
   };
 }
 announcementRoutes.get("/announcements", async (c) => {
   const query = querySchema.safeParse(c.req.query());
-  const page = query.success ? await list(c.env.APP_DB, query.data.cursor, true) : null;
+  const page = query.success ? await list(c.env.APP_DB, query.data.cursor, "public") : null;
   return page ? c.json(page) : c.json({ message: "検索条件が正しくありません。" }, 400);
 });
 announcementRoutes.get("/announcements/lobby", async (c) => {
   const game = gameIdSchema.safeParse(c.req.query("game"));
   if (!game.success) return c.json({ message: "ゲームを確認してください。" }, 400);
-  const row = await c.env.APP_DB.prepare(
-    `SELECT ${columns} FROM announcements a WHERE a.published = 1 AND EXISTS (SELECT 1 FROM announcement_lobby_targets WHERE announcement_id = a.id AND game = ?) ORDER BY a.date DESC, a.created_at_ms DESC, a.id DESC LIMIT 1`,
-  )
-    .bind(game.data)
-    .first<Row>();
-  return c.json({ announcement: row ? summary(row) : null });
+  const announcement = await readLobbyAnnouncement(
+    announcementStore(c.env.APP_DB),
+    game.data,
+    announcementFirstLine,
+  );
+  return c.json({ announcement });
 });
 announcementRoutes.get("/announcements/:id", async (c) => {
   if (!announcementIdSchema.safeParse(c.req.param("id")).success) return c.notFound();
-  const row = await read(c.env.APP_DB, c.req.param("id"), true);
-  return row ? c.json(detail(row)) : c.notFound();
+  const announcement = await readAnnouncement(
+    announcementStore(c.env.APP_DB),
+    c.req.param("id"),
+    "public",
+  );
+  return announcement ? c.json(announcement) : c.notFound();
 });
 announcementAdminRoutes.get("/admin/announcements", async (c) => {
   const query = querySchema.safeParse(c.req.query());
-  const page = query.success ? await list(c.env.APP_DB, query.data.cursor, false) : null;
+  const page = query.success ? await list(c.env.APP_DB, query.data.cursor, "admin") : null;
   return page ? c.json(page) : c.json({ message: "検索条件が正しくありません。" }, 400);
 });
 announcementAdminRoutes.get("/admin/announcements/:id", async (c) => {
-  const row = await read(c.env.APP_DB, c.req.param("id"));
-  return row ? c.json(record(row)) : c.notFound();
+  const announcement = await readAnnouncement(
+    announcementStore(c.env.APP_DB),
+    c.req.param("id"),
+    "admin",
+  );
+  return announcement ? c.json(announcement) : c.notFound();
 });
 async function json(request: Request) {
   const bytes = await readLimitedBody(request, 32768);
@@ -113,19 +117,18 @@ async function json(request: Request) {
 announcementAdminRoutes.post("/admin/announcements", async (c) => {
   const input = announcementInputSchema.safeParse(await json(c.req.raw));
   if (!input.success) return c.json({ message: "入力内容を確認してください。" }, 400);
-  const id = await create(c.env.APP_DB, input.data);
-  const row = await read(c.env.APP_DB, id);
-  if (!row) throw new Error("Saved announcement missing");
-  return c.json(record(row), 201);
+  return c.json(await createAnnouncement(announcementStore(c.env.APP_DB), input.data), 201);
 });
 announcementAdminRoutes.patch("/admin/announcements/:id", async (c) => {
   const input = announcementPatchSchema.safeParse(await json(c.req.raw));
   if (!input.success) return c.json({ message: "入力内容を確認してください。" }, 400);
-  const id = c.req.param("id");
-  if (!(await read(c.env.APP_DB, id))) return c.notFound();
-  if (!(await update(c.env.APP_DB, id, input.data, input.data.version)))
+  const result = await updateAnnouncement(
+    announcementStore(c.env.APP_DB),
+    c.req.param("id"),
+    input.data,
+  );
+  if (result.status === "not_found") return c.notFound();
+  if (result.status === "conflict")
     return c.json({ message: "別の操作で更新されました。最新データを読み直してください。" }, 409);
-  const row = await read(c.env.APP_DB, id);
-  if (!row) throw new Error("Saved announcement missing");
-  return c.json(record(row));
+  return c.json(result.announcement);
 });

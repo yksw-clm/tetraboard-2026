@@ -12,7 +12,7 @@ import { tournamentIdSchema } from "@tetraboard/protocol";
 import { publicTournament, type TournamentRow } from "../adapters/tournament/store";
 import { accountIdentity, type StoredProfile } from "../accounts/auth";
 import { adminIdentity } from "../admin/auth";
-import { readLimitedBody } from "../feedback/images";
+import { readLimitedBody } from "./readLimitedBody";
 import { digest } from "../privacy/deletion";
 import {
   chatProfileRejection,
