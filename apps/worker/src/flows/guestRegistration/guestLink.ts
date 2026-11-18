@@ -17,7 +17,10 @@ import { accountSessionIdentity, type AuthEnv } from "../../accounts/auth";
 import { D1GuestLinks } from "../../adapters/account/guestLinks";
 import { D1GuestLinkWrites, type GuestLinkWrite } from "../../adapters/account/guestLinkWrites";
 import { D1Registrations } from "../../adapters/account/registrations";
-import { guestFeedbackTransferStatement } from "../../adapters/community/guestMergeWrites";
+import {
+  guestChatMergeStatements,
+  guestFeedbackTransferStatement,
+} from "../../adapters/community/guestMergeWrites";
 import { guestPrivacyTransferStatements } from "../../adapters/privacy/guestMergeWrites";
 import {
   guestBadgeTransferStatements,
@@ -26,7 +29,6 @@ import {
 } from "../../adapters/record/guestMergeWrites";
 import { guestSeatTransferStatement } from "../../adapters/room/guestMergeWrites";
 import { guestTournamentTransferStatements } from "../../adapters/tournament/guestMergeWrites";
-import { guestChatMergeStatements } from "../../lobby/mergeGuestChat";
 import { mergeNotificationStatements } from "../../notifications/store";
 import {
   clearGuestSession,

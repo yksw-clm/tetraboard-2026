@@ -75,8 +75,6 @@
         "apps/worker/src/feedback/routes.ts",
         "apps/worker/src/feedback/store.ts",
         "apps/worker/src/kpi/calculations.ts",
-        "apps/worker/src/lobby/chatRoutes.ts",
-        "apps/worker/src/lobby/chatStore.ts",
         "apps/worker/src/routes/matchmaking.ts",
         "apps/worker/src/notifications/store.ts",
         "apps/worker/src/privacy/deletion.ts",
