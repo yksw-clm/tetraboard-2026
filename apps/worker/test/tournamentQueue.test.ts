@@ -1,15 +1,27 @@
-import { roomSchema, tournamentSettingsSchema } from "@tetraboard/protocol";
 import { env, exports } from "cloudflare:workers";
-import { evictDurableObject, runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
-import { afterEach, expect, test } from "vitest";
 import {
-  tournamentParticipationSchema,
+  evictDurableObject,
+  listDurableObjectIds,
+  runInDurableObject,
+  runDurableObjectAlarm,
+} from "cloudflare:test";
+import { afterEach, beforeEach, expect, onTestFinished, test, vi } from "vitest";
+import {
+  createRoomContract,
   fourShogiRoomSchema,
-  tournamentDetailSchema,
+  roomCodeSchema,
+  roomSchema,
   tournamentControllerResponseSchema,
+  tournamentDetailSchema,
+  tournamentParticipationSchema,
+  tournamentSettingsSchema,
+  type TournamentParticipation,
 } from "@tetraboard/protocol";
+import * as tournamentRuntime from "../src/adapters/tournament/runtime";
+import * as tournamentStore from "../src/adapters/tournament/store";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
+import { fixTestTime } from "./fixedTimeFixture";
 
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
@@ -22,9 +34,52 @@ const cleanup: {
   >;
 }[] = [];
 const sockets: WebSocket[] = [];
+const roomCandidates: string[] = [];
+let nextUnusedRoomId: () => string;
+let clock: ReturnType<typeof fixTestTime>;
+
+beforeEach(async () => {
+  // 実時間で動くAlarmが手動実行より先に発火しないよう、基準を1時間先に置きます。
+  clock = fixTestTime(Date.now() + 60 * 60 * 1000);
+  roomCandidates.length = 0;
+  // D1の索引を掃除した後も残るルームを、テストの採番から除外します。
+  const existingRooms = new Set((await listDurableObjectIds(env.GAME_ROOM)).map(String));
+  let nextRoomNumber = 0;
+  nextUnusedRoomId = () => {
+    while (nextRoomNumber < 100_000) {
+      const roomId = String(nextRoomNumber++).padStart(5, "0");
+      if (!existingRooms.has(env.GAME_ROOM.idFromName(roomId).toString())) return roomId;
+    }
+    throw new Error("テスト用の空きルーム番号がありません。");
+  };
+  const createRuntime = tournamentRuntime.createTournamentRuntime;
+  const runtime = vi
+    .spyOn(tournamentRuntime, "createTournamentRuntime")
+    .mockImplementation((...args) => ({
+      ...createRuntime(...args),
+      randomRoomId: () => {
+        const roomId = roomCandidates.shift();
+        if (roomId === undefined) return nextUnusedRoomId();
+        existingRooms.add(env.GAME_ROOM.idFromName(roomId).toString());
+        return roomId;
+      },
+    }));
+  onTestFinished(() => runtime.mockRestore());
+});
+
+async function expectOk(response: Response, label: string) {
+  const detail = response.status === 200 ? label : `${label} の応答本文 ${await response.text()}`;
+  expect(response.status, detail).toBe(200);
+}
+
+function requireMatched(participation: TournamentParticipation) {
+  expect(participation, "対局成立後の参加状態").toMatchObject({ status: "matched" });
+  return { ...participation, roomId: roomCodeSchema.parse(participation.roomId) };
+}
+
 async function connect(roomId: string, token: string) {
   const response = await request(`/rooms/${roomId}/ws`, { headers: { Upgrade: "websocket" } });
-  expect(response.status).toBe(101);
+  expect(response.status, `/rooms/${roomId}/ws の応答`).toBe(101);
   const socket = response.webSocket!;
   const authenticated = new Promise<void>((resolve, reject) => {
     socket.addEventListener("message", (event) => {
@@ -98,18 +153,38 @@ async function fixture(count = 4) {
           : body,
       ),
     });
-  const status = async (index: number) =>
-    tournamentParticipationSchema.parse(
-      await (
-        await request(`/tournaments/${id}/participation`, {
-          headers: {
-            ...users[index]!.headers,
-            "X-Tournament-Controller": operations[index]!.controllerId,
-          },
-        })
-      ).json(),
-    );
+  const status = async (index: number) => {
+    const response = await request(`/tournaments/${id}/participation`, {
+      headers: {
+        ...users[index]!.headers,
+        "X-Tournament-Controller": operations[index]!.controllerId,
+      },
+    });
+    await expectOk(response, `参加者${index + 1}の参加状態 GET`);
+    return tournamentParticipationSchema.parse(await response.json());
+  };
   const queue = async (index: number) => invoke(index, "queue", "POST", operations[index]);
+  const enqueue = async (index: number) => {
+    await expectOk(await queue(index), `参加者${index + 1}の待機 POST`);
+  };
+  const enqueueAll = async () => {
+    for (let i = 0; i < count; i++) await enqueue(i);
+  };
+  const matchedController = async (index: number) => {
+    const { operationId, controllerId } = operations[index]!;
+    const response = await invoke(index, "controller", "POST", {
+      operationId,
+      controllerId,
+      takeover: false,
+      expectedControllerVersion: 1,
+    });
+    await expectOk(response, `参加者${index + 1}の操作元 POST`);
+    const { participation, token } = tournamentControllerResponseSchema.parse(
+      await response.json(),
+    );
+    return { participation: requireMatched(participation), token };
+  };
+  const stub = env.TOURNAMENT_COORDINATOR.getByName(key);
   const prepared = {
     key,
     id,
@@ -118,7 +193,11 @@ async function fixture(count = 4) {
     invoke,
     status,
     queue,
-    stub: env.TOURNAMENT_COORDINATOR.getByName(key),
+    enqueue,
+    enqueueAll,
+    matchedController,
+    stub,
+    alarmTime: () => runInDurableObject(stub, (_, state) => state.storage.getAlarm()),
   };
   cleanup.push(prepared);
   return prepared;
@@ -213,7 +292,7 @@ test("待機の操作元をCASで引き継ぎ、旧タブの継続・取消・�
 test("同じ世代への同時引継ぎは1件だけ成立し、同じIDでも旧世代操作を拒否する", async () => {
   const f = await fixture(1),
     op = f.operations[0]!;
-  await f.queue(0);
+  await f.enqueue(0);
   const claims = [crypto.randomUUID(), crypto.randomUUID()].map((controllerId) => ({
     operationId: op.operationId,
     controllerId,
@@ -270,7 +349,7 @@ test("同じ世代への同時引継ぎは1件だけ成立し、同じIDでも�
 
 test("成立と競合した同じ操作元のheartbeatを成功とし、入室猶予は延長しない", async () => {
   const f = await fixture();
-  for (let i = 0; i < 4; i++) await f.queue(i);
+  await f.enqueueAll();
   const before = await runInDurableObject(
     f.stub,
     (_instance, state) =>
@@ -326,18 +405,9 @@ test("旧owner無しの永続待機も本人だけが復旧でき、別ユーザ
 test("成立後の資格引継ぎは同じルームのまま旧tokenとsocketを失効し、猶予を延長しない", async () => {
   const f = await fixture(),
     op = f.operations[0]!;
-  for (let i = 0; i < 4; i++) await f.queue(i);
-  const first = tournamentControllerResponseSchema.parse(
-    await (
-      await f.invoke(0, "controller", "POST", {
-        operationId: op.operationId,
-        controllerId: op.controllerId,
-        takeover: false,
-        expectedControllerVersion: 1,
-      })
-    ).json(),
-  );
-  const roomId = first.participation.roomId!;
+  await f.enqueueAll();
+  const first = await f.matchedController(0);
+  const roomId = first.participation.roomId;
   const socket = await connect(roomId, first.token);
   const notice = returnNotice(socket);
   const expiresAtMs = await runInDurableObject(
@@ -399,19 +469,11 @@ test("成立後の資格引継ぎは同じルームのまま旧tokenとsocketを
 test("再鍵RPCの失敗を永続化してAlarmで回復し、古い世代の再送で新資格を戻さない", async () => {
   const f = await fixture(),
     op = f.operations[0]!;
-  for (let i = 0; i < 4; i++) await f.queue(i);
-  const original = tournamentControllerResponseSchema.parse(
-    await (
-      await f.invoke(0, "controller", "POST", {
-        operationId: op.operationId,
-        controllerId: op.controllerId,
-        takeover: false,
-        expectedControllerVersion: 1,
-      })
-    ).json(),
-  );
-  await connect(original.participation.roomId!, original.token);
-  await connect(original.participation.roomId!, f.operations[1]!.token);
+  await f.enqueueAll();
+  const original = await f.matchedController(0);
+  const { roomId, matchId } = original.participation;
+  await connect(roomId, original.token);
+  await connect(roomId, f.operations[1]!.token);
   const claim = {
     operationId: op.operationId,
     controllerId: crypto.randomUUID(),
@@ -426,11 +488,8 @@ test("再鍵RPCの失敗を永続化してAlarmで回復し、古い世代の再
     expect(response.status).toBe(503);
     expect(JSON.stringify(await response.json())).not.toContain("token");
     expect(
-      (
-        await env.GAME_ROOM.getByName(original.participation.roomId!).getTournamentReservationState(
-          original.participation.matchId!,
-        )
-      ).connectedPlayerIds,
+      (await env.GAME_ROOM.getByName(roomId).getTournamentReservationState(matchId!))
+        .connectedPlayerIds,
     ).toHaveLength(2);
     expect(
       await runInDurableObject(f.stub, (_instance, state) =>
@@ -496,15 +555,15 @@ test("再鍵RPCの失敗を永続化してAlarmで回復し、古い世代の再
 
 test("開始前の明示退室者を再待機させず、他の接続者に復帰を通知して待機へ戻す", async () => {
   const f = await fixture();
-  for (let i = 0; i < 4; i++) await f.queue(i);
-  const matched = await f.status(0);
+  await f.enqueueAll();
+  const { roomId } = requireMatched(await f.status(0));
   const clients = [];
-  for (let i = 0; i < 3; i++) clients.push(await connect(matched.roomId!, f.operations[i]!.token));
+  for (let i = 0; i < 3; i++) clients.push(await connect(roomId, f.operations[i]!.token));
   const actorNotice = returnNotice(clients[0]!),
     otherNotice = returnNotice(clients[1]!);
   expect(
     (
-      await request(`/rooms/${matched.roomId}/leave`, {
+      await request(`/rooms/${roomId}/leave`, {
         method: "POST",
         headers: { Authorization: `Bearer ${f.operations[0]!.token}` },
       })
@@ -526,10 +585,8 @@ test("開始前の明示退室者を再待機させず、他の接続者に復�
 
 test("4人の抽選で固定ルールの専用ルームへ直ちに移譲し、秘密の生トークンは保存しない", async () => {
   const f = await fixture();
-  for (let i = 0; i < 4; i++) expect((await f.queue(i)).status).toBe(200);
-  const matched = await f.status(0);
-  expect(matched.status).toBe("matched");
-  expect(matched.roomId).toMatch(/^\d{5}$/);
+  await f.enqueueAll();
+  const matched = requireMatched(await f.status(0));
   const response = await request(`/rooms/${matched.roomId}`);
   const room = fourShogiRoomSchema.parse(((await response.json()) as { room: unknown }).room);
   expect(room.tournamentId).toBe(f.id);
@@ -567,8 +624,8 @@ test("4人の抽選で固定ルールの専用ルームへ直ちに移譲し、�
 
 test("旧画面の承諾・拒否は成立した予約を変更せず、明示取消だけが本人を外す", async () => {
   const f = await fixture();
-  for (let i = 0; i < 4; i++) await f.queue(i);
-  const group = await f.status(0);
+  await f.enqueueAll();
+  const group = requireMatched(await f.status(0));
   expect(
     (
       await f.invoke(0, "confirmation", "POST", {
@@ -616,7 +673,7 @@ test("取消の先着と世代違いを区別し、heartbeatは失効した待�
   expect((await f.invoke(0, "queue", "DELETE", { operationId: op.operationId })).status).toBe(200);
   expect((await f.queue(0)).status).toBe(409);
   f.operations[0] = { ...op, operationId: crypto.randomUUID() };
-  await f.queue(0);
+  await f.enqueue(0);
   await evictDurableObject(f.stub);
   expect((await f.status(0)).operationId).toBe(f.operations[0]!.operationId);
   await f.invoke(0, "queue", "DELETE", { operationId: op.operationId });
@@ -642,7 +699,7 @@ test("取消の先着と世代違いを区別し、heartbeatは失効した待�
 
 test("4席移譲の保存失敗は全件rollbackし、同じ予約を取り消して全席を解放できる", async () => {
   const f = await fixture();
-  for (let i = 0; i < 3; i++) await f.queue(i);
+  for (let i = 0; i < 3; i++) await f.enqueue(i);
   await env.APP_DB.exec(
     "CREATE TRIGGER fail_tournament_transfer BEFORE INSERT ON account_room_seats BEGIN SELECT RAISE(ABORT,'test transfer fault'); END",
   );
@@ -667,8 +724,8 @@ test("4席移譲の保存失敗は全件rollbackし、同じ予約を取り消�
 
 test("終了時刻以降の未開始予約を解放して不成立を確定し、開始済み台帳は結果待ちに残す", async () => {
   const f = await fixture();
-  for (let i = 0; i < 4; i++) await f.queue(i);
-  const group = await f.status(0);
+  await f.enqueueAll();
+  const group = requireMatched(await f.status(0));
   await env.APP_DB.prepare("UPDATE tournaments SET ends_at_ms=? WHERE key=?")
     .bind(Date.now() - 1, f.key)
     .run();
@@ -710,7 +767,7 @@ test("旧版の確認待ちを休止後に復元し、全員未承諾でも同�
   const f = await fixture();
   const matchId = crypto.randomUUID(),
     instanceId = crypto.randomUUID();
-  const roomId = String(crypto.getRandomValues(new Uint32Array(1))[0]! % 100000).padStart(5, "0");
+  const roomId = nextUnusedRoomId();
   const expiresAtMs = Date.now() + 30000;
   const players = await Promise.all(
     f.users.map(async (user, index) => {
@@ -810,10 +867,9 @@ test("通常ルーム参加と大会待機が同時に来ても、一方だけ�
 
 test("ルーム接続が成立しなかった場合、接続済み3人の同じ資格を次の組合せへ引き継ぐ", async () => {
   const f = await fixture();
-  for (let i = 0; i < 4; i++) await f.queue(i);
-  const group = await f.status(0);
-  const first = await f.status(0);
-  for (let i = 0; i < 3; i++) await connect(first.roomId!, f.operations[i]!.token);
+  await f.enqueueAll();
+  const first = requireMatched(await f.status(0));
+  for (let i = 0; i < 3; i++) await connect(first.roomId, f.operations[i]!.token);
   await runInDurableObject(f.stub, async (_instance, state) => {
     const current = state.storage.kv.get<{ groups: { expiresAtMs: number }[] }>("state")!;
     current.groups[0]!.expiresAtMs = Date.now() - 1;
@@ -827,20 +883,17 @@ test("ルーム接続が成立しなかった場合、接続済み3人の同じ�
     token: crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", ""),
     controllerId: crypto.randomUUID(),
   };
-  await f.queue(3);
-  const secondGroup = await f.status(0);
-  expect(secondGroup.matchId).not.toBe(group.matchId);
-  const second = await f.status(0);
-  expect(second.status).toBe("matched");
+  await f.enqueue(3);
+  const second = requireMatched(await f.status(0));
+  expect(second.matchId).not.toBe(first.matchId);
   expect(second.roomId).not.toBe(first.roomId);
-  for (let i = 0; i < 3; i++) await connect(second.roomId!, f.operations[i]!.token);
+  for (let i = 0; i < 3; i++) await connect(second.roomId, f.operations[i]!.token);
   await f.invoke(3, "queue", "DELETE", { operationId: f.operations[3]!.operationId });
 });
 
 test("本人状態の確認は他人の期限回収やAlarmの更新を行わない", async () => {
   const f = await fixture(2);
-  await f.queue(0);
-  await f.queue(1);
+  await f.enqueueAll();
   const alarm = await runInDurableObject(f.stub, async (_instance, state) => {
     const stored = state.storage.kv.get<{
       waiting: { operationId: string; expiresAtMs: number }[];
@@ -864,7 +917,7 @@ test("本人状態の確認は他人の期限回収やAlarmの更新を行わな
 
 test("ルーム準備が失敗していても本人状態の確認と待機継続は再試行に巻き込まれない", async () => {
   const f = await fixture();
-  for (let i = 0; i < 3; i++) await f.queue(i);
+  for (let i = 0; i < 3; i++) await f.enqueue(i);
   await env.APP_DB.exec(
     "CREATE TRIGGER fail_tournament_transfer BEFORE INSERT ON account_room_seats BEGIN SELECT RAISE(ABORT,'test transfer fault'); END",
   );
@@ -873,6 +926,161 @@ test("ルーム準備が失敗していても本人状態の確認と待機継�
   await env.APP_DB.exec("DROP TRIGGER fail_tournament_transfer");
   await f.stub.refresh(f.key);
   for (let i = 0; i < 4; i++) expect((await f.status(i)).status).toBe("matched");
+});
+
+test("番号が既存ルームと衝突しても、待機継続で再抽選のAlarmを遅らせず別の番号で成立する", async () => {
+  const now = Date.now();
+  const user = await accountFixture();
+  const response = await request("/rooms", {
+    method: "POST",
+    headers: user.headers,
+    body: JSON.stringify({ game: "four-shogi", mode: "singles", quickPlay: false }),
+  });
+  expect(response.status).toBe(201);
+  const { room, membership } = createRoomContract.response.parse(await response.json());
+  try {
+    const occupied = env.GAME_ROOM.getByName(room.id);
+    await occupied.refreshLobbyIndex(room.instanceId, 0);
+    const removed = await env.APP_DB.prepare("DELETE FROM room_index WHERE room_id=?")
+      .bind(room.id)
+      .run();
+    expect(removed.meta.changes).toBe(1);
+    roomCandidates.push(room.id);
+    const f = await fixture();
+
+    await f.enqueueAll();
+    const ledger = await env.APP_DB.prepare(
+      "SELECT room_id, phase FROM tournament_matches WHERE tournament_key=?",
+    )
+      .bind(f.key)
+      .all();
+    expect(ledger.results).toEqual([{ room_id: room.id, phase: "aborted" }]);
+    for (let i = 0; i < 4; i++)
+      expect(await f.status(i)).toMatchObject({
+        status: "waiting",
+        operationId: f.operations[i]!.operationId,
+      });
+
+    const alarmAt = now + 5000;
+    expect(await f.alarmTime()).toBe(alarmAt);
+    for (let i = 0; i < 4; i++) {
+      const heartbeatAt = now + (i + 1) * 1000;
+      clock.mockReturnValue(heartbeatAt);
+      await expectOk(
+        await f.invoke(i, "queue", "PATCH", { operationId: f.operations[i]!.operationId }),
+        `参加者${i + 1}の待機継続 PATCH`,
+      );
+      expect(await f.status(i)).toMatchObject({
+        status: "waiting",
+        expiresAtMs: heartbeatAt + 30_000,
+      });
+      expect(await f.alarmTime(), `参加者${i + 1}の待機継続後のAlarm`).toBe(alarmAt);
+    }
+
+    clock.mockReturnValue(alarmAt);
+    expect(await runDurableObjectAlarm(f.stub)).toBe(true);
+    const matched = requireMatched(await f.status(0));
+    expect(matched.roomId).not.toBe(room.id);
+    for (let i = 1; i < 4; i++)
+      expect(await f.status(i)).toMatchObject({
+        status: "matched",
+        roomId: matched.roomId,
+        matchId: matched.matchId,
+        operationId: f.operations[i]!.operationId,
+      });
+    expect(await occupied.getRoom()).toMatchObject({ instanceId: room.instanceId });
+  } finally {
+    const leave = await request(`/rooms/${room.id}/leave`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${membership.token}` },
+    });
+    expect(leave.status).toBe(204);
+  }
+});
+
+test("待機の見直し中に期限が切れた予約を次のAlarmで回収する", async () => {
+  const f = await fixture(2);
+  const expiresAtMs = Date.now() + 30_000;
+  await f.enqueue(0);
+  const joinedAtMs = expiresAtMs - 1;
+  clock.mockReturnValue(joinedAtMs);
+  const finalize = tournamentStore.finalizeTournament;
+  const finalizeWithClock = vi
+    .spyOn(tournamentStore, "finalizeTournament")
+    .mockImplementation(async (...args) => {
+      await finalize(...args);
+      // 待機の見直しを終えて次の予約を決めるまでに、参加者1の期限が切れます。
+      clock.mockReturnValue(expiresAtMs);
+    });
+  try {
+    await f.enqueue(1);
+  } finally {
+    finalizeWithClock.mockRestore();
+  }
+
+  const expiredLease = env.APP_DB.prepare(
+    "SELECT 1 FROM tournament_wait_reservations WHERE operation_id=?",
+  ).bind(f.operations[0]!.operationId);
+  expect(await expiredLease.first()).not.toBeNull();
+  expect((await f.status(0)).status).toBe("idle");
+  expect(await f.alarmTime()).toBe(expiresAtMs);
+
+  expect(await runDurableObjectAlarm(f.stub)).toBe(true);
+  expect(await expiredLease.first()).toBeNull();
+  expect(await f.status(1)).toMatchObject({
+    status: "waiting",
+    expiresAtMs: joinedAtMs + 30_000,
+  });
+  expect(await f.alarmTime()).toBe(joinedAtMs + 30_000);
+});
+
+test("一人の待機継続で他の参加者の待機期限の回収を遅らせない", async () => {
+  const f = await fixture(2);
+  await f.enqueueAll();
+  const expiresAtMs = Date.now() + 30_000;
+  expect(await f.status(0)).toMatchObject({ status: "waiting", expiresAtMs });
+  expect(await f.alarmTime()).toBe(expiresAtMs);
+
+  clock.mockReturnValue(expiresAtMs - 1000);
+  await expectOk(
+    await f.invoke(1, "queue", "PATCH", { operationId: f.operations[1]!.operationId }),
+    "参加者2の待機継続 PATCH",
+  );
+  expect(await f.alarmTime()).toBe(expiresAtMs);
+  clock.mockReturnValue(expiresAtMs);
+  expect(await runDurableObjectAlarm(f.stub)).toBe(true);
+  expect((await f.status(0)).status).toBe("idle");
+  expect((await f.status(1)).status).toBe("waiting");
+  expect(
+    await env.APP_DB.prepare("SELECT 1 FROM tournament_wait_reservations WHERE operation_id=?")
+      .bind(f.operations[0]!.operationId)
+      .first(),
+  ).toBeNull();
+});
+
+test("待機継続で大会終了時刻の待機回収と結果確定を遅らせない", async () => {
+  const f = await fixture(1);
+  const endsAtMs = Date.now() + 4000;
+  await env.APP_DB.prepare("UPDATE tournaments SET ends_at_ms=? WHERE key=?")
+    .bind(endsAtMs, f.key)
+    .run();
+  await f.enqueueAll();
+  expect(await f.alarmTime()).toBe(endsAtMs);
+
+  clock.mockReturnValue(endsAtMs - 1000);
+  await expectOk(
+    await f.invoke(0, "queue", "PATCH", { operationId: f.operations[0]!.operationId }),
+    "参加者1の待機継続 PATCH",
+  );
+  expect(await f.alarmTime()).toBe(endsAtMs);
+  clock.mockReturnValue(endsAtMs);
+  expect(await runDurableObjectAlarm(f.stub)).toBe(true);
+  expect((await f.status(0)).status).toBe("idle");
+  expect(
+    await env.APP_DB.prepare("SELECT finalized_at_ms FROM tournaments WHERE key=?")
+      .bind(f.key)
+      .first(),
+  ).toEqual({ finalized_at_ms: endsAtMs });
 });
 
 for (const game of ["four-reversi", "four-gomoku"] as const) {
@@ -888,10 +1096,9 @@ for (const game of ["four-reversi", "four-gomoku"] as const) {
     )
       .bind(game, JSON.stringify(settings), f.key)
       .run();
-    for (let i = 0; i < 4; i++) expect((await f.queue(i)).status).toBe(200);
-    const matched = await f.status(0);
-    expect(matched.status).toBe("matched");
-    const room = roomSchema.parse(await env.GAME_ROOM.getByName(matched.roomId!).getRoom());
+    await f.enqueueAll();
+    const matched = requireMatched(await f.status(0));
+    const room = roomSchema.parse(await env.GAME_ROOM.getByName(matched.roomId).getRoom());
     expect(room.settings).toEqual(settings);
     expect(room).toHaveProperty("tournamentId", f.id);
     const indexed = await env.APP_DB.prepare(
@@ -901,7 +1108,7 @@ for (const game of ["four-reversi", "four-gomoku"] as const) {
       .first<{ match_sequence: number }>();
     expect(indexed?.match_sequence).toBe(1);
     await evictDurableObject(f.stub);
-    const gameRoom = env.GAME_ROOM.getByName(matched.roomId!);
+    const gameRoom = env.GAME_ROOM.getByName(matched.roomId);
     await evictDurableObject(gameRoom);
     await gameRoom.refreshLobbyIndex(matched.instanceId!, 0);
     expect(
@@ -922,14 +1129,59 @@ for (const game of ["four-reversi", "four-gomoku"] as const) {
   });
 }
 
+test("ルーム準備後にD1で失敗しても、元の待機期限を越えて同じルームの成立を復旧する", async () => {
+  const f = await fixture();
+  const now = Date.now();
+  await f.enqueue(0);
+  clock.mockReturnValue(now + 25_000);
+  for (const i of [1, 2]) await f.enqueue(i);
+  const originalWaitingExpiry = now + 30_000;
+  await env.APP_DB.exec(
+    "CREATE TRIGGER fail_tournament_wait_release BEFORE DELETE ON tournament_wait_reservations WHEN OLD.match_operation_id IS NOT NULL BEGIN SELECT RAISE(ABORT,'test wait release fault'); END",
+  );
+  try {
+    expect((await f.queue(3)).status).toBe(503);
+  } finally {
+    await env.APP_DB.exec("DROP TRIGGER fail_tournament_wait_release");
+  }
+
+  expect((await f.status(0)).status).toBe("waiting");
+  const reservation = await env.APP_DB.prepare(
+    "SELECT id, room_id, instance_id FROM tournament_matches WHERE tournament_key=? AND phase='reserved'",
+  )
+    .bind(f.key)
+    .first<{ id: string; room_id: string; instance_id: string }>();
+  expect(reservation).not.toBeNull();
+  const { id: matchId, room_id: roomId, instance_id: instanceId } = reservation!;
+  const room = env.GAME_ROOM.getByName(roomId);
+  expect(await room.getTournamentReservationState(matchId)).toMatchObject({ status: "waiting" });
+  expect(await f.alarmTime()).toBe(originalWaitingExpiry);
+
+  clock.mockReturnValue(originalWaitingExpiry + 1);
+  expect(await runDurableObjectAlarm(f.stub)).toBe(true);
+  for (let i = 0; i < 4; i++)
+    expect(await f.status(i)).toMatchObject({ status: "matched", matchId, roomId, instanceId });
+  expect(await room.getRoom()).toMatchObject({ instanceId });
+  expect(
+    await env.APP_DB.prepare("SELECT 1 FROM tournament_wait_reservations WHERE tournament_key=?")
+      .bind(f.key)
+      .first(),
+  ).toBeNull();
+});
+
 test("大会の採番失敗は503となり、Alarmによる再準備で番号を確定して再取得で維持する", async () => {
   const f = await fixture();
-  for (let i = 0; i < 3; i++) expect((await f.queue(i)).status).toBe(200);
+  const now = Date.now();
+  for (let i = 0; i < 3; i++) await f.enqueue(i);
+  const alarmAt = now + 30_000;
+  expect(await f.alarmTime()).toBe(alarmAt);
+  clock.mockReturnValue(alarmAt - 4000);
   await env.APP_DB.exec(
     "CREATE TRIGGER fail_match_sequence BEFORE INSERT ON room_match_sequences BEGIN SELECT RAISE(ABORT,'test sequence fault'); END",
   );
   try {
     expect((await f.queue(3)).status).toBe(503);
+    expect(await f.alarmTime()).toBe(alarmAt);
     expect(
       (
         await env.APP_DB.prepare("SELECT 1 FROM room_match_sequences WHERE scope=?")
@@ -940,10 +1192,10 @@ test("大会の採番失敗は503となり、Alarmによる再準備で番号を
   } finally {
     await env.APP_DB.exec("DROP TRIGGER fail_match_sequence");
   }
-  await runInDurableObject(f.stub, (instance) => instance.alarm());
-  const matched = await f.status(0);
-  expect(matched.status).toBe("matched");
-  const room = env.GAME_ROOM.getByName(matched.roomId!);
+  clock.mockReturnValue(alarmAt);
+  expect(await runDurableObjectAlarm(f.stub)).toBe(true);
+  const matched = requireMatched(await f.status(0));
+  const room = env.GAME_ROOM.getByName(matched.roomId);
   const read = async () => {
     let cursor: string | null = null;
     do {
