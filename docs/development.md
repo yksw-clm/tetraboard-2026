@@ -1104,7 +1104,9 @@ PCでは棋譜表示の有無で盤面と全プレイヤーカードの座標・
 - `apps/worker/src/routes/`: `deletionRoutes.ts`、`legalRoutes.ts`、`legalHtml.ts`、`privacyInput.ts`。
 - 退会の受付（`requestDeletion.ts`）は、`deleted_accounts` への INSERT と同じ D1 batch で、フィードバックの非表示、ルームの索引のホストと参加者の伏せ字、画像の削除の予約、棋譜の引き継ぎの失効と伏せ字、保存済みの棋譜（公開済みと保存待ち）の伏せ字、履歴の索引とセッションの削除、プロフィールの匿名化を行います（TB-151）。各表への文は、その表の文脈の adapter（`adapters/privacy/deletionRequest.ts`、`adapters/community/feedbackDeletion.ts`、`adapters/room/indexDeletion.ts`、`adapters/account/deletionWrites.ts`、`adapters/record/privacyScrub.ts`）が作ります。`deleted_accounts` への INSERT の場所と、batch がこれらの文を伴うことは `test-bun/deletionWriteBoundaries.test.ts` が確かめます。同じ働きの古いトリガー 6 個は TB-155 で消すまで残ります。
 - 退会の受付は、すべての `room_index` を削除の対象のルームに登録します。migration 0014 より前に退室し、保存待ちの棋譜だけが Durable Object に残った人は、既存の索引（`privacy_room_accounts`、`privacy_room_players`）では見つけられないためです（TB-151 で調べ、`deletionRoomTargets.test.ts` で再現）。
-- 退会と伏せ字の残りは、まだ D1 のトリガーが行っています。ルームの索引の伏せ字（TB-153）、退会のフェンス（TB-154）の順に書き込みへ移し、TB-155 で消します。better-auth の表（`account`、`session`、`user`）のフェンス 4 個は、トリガーのまま残します（[ADR 0010](adr/0010-contexts-and-shell.md#移す順序)）。
+- ルームの索引（`room_index`）への INSERT と更新は、退会したホストと参加者を、同じ SQL の中で伏せ字にします（`adapters/room/indexScrub.ts`、TB-153）。退会の受付のときの伏せ字（`indexDeletion.ts`）も同じ式を使います。書き込みの場所は `test-bun/roomIndexWriteBoundaries.test.ts` が確かめます。同じ働きの古いトリガー 4 個は TB-155 で消すまで残ります。
+- 閉じたルームの索引の行は、まだ消していません。消すと、上の「すべての `room_index` を削除の対象に登録する」安全網からルームが外れるためです（TB-157 で設計します）。
+- 退会と伏せ字の残り（退会のフェンス）は、まだ D1 のトリガーが行っています。TB-154 で書き込みへ移し、TB-155 で消します。better-auth の表（`account`、`session`、`user`）のフェンス 4 個は、トリガーのまま残します（[ADR 0010](adr/0010-contexts-and-shell.md#移す順序)）。
 - ルームのイベントごとの退会の確認（`deletion_rooms` を `room_id` で引く）は、索引 `deletion_rooms_by_room`（migration 0027）を使います（C09）。
 
 ### 保存する情報と退会の扱い
