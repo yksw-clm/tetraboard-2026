@@ -3,6 +3,8 @@ import type {
   InternalStanding,
   FinalizationGuard,
 } from "@tetraboard/context-tournament";
+import { notificationRecipientAllowedSql } from "../community/notifications";
+
 const guard = `NOT EXISTS(SELECT 1 FROM tournament_matches WHERE tournament_key=? AND phase IN ('reserved','playing','saving'))
     AND (SELECT COUNT(*) FROM tournament_entries WHERE tournament_key=? AND deleted=0)=?
     AND EXISTS(SELECT 1 FROM tournaments WHERE key=? AND finalized_at_ms IS NULL)`;
@@ -31,7 +33,7 @@ export class D1TournamentFinalization implements TournamentFinalization<D1Prepar
   ) {
     return this.db
       .prepare(`INSERT OR IGNORE INTO notification_events(kind,source_id,account_id,created_at_ms,payload_json)
-        SELECT 'tournament',?,?,?,? WHERE ${guard}`)
+        SELECT 'tournament',?,?2,?,? WHERE (${guard}) AND ${notificationRecipientAllowedSql("?2")}`)
       .bind(v.entryId, v.accountId, now, JSON.stringify(payload), ...guardValues(snapshot));
   }
   finish(key: string, now: number, snapshot: FinalizationGuard) {
