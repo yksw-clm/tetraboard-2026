@@ -1,4 +1,4 @@
-import { cleanupLobbyChat } from "./lobby/chatStore";
+import { cleanupLobbyChat } from "./adapters/community/chatCleanup";
 import { processDeletions } from "./privacy/deletion";
 import { recoverAccountReservations } from "./flows/accountSeats/reserve";
 import { retryPendingMatchClaims } from "./adapters/record/matchClaims";

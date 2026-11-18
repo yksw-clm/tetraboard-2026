@@ -108,6 +108,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@tetraboard/context-account": "workspace:*",
+        "@tetraboard/context-community": "workspace:*",
         "@tetraboard/context-matchmaking": "workspace:*",
         "@tetraboard/context-rating": "workspace:*",
         "@tetraboard/context-record": "workspace:*",
@@ -163,6 +164,9 @@
     "packages/contexts/community": {
       "name": "@tetraboard/context-community",
       "version": "0.0.0",
+      "dependencies": {
+        "@tetraboard/protocol": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^5.5.2",

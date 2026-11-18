@@ -11,7 +11,8 @@ import {
   lobbyAdminSchema,
 } from "@tetraboard/protocol/general-lobby";
 import { accountFixture, origin } from "./accountFixtures";
-import { cleanupLobbyChat, lobbyRetentionMs } from "../src/lobby/chatStore";
+import { cleanupLobbyChat } from "../src/adapters/community/chatCleanup";
+import { lobbyRetentionMs } from "@tetraboard/context-community";
 import { requestDeletion, processDeletions } from "../src/privacy/deletion";
 import { writeRoomIndex } from "../src/rooms/roomIndex";
 import { gameIds, gameCatalog } from "@tetraboard/protocol/games";

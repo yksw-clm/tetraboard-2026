@@ -1,6 +1,7 @@
 import { matchmakingQueueKeys } from "@tetraboard/protocol";
 import { unsealToken } from "./tokens";
 import { avatarKeyPattern, type AuthEnv } from "../accounts/auth";
+import { deleteAccountChatStatements } from "../adapters/community/chatCleanup";
 export const flowCookie = "tetraboard-2026.deletion-flow";
 export const challengeCookie = "tetraboard-2026.deletion-challenge";
 export const cookieValue = (request: Request, name: string) =>
@@ -219,17 +220,7 @@ export async function processDeletions(env: AuthEnv) {
         env.APP_DB.prepare("DELETE FROM feedback_history WHERE admin_id=?").bind(job.id),
         env.APP_DB.prepare("DELETE FROM session WHERE userId=?").bind(job.id),
         env.APP_DB.prepare("DELETE FROM account WHERE userId=?").bind(job.id),
-        env.APP_DB.prepare("DELETE FROM lobby_chat_messages WHERE account_id=?").bind(job.id),
-        env.APP_DB.prepare("DELETE FROM lobby_chat_requests WHERE account_id=?").bind(job.id),
-        env.APP_DB.prepare(
-          "UPDATE lobby_chat_reports SET sender_name='退会したプレイヤー',sender_account_id=NULL,sender_public_id=NULL WHERE sender_account_id=?",
-        ).bind(job.id),
-        env.APP_DB.prepare(
-          "UPDATE lobby_chat_reports SET reporter_account_id=NULL WHERE reporter_account_id=?",
-        ).bind(job.id),
-        env.APP_DB.prepare(
-          "DELETE FROM lobby_chat_senders WHERE account_id=? OR account_id IN(SELECT guest_id FROM guest_account_merges WHERE account_id=?)",
-        ).bind(job.id, job.id),
+        ...deleteAccountChatStatements(env.APP_DB, job.id),
         env.APP_DB.prepare("DELETE FROM user WHERE id=?").bind(job.id),
       ]);
 

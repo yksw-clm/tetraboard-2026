@@ -623,7 +623,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 - `TournamentStandings` の上位表示は、結果0件でも列見出しを表示し、その下の空表示自体に最小240pxを確保します。5人未満や結果0件でも架空の行を追加せず、取得済みの本人枠と全参加者表示を維持します。`tournamentPresentation.ts` の残り時間は分単位の切り上げ・0下限を共用し、60分以上を時間と2桁の分で整形します。
 - `TournamentRooms` は大会詳細の開催中・集計中に、対局操作・順位表の下へ置きます。対象ゲームの `useGeneralLobbyRooms(game)` の既存cards API・全ページ取得を共用し、大会番号の一致と `status === "playing"` で絞り込みます。10秒の表示中更新・非表示停止・復帰時更新・全ページ成功時の一括反映を引き継ぎ、更新失敗時も既存カードを保ちます。共通 `LobbyRoomCard` には世代付きの既存観戦URLだけを渡し、参加操作は置きません。新API・migrationは追加しません。
 - 大会チャットは `features/lobby/LobbyChat.tsx` と `useLobbyChat.ts` を総合ロビーと共用し、`TournamentPage` が大会IDと既存エントリー導線を渡します。大会別の下書きは大会IDで分離し、チャットの取得・エラー・5秒更新は成績と独立します。結果確定後も更新を続け、APIのサーバー時刻と締切で投稿欄を閉じます。
-- `0024_tournament_chat.sql` が共用チャットの投稿・再送台帳・通報へ大会番号を追加し、大会定義に受付設定を追加します。既存行は総合ロビーとして保持します。`lobby/chatRoutes.ts`・`chatStore.ts` の `/api/tournaments/:id/chat` と `/reports` が公開大会・本人・有効エントリー・名前設定・24時間の締切を検査し、共通の送信者台帳とINSERT／triggerで10秒制限・再送・大会別500件を確定します。大会の待機DOや盤面へチャットを保存しません。
+- `0024_tournament_chat.sql` が共用チャットの投稿・再送台帳・通報へ大会番号を追加し、大会定義に受付設定を追加します。既存行は総合ロビーとして保持します。`routes/lobbyChatRoutes.ts`・`adapters/community/chatStore.ts` の `/api/tournaments/:id/chat` と `/reports` が公開大会・本人・有効エントリー・名前設定・24時間の締切を検査し、共通の送信者台帳とINSERT／triggerで10秒制限・再送・大会別500件を確定します。大会の待機DOや盤面へチャットを保存しません。
 - 大会管理の公開済み詳細に共用の `apps/admin/src/LobbyChat.tsx` を組み込みます。`/api/admin/lobby-chat?tournamentId=:id` で対象の受付・通報を取得し、受付操作にだけ任意の `tournamentId` を渡します。全体設定・利用者停止・削除・通報証拠・退会・毎時削除は既存の公開チャット基盤を使います。ゲスト統合では大会番号・再送台帳・過去投稿の非表示用識別子を維持します。
 
 - 公開APIとAdmin APIは `apps/worker/src/routes/tournaments.ts`、定義・名簿・順位と確定、待機・抽選・入室配信・席移譲・補償は[大会の入口](#大会の入口)の文脈と adapter です。定義は内部UUID、公開URLは公開時の数字連番です。Adminは `/admin/tournaments` から一覧・新規・編集・名簿へ進みます。
@@ -648,7 +648,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 
 - `packages/contexts/record/src/domain/`: イベント形式の本体の作り方、チャンクへの分け方と件数と連続の検査、チャンクからの再生と照合、棋譜を API の形（詳細、公開の詳細、要約）に整える関数。純粋な関数で、依存は `@tetraboard/protocol` だけです。ゲームの契約での再生は、worker から関数として渡します。
 - `packages/contexts/record/src/use-cases/`: 読み取り（詳細、本人の履歴の絞り込みとページング、公開の一覧とロビーの最近の対局、将棋の再生のページ、ゲストの棋譜の引き継ぎの判定。`readPorts.ts` の `MatchReadStore` と `MatchClaimReadStore`）と、保存の進め方（アップロード → チャンク → 公開）、再送、内容の違う再送の拒否、保存済みの判定、将棋の 1 回のイベントの上限。D1 は `ports.ts` の `MatchRecordStore` で読み書きし、公開の書き込みは実行せずに返します。Cloudflare と zod に依存しません。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
-- `apps/worker/src/adapters/record/`: ポートの D1 の実装、公開の後の確認の SQL、zod とゲームの契約での読み取りの検証（`readValidation.ts`）。ルートの入口（`accounts/matchRoutes.ts`、`rooms/publicMatchRoutes.ts`、`lobby/routes.ts`）は worker に残り、応答を protocol のスキーマで検証します。
+- `apps/worker/src/adapters/record/`: ポートの D1 の実装、公開の後の確認の SQL、zod とゲームの契約での読み取りの検証（`readValidation.ts`）。ルートの入口（`accounts/matchRoutes.ts`、`rooms/publicMatchRoutes.ts`、`routes/generalLobbyRoutes.ts`）は worker に残り、応答を protocol のスキーマで検証します。
 - 戦績、戦法別の戦績、バッジ、本人の棋譜の一覧、対局の引き継ぎ（TB-139）: 文脈の `domain/accountStats.ts`、`badges.ts`、`matchProfiles.ts`、`use-cases/accountStats.ts`、`badgeAwards.ts`、`badgeNotifications.ts`、`matchProfiles.ts`、`matchClaims.ts`。バッジと履歴の書き込みは実行せずに返し、棋譜の公開と同じ batch に入れます。ルートは `apps/worker/src/routes/` の `statsRoutes.ts`、`formationStatsRoutes.ts`、`badgeNotificationRoutes.ts`、`matchRoutes.ts` です。
 - `apps/worker/src/flows/matchSave/`: 文脈をまたぐ組み立て。退会の伏せ字、zod とゲームの契約での検証、履歴の索引、レート、バッジ、使用戦型、大会の結果、棋譜の引き継ぎを、record の公開と同じ batch か直後に並べます。batch の区切りと順序を変えるときは、保存の約束（[ルームの仕様](specs/room.md)）と照らし合わせます。
 
@@ -680,7 +680,7 @@ ContextProvidersは開発者の承認、AGENTS、README、構成・開発・テ�
 
 `LobbyChatGuestDialog.tsx` は公開チャットの名前確定時に既存の `ensureGuestAccount` で作成とCookie読戻しを行います。名前確定後に本人を更新し、チャットの認証世代を切り替えて停止・送信間隔を再取得してから投稿欄を使います。本文を自動送信せず、取得・作成失敗では入力を保持します。
 
-`lobby/chatRoutes.ts` と `chatStore.ts` が `/lobby/chat`・`/lobby/chat/reports`・`/admin/lobby-chat` を扱います。D1の条件付きINSERTが本人・プロフィール・停止・10秒制限・退会・再送IDを検証し、AFTER INSERTトリガーが同一トランザクションで送信時刻・再送台帳・最新500件を更新します。再送台帳は本文のハッシュと投稿IDを持ち、運営削除後の同一再送も本文を復活させません。通常投稿と再送台帳は7日、通報証拠は通報から7日です。期限と退会受付の時点で取得から除外し、毎時削除・削除失敗の再試行へ接続します。退会の完了前に通常投稿と再送台帳を削除し、証拠内の本人識別を除去します。
+`/lobby/chat`・`/lobby/chat/reports`・`/admin/lobby-chat` は `routes/lobbyChatRoutes.ts` が受け、送信と取得の判定は community の文脈の `domain/chat.ts`・`use-cases/chat.ts`、D1 の実装は `adapters/community/chatStore.ts`（通報は `chatReports.ts`、運営の操作は `chatModeration.ts`、期限の削除は `chatCleanup.ts`）にあります（TB-144）。取得は、メッセージ、受付の設定、本人の停止状態、大会の状態を 1 回の D1 の batch で読みます。D1の条件付きINSERTが本人・プロフィール・停止・10秒制限・退会・再送IDを検証し、AFTER INSERTトリガーが同一トランザクションで送信時刻・再送台帳・最新500件を更新します。再送台帳は本文のハッシュと投稿IDを持ち、運営削除後の同一再送も本文を復活させません。通常投稿と再送台帳は7日、通報証拠は通報から7日です。期限と退会受付の時点で取得から除外し、毎時削除・削除失敗の再試行へ接続します。退会の完了前に通常投稿と再送台帳を削除し、証拠内の本人識別を除去します。
 
 通報は開発者の明示承認に従い、直近1時間で1アカウント5件までです。同じ発言への再通報は重複登録せず、件数を消費しません。件数の照合と登録を単一の条件付きINSERTで行い、同時要求でも上限を守ります。
 
@@ -1207,7 +1207,7 @@ OAuthトークンは認証ライブラリで暗号化して保存し、解除時
 
 migration 0022は `guest_sessions.registered_at_ms` を追加します。登録者への認証成功後は、ゲスト資格を統合確認専用へ切り替え、登録セッションや引き継ぎ確認の期限切れでも本人認証に戻しません。既存のCookieが並存する場合も、登録者本人の取得時にこの状態へ移します。確認の辞退と登録者のログアウトではCookie・ゲストセッション・対応する全OAuth手続きを失効させ、元アカウント・記録は削除しません。OAuthの取消・失敗では切り替えません。辞退操作は認証した本人と元ゲスト資格の対応・同一Originを検査します。
 
-migration 0023は過去の公開チャット投稿の送信者識別子を `sender_public_id` に保持します。`lobby/mergeGuestChat.ts` のSQLを統合と同じbatchに含め、投稿・再送台帳・通報を移します。送信時刻と投稿停止は両者の厳しい方を保持し、統合前の送信者識別子による運営操作は本人と統合済み別名へ適用します。統合より遅れて到着した投稿・通報は、SQLで統合済みゲストの参照を拒否します。退会処理と期限削除は統合前の送信者行も削除します。
+migration 0023は過去の公開チャット投稿の送信者識別子を `sender_public_id` に保持します。`adapters/community/guestMergeWrites.ts` のSQLを統合と同じbatchに含め、投稿・再送台帳・通報を移します。送信時刻と投稿停止は両者の厳しい方を保持し、統合前の送信者識別子による運営操作は本人と統合済み別名へ適用します。統合より遅れて到着した投稿・通報は、SQLで統合済みゲストの参照を拒否します。退会処理と期限削除は統合前の送信者行も削除します。
 
 migration 0021はゲストセッション、OAuth対応、統合済み内部IDの対応とfenceを追加します。統合は棋譜の本人参照・履歴索引・バッジ・大会参加者・プライバシー対応を一括で移し、ゲーム手順・日時・結果を変更しません。統合済みゲストの認証を失効させ、再送のため最小限の内部ID対応を保持します。遅延した棋譜保存・本人索引にもDB triggerで統合先を適用し、同じ参加の二重計上を防ぎます。大会のentry IDと得点イベントは保持します。統合時のフィードバックの本人参照は統合先へ移し、退会時の対象に含めます。登録者へ切り替わった日時は `guestRegisteredAt` とし、ゲストの作成日とは区別します。
 
