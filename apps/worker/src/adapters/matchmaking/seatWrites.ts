@@ -12,7 +12,7 @@ export function preparePlayerWrites(
   const statements: D1PreparedStatement[] = [];
   const a = player.admission;
   const candidate = {
-    sql: `FROM user u JOIN matchmaking_wait_reservations w ON w.account_id=u.id WHERE u.id=? AND w.operation_id=? AND w.match_operation_id=? AND u.profileCompleted=1 AND u.name=? AND u.avatarKey IS ? AND u.avatarPresetId IS ? AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)`,
+    sql: `FROM user u JOIN matchmaking_wait_reservations w ON w.account_id=u.id WHERE u.id=? AND w.operation_id=? AND w.match_operation_id=? AND u.profileCompleted=1 AND u.name=? AND u.avatarKey IS ? AND u.avatarPresetId IS ?`,
     values: [
       a.accountId,
       player.operationId,
