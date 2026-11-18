@@ -17,7 +17,8 @@ import {
 } from "../src/adapters/community/notifications";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { humanFixtureRecord } from "./matchFixtures";
-import { requestDeletion, processDeletions } from "../src/privacy/deletion";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
+import { processDeletions } from "../src/flows/accountPurge/processDeletions";
 
 const db = (env as typeof env & { NOTIFICATION_TEST_DB: D1Database }).NOTIFICATION_TEST_DB;
 const bindings = { ...env, APP_DB: db };

@@ -24,7 +24,7 @@ import { rememberGuestLink } from "../src/flows/guestRegistration/guestLink";
 import { completeGuestLink } from "../src/routes/guestLinkOAuth";
 import { humanFixtureRecord, fixtureRecord } from "./matchFixtures";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
-import { requestDeletion } from "../src/privacy/deletion";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import worker from "../src/worker";
 import { lobbyChatSchema, lobbyPostResultSchema } from "@tetraboard/protocol/general-lobby";
 import { cleanupLobbyChat } from "../src/adapters/community/chatCleanup";

@@ -1,5 +1,5 @@
 import type { ClaimRow, MatchClaimReadStore, MatchRow } from "@tetraboard/context-record";
-import { isDeleted } from "../../privacy/identity";
+import { isDeleted } from "../privacy/identity";
 export class D1MatchClaimReadStore implements MatchClaimReadStore {
   constructor(private readonly db: D1Database) {}
   isDeleted(accountId: string) {

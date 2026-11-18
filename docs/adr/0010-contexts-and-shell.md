@@ -105,6 +105,7 @@ TB-85 の計測では、GET 1 回と Alarm 1 回で、ルームを 6〜7 回読�
 5. rating: レートのテーブルを方式ごとに統合します。
 6. matchmaking と tournament
 7. account、community、privacy。退会と非表示のフェンスのトリガーを最後に移します。
+   - 例外（2026-11-18、開発者が決定）: better-auth の表（`account` の INSERT と UPDATE、`session` の INSERT、`user` の UPDATE）の退会のフェンスの 4 個は、D1 のトリガーのまま残します。これらの表はライブラリの中で書かれるので、アプリの条件つきの書き込みに置き換えられません。ライブラリのフック（`databaseHooks`）は書き込みと同じトランザクションではないので、退会との競合を防げません。
 8. migration を 1 本にまとめます。
 
 ## 却下した案

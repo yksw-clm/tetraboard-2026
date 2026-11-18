@@ -1,6 +1,6 @@
 import { guestIdentity, hasGuestSessionCookie, suspendGuestSession } from "../routes/guestSession";
-import { authSecret } from "../privacy/tokens";
-import { isDeleted } from "../privacy/identity";
+import { authSecret } from "../adapters/account/authTokens";
+import { isDeleted } from "../adapters/privacy/identity";
 import { betterAuth } from "better-auth";
 import { D1AccountProfiles } from "../adapters/account/profiles";
 export type { StoredProfile } from "@tetraboard/context-account";

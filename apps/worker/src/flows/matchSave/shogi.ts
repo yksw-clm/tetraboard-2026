@@ -19,7 +19,7 @@ import {
   shogiHistoryStatement,
   formationUsageStatement,
 } from "../../adapters/record/publication";
-import { redactParticipants } from "../../privacy/identity";
+import { redactParticipants } from "../accountPurge/redactParticipants";
 import { applyMatchClaims } from "./claims";
 import { matchBadgeStatements } from "./badges";
 import { tournamentMatchStatements } from "../../adapters/tournament/store";

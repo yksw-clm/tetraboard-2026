@@ -1,5 +1,5 @@
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import { retiredName } from "../../privacy/identity";
+import { retiredName } from "@tetraboard/context-privacy";
 import type { PurgeTargets } from "./types";
 import { identityScope } from "./identityScope";
 

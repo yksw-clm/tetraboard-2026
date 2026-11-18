@@ -1,5 +1,5 @@
 import type { ProfileWriter, ProfileSave, SavedProfile } from "@tetraboard/context-account";
-import { consentStatement } from "../../privacy/consent";
+import { consentStatement } from "../privacy/consent";
 export class D1ProfileWriter implements ProfileWriter {
   constructor(private db: D1Database) {}
   async save(command: ProfileSave): Promise<SavedProfile | null> {
