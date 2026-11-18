@@ -1,5 +1,5 @@
 import { matchChunkSize } from "@tetraboard/context-record";
-import { readMatchRecord } from "../src/accounts/matchDataContracts";
+import { readMatchRecord } from "../src/adapters/record/matchDataContracts";
 import { encodeSnapshotMatch } from "../src/rooms/snapshotMatchEvents";
 import type { MatchRecord } from "../src/rooms/matchStore";
 import type { ShogiMatchRecord, StandardShogiMatchRecord } from "../src/rooms/shogiMatchStore";

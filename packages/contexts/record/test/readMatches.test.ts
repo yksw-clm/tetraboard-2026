@@ -3,6 +3,8 @@ import {
   readMatchDetail,
   readMatchDetailRecord,
   readMatchHistory,
+  readMatchProfiles,
+  type MatchParticipantClaim,
   readPublicMatches,
   publicMatchDetail,
   matchSummary,
@@ -236,4 +238,36 @@ test("整形は保存名・現在のプロフィール・退会表示・CPUを�
     retired: true,
     avatarUrl: null,
   });
+});
+
+test("本人の棋譜一覧では同じ参加者IDの引き継ぎを対局ごとに現在のプロフィールへ反映する", async () => {
+  const store = history(2);
+  const claims = store.records.map(({ record }, i): MatchParticipantClaim => {
+    const player = record.participants[0];
+    if (player.kind !== "human") throw new Error("Expected human fixture");
+    player.accountId = null;
+    return {
+      match_id: record.id,
+      player_id: player.id,
+      account_id: `claimed-${i}`,
+      state: "applied",
+    };
+  });
+  const page = await readMatchHistory(store, query, decode, (records) =>
+    readMatchProfiles(
+      {
+        readClaims: async (ids) => claims.filter(({ match_id }) => ids.includes(match_id)),
+        readDeleted: async () => [],
+      },
+      records,
+      async (ids) => new Map(ids.map((id) => [id, { name: id, avatarUrl: null }])),
+      (record) => record,
+    ),
+  );
+  expect(page.matches.map((match) => match.participants[0].name)).toEqual([
+    "claimed-1",
+    "claimed-0",
+  ]);
+  expect(page.nextCursor).toBeNull();
+  expect(JSON.stringify(page)).not.toContain('"accountId"');
 });

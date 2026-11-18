@@ -1,4 +1,4 @@
-import { savedProfileRatings } from "../accounts/profileRatings";
+import { savedProfileRatings } from "../adapters/rating/profileRatings";
 import { shogiRoomSchema, isShogiRoom, type ShogiLastRound } from "@tetraboard/protocol";
 import {
   sides,

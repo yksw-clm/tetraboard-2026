@@ -14,7 +14,7 @@ import {
 } from "@tetraboard/protocol";
 import worker from "../src/worker";
 import { accountFixture, origin } from "./accountFixtures";
-import { readStoredMatch } from "../src/accounts/matchDataContracts";
+import { readStoredMatch } from "../src/adapters/record/matchDataContracts";
 import { standardShogiRecord } from "./standardShogiFixtures";
 import { reversiArchives, shogiArchives } from "../../../test-fixtures/matches";
 import reversi from "../../../test-fixtures/matches/reversi-standard-draw.json";

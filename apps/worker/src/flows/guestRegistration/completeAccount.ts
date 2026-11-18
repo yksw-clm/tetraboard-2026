@@ -6,7 +6,7 @@ import {
   cancelReservation,
   RoomAccountError,
 } from "../../accounts/roomAccounts";
-import { acceptMatchClaim, readMatchClaimState } from "../../accounts/matchClaims";
+import { acceptMatchClaim, readMatchClaimState } from "../../adapters/record/matchClaims";
 import { browserIdFromRequest } from "../../usageEvents/browserId";
 import { D1RegistrationWrites } from "../../adapters/account/registrationWrites";
 import {

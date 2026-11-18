@@ -11,14 +11,14 @@ import {
   applyMatchClaims,
   readMatchClaimState,
   retryPendingMatchClaims,
-} from "../src/accounts/matchClaims";
+} from "../src/adapters/record/matchClaims";
 import {
   readStoredMatch,
   readMatchRecord,
   type ReadableMatch,
-} from "../src/accounts/matchDataContracts";
-import { readAccountStats } from "../src/accounts/statsRoutes";
-import { readFormationStats } from "../src/accounts/formationStatsRoutes";
+} from "../src/adapters/record/matchDataContracts";
+import { readAccountStats } from "../src/adapters/record/stats";
+import { readFormationStats } from "../src/adapters/record/formationStats";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";

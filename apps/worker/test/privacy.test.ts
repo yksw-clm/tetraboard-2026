@@ -9,10 +9,10 @@ import fourGomoku from "../../../test-fixtures/matches/four-gomoku-singles-ranke
 import gomoku from "../../../test-fixtures/matches/gomoku-on-five.json";
 import reversi from "../../../test-fixtures/matches/reversi-standard-draw.json";
 import { accountIdentity } from "../src/accounts/auth";
-import { fourGomokuMatchData } from "../src/accounts/fourGomokuMatchData";
-import { gomokuMatchData } from "../src/accounts/gomokuMatchData";
-import { publicMatchDetail } from "../src/accounts/matchDataContracts";
-import { reversiMatchData } from "../src/accounts/reversiMatchData";
+import { fourGomokuMatchData } from "../src/adapters/record/fourGomokuMatchData";
+import { gomokuMatchData } from "../src/adapters/record/gomokuMatchData";
+import { publicMatchDetail } from "../src/adapters/record/matchDataContracts";
+import { reversiMatchData } from "../src/adapters/record/reversiMatchData";
 import type { RoomRuntime } from "../src/durableObjects/gameRoom/runtime";
 import type { PendingRoomIndex } from "../src/rooms/roomIndex";
 import {

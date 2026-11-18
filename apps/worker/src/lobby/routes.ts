@@ -13,8 +13,8 @@ import { ratedMatchmakingGameIds } from "@tetraboard/protocol";
 import { accountIdentity } from "../accounts/auth";
 import { ratedMatchmakingPolicy } from "../adapters/matchmaking/ratedMatchmaking";
 import { listGeneralRooms, listLobbyRoomCards } from "../rooms/roomIndex";
-import { participantProfiles } from "../accounts/matchProfiles";
-import { readStoredMatch } from "../accounts/matchDataContracts";
+import { participantProfiles } from "../adapters/record/matchProfiles";
+import { readStoredMatch } from "../adapters/record/matchDataContracts";
 export const generalLobbyRoutes = new Hono<{ Bindings: Env }>();
 generalLobbyRoutes.use("/lobby/*", async (c, next) => {
   c.header("Cache-Control", "no-store");

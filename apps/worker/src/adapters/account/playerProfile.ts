@@ -1,3 +1,4 @@
+import { hasProfileRating } from "@tetraboard/context-rating";
 import type {
   PlayerProfilePorts,
   PlayerProfileQuery,
@@ -9,14 +10,10 @@ import {
   profileInputSchema,
   type ProfileRating,
 } from "@tetraboard/protocol";
-import {
-  hasProfileRating,
-  readMatchProfileRating,
-  readProfileRating,
-} from "../../accounts/profileRatings";
-import { readStoredMatch } from "../../accounts/matchDataContracts";
-import { readAccountStats } from "../../accounts/statsRoutes";
-import { resolveMatchParticipants } from "../../accounts/matchClaims";
+import { readMatchProfileRating, readProfileRating } from "../rating/profileRatings";
+import { readStoredMatch } from "../record/matchDataContracts";
+import { readAccountStats } from "../record/stats";
+import { resolveMatchParticipants } from "../record/matchProfiles";
 import { readPublicReversiRating } from "../../rooms/reversiRating";
 import { readPublicShogiRating } from "../../rooms/shogiRating";
 import { D1AccountProfiles } from "./profiles";
