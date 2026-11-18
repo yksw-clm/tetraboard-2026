@@ -18,7 +18,7 @@ import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { lobbyRoomCardsSchema, lobbyRoomsSchema } from "@tetraboard/protocol/general-lobby";
 import worker from "../src/worker";
 import { writeRoomIndex, type PendingRoomIndex } from "../src/rooms/roomIndex";
-import { requestDeletion } from "../src/privacy/deletion";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { mergeGuestAccounts } from "../src/flows/guestRegistration/guestLink";
 import { accountFixture, origin } from "./accountFixtures";
 import { boundaryRequest, RoomBoundaryFixtures } from "./roomBoundaryFixtures";

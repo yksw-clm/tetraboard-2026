@@ -110,6 +110,7 @@
         "@tetraboard/context-account": "workspace:*",
         "@tetraboard/context-community": "workspace:*",
         "@tetraboard/context-matchmaking": "workspace:*",
+        "@tetraboard/context-privacy": "workspace:*",
         "@tetraboard/context-rating": "workspace:*",
         "@tetraboard/context-record": "workspace:*",
         "@tetraboard/context-room": "workspace:*",

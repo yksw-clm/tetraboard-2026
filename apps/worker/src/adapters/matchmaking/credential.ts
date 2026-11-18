@@ -1,6 +1,6 @@
 import type { Wait } from "@tetraboard/context-matchmaking";
 import { matchmakingRules as rules } from "@tetraboard/protocol";
-import { authSecret } from "../../privacy/tokens";
+import { authSecret } from "../account/authTokens";
 const hex = (bytes: ArrayBuffer) =>
   Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, "0")).join("");
 export async function matchmakingCredential(env: Env, wait: Wait, queueKey: string = rules.key) {

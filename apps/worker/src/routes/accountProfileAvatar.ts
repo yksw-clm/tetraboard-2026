@@ -1,7 +1,7 @@
 import { isAvatarPresetId } from "@tetraboard/protocol";
 import { selectProfileAvatar, type StoredProfile } from "@tetraboard/context-account";
 import { profilePolicy } from "../adapters/account/profilePolicy";
-import { reserveAvatarUpload, finishAvatarUpload } from "../privacy/avatarUploads";
+import { reserveAvatarUpload, finishAvatarUpload } from "../adapters/privacy/avatarUploads";
 import { validAvatar } from "./accountAvatars";
 import type { AccountRouteContext } from "./accountRoutes";
 const error = (message: string) => ({ message });

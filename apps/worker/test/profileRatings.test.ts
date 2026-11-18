@@ -17,7 +17,7 @@ import { fixtureRecord } from "./matchFixtures";
 import archive from "../../../test-fixtures/matches/reversi-standard-draw.json";
 import { readMatchRecord } from "../src/adapters/record/matchDataContracts";
 import { profileRatingsKey } from "../src/adapters/rating/profileRatings";
-import { redactRetiredParticipants } from "../src/privacy/identity";
+import { redactRetiredParticipants } from "@tetraboard/context-privacy";
 
 const games = ["shogi", "reversi", "four-shogi", "four-reversi"] as const;
 const savedMatches: string[] = [];

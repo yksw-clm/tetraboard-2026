@@ -1,4 +1,4 @@
-import { redactParticipants } from "../../privacy/identity";
+import { redactParticipants } from "../accountPurge/redactParticipants";
 import { readStoredMatch, readMatchRecord } from "../../adapters/record/matchDataContracts";
 import {
   encodeSnapshotMatch,

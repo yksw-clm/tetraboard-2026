@@ -1,4 +1,4 @@
-import { authSecret } from "../../privacy/tokens";
+import { authSecret } from "../account/authTokens";
 
 const hex = (bytes: ArrayBuffer) =>
   Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");

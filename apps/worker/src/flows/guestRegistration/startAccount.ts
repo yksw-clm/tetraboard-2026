@@ -5,7 +5,7 @@ import {
 } from "@tetraboard/context-account";
 import type { StartRegistration } from "@tetraboard/protocol";
 import { accountIdentity } from "../../accounts/auth";
-import { digest } from "../../privacy/deletion";
+import { digest } from "../../crypto";
 import { D1RegistrationWrites } from "../../adapters/account/registrationWrites";
 import { registrationStatus } from "./account";
 export async function beginAccountRegistration(

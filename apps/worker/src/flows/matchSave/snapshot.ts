@@ -16,7 +16,7 @@ import { tournamentMatchStatements } from "../../adapters/tournament/store";
 import { readStoredMatch } from "../../adapters/record/matchDataContracts";
 import { fourReversiRatingStore } from "../../rooms/fourReversiRating";
 import type { TournamentRoomContext } from "@tetraboard/context-tournament";
-import { redactParticipants } from "../../privacy/identity";
+import { redactParticipants } from "../accountPurge/redactParticipants";
 import { applyMatchClaims } from "./claims";
 import type { MatchRecord as FourGomokuMatchRecord } from "../../rooms/fourGomokuMatchStore";
 import type { MatchRecord as GomokuMatchRecord } from "../../rooms/gomokuMatchStore";

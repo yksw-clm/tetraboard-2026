@@ -11,7 +11,7 @@ import {
 } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
-import { requestDeletion } from "../src/privacy/deletion";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { deleteUnusedAvatars } from "../src/routes/accountAvatars";
 import worker from "../src/worker";
 

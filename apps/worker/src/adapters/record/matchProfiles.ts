@@ -7,7 +7,7 @@ import {
 import { readCurrentProfiles } from "@tetraboard/context-account";
 import { D1AccountProfiles } from "../account/profiles";
 import { profilePolicy } from "../account/profilePolicy";
-import { redactRetiredParticipants } from "../../privacy/identity";
+import { redactRetiredParticipants } from "@tetraboard/context-privacy";
 import type { ReadableMatch } from "./matchDataContracts";
 
 function matchParticipantReader(db: D1Database): MatchParticipantReader {

@@ -1,4 +1,5 @@
 import * as roomUseCases from "@tetraboard/context-room";
+import { finishRoomDeletion, readRoomDeletionAccounts } from "../../adapters/privacy/deletionJobs";
 import { recoverPlayingCpuCapacity } from "../../adapters/room/cpuCapacity";
 import { readRoom } from "../../adapters/room/state";
 import { withIndexTransaction } from "../../adapters/room/transaction";
@@ -58,18 +59,10 @@ async function purgeDeletedAccounts(runtime: RoomRuntime) {
   const code = runtime.ctx.id.name ?? readRoom(runtime)?.id;
   if (code) {
     await runtime.alarms.sync();
-    const pending = await runtime.accountBindings.APP_DB.prepare(
-      "SELECT account_id FROM deletion_rooms WHERE room_id=?",
-    )
-      .bind(code)
-      .all<{ account_id: string }>();
-    for (const row of pending.results) {
-      await purgeAccount(runtime, row.account_id);
-      await runtime.accountBindings.APP_DB.prepare(
-        "DELETE FROM deletion_rooms WHERE room_id=? AND account_id=?",
-      )
-        .bind(code, row.account_id)
-        .run();
+    const db = runtime.accountBindings.APP_DB;
+    for (const accountId of await readRoomDeletionAccounts(db, code)) {
+      await purgeAccount(runtime, accountId);
+      await finishRoomDeletion(db, code, accountId);
     }
   }
 }

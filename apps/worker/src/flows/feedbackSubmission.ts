@@ -3,7 +3,7 @@ import {
   deleteFeedbackUpload,
   feedbackSubmissionStore,
 } from "../adapters/community/feedbackSubmission";
-import { isDeleted } from "../privacy/identity";
+import { isDeleted } from "../adapters/privacy/identity";
 
 export function feedbackSubmissionWithPrivacy(
   db: D1Database,

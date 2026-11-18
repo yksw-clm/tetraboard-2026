@@ -23,7 +23,7 @@ import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { emptyFormationUsage } from "../src/rooms/shogiFormationUsage";
-import { requestDeletion } from "../src/privacy/deletion";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { accountFixture } from "./accountFixtures";
 import { humanFixtureRecord, fixtureRecord, matchRequest } from "./matchFixtures";
 import { humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
