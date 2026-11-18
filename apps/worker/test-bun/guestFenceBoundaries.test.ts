@@ -64,11 +64,11 @@ const boundaries: Record<string, [file: string, ...terms: string[]][]> = {
   "UPDATE tournament_entries": [
     ["adapters/tournament/guestMergeWrites.ts", "account_id = ?"],
     [
-      "privacy/deletion.ts",
+      "flows/accountPurge/requestDeletion.ts",
       "account_id = ?",
       "EXISTS ( SELECT 1 FROM deleted_accounts WHERE id = ? AND receipt_hash = ? )",
     ],
-    ["privacy/deletion.ts", "account_id = ?"],
+    ["flows/accountPurge/deletionCleanup.ts", "account_id = ?"],
   ],
 };
 
@@ -107,7 +107,7 @@ test("registration_flows.account_id を更新する文は退会の条件を使�
 test("退会の大会エントリー消去は account_id を NULL にします", () => {
   const scrubs = workerSqlWrites.filter(
     ({ file, table, operation, sql }) =>
-      file === "privacy/deletion.ts" &&
+      file === "flows/accountPurge/deletionCleanup.ts" &&
       table === "tournament_entries" &&
       operation === "UPDATE" &&
       /\bSET\s+account_id\s*=\s*NULL\s*,\s*deleted\s*=\s*1\s+WHERE\b/i.test(sql),

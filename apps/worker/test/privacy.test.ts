@@ -15,16 +15,13 @@ import { publicMatchDetail } from "../src/adapters/record/matchDataContracts";
 import { reversiMatchData } from "../src/adapters/record/reversiMatchData";
 import type { RoomRuntime } from "../src/durableObjects/gameRoom/runtime";
 import type { PendingRoomIndex } from "../src/rooms/roomIndex";
-import {
-  challengeCookie,
-  completeReauthentication,
-  digest,
-  flowCookie,
-  processDeletions,
-  requestDeletion,
-  responseCookies,
-} from "../src/privacy/deletion";
-import { authSecret, unsealToken } from "../src/privacy/tokens";
+import { challengeCookie, flowCookie } from "../src/adapters/privacy/deletionCookies";
+import { completeReauthentication } from "../src/adapters/privacy/deletionAuthentication";
+import { digest } from "../src/crypto";
+import { processDeletions } from "../src/flows/accountPurge/processDeletions";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
+import { responseCookies } from "../src/accounts/authCookies";
+import { authSecret, unsealToken } from "../src/adapters/account/authTokens";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";

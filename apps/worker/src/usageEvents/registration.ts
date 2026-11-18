@@ -3,7 +3,7 @@ import {
   type RegistrationAnalyticsInput,
 } from "@tetraboard/protocol";
 import { accountIdentity, createAuth, type AuthEnv, type StoredProfile } from "../accounts/auth";
-import { responseCookies } from "../privacy/deletion";
+import { responseCookies } from "../accounts/authCookies";
 import { browserIdFromRequest } from "./browserId";
 import type { UsageEvent } from "./events";
 import { createUsageEventWriter } from "./writer";

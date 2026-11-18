@@ -1,5 +1,5 @@
 import { symmetricDecrypt } from "better-auth/crypto";
-import type { AuthEnv } from "../accounts/auth";
+import type { AuthEnv } from "../../accounts/auth";
 export function authSecret(env: AuthEnv) {
   const secret =
     env.BETTER_AUTH_SECRET ??

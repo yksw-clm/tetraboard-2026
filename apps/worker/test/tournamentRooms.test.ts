@@ -24,7 +24,8 @@ import {
   type PendingShogiMatch,
   readShogiMatchRecord,
 } from "../src/rooms/shogiMatchStore";
-import { processDeletions, requestDeletion } from "../src/privacy/deletion";
+import { processDeletions } from "../src/flows/accountPurge/processDeletions";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { releaseReservation } from "../src/adapters/room/seatReservations";
 import type { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 

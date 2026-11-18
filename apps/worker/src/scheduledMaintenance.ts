@@ -1,5 +1,5 @@
 import { cleanupLobbyChat } from "./adapters/community/chatCleanup";
-import { processDeletions } from "./privacy/deletion";
+import { processDeletions } from "./flows/accountPurge/processDeletions";
 import { recoverAccountReservations } from "./flows/accountSeats/reserve";
 import { retryPendingMatchClaims } from "./flows/matchSave/claims";
 import { deleteExpiredReports } from "./adapters/community/reports";

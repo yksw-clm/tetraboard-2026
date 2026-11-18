@@ -1,4 +1,4 @@
-import type { AuthEnv } from "../accounts/auth";
+import type { AuthEnv } from "../../accounts/auth";
 export async function reserveAvatarUpload(env: AuthEnv, accountId: string, key: string) {
   const result = await env.APP_DB.batch([
     env.APP_DB.prepare(

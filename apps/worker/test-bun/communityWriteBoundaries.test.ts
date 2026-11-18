@@ -21,7 +21,10 @@ const boundaries = {
     "adapters/tournament/finalization.ts",
   ],
   "UPDATE notification_events": ["adapters/community/notifications.ts"],
-  "DELETE notification_events": ["adapters/community/notifications.ts", "privacy/deletion.ts"],
+  "DELETE notification_events": [
+    "adapters/community/notifications.ts",
+    "flows/accountPurge/deletionCleanup.ts",
+  ],
 };
 
 for (const [key, expected] of Object.entries(boundaries)) {

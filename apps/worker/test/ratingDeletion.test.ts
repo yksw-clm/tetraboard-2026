@@ -1,8 +1,9 @@
 import { env } from "cloudflare:workers";
 import { afterEach, expect, test } from "vitest";
 import { ratedMatchmakingGameIds } from "@tetraboard/protocol";
-import { requestDeletion, digest } from "../src/privacy/deletion";
-import { deletionRoutes } from "../src/privacy/deletionRoutes";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
+import { digest } from "../src/crypto";
+import { deletionRoutes } from "../src/routes/deletionRoutes";
 import { ratedMatchmakingPolicy } from "../src/adapters/matchmaking/ratedMatchmaking";
 import { accountFixture, origin } from "./accountFixtures";
 

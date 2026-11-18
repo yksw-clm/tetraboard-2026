@@ -1,3 +1,4 @@
+import { isCurrentLegalVersion } from "@tetraboard/context-privacy";
 import {
   recordRegistrationOAuthStart,
   writeRegistrationCompletionUsage,
@@ -8,8 +9,9 @@ import { prepareGuestLink, rememberGuestLink } from "../flows/guestRegistration/
 import { completeGuestLink } from "./guestLinkOAuth";
 import { GuestLinkError } from "@tetraboard/context-account";
 import { clearGuestSession } from "../routes/guestSession";
-import { completeLegalAuthentication } from "../privacy/oauthConsent";
-import { completeReauthentication } from "../privacy/deletion";
+import { D1LegalConsent } from "../adapters/privacy/consent";
+import { completeLegalAuthentication } from "../adapters/privacy/oauthConsent";
+import { completeReauthentication } from "../adapters/privacy/deletionAuthentication";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import {
   completeRegistrationOAuth,
@@ -81,8 +83,8 @@ accountAuthRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     provider = data.provider === "discord" ? "discord" : "google";
     if (
       data.destination !== "admin" &&
-      data.consentVersion !== legalVersion &&
-      c.req.header("X-Legal-Consent") !== legalVersion
+      !isCurrentLegalVersion(data.consentVersion, legalVersion) &&
+      !isCurrentLegalVersion(c.req.header("X-Legal-Consent"), legalVersion)
     )
       return c.json(error("規約と年齢条件を確認してください。"), 403);
     adminLogin = data.destination === "admin";
@@ -128,9 +130,7 @@ accountAuthRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     const data = (await response.clone().json()) as { url?: string };
     const state = data.url ? new URL(data.url).searchParams.get("state") : null;
     if (state) {
-      await c.env.APP_DB.prepare("INSERT INTO oauth_legal_consents VALUES (?,?,?,?,?)")
-        .bind(state, provider, legalVersion, Date.now(), Date.now() + 600000)
-        .run();
+      await new D1LegalConsent(c.env.APP_DB).rememberOAuthConsent(state, provider, legalVersion);
       if (registration) await rememberRegistrationOAuth(c.env, registration, state, provider);
       if (guest)
         await rememberGuestLink(

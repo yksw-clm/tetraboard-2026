@@ -1,7 +1,7 @@
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { profileInputSchema, type RoomError } from "@tetraboard/protocol";
 import { accountIdentity } from "../../accounts/auth";
-import { consentStatement } from "../../privacy/consent";
+import { consentStatement } from "../../adapters/privacy/consent";
 
 export class RoomAccountError extends Error {
   constructor(

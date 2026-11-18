@@ -1,6 +1,6 @@
 import type { AuthEnv } from "../accounts/auth";
 import { completeGuestLinkCallback } from "../flows/guestRegistration/guestLink";
-import { responseCookies } from "../privacy/deletion";
+import { responseCookies } from "../accounts/authCookies";
 
 export async function completeGuestLink(request: Request, response: Response, env: AuthEnv) {
   if (

@@ -13,7 +13,8 @@ import {
 import { accountFixture, origin } from "./accountFixtures";
 import { cleanupLobbyChat } from "../src/adapters/community/chatCleanup";
 import { lobbyRetentionMs } from "@tetraboard/context-community";
-import { requestDeletion, processDeletions } from "../src/privacy/deletion";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
+import { processDeletions } from "../src/flows/accountPurge/processDeletions";
 import { writeRoomIndex } from "../src/rooms/roomIndex";
 import { gameIds, gameCatalog } from "@tetraboard/protocol/games";
 import { legalVersion } from "@tetraboard/protocol/privacy";
