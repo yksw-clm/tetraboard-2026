@@ -666,6 +666,8 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 
 統合済みのゲスト（`guest_account_merges`）の対局が統合の後に保存されたときは、`matches`、`match_uploads`、`account_match_history` への挿入の SQL の中で、参加者を統合先のアカウントに書き換えます（`adapters/record/guestMerges.ts`、TB-137）。3 つの表への挿入は決めたファイルにしかなく、そのことを `test-bun/guestMergeRecordBoundaries.test.ts` が確かめます。以前は D1 のトリガー 3 つが同じことをしていましたが、TB-138 で消しました。
 
+退会したアカウントの参加者と、引き継ぎが失効した席（`match_participant_accounts` の `retired`）は、同じ挿入と `record_json` の更新の SQL の中で伏せ字にします（`adapters/record/privacyScrub.ts`、TB-152）。統合先への書き換えの後に伏せ字にします。同じ働きの古いトリガー 9 個（`privacy_scrub_matches_*`、`privacy_scrub_claimed_*`、`privacy_scrub_shogi_match_uploads_*`、`privacy_scrub_retired_match_claim`）は、TB-155 で消すまで残ります。席を `retired` にするのは今は退会の連鎖のトリガーだけで、TB-151 でそれを退会の受付へ移すときに `scrubRetiredMatchClaimStatements` を同じ batch に入れます。書き込みの場所は `test-bun/guestMergeRecordBoundaries.test.ts` が確かめます。
+
 ## 総合ロビーの実装計画
 
 Goalは、全6ゲームの募集・観戦を探しやすいホームと、共通の上部ナビゲーション／スマートフォン固定下部タブを提供することです。2026-10-27の開発者の変更指示を採用し、現在の画面仕様は[README](../README.md#総合ロビーの確定仕様)、検証は[テスト方針](testing.md#総合ロビーの確認)を正本とします。ゲームのルール・対局参加資格・チャットの保存／認証契約は変更しません。
