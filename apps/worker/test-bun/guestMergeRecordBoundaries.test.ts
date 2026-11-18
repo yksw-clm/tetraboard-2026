@@ -10,7 +10,7 @@ const allowed = {
     files: [
       "adapters/record/publication.ts",
       "adapters/record/publication.ts",
-      "accounts/matchClaims.ts",
+      "adapters/record/matchClaimStore.ts",
     ],
     helper: "mergedAccountIdSql",
   },

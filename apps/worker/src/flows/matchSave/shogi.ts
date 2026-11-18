@@ -20,8 +20,8 @@ import {
   formationUsageStatement,
 } from "../../adapters/record/publication";
 import { redactParticipants } from "../../privacy/identity";
-import { applyMatchClaims } from "../../accounts/matchClaims";
-import { badgeAwardStatements } from "../../accounts/badgeAwards";
+import { applyMatchClaims } from "../../adapters/record/matchClaims";
+import { badgeAwardStatements } from "../../adapters/record/badgeAwards";
 import { tournamentMatchStatements } from "../../adapters/tournament/store";
 import { fourShogiRatingStore } from "../../rooms/fourReversiRating";
 import {

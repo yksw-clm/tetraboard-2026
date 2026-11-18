@@ -1,5 +1,5 @@
-import { retryPendingMatchClaims } from "../../accounts/matchClaims";
-import { readStoredMatch } from "../../accounts/matchDataContracts";
+import { retryPendingMatchClaims } from "../../adapters/record/matchClaims";
+import { readStoredMatch } from "../../adapters/record/matchDataContracts";
 import { pendingMatches } from "../../adapters/room/matchJob";
 import { pendingShogiMatches } from "../../adapters/room/shogiMatchJob";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";

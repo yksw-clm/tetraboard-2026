@@ -1,15 +1,13 @@
+import { cpuProfileRating, hasProfileRating } from "@tetraboard/context-rating";
 import { roomSchema, type ProfileRatings, type Room } from "@tetraboard/protocol";
 import { profileAvatarUrl } from "../../accounts/auth";
-import {
-  cpuReferenceRating,
-  hasProfileRating,
-  readProfileRating,
-} from "../../accounts/profileRatings";
+import { readProfileRating } from "../../adapters/rating/profileRatings";
 import { reserveCpuCapacity } from "../../adapters/room/cpuCapacity";
 import { readRoom } from "../../adapters/room/state";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { cancelledAdmissionKey, cpuCapacityKey } from "../../durableObjects/gameRoom/storageKeys";
 import type {
+  QueueRatingSource,
   MatchmakingRoomInput,
   MatchmakingRoomReservation,
 } from "@tetraboard/context-matchmaking";
@@ -188,4 +186,18 @@ async function readMatchmakingProfileRatings(
         if (player.kind === "cpu") profileRatings[player.id] = reference;
   }
   return profileRatings;
+}
+
+function cpuReferenceRating(source: QueueRatingSource) {
+  switch (source.kind) {
+    case "cpu":
+      return cpuProfileRating({ rating: source.referenceRating });
+    case "reversi":
+      return source.source.kind === "cpu"
+        ? cpuProfileRating({ rating: source.source.referenceRating })
+        : undefined;
+    case "four-shogi":
+    case "four-reversi":
+      return source.cpu ? cpuProfileRating({ mu: source.cpu.mu }) : undefined;
+  }
 }

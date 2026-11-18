@@ -1,7 +1,8 @@
+import { hasProfileRating } from "@tetraboard/context-rating";
 import { roomIdleMs } from "@tetraboard/context-room";
 import type { ProfileRatings } from "@tetraboard/protocol";
 import { roomSchema } from "@tetraboard/protocol";
-import { hasProfileRating, profileRatingsKey } from "../../accounts/profileRatings";
+import { profileRatingsKey } from "../../adapters/rating/profileRatings";
 import { isHumanParticipant, playerTokenHash } from "../../adapters/room/state";
 import { storedAccount } from "../../flows/accountSeats/seats";
 import { registrationForPlayer } from "../../flows/guestRegistration/records";

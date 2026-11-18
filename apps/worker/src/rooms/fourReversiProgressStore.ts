@@ -1,4 +1,4 @@
-import { savedProfileRatings } from "../accounts/profileRatings";
+import { savedProfileRatings } from "../adapters/rating/profileRatings";
 import { fourReversiRatingMethod } from "@tetraboard/context-rating";
 import type { FourReversiRatingSource } from "@tetraboard/context-matchmaking";
 import {

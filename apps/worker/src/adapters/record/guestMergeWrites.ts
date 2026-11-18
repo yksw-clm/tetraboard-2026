@@ -1,4 +1,4 @@
-import { badgeAwardsSql } from "../../accounts/badgeAwards";
+import { badgeAwardsSql } from "./badgeAwards";
 
 export function guestReplayTransferStatements(db: D1Database, guestId: string, targetId: string) {
   // 公開棋譜の本人参照だけを移し、手順・日時・結果を保持します。

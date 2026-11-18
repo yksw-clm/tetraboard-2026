@@ -1,41 +1,16 @@
-import { readMatchHistory, readMatchDetail } from "@tetraboard/context-record";
+import { readMatchHistory, readMatchDetail, readOwnMatchReplay } from "@tetraboard/context-record";
 import { D1MatchReadStore } from "../adapters/record/matchReadStore";
 import { matchReadValidation } from "../adapters/record/readValidation";
-import { participantProfiles } from "./matchProfiles";
-import { defaultGameId } from "@tetraboard/protocol/games";
+import { participantProfiles } from "../adapters/record/matchProfiles";
 import { Hono } from "hono";
 import {
   listMatchesContract,
   getMatchContract,
   getMatchReplayContract,
-  type RoomMode,
-  type MatchGame,
-  type MatchHistoryFilter,
 } from "@tetraboard/protocol";
-import { accountIdentity } from "./auth";
+import { accountIdentity } from "../accounts/auth";
 import { readShogiMatchReplayPage } from "../rooms/shogiMatchStore";
-import { readStoredMatch } from "./matchDataContracts";
-
-export async function listMatches(
-  db: D1Database,
-  accountId: string,
-  mode: RoomMode | undefined,
-  cursor: { startedAtMs: number; id: string } | null,
-  game: MatchGame = defaultGameId,
-  includeMoveCount = false,
-  includeMatchKind = false,
-  filter: MatchHistoryFilter = "all",
-) {
-  return listMatchesContract.response.parse(
-    await readMatchHistory(
-      new D1MatchReadStore(db),
-      { accountId, game, mode, cursor, filter },
-      readStoredMatch,
-      (records) => participantProfiles(db, records),
-      { includeMoveCount, includeMatchKind },
-    ),
-  );
-}
+import { readStoredMatch } from "../adapters/record/matchDataContracts";
 
 export const matchRoutes = new Hono<{ Bindings: Env }>();
 matchRoutes.get(listMatchesContract.path, async (c) => {
@@ -52,18 +27,16 @@ matchRoutes.get(listMatchesContract.path, async (c) => {
       filter: c.req.query("filter"),
     });
     if (!query.success) return c.json({ message: "履歴の取得条件が正しくありません。" }, 400);
-    return c.json(
-      await listMatches(
-        c.env.APP_DB,
-        user.id,
-        query.data.mode,
-        query.data.cursor ?? null,
-        query.data.game,
-        query.data.includeMoveCount === "1",
-        query.data.includeMatchKind === "1",
-        query.data.filter,
-      ),
+    const db = c.env.APP_DB;
+    const { game, mode, cursor, filter, includeMoveCount, includeMatchKind } = query.data;
+    const matches = await readMatchHistory(
+      new D1MatchReadStore(db),
+      { accountId: user.id, game, mode, cursor: cursor ?? null, filter },
+      readStoredMatch,
+      (records) => participantProfiles(db, records),
+      { includeMoveCount: includeMoveCount === "1", includeMatchKind: includeMatchKind === "1" },
     );
+    return c.json(listMatchesContract.response.parse(matches));
   } catch {
     console.error("Match history request failed");
     return c.json({ message: "対局履歴を取得できませんでした。もう一度お試しください。" }, 503);
@@ -106,21 +79,20 @@ matchRoutes.get(getMatchReplayContract.path, async (c) => {
     const query = getMatchReplayContract.query.safeParse({ cursor: c.req.query("cursor") });
     if (!params.success || !query.success)
       return c.json({ message: "棋譜の取得条件が正しくありません。" }, 400);
-    const row = await new D1MatchReadStore(c.env.APP_DB).readMatch(params.data.matchId, user.id);
-    if (!row) return c.json({ message: "この棋譜は閲覧できません。" }, 404);
-    const record = readStoredMatch(row.record_json, row.game);
-    if (record.game !== "four-shogi" && record.game !== "shogi")
-      return c.json({ message: "この棋譜は閲覧できません。" }, 404);
-    if (query.data.cursor > record.record.replay.eventCount)
-      return c.json({ message: "棋譜の取得条件が正しくありません。" }, 400);
-    const page = await readShogiMatchReplayPage(
-      c.env.APP_DB,
-      record.record.id,
+    const db = c.env.APP_DB;
+    const result = await readOwnMatchReplay(
+      new D1MatchReadStore(db),
+      params.data.matchId,
+      user.id,
       query.data.cursor,
-      record.game,
+      readStoredMatch,
+      (id, cursor, game) => readShogiMatchReplayPage(db, id, cursor, game),
     );
-    if (!page) throw new Error("Archived replay missing");
-    return c.json(getMatchReplayContract.response.parse({ matchId: record.record.id, ...page }));
+    if (result.status === "not_found")
+      return c.json({ message: "この棋譜は閲覧できません。" }, 404);
+    if (result.status === "invalid_cursor")
+      return c.json({ message: "棋譜の取得条件が正しくありません。" }, 400);
+    return c.json(getMatchReplayContract.response.parse(result.page));
   } catch {
     console.error("Match replay request failed");
     return c.json({ message: "棋譜を取得できませんでした。もう一度お試しください。" }, 503);

@@ -34,7 +34,7 @@ export async function readProfileRating(
   };
 }
 export async function readBeforeRating(
-  store: RatingReader,
+  store: Pick<RatingReader, "before">,
   game: RatingGame,
   matchId: string,
   accountId: string,

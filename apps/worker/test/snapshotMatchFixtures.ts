@@ -1,4 +1,4 @@
-import { readMatchRecord } from "../src/accounts/matchDataContracts";
+import { readMatchRecord } from "../src/adapters/record/matchDataContracts";
 import { encodeSnapshotMatch } from "../src/rooms/snapshotMatchEvents";
 import { matchChunkSize } from "@tetraboard/context-record";
 

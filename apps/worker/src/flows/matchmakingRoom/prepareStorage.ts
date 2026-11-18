@@ -1,5 +1,5 @@
 import type { ProfileRatings, Room } from "@tetraboard/protocol";
-import { profileRatingsKey } from "../../accounts/profileRatings";
+import { profileRatingsKey } from "../../adapters/rating/profileRatings";
 import { withIndexTransaction } from "../../adapters/room/transaction";
 import { appendSystem } from "../../durableObjects/gameRoom/chat";
 import type { RoomCpuCapacity, RoomRuntime } from "../../durableObjects/gameRoom/runtime";

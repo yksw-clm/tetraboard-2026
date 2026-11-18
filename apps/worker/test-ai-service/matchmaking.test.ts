@@ -9,7 +9,7 @@ import {
 import { applyAction, createInitialState, eliminateColor } from "@tetraboard/four-reversi";
 import { accountFixture, origin } from "../test/accountFixtures";
 import { AcceptedGameRequest } from "../test/acceptedGameRequest";
-import { readFourReversiMatchRecord } from "../src/accounts/matchDataContracts";
+import { readFourReversiMatchRecord } from "../src/adapters/record/matchDataContracts";
 import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";
 import { fourReversiCpuJobKey, type FourReversiCpuJob } from "../src/rooms/fourReversiProgress";
 const request = (path: string, init?: RequestInit) =>

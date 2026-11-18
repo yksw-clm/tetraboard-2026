@@ -1,4 +1,4 @@
-import { savedProfileRatings } from "../accounts/profileRatings";
+import { savedProfileRatings } from "../adapters/rating/profileRatings";
 import type { GameTransition } from "@tetraboard/game-contract";
 import type { ReversiState } from "@tetraboard/reversi";
 import type { ReversiEvent } from "@tetraboard/reversi/definition";

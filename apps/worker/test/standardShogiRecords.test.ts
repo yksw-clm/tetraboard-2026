@@ -10,7 +10,7 @@ import {
 } from "@tetraboard/protocol";
 import { readShogiMatchReplayPage } from "../src/rooms/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
-import { readStoredMatch, publicMatchDetail } from "../src/accounts/matchDataContracts";
+import { readStoredMatch, publicMatchDetail } from "../src/adapters/record/matchDataContracts";
 import { accountFixture } from "./accountFixtures";
 import { boundaryRequest } from "./roomBoundaryFixtures";
 import { humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
