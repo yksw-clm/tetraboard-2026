@@ -4,6 +4,5 @@ export * from "./editFeedback";
 export * from "./notifications";
 export * from "./reports";
 export * from "./submitFeedback";
-export {};
 export * from "./chat";
 export * from "./chatReports";
