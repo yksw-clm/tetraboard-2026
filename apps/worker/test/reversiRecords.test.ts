@@ -12,7 +12,7 @@ import { createInitialState, eliminateColor } from "@tetraboard/reversi";
 import archive from "../../../test-fixtures/matches/reversi-standard-draw.json";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import type { MatchRecord } from "../src/rooms/reversiMatchStore";
-import { readMatchRecord, publicMatchDetail } from "../src/accounts/matchDataContracts";
+import { readMatchRecord, publicMatchDetail } from "../src/adapters/record/matchDataContracts";
 import { accountFixture } from "./accountFixtures";
 import { boundaryRequest } from "./roomBoundaryFixtures";
 import { humanFixtureRecord } from "./matchFixtures";

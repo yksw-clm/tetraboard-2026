@@ -2,8 +2,9 @@ import { env, exports } from "cloudflare:workers";
 import { afterEach, expect, test } from "vitest";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { createAuth, withAccountSessionCookies, type StoredProfile } from "../src/accounts/auth";
-import { createGuestAccount } from "../src/accounts/guestAccounts";
-import { completeGuestLink, rememberGuestLink } from "../src/accounts/guestLinking";
+import { createGuestAccount } from "../src/routes/guestSession";
+import { rememberGuestLink } from "../src/flows/guestRegistration/guestLink";
+import { completeGuestLink } from "../src/routes/guestLinkOAuth";
 import { accountFixture, origin } from "./accountFixtures";
 
 const users: string[] = [];

@@ -54,7 +54,7 @@ export function BrowserSettingsButton({
   const [localOpen, setLocalOpen] = useState(false);
   const open = isOpen ?? localOpen;
   const anchor = useRef<HTMLButtonElement>(null);
-  const { soundEnabled } = useBrowserSettings();
+  const { soundEnabled, boardAnimationsEnabled } = useBrowserSettings();
   function setOpen(value: boolean) {
     if (onOpenChange) onOpenChange(value);
     else setLocalOpen(value);
@@ -101,6 +101,21 @@ export function BrowserSettingsButton({
               </Switch.Content>
             </Switch>
             <StampVisibilitySetting />
+            <Switch
+              aria-label="着手アニメーション"
+              isSelected={boardAnimationsEnabled}
+              onChange={(boardAnimationsEnabled) =>
+                browserSettings.update({ boardAnimationsEnabled })
+              }
+              className="w-full [--switch-control-bg-checked:var(--color-brand)] [--switch-control-bg-checked-hover:var(--color-brand-hover)]"
+            >
+              <Switch.Content className="w-full min-h-12 justify-between gap-3 rounded-control text-sm">
+                <Label className="text-ink font-[650]">着手アニメーション</Label>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+              </Switch.Content>
+            </Switch>
           </div>
           <p className="mt-4 text-xs leading-relaxed text-muted">このブラウザで共通の設定です。</p>
           <p className="mt-2 text-xs leading-relaxed text-muted">

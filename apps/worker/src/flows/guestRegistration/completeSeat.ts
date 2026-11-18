@@ -1,4 +1,4 @@
-import type { AccountAdmission } from "../../accounts/roomAccounts";
+import type { AccountAdmission } from "../accountSeats/types";
 import { readMembership, readRoom } from "../../adapters/room/state";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import {

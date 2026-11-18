@@ -15,8 +15,8 @@ import { standardShogiRecord } from "./standardShogiFixtures";
 import { shogiRecord } from "./shogiMatchFixtures";
 import { fixtureRecord } from "./matchFixtures";
 import archive from "../../../test-fixtures/matches/reversi-standard-draw.json";
-import { readMatchRecord } from "../src/accounts/matchDataContracts";
-import { profileRatingsKey } from "../src/accounts/profileRatings";
+import { readMatchRecord } from "../src/adapters/record/matchDataContracts";
+import { profileRatingsKey } from "../src/adapters/rating/profileRatings";
 import { redactRetiredParticipants } from "../src/privacy/identity";
 
 const games = ["shogi", "reversi", "four-shogi", "four-reversi"] as const;

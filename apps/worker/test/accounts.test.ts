@@ -5,7 +5,7 @@ import { expect, test, vi } from "vitest";
 import { accountAvatarPresetId, avatarPresetUrl, createRoomContract } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
 import { createAuth } from "../src/accounts/auth";
-import { deleteUnusedAvatars, validAvatar } from "../src/accounts/accountRoutes";
+import { deleteUnusedAvatars, validAvatar } from "../src/routes/accountAvatars";
 import { dispatchInTestContext } from "./dispatchInTestContext";
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));

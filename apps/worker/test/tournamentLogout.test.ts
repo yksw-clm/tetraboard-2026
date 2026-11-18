@@ -3,7 +3,7 @@ import { afterEach, expect, test } from "vitest";
 import { runInDurableObject } from "cloudflare:test";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
-import { accountRoutes } from "../src/accounts/accountRoutes";
+import { accountRoutes } from "../src/routes/accountRoutes";
 
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));

@@ -4,8 +4,8 @@ import {
   type MatchDataContract,
   type RecordFor,
   type StatsFor,
-} from "../src/accounts/matchDataContracts";
-import { gameOutcomeSql, type OutcomeSqlFor } from "../src/accounts/matchOutcomes";
+} from "../src/adapters/record/matchDataContracts";
+import { gameOutcomeSql, type OutcomeSqlFor } from "../src/adapters/record/matchOutcomes";
 declare const reversi: RecordFor<"four-reversi">;
 declare const shogi: RecordFor<"four-shogi">;
 declare const reversiStats: StatsFor<"four-reversi">;
@@ -37,7 +37,7 @@ import {
   matchDetail,
   type DecodedMatch,
   type ReplayedMatch,
-} from "../src/accounts/matchDataContracts";
+} from "../src/adapters/record/matchDataContracts";
 declare const storedReversi: StoredRecord<RecordFor<"four-reversi">>;
 // @ts-expect-error D1の本体には再生後のstepsが必要な棋譜を渡せない
 const wrongStored: StoredRecord<RecordFor<"four-reversi">> = reversi;

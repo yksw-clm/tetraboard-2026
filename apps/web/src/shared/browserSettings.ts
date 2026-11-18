@@ -1,7 +1,15 @@
 export const browserSettingsKey = "tetraboard:settings:v1";
-export type BrowserSettings = { soundEnabled: boolean; stampsVisible: boolean };
+export type BrowserSettings = {
+  soundEnabled: boolean;
+  stampsVisible: boolean;
+  boardAnimationsEnabled: boolean;
+};
 export type BrowserSettingsSnapshot = BrowserSettings & { storageError: boolean };
-const defaults: BrowserSettings = { soundEnabled: true, stampsVisible: true };
+const defaults: BrowserSettings = {
+  soundEnabled: true,
+  stampsVisible: true,
+  boardAnimationsEnabled: true,
+};
 
 export function parseBrowserSettings(value: string | null): BrowserSettings {
   try {
@@ -11,6 +19,8 @@ export function parseBrowserSettings(value: string | null): BrowserSettings {
     return {
       soundEnabled: typeof fields.soundEnabled === "boolean" ? fields.soundEnabled : true,
       stampsVisible: typeof fields.stampsVisible === "boolean" ? fields.stampsVisible : true,
+      boardAnimationsEnabled:
+        typeof fields.boardAnimationsEnabled === "boolean" ? fields.boardAnimationsEnabled : true,
     };
   } catch {
     return defaults;
@@ -50,6 +60,7 @@ export class BrowserSettingsStore {
     if (
       next.soundEnabled === this.snapshot.soundEnabled &&
       next.stampsVisible === this.snapshot.stampsVisible &&
+      next.boardAnimationsEnabled === this.snapshot.boardAnimationsEnabled &&
       next.storageError === this.snapshot.storageError
     )
       return;
@@ -62,6 +73,9 @@ export class BrowserSettingsStore {
     const next = {
       soundEnabled: stored.storageError ? this.snapshot.soundEnabled : stored.soundEnabled,
       stampsVisible: stored.storageError ? this.snapshot.stampsVisible : stored.stampsVisible,
+      boardAnimationsEnabled: stored.storageError
+        ? this.snapshot.boardAnimationsEnabled
+        : stored.boardAnimationsEnabled,
       ...this.unsaved,
       ...change,
     };

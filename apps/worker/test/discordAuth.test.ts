@@ -2,7 +2,7 @@ import { legalVersion } from "@tetraboard/protocol/privacy";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env, exports } from "cloudflare:workers";
 import { expect, test, vi } from "vitest";
-import { accountRoutes } from "../src/accounts/accountRoutes";
+import { accountRoutes } from "../src/routes/accountRoutes";
 import { accountFixture, origin } from "./accountFixtures";
 
 const request = (path: string, init?: RequestInit) =>

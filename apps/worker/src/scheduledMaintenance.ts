@@ -1,10 +1,10 @@
 import { cleanupLobbyChat } from "./lobby/chatStore";
 import { processDeletions } from "./privacy/deletion";
-import { recoverAccountReservations } from "./accounts/roomAccounts";
-import { retryPendingMatchClaims } from "./accounts/matchClaims";
+import { recoverAccountReservations } from "./flows/accountSeats/reserve";
+import { retryPendingMatchClaims } from "./adapters/record/matchClaims";
 import { deleteExpiredReports } from "./rooms/reportStore";
 import { cleanupFeedback } from "./feedback/store";
-import { deleteUnusedAvatars } from "./accounts/accountRoutes";
+import { deleteUnusedAvatars } from "./routes/accountAvatars";
 import { recoverTournaments } from "./adapters/tournament/recovery";
 import { matchmakingQueueKeys } from "@tetraboard/protocol";
 import { savePreviousMonthKpi } from "./kpi/monthly";

@@ -1,6 +1,6 @@
 import type { RoomStatePort } from "@tetraboard/context-room";
 import { roomMembershipSchema, roomSchema, tournamentRules } from "@tetraboard/protocol";
-import type { AccountAdmission } from "../../accounts/roomAccounts";
+import type { AccountAdmission } from "../../flows/accountSeats/types";
 import { appendSystem } from "../../durableObjects/gameRoom/chat";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { hasOpenConnection } from "../../durableObjects/gameRoom/socket/membership";

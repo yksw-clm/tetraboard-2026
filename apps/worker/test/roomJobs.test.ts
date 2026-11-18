@@ -1,9 +1,10 @@
+import type { AccountAdmission } from "../src/flows/accountSeats/types";
 import { isReversiRoom } from "@tetraboard/protocol";
 import { getLegalMoves } from "@tetraboard/reversi";
 import { runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { expect, test, vi } from "vitest";
-import * as accounts from "../src/accounts/roomAccounts";
+import * as seats from "../src/adapters/room/seatReservations";
 import { publicMetadata } from "../src/adapters/room/metadata";
 import * as indexes from "../src/rooms/roomIndex";
 import { pendingTournamentStatePrefix } from "@tetraboard/context-tournament";
@@ -26,8 +27,8 @@ function holdWrite(kind: "index" | "cleanup" | "tournament") {
     return { started, release, spy };
   }
   if (kind === "cleanup") {
-    const original = accounts.releaseReservation;
-    const spy = vi.spyOn(accounts, "releaseReservation").mockImplementationOnce(async (...args) => {
+    const original = seats.releaseReservation;
+    const spy = vi.spyOn(seats, "releaseReservation").mockImplementationOnce(async (...args) => {
       await wait();
       await original(...args);
     });
@@ -95,7 +96,7 @@ test("refreshLobbyIndexは前の索引反映のAlarm待ちに保存した新し�
 });
 
 async function seedD1Rows(db: D1Database, roomId: string, instanceId: string) {
-  const reservation: accounts.AccountAdmission = {
+  const reservation: AccountAdmission = {
     accountId: crypto.randomUUID(),
     operationId: crypto.randomUUID(),
     roomId,

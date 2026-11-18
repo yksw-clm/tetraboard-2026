@@ -50,7 +50,6 @@ jobs:
               - 'apps/worker/src/adapters/**'
               - 'apps/worker/src/routes/**'
               - 'apps/worker/src/worker.ts'
-              - 'apps/worker/src/accounts/matchDataContracts.ts'
               - 'apps/worker/test/roomBoundaryFixtures.ts'
               - 'apps/worker/test/accountFixtures.ts'
               - 'apps/worker/test/acceptedGameRequest.ts'

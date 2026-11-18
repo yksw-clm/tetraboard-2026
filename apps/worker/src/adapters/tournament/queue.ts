@@ -1,4 +1,8 @@
-import { tournamentWaitFence, prepareTournamentWaitFence } from "../../flows/accountSeats/fences";
+import {
+  tournamentWaitFence,
+  prepareTournamentWaitFence,
+  prepareTournamentWaitMergedAbort,
+} from "../../flows/accountSeats/fences";
 import type {
   TournamentQueueStore,
   Waiting,
@@ -58,6 +62,7 @@ export class D1TournamentQueueStore implements TournamentQueueStore {
         WHERE tournament_wait_reservations.operation_id=excluded.operation_id`)
         .bind(player.accountId, key, player.operationId, player.expiresAtMs, ...fence.values),
       prepareTournamentWaitFence(this.db, player.accountId),
+      prepareTournamentWaitMergedAbort(this.db, player.accountId),
     ]);
     if (!results[0].meta.changes) {
       const reason = results[1].results[0]?.code;
@@ -150,6 +155,7 @@ export class D1TournamentQueueStore implements TournamentQueueStore {
         )
         .bind(wait.accountId, key, wait.operationId, wait.expiresAtMs, ...fence.values),
       prepareTournamentWaitFence(this.db, wait.accountId),
+      prepareTournamentWaitMergedAbort(this.db, wait.accountId),
     ]);
     if (!results[2].meta.changes) {
       const reason = results[3].results[0]?.code;

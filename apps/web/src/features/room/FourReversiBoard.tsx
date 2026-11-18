@@ -3,6 +3,8 @@ import { Stone } from "./Stone";
 import { Button } from "@heroui/react";
 import type { FourReversiState, Position } from "@tetraboard/four-reversi";
 import { colorNames } from "./stonePresentation";
+import { useBoardMotion } from "./useBoardMotion";
+import type { BoardMotionContext } from "./boardMotion";
 
 export function FourReversiBoard({
   game,
@@ -11,7 +13,9 @@ export function FourReversiBoard({
   onPlaceStone,
   rotation = 0,
   label = "四人リバーシの盤面",
+  motion,
 }: {
+  motion?: BoardMotionContext | null;
   rotation?: QuarterTurn;
   game: Pick<FourReversiState, "board" | "lastMove">;
   label?: string;
@@ -19,8 +23,16 @@ export function FourReversiBoard({
   canPlay: boolean;
   onPlaceStone: (position: Position) => void;
 }) {
+  const boardRef = useBoardMotion({
+    context: motion,
+    orientation: rotation,
+    cells: game.board,
+    destination: game.lastMove,
+    flip: true,
+  });
   return (
     <div
+      ref={boardRef}
       className="[grid-area:board] w-[var(--board-size)] aspect-square place-self-center grid grid-cols-8 grid-rows-8 bg-[#238657] border-2 border-solid border-[#175c3d] rounded-[3px] shadow-[0_10px_25px_#19402a20] overflow-hidden"
       role="group"
       aria-label={label}
@@ -40,7 +52,7 @@ export function FourReversiBoard({
               isDisabled={!legal}
               onPress={() => onPlaceStone({ x, y })}
             >
-              {cell && <Stone color={cell} className="absolute inset-[12%]" />}
+              {cell && <Stone color={cell} square={`${x},${y}`} className="absolute inset-[12%]" />}
               {legal && (
                 <span
                   className="absolute block w-[17%] aspect-square rounded-full bg-[#daf1d4a3]"

@@ -69,7 +69,7 @@ mise exec -- bun run --cwd apps/worker db:generate -- <名前>
 
 | 変更対象                                 | 仕様の正本                                                                                                                                                        | 開発文書の該当節と主な実装                                                                                                                                                                                                                                                                    | テストの入口                                                                                                                                                                                           |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 終局後の登録・対局引き継ぎ               | [共通仕様](../README.md#終局後の登録と継続再戦)                                                                                                                   | [実装と完了条件](#任意登録の案内と画面復帰)、[構成](architecture.md#終局後の登録フローと記録の帰属)、[registrationRoutes.ts](../apps/worker/src/accounts/registrationRoutes.ts)、[matchClaims.ts](../apps/worker/src/accounts/matchClaims.ts)                                                 | [受入検証](testing.md#終局後の登録引き継ぎ)                                                                                                                                                            |
+| 終局後の登録・対局引き継ぎ               | [共通仕様](../README.md#終局後の登録と継続再戦)                                                                                                                   | [実装と完了条件](#任意登録の案内と画面復帰)、[構成](architecture.md#終局後の登録フローと記録の帰属)、[registrationRoutes.ts](../apps/worker/src/routes/registrationRoutes.ts)、[matchClaims.ts](../packages/contexts/record/src/use-cases/matchClaims.ts)                                                 | [受入検証](testing.md#終局後の登録引き継ぎ)                                                                                                                                                            |
 | 認証・プロフィール・参加資格             | [認証とプロフィール](../README.md#googlediscord認証とプロフィール)、[参加](specs/room.md#対局部屋と参加)                                                           | [認証と移行](#google認証とアカウント移行)、[アカウント参加](#アカウントでのルーム参加)、[auth.ts](../apps/worker/src/accounts/auth.ts)、[AccountSession.tsx](../apps/web/src/features/account/AccountSession.tsx)                                                                             | [accounts.test.ts](../apps/worker/test/accounts.test.ts)、[accountSession.test.tsx](../apps/web/test-dom/accountSession.test.tsx)                                                                      |
 | プライバシー・規約・退会・計測期限       | [確定仕様](../README.md#プライバシー利用規約退会の確定仕様)                                                                                                       | [実装計画](#プライバシー規約退会の実装計画)、認証・棋譜・ルーム・計測・フィードバックの既存入口                                                                                                                                                                                               | [検証と公開前の確認](testing.md#プライバシー規約退会の確認)                                                                                                                                            |
 | 時計・接続・ルーム進行                   | [投了、通信切れと持ち時間](specs/room.md#投了通信切れと持ち時間)                                                                                                   | [共有transport](#共有transportとゲーム別session)、[ルームの実装の入口](#ルームの実装の入口)、[clockCore.ts](../apps/worker/src/rooms/clockCore.ts)、[useRoomTransport.ts](../apps/web/src/features/room/useRoomTransport.ts) | [timeControl.test.ts](../apps/worker/test/timeControl.test.ts)、[roomTransportLifecycle.test.tsx](../apps/web/test-dom/roomTransportLifecycle.test.tsx)                                                |
@@ -252,7 +252,7 @@ Done Whenは全駒・禁止手・詰み・千日手・持将棋・入玉・500�
 - [packages/gomoku](../packages/gomoku/src/index.ts) が15路・手番・勝敗・外部敗北・全空点の合法手を扱います。[forbidden.ts](../packages/gomoku/src/forbidden.ts) は三三の発展先を再帰的に検証します。CPU専用の [cpu.ts](../packages/gomoku/src/cpu.ts) は `@tetraboard/gomoku/cpu` からWorkerだけが読み込みます。採用した探索上限・評価係数は[ルール正本](rules/gomoku.md#cpu)を参照します。
 - [gomokuProgress.ts](../apps/worker/src/rooms/gomokuProgress.ts) が配席・開始・着手・時計・終局・CPUを担当し、GameRoomの共通ライフサイクルへ接続します。CPUは候補をDOへ保存して次Alarmで期限を再確認し、同期計算時間を時計へ反映します。更新・終局・閉鎖時は候補を破棄します。時計の計算は既存の2色用モジュールを共用します。
 - 着手通信は `placeGomokuStone` と0〜14の座標、必須の `roundId`・`positionRevision` を使います。既存リバーシの `placeStone` と0〜7の契約を維持します。禁手設定は待機中のホストだけが変更でき、対局開始時の設定はゲーム状態・対局記録・直前局に保持します。
-- [gomokuMatchStore.ts](../apps/worker/src/rooms/gomokuMatchStore.ts) と [gomokuMatchData.ts](../apps/worker/src/accounts/gomokuMatchData.ts) が保存・読取り・公開／本人棋譜・集計を接続します。D1の既存テーブルと再送処理を使い、新しいマイグレーションはありません。規則版1の局面列は [replay.ts](../packages/gomoku/src/replay.ts) で全着手を再実行し、途中・最終局面を照合します。
+- [gomokuMatchStore.ts](../apps/worker/src/rooms/gomokuMatchStore.ts) と [gomokuMatchData.ts](../apps/worker/src/adapters/record/gomokuMatchData.ts) が保存・読取り・公開／本人棋譜・集計を接続します。D1の既存テーブルと再送処理を使い、新しいマイグレーションはありません。規則版1の局面列は [replay.ts](../packages/gomoku/src/replay.ts) で全着手を再実行し、途中・最終局面を照合します。
 - [GomokuLobbyPage](../apps/web/src/features/lobby/GomokuLobbyPage.tsx)、[GomokuRoomDetail](../apps/web/src/features/room/GomokuRoomDetail.tsx)、[GomokuMatchReplayView](../apps/web/src/features/room/GomokuMatchReplayView.tsx) を登録します。SVGの15路盤・上下カード・紫テーマ・座標表記を専用の画面で扱い、接続・設定・チャット・スタンプ・棋譜操作を共用します。禁手はクライアントとサーバーで検査し、本人の3秒toastへ接続します。
 - 固定棋譜と境界の確認は[テスト文書](testing.md#五目並べの確認)にまとめています。実機の入力・寸法・音声は自動検証の対象外とし、PRで実施結果または未確認事項を報告します。
 
@@ -322,7 +322,7 @@ GameIdを追加すると型付きの必須登録が一斉に必要になるた�
 
 - [packages/four-gomoku](../packages/four-gomoku/src/index.ts) が15路・4色・両モード・順位を扱います。`completedColors` と `eliminatedColors` を分け、`standings` と `winningLines` は継続中も保持します。[CPU](../packages/four-gomoku/src/cpu.ts) は専用入口だけから読み込みます。探索方式・値は[ルール正本](rules/four-gomoku.md#cpu)を参照します。
 - [fourGomokuProgress.ts](../apps/worker/src/rooms/fourGomokuProgress.ts) が配席・着手・期限・CPU・全体終局を共通ライフサイクルへ接続します。通信は専用の `placeFourGomokuStone` に `roundId` と `positionRevision` を要求します。途中順位ではplayingを維持し、最後の確定で保存・結果・再戦へ進みます。
-- [fourGomokuMatchData.ts](../apps/worker/src/accounts/fourGomokuMatchData.ts) が規則版1の全局面再生と保存理由を照合します。共通D1保存とモード別SQLを利用し、既存ゲームの契約は維持します。
+- [fourGomokuMatchData.ts](../apps/worker/src/adapters/record/fourGomokuMatchData.ts) が規則版1の全局面再生と保存理由を照合します。共通D1保存とモード別SQLを利用し、既存ゲームの契約は維持します。
 - [FourGomokuRoomView](../apps/web/src/features/room/FourGomokuRoomView.tsx) と [FourGomokuMatchReplayView](../apps/web/src/features/room/FourGomokuMatchReplayView.tsx) は4カード・途中順位・90度回転を扱います。木の盤面の描画は通常版と共用し、エンジンは別の遅延チャンクです。待機カードは現在の準備状態、保存棋譜カードは選択したフレームの順位を表示します。
 - 各色の最終手は表示用の省略可能な `lastMoves` として確定着手時に更新し、脱落・勝ち抜けでも保持します。旧進行局は `FourGomokuProgress.normalize` が永続棋譜から復元します。旧保存棋譜は `replayV1` の再実行で得た局面をWebのフレームへ使い、未来の最終手を持ち込みません。規則版1の勝敗照合には表示用情報を含めません。通常版と共用の `GomokuBoard` はSVGと操作領域に同じ寸法定数を使います。
 - [検証範囲と部分実行](testing.md#四人五目並べの確認)を参照してください。既存5ゲームと新ゲームの全体回帰・必須検証と実機未確認事項はPRへ記録します。
@@ -448,6 +448,8 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 
 `shared/browserSettings.ts` のページ共通ストアがlocalStorageの初期読取・項目単位の検証・最新値との合成書込・storage／pageshow／visibilitychangeの同期を扱います。保存できない変更は別に保持し、古い保存値による取消を防ぎます。React側は `useBrowserSettings` の `useSyncExternalStore` で同じsnapshotを購読します。
 
+着手アニメーションは同じストアの `boardAnimationsEnabled` を `useBoardMotion` が購読します。OFFで再生中の演出を破棄し、OFF中も表示局面を記録するため、ONへ戻しても見送った着手を再演しません。旧保存値にこの項目がない場合はONで補います。
+
 `shared/ui/BrowserSettings.tsx` の設定ボタン・スイッチ・保存補足をヘッダー、ルーム情報、保存棋譜、スタンプパネルで共用します。ルームは `RoomViewShell` の既存ダイアログ状態に設定を追加し、結果自動表示・スタンプパネルとの競合を抑止します。`RoomInfoCard` の見出し行に24pxのボタンを収め、行・カードの高さを維持します。パネルの幅は244pxを基本とし、6種類の選択を3列2行で中央に残し、その下へ表示設定を置きます。送信制限とパネルを開く操作を分離し、送信待ち・制限中でも設定を変更できます。
 
 音声はストアの初期値・購読を既存 `SoundPlayer.setEnabled` へつなぎ、OFF中はAudioContextの有効化も行いません。スタンプは表示を即時に空へ切り替え、共有ストアの購読でタイマーと演出を破棄します。受信時には最新の設定を参照し、transportの通知ID消費・重複抑止を継続します。
@@ -569,7 +571,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
   - ゲームの違いは `apps/worker/src/rooms/gameAdapters/` のアダプター（ゲームのポートの実装）に閉じ込め、殻と use-case ではゲームの種類で分岐しません。
 - ゲームごとの進行は `*Progress.ts` にあり、ゲーム契約（`gameDefinitions.ts`）と room の文脈の `checkGameCommand` を使います。外部 AI のジョブは `externalCpu.ts` です。
 - 時計は `clockCore.ts`（席 ID を型パラメータとする純粋な計算）と、ゲームごとの wrapper（`clock.ts`、`shogiClock.ts`、`reversiClock.ts`）です。期限の選択は `roomDeadlines.ts` の純粋関数です。
-- 1 アカウント 1 席（通常ルームの席、レート戦の待機、大会の待機を合わせて 1 つ）は、`flows/accountSeats/fences.ts` の条件で守ります（TB-118）。3 つの表（`account_room_seats`、`matchmaking_wait_reservations`、`tournament_wait_reservations`）への挿入は、すべてこの条件をつけた `INSERT ... SELECT ... WHERE` です。挿入されなかったときは、同じファイルの関数で理由を読み直します。挿入する場所が決めたファイルの外に増えていないことは、`test-bun/accountSeatFenceBoundaries.test.ts` が確かめます。以前は D1 のトリガー 5 つが同じことを守っていましたが、TB-130 で消しました。トリガーがないので、この条件とテストが唯一の守りです。
+- 1 アカウント 1 席（通常ルームの席、レート戦の待機、大会の待機を合わせて 1 つ）は、`flows/accountSeats/fences.ts` の条件で守ります（TB-118）。統合済みのゲストの席、大会の待機、大会のエントリーを止める条件も同じファイルにあります（TB-136）。席の予約は `flows/accountSeats/reserve.ts`、`entryProfile.ts` と `adapters/room/seatReservations.ts` です（旧 `accounts/roomAccounts.ts`）。3 つの表（`account_room_seats`、`matchmaking_wait_reservations`、`tournament_wait_reservations`）への挿入は、すべてこの条件をつけた `INSERT ... SELECT ... WHERE` です。挿入されなかったときは、同じファイルの関数で理由を読み直します。挿入する場所が決めたファイルの外に増えていないことは、`test-bun/accountSeatFenceBoundaries.test.ts` が確かめます。以前は D1 のトリガー 5 つが同じことを守っていましたが、TB-130 で消しました。トリガーがないので、この条件とテストが唯一の守りです。
 - CPU の最低待ち時間は `progressHelpers.ts` の `cpuMoveDelayMs` を全ゲームで共用します。
 - CPU 付きのルームの作成（`POST /rooms`）は、任意の `cpuLevel: 1 | 2` を受け取ります。未指定は Lv1、不正な値は 400 です。`waitingRoomFactories` が全ての CPU に当てます。
 
@@ -582,7 +584,18 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 - `packages/contexts/rating/src/domain/`: Elo の計算（`elo.ts`）、skill の計算（`skill.ts`。openskill の Plackett-Luce。CPU の較正の `packages/ai/scripts/` もこれを使う）、公開のレートへの換算、配置戦とレート戦の時計の判定（`policy.ts`）、ランキングの並べ方。純粋な関数です。
 - `packages/contexts/rating/src/use-cases/`: 対局の結果からレートの変化を決める処理、要約と結果、ランキング、保存待ちの予約と取り消し、最新のレート。D1 は `ports.ts` の `RatingReader`、`RatingPublication`、`SkillRatingStore` で読み書きし、棋譜の公開と同じ batch に入れる書き込みは実行せずに返します。Cloudflare と zod に依存しません。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
 - `apps/worker/src/adapters/rating/`: ポートの D1 の実装。テーブルは `elo_rating_changes`、`skill_rating_changes`、`elo_rating_pending`、`skill_rating_pending`（`game` の列でゲームを分ける）。
-- レートの zod のスキーマ（`rooms/eloRating.ts`、`fourReversiRating.ts` など）、ルートの入口（`rooms/rankingRoutes.ts`、`accounts/profileRatings.ts`）、マッチングからの呼び出しは worker に残ります。Elo は棋譜の公開と同じ batch、skill は公開の直後に反映します（`flows/matchSave/`）。
+- レートの zod のスキーマ（`rooms/eloRating.ts`、`fourReversiRating.ts` など）、ルートの入口（`rooms/rankingRoutes.ts`）。プロフィールのレートの読み取りは rating の文脈の `use-cases/profileRatings.ts`（TB-139）、マッチングからの呼び出しは worker に残ります。Elo は棋譜の公開と同じ batch、skill は公開の直後に反映します（`flows/matchSave/`）。
+
+## アカウントの入口
+
+アカウントの本人確認、プロフィール、ゲストの作成、登録の流れ、ゲストの統合と昇格は、ADR 0010 の形に分かれています（TB-134、TB-135、TB-141）。
+
+- `packages/contexts/account/src/domain/`: 公開プロフィールの形、画像の URL、プロフィールの詳細、現在のプロフィール、時刻の表し方。純粋な関数です。
+- `packages/contexts/account/src/use-cases/`: 現在のプロフィールの読み取り、プレイヤー情報、プロフィールの保存。D1 は `ports.ts` のポートで受け取ります。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
+- `apps/worker/src/adapters/account/`: ポートの D1 の実装と、ゲストの本人確認（`guestIdentity.ts`）。ゲストの本人確認は、期限の延長（条件つきの UPDATE）と本人の読み取り（SELECT）を 1 回の batch で行います（C07）。最終利用から 180 日の期限と失効の判定は変えていません。
+- 登録の流れ: 文脈の `domain/registration.ts`、`registrationStatus.ts`、`use-cases/registration.ts`、`registrationWrites.ts`。D1 で 1 つの batch にまとめる書き込みは、実行せずに返します。ルームの席を扱う部分は `flows/guestRegistration/` が room の側と結びます。
+- ゲストの統合と昇格: 文脈の `domain/guestLink.ts`（前提の判定）、`use-cases/guestMerge.ts`、`guestLink.ts`、`guestLinkChecks.ts`。D1 の実装は `adapters/account/guestLinks.ts`、`guestLinkWrites.ts` です。統合では、account の use-case が前提の検査と account の書き込みを返し、`flows/guestRegistration/guestLink.ts` がほかの文脈の付け替え（保持した席、フィードバック、棋譜、チャット、通知、大会、プライバシーの索引、バッジ。各文脈の adapter の `guestMergeWrites.ts`）を決まった順に挟んで、1 回の D1 の batch で確定します。通知はバッジより先に付け替えます（逆にすると通知が作り直され、中身からバッジが落ちます。`guestAccounts.test.ts` の回帰テストが確かめます）。統合、昇格、ルームの引き継ぎの確定、登録の流れのフェンスは、条件つきの書き込みです（`adapters/account/guestLinkFences.ts`、`registrationFence.ts`、TB-136）。拒まれたときは、同じ batch の中で `db/fenceAbort.ts` がわざと SQLite のエラーを起こし、batch 全体（ほかの文脈の付け替えを含む）を取り消します。エラーの文面に拒否の符号（`guest_merge_conflict` など）が入るので、ルートはそれで応答を決めます。同じ働きの古いトリガーは、TB-138 で消すまで残ります（条件で行が作られないので発火しません）。挿入の場所が決めたファイルの外に増えていないことは `test-bun/guestFenceBoundaries.test.ts` が確かめます。
+- `apps/worker/src/routes/`: `accountRoutes.ts`、`accountAuthRoutes.ts`、`playerProfileRoutes.ts`、`guestRoutes.ts`、`registrationRoutes.ts`、`guestLinkRoutes.ts`、`guestLinkOAuth.ts` など HTTP の入口。better-auth と Cookie は殻に残ります（`accounts/auth.ts`）。
 
 ## マッチングの入口
 
@@ -631,12 +644,15 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 
 ## 棋譜の保存と読み取りの入口
 
-棋譜の保存（TB-108）と読み取り（TB-109）は、ADR 0010 の形に分かれています。戦績、ランキング、バッジ、使用戦型は、まだ `apps/worker/src/accounts/` と `rooms/` にあります。
+棋譜の保存（TB-108）と読み取り（TB-109）、戦績、戦法別の戦績、バッジ、本人の棋譜の一覧、対局の引き継ぎ（TB-139）は、ADR 0010 の形に分かれています。ランキングと使用戦型は、まだ `apps/worker/src/rooms/` にあります。
 
 - `packages/contexts/record/src/domain/`: イベント形式の本体の作り方、チャンクへの分け方と件数と連続の検査、チャンクからの再生と照合、棋譜を API の形（詳細、公開の詳細、要約）に整える関数。純粋な関数で、依存は `@tetraboard/protocol` だけです。ゲームの契約での再生は、worker から関数として渡します。
 - `packages/contexts/record/src/use-cases/`: 読み取り（詳細、本人の履歴の絞り込みとページング、公開の一覧とロビーの最近の対局、将棋の再生のページ、ゲストの棋譜の引き継ぎの判定。`readPorts.ts` の `MatchReadStore` と `MatchClaimReadStore`）と、保存の進め方（アップロード → チャンク → 公開）、再送、内容の違う再送の拒否、保存済みの判定、将棋の 1 回のイベントの上限。D1 は `ports.ts` の `MatchRecordStore` で読み書きし、公開の書き込みは実行せずに返します。Cloudflare と zod に依存しません。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
 - `apps/worker/src/adapters/record/`: ポートの D1 の実装、公開の後の確認の SQL、zod とゲームの契約での読み取りの検証（`readValidation.ts`）。ルートの入口（`accounts/matchRoutes.ts`、`rooms/publicMatchRoutes.ts`、`lobby/routes.ts`）は worker に残り、応答を protocol のスキーマで検証します。
+- 戦績、戦法別の戦績、バッジ、本人の棋譜の一覧、対局の引き継ぎ（TB-139）: 文脈の `domain/accountStats.ts`、`badges.ts`、`matchProfiles.ts`、`use-cases/accountStats.ts`、`badgeAwards.ts`、`badgeNotifications.ts`、`matchProfiles.ts`、`matchClaims.ts`。バッジと履歴の書き込みは実行せずに返し、棋譜の公開と同じ batch に入れます。ルートは `apps/worker/src/routes/` の `statsRoutes.ts`、`formationStatsRoutes.ts`、`badgeNotificationRoutes.ts`、`matchRoutes.ts` です。
 - `apps/worker/src/flows/matchSave/`: 文脈をまたぐ組み立て。退会の伏せ字、zod とゲームの契約での検証、履歴の索引、レート、バッジ、使用戦型、大会の結果、棋譜の引き継ぎを、record の公開と同じ batch か直後に並べます。batch の区切りと順序を変えるときは、保存の約束（[ルームの仕様](specs/room.md)）と照らし合わせます。
+
+統合済みのゲスト（`guest_account_merges`）の対局が統合の後に保存されたときは、`matches`、`match_uploads`、`account_match_history` への挿入の SQL の中で、参加者を統合先のアカウントに書き換えます（`adapters/record/guestMerges.ts`、TB-137）。3 つの表への挿入は決めたファイルにしかなく、そのことを `test-bun/guestMergeRecordBoundaries.test.ts` が確かめます。同じ働きの古いトリガー 3 つは、TB-138 で消すまで残ります。
 
 ## 総合ロビーの実装計画
 
@@ -870,6 +886,12 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 `FourShogiBoardLayout` のマウント直後に、木目画像1枚と上下各9種類の駒画像、計19画像をブラウザ既定の優先度で一括準備します。現在の盤面のデコード完了は待ちません。参加・観戦・再戦・ルーム内棋譜・保存済み棋譜で同じ仕組みを使い、表示・通信・操作・時計は準備を待ちません。ロビーの装飾盤面は専用WebP画像だけを表示し、ルームの盤・駒画像は入室時に準備します。リバーシやアバター・効果音は対象に含めません。
 
 `shogiComponents.test.tsx` は偽の画像loaderで全19URLの準備・重複排除・成功と失敗の保持、移動直後の画像表示、初回準備中・失敗時の文字、旧URLの完了と購読解除を確認します。捕獲・打ち駒・成り後の盤面と持ち駒、ドラッグ、成り候補、回転・再戦・棋譜相当の再表示も共有状態で確認します。実デコード・実描画・低速回線は自動検証に含めず、iOS Safariで参加・観戦時の着手と画像表示を手動確認します。
+
+### 着手の演出
+
+仕様は[ルーム仕様](specs/room.md#着手の演出)を参照します。`roomBoardMotion` は接続中の局と手数を表示へ渡し、`useBoardMotion` は確定した描画同士を比較します。共有将棋盤は `boardRef` と各駒の `data-board-piece` だけを公開し、編集用の盤面や保存棋譜では演出を起動しません。リバーシの反転色は `effects.css` の石のグラデーションを参照します。
+
+演出の完了をゲーム状態へ反映せず、Web Animations APIで表示要素だけを動かします。盤面変更・回転・切断・画面の非表示・動きを減らす設定への変更・アンマウントで再生中の演出を解除します。同じ駒配置を確定する通知では先行表示の着地を継続します。
 
 ### 共通の実行方法
 
@@ -1179,9 +1201,9 @@ OAuthトークンは認証ライブラリで暗号化して保存し、解除時
 
 ## ゲストアカウント（#234）
 
-利用者向けの正本はREADMEの「ゲストアカウントの確定仕様」です。`guestAccounts.ts` は入力確定後の作成・名前変更と専用HttpOnly Cookieを担当し、公開チャットでも名前確定時だけ作成して閲覧では作成しません。`guestNameCustomized` と `isAnonymous` を使います。`guestUsernames.ts` はゲストの表示用IDの生成と衝突判定を担当します。作成時に表示用ID・アカウント・本人資格・同意を同じD1 batchで確定し、IDの一意制約への衝突だけを再生成して再試行します。本人・現在プロフィール・ランキングの取得時には未設定IDを書き込みません。表示用ID、公開カード参照用UUID、内部IDは区別します。Webの `ensureGuestAccount` はCookieの読戻しと同一ブラウザの作成直列化を行い、保存不能・認証障害で参加を続行しません。旧クライアントのアカウントなし参加と終局後の1局取得は互換経路として維持します。
+利用者向けの正本はREADMEの「ゲストアカウントの確定仕様」です。ゲストの作成と名前変更は account の文脈の `use-cases/guestAccounts.ts`、専用HttpOnly Cookieとルートは `routes/guestRoutes.ts`・`guestSession.ts` が担当し、公開チャットでも名前確定時だけ作成して閲覧では作成しません。`guestNameCustomized` と `isAnonymous` を使います。`guestUsernames.ts` はゲストの表示用IDの生成と衝突判定を担当します。作成時に表示用ID・アカウント・本人資格・同意を同じD1 batchで確定し、IDの一意制約への衝突だけを再生成して再試行します。本人・現在プロフィール・ランキングの取得時には未設定IDを書き込みません。表示用ID、公開カード参照用UUID、内部IDは区別します。Webの `ensureGuestAccount` はCookieの読戻しと同一ブラウザの作成直列化を行い、保存不能・認証障害で参加を続行しません。旧クライアントのアカウントなし参加と終局後の1局取得は互換経路として維持します。
 
-`guestLinking.ts` は既存のOAuth stateとゲストCookie・認証後のsessionを結び付けます。新規連携では一時登録者のprovider・sessionを元ゲストへ移し、内部ID・表示用ID・記録を保って初回設定へ進みます。既存登録者への統合は本人の確認後にD1の単一batchで行い、プロフィールは統合先を優先します。マイページから連携する場合は参加中の席を退室し、大会待機を取り消します。終局後の結果からの連携は、同じ席だけを保持する専用の経路を使います。対局・大会の競合と別タブの再参加はDBのfenceで拒否します。
+ゲストの統合と昇格（account の文脈の `use-cases/guestLink.ts`、`guestMerge.ts` と `flows/guestRegistration/guestLink.ts`）は、既存のOAuth stateとゲストCookie・認証後のsessionを結び付けます。新規連携では一時登録者のprovider・sessionを元ゲストへ移し、内部ID・表示用ID・記録を保って初回設定へ進みます。既存登録者への統合は本人の確認後にD1の単一batchで行い、プロフィールは統合先を優先します。マイページから連携する場合は参加中の席を退室し、大会待機を取り消します。終局後の結果からの連携は、同じ席だけを保持する専用の経路を使います。対局・大会の競合と別タブの再参加はDBのfenceで拒否します。
 
 migration 0022は `guest_sessions.registered_at_ms` を追加します。登録者への認証成功後は、ゲスト資格を統合確認専用へ切り替え、登録セッションや引き継ぎ確認の期限切れでも本人認証に戻しません。既存のCookieが並存する場合も、登録者本人の取得時にこの状態へ移します。確認の辞退と登録者のログアウトではCookie・ゲストセッション・対応する全OAuth手続きを失効させ、元アカウント・記録は削除しません。OAuthの取消・失敗では切り替えません。辞退操作は認証した本人と元ゲスト資格の対応・同一Originを検査します。
 
@@ -1411,7 +1433,7 @@ Workerの `playerProfiles.test.ts` と既存の公開／本人棋譜・戦績テ
 
 仕様は[本人棋譜の絞り込み](../README.md#本人棋譜の絞り込み)です。protocolの `matchHistoryFilterSchema` は `all / rated / human / cpu` を定義し、`GET /api/account/matches` の省略可能な `filter` は既定で `all` です。不正値は400、未認証は401、DB取得失敗は503とし、応答はno-storeです。`all` 以外では応答に適用した `filter` を返し、新Webは一致しない旧Workerの応答を成功扱いせず、指定を外した再取得もしません。Workerを先に反映します。
 
-`accounts/matchKinds.ts` は成立記録と大会台帳による分類SQLを表示・フィルターで共用し、レート戦を優先して通常／大会の開始時参加者を照合します。`matchRoutes.ts` は本人索引・ゲーム・モード・種別の条件を20件のLIMITより前へ適用します。未取得の履歴をWebで除外したり、APIで全件を読み込んでから絞り込んだりしません。保存JSON・戦績集計・DBスキーマを変更しません。
+record の文脈の `domain/matchKinds.ts` と `adapters/record/matchKinds.ts` は成立記録と大会台帳による分類SQLを表示・フィルターで共用し、レート戦を優先して通常／大会の開始時参加者を照合します。`matchRoutes.ts` は本人索引・ゲーム・モード・種別の条件を20件のLIMITより前へ適用します。未取得の履歴をWebで除外したり、APIで全件を読み込んでから絞り込んだりしません。保存JSON・戦績集計・DBスキーマを変更しません。
 
 Webの `useMatchHistoryFilter` は本人の公開識別子と選択をブラウザ履歴に保持し、別人へ切り替わると初期化します。`useMatchHistory` の一覧・追加位置・実行中要求のキーはゲーム・モード・フィルターです。アカウント世代・abortの照合と本人変更時の再マウントを維持し、棋譜の選択で戦績APIを取り直しません。`MatchHistory` は既存の `AppTabs`・`AppTabs.List`・`AppTabs.Tab`・`AppTabs.Indicator`・`AppTabs.Panel` で4択と選択中の一覧を表示し、空一覧・失敗を区別します。
 
@@ -1423,7 +1445,7 @@ Webの `useMatchHistoryFilter` は本人の公開識別子と選択をブラウ�
 
 `GET /api/lobby/rooms?view=cards`、`/api/lobby/matches`、`/api/matches`、`/api/account/matches` と公開／本人の棋譜詳細は、`includeMatchKind=1` を要求した場合だけ `matchKind` を追加します。省略時の通常応答は維持し、不正値は400です。新Webはこの指定を追加し、欠落した項目は「種別不明」と表示します。400時に指定を外す自動再取得はしません。公開メタ情報RPCの旧応答にも種別を混入させません。
 
-保存済み棋譜の種別は `accounts/matchKinds.ts` に集約し、厳密に解析した保存記録のレート戦成立情報と、対局IDで結合する大会台帳から取得します。レート変更履歴の有無は認定中・代替手使用時の判定に使いません。一覧は最大20局を一括照会し、局ごとの追加リクエストや保存内容の再計算を行いません。大会の公開状態・名前・内部キーをラベル表示に公開せず、矛盾する成立記録は `unknown` とします。台帳取得の失敗は503とし、通常対局へフォールバックしません。
+保存済み棋譜の種別は record の文脈の `domain/matchKinds.ts` と `adapters/record/matchKinds.ts` に集約し、厳密に解析した保存記録のレート戦成立情報と、対局IDで結合する大会台帳から取得します。レート変更履歴の有無は認定中・代替手使用時の判定に使いません。一覧は最大20局を一括照会し、局ごとの追加リクエストや保存内容の再計算を行いません。大会の公開状態・名前・内部キーをラベル表示に公開せず、矛盾する成立記録は `unknown` とします。台帳取得の失敗は503とし、通常対局へフォールバックしません。
 
 ## 大会・レート戦のルーム通し番号
 
@@ -1612,7 +1634,7 @@ migration 0026はOAuthと席保持の対応をD1に記録し、対象席が一�
 
 ## 保存データの契約と棋譜互換
 
-Workerの `matchDataContracts` は `GameId` ごとの保存記録読取り・公開要約／棋譜・戦績・ランキングの解析を必須登録します。JSONはunknownからゲーム別スキーマで検証し、内部IDと参加者のアカウント情報、設定・結果・棋譜の対応を確認します。D1のゲーム列と記録内のゲームが異なる場合も取得失敗です。集計の方向・順位・チーム・撃破数は `gameOutcomeSql` へ登録し、人間4人の条件と集計SQLは共有します。新ゲームは双方の登録と型対応が必要です。軽量カタログには保存スキーマ・エンジン・SQLを置きません。
+Workerの `adapters/record/matchDataContracts.ts` は `GameId` ごとの保存記録読取り・公開要約／棋譜・戦績・ランキングの解析を必須登録します。JSONはunknownからゲーム別スキーマで検証し、内部IDと参加者のアカウント情報、設定・結果・棋譜の対応を確認します。D1のゲーム列と記録内のゲームが異なる場合も取得失敗です。集計の方向・順位・チーム・撃破数は `gameOutcomeSql` へ登録し、人間4人の条件と集計SQLは共有します。新ゲームは双方の登録と型対応が必要です。軽量カタログには保存スキーマ・エンジン・SQLを置きません。
 
 | ゲーム       | 保存形式                                     | 再生ルール                                             | 既知の旧データ補完                         |
 | ------------ | -------------------------------------------- | ------------------------------------------------------ | ------------------------------------------ |

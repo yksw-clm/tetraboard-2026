@@ -12,7 +12,7 @@ import {
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { requestDeletion } from "../src/privacy/deletion";
-import { deleteUnusedAvatars } from "../src/accounts/accountRoutes";
+import { deleteUnusedAvatars } from "../src/routes/accountAvatars";
 import worker from "../src/worker";
 
 const request = (path: string, init?: RequestInit) =>

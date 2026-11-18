@@ -1,5 +1,5 @@
 import { profileAvatarUrl } from "../../accounts/auth";
-import type { AccountAdmission } from "../../accounts/roomAccounts";
+import type { AccountAdmission } from "./types";
 import { readRoom } from "../../adapters/room/state";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { cancelledAdmissionKey } from "../../durableObjects/gameRoom/storageKeys";

@@ -1,4 +1,5 @@
 import { roomMatchKind } from "@tetraboard/protocol";
+import { roomBoardMotion } from "./boardMotion";
 import { useState } from "react";
 import type { QuarterTurn } from "./boardRotation";
 import { FourReversiBoard } from "./FourReversiBoard";
@@ -42,6 +43,7 @@ export function ReversiRoomView({
         />
       ))}
       <FourReversiBoard
+        motion={roomBoardMotion(session, replay)}
         label="リバーシの盤面"
         game={replay.frame?.game ?? session.displayGame}
         rotation={displayRotation}

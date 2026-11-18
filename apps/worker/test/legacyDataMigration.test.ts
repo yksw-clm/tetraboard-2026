@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { afterEach, expect, test } from "vitest";
 import { gameIds } from "@tetraboard/protocol/games";
 import { shogiArchives } from "../../../test-fixtures/matches";
-import { accountCreatedAtMsSql, accountRegisteredAtMsSql } from "../src/accounts/timestamps";
+import { accountCreatedAtMsSql, accountRegisteredAtMsSql } from "@tetraboard/context-account";
 import { normalizeLegacyData } from "./legacyDataFixtures";
 
 const db = env.APP_DB;

@@ -19,7 +19,7 @@ import { lobbyRoomCardsSchema, lobbyRoomsSchema } from "@tetraboard/protocol/gen
 import worker from "../src/worker";
 import { writeRoomIndex, type PendingRoomIndex } from "../src/rooms/roomIndex";
 import { requestDeletion } from "../src/privacy/deletion";
-import { mergeGuestAccounts } from "../src/accounts/guestLinking";
+import { mergeGuestAccounts } from "../src/flows/guestRegistration/guestLink";
 import { accountFixture, origin } from "./accountFixtures";
 import { boundaryRequest, RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 

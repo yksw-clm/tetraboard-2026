@@ -1,5 +1,5 @@
 import { accountIdentity } from "../src/accounts/auth";
-import { mergeGuestAccounts, rememberGuestLink } from "../src/accounts/guestLinking";
+import { mergeGuestAccounts, rememberGuestLink } from "../src/flows/guestRegistration/guestLink";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";

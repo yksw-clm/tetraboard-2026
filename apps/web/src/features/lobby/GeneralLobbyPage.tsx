@@ -21,6 +21,7 @@ import { TournamentList } from "../tournaments/TournamentList";
 import { ActiveTournamentNotice } from "../tournaments/ActiveTournamentNotice";
 import { gameThemes } from "../../shared/ui/appTheme";
 import { AppButton } from "../../shared/ui/AppButton";
+import { XIcon } from "../../shared/ui/XIcon";
 import { useLobbyGameRatings } from "./useLobbyGameRatings";
 
 const mobileQuery = "(max-width: 767px)";
@@ -96,6 +97,17 @@ export function GeneralLobbyPage() {
           </div>
           <p className="text-sm text-muted">
             将棋・リバーシ・五目並べを、二人でも四人でも。気軽に対戦や観戦を楽しめるオンラインボードゲームサイトです。
+            <a
+              href="https://x.com/tetraboard"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="TetraBoard公式X（@tetraboard、新しいタブで開く）"
+              title="TetraBoard公式X（@tetraboard）"
+              className="flex min-h-11 w-fit items-center gap-1.5 rounded-control text-xs text-muted no-underline hover:text-ink focus-visible:outline-[3px] focus-visible:outline-focus [&_svg]:size-3.5"
+            >
+              <XIcon />
+              <span>@tetraboard</span>
+            </a>
           </p>
           <ActiveTournamentNotice />
           <section aria-labelledby="game-list-title" className="min-w-0">

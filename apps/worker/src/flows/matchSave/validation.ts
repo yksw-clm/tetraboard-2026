@@ -1,5 +1,5 @@
 import { redactParticipants } from "../../privacy/identity";
-import { readStoredMatch, readMatchRecord } from "../../accounts/matchDataContracts";
+import { readStoredMatch, readMatchRecord } from "../../adapters/record/matchDataContracts";
 import {
   encodeSnapshotMatch,
   rebuildSnapshotMatch,
