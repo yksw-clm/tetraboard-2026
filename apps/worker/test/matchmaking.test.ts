@@ -32,7 +32,7 @@ import { selectFourReversi } from "../src/adapters/matchmaking/fourReversiSelect
 import { matchmakingCredential } from "../src/adapters/matchmaking/credential";
 import { D1TournamentQueueStore } from "../src/adapters/tournament/queue";
 import { requestDeletion } from "../src/privacy/deletion";
-import { requireGuestIdle } from "../src/accounts/guestLinking";
+import { requireGuestIdle } from "../src/flows/guestRegistration/guestLink";
 import { accountIdentity } from "../src/accounts/auth";
 import { matchmakingRoutes } from "../src/routes/matchmaking";
 import { standardShogiRecord, saveStandardShogiFixture } from "./standardShogiFixtures";

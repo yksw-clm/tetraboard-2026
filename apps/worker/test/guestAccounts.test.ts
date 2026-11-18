@@ -12,6 +12,7 @@ import {
   createRoomContract,
   joinRoomContract,
   getPlayerProfileContract,
+  notificationListSchema,
 } from "@tetraboard/protocol";
 import { gameIds, gameCatalog } from "@tetraboard/protocol/games";
 import { legalVersion } from "@tetraboard/protocol/privacy";
@@ -19,7 +20,8 @@ import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { accountIdentity, withAccountSessionCookies } from "../src/accounts/auth";
 import { createGuestAccount, guestTokenHash, guestLifetimeMs } from "../src/routes/guestSession";
-import { completeGuestLink, rememberGuestLink } from "../src/accounts/guestLinking";
+import { rememberGuestLink } from "../src/flows/guestRegistration/guestLink";
+import { completeGuestLink } from "../src/routes/guestLinkOAuth";
 import { humanFixtureRecord, fixtureRecord } from "./matchFixtures";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { requestDeletion } from "../src/privacy/deletion";
@@ -1058,6 +1060,52 @@ test("統合した戦績の合計でバッジを判定し、既存の獲得記�
       .first(),
   ).toEqual({ n: 1 });
 });
+
+test("ゲスト統合で獲得済みバッジが重なっても通知のIDとバッジ一覧を保つ", async () => {
+  const db = env.APP_DB;
+  const g = await guest();
+  const guestMatchId = crypto.randomUUID();
+  const targetMatchId = crypto.randomUUID();
+  const values = { games: 5, wins: 3 };
+  const awardBadges = (accountId: string, matchId: string, badges: (keyof typeof values)[]) =>
+    db.batch([
+      ...badges.map((badge) =>
+        db
+          .prepare(`INSERT INTO account_badge_awards
+            (account_id,game,badge_id,tier,value,previous_tier,match_id)
+            VALUES(?,'four-reversi',?,1,?,0,?)`)
+          .bind(accountId, badge, values[badge], matchId),
+      ),
+      db
+        .prepare(`INSERT INTO account_badge_notifications (account_id,match_id,game,created_at_ms)
+          SELECT ?,?,'four-reversi',value FROM notification_metadata WHERE key='started_at_ms'`)
+        .bind(accountId, matchId),
+    ]);
+  const badgeNotices = async (headers: HeadersInit) => {
+    const response = await request("/notifications", { headers });
+    expect(response.status).toBe(200);
+    return notificationListSchema
+      .parse(await response.json())
+      .notifications.filter((notification) => notification.kind === "badge");
+  };
+
+  await awardBadges(g.id, guestMatchId, ["games", "wins"]);
+  const guestNotice = (await badgeNotices(g.headers)).find((n) => n.badge.id === guestMatchId);
+  expect(guestNotice?.badge.badges.map((b) => b.id).sort()).toEqual(["games", "wins"]);
+  const { target, headers } = await link(g);
+  await awardBadges(target.id, targetMatchId, ["wins"]);
+  const targetNotice = (await badgeNotices(target.headers)).find(
+    (n) => n.badge.id === targetMatchId,
+  );
+  expect(targetNotice?.badge.badges.map((b) => b.id)).toEqual(["wins"]);
+
+  expect((await request("/account/guest-merge", { method: "POST", headers })).status).toBe(200);
+
+  const merged = await badgeNotices(target.headers);
+  expect(merged.find((n) => n.badge.id === guestMatchId)).toEqual(guestNotice);
+  expect(merged.find((n) => n.badge.id === targetMatchId)).toEqual(targetNotice);
+});
+
 test("統合後の退会で、元ゲストの保存待ち・遅延した棋譜からも名前と本人参照を除去する", async () => {
   const g = await guest(),
     linked = await link(g),

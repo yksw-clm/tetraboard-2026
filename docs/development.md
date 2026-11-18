@@ -588,13 +588,14 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 
 ## アカウントの入口
 
-アカウントの本人確認、プロフィール、ゲストの作成、登録の流れは、ADR 0010 の形に分かれています（TB-134、TB-135）。ゲストの統合と昇格（`accounts/guestLinking.ts`）は、まだ `accounts/` にあります（TB-141 で移します）。
+アカウントの本人確認、プロフィール、ゲストの作成、登録の流れ、ゲストの統合と昇格は、ADR 0010 の形に分かれています（TB-134、TB-135、TB-141）。
 
 - `packages/contexts/account/src/domain/`: 公開プロフィールの形、画像の URL、プロフィールの詳細、現在のプロフィール、時刻の表し方。純粋な関数です。
 - `packages/contexts/account/src/use-cases/`: 現在のプロフィールの読み取り、プレイヤー情報、プロフィールの保存。D1 は `ports.ts` のポートで受け取ります。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
 - `apps/worker/src/adapters/account/`: ポートの D1 の実装と、ゲストの本人確認（`guestIdentity.ts`）。ゲストの本人確認は、期限の延長（条件つきの UPDATE）と本人の読み取り（SELECT）を 1 回の batch で行います（C07）。最終利用から 180 日の期限と失効の判定は変えていません。
 - 登録の流れ: 文脈の `domain/registration.ts`、`registrationStatus.ts`、`use-cases/registration.ts`、`registrationWrites.ts`。D1 で 1 つの batch にまとめる書き込みは、実行せずに返します。ルームの席を扱う部分は `flows/guestRegistration/` が room の側と結びます。
-- `apps/worker/src/routes/`: `accountRoutes.ts`、`accountAuthRoutes.ts`、`playerProfileRoutes.ts`、`guestRoutes.ts`、`registrationRoutes.ts` など HTTP の入口。better-auth と Cookie は殻に残ります（`accounts/auth.ts`）。
+- ゲストの統合と昇格: 文脈の `domain/guestLink.ts`（前提の判定）、`use-cases/guestMerge.ts`、`guestLink.ts`、`guestLinkChecks.ts`。D1 の実装は `adapters/account/guestLinks.ts`、`guestLinkWrites.ts` です。統合では、account の use-case が前提の検査と account の書き込みを返し、`flows/guestRegistration/guestLink.ts` がほかの文脈の付け替え（保持した席、フィードバック、棋譜、チャット、通知、大会、プライバシーの索引、バッジ。各文脈の adapter の `guestMergeWrites.ts`）を決まった順に挟んで、1 回の D1 の batch で確定します。通知はバッジより先に付け替えます（逆にすると通知が作り直され、中身からバッジが落ちます。`guestAccounts.test.ts` の回帰テストが確かめます）。統合と昇格の書き込みは、まだ D1 のトリガー（ゲストのフェンス）に頼っています（TB-136 で移します）。
+- `apps/worker/src/routes/`: `accountRoutes.ts`、`accountAuthRoutes.ts`、`playerProfileRoutes.ts`、`guestRoutes.ts`、`registrationRoutes.ts`、`guestLinkRoutes.ts`、`guestLinkOAuth.ts` など HTTP の入口。better-auth と Cookie は殻に残ります（`accounts/auth.ts`）。
 
 ## マッチングの入口
 
@@ -1202,7 +1203,7 @@ OAuthトークンは認証ライブラリで暗号化して保存し、解除時
 
 利用者向けの正本はREADMEの「ゲストアカウントの確定仕様」です。ゲストの作成と名前変更は account の文脈の `use-cases/guestAccounts.ts`、専用HttpOnly Cookieとルートは `routes/guestRoutes.ts`・`guestSession.ts` が担当し、公開チャットでも名前確定時だけ作成して閲覧では作成しません。`guestNameCustomized` と `isAnonymous` を使います。`guestUsernames.ts` はゲストの表示用IDの生成と衝突判定を担当します。作成時に表示用ID・アカウント・本人資格・同意を同じD1 batchで確定し、IDの一意制約への衝突だけを再生成して再試行します。本人・現在プロフィール・ランキングの取得時には未設定IDを書き込みません。表示用ID、公開カード参照用UUID、内部IDは区別します。Webの `ensureGuestAccount` はCookieの読戻しと同一ブラウザの作成直列化を行い、保存不能・認証障害で参加を続行しません。旧クライアントのアカウントなし参加と終局後の1局取得は互換経路として維持します。
 
-`guestLinking.ts` は既存のOAuth stateとゲストCookie・認証後のsessionを結び付けます。新規連携では一時登録者のprovider・sessionを元ゲストへ移し、内部ID・表示用ID・記録を保って初回設定へ進みます。既存登録者への統合は本人の確認後にD1の単一batchで行い、プロフィールは統合先を優先します。マイページから連携する場合は参加中の席を退室し、大会待機を取り消します。終局後の結果からの連携は、同じ席だけを保持する専用の経路を使います。対局・大会の競合と別タブの再参加はDBのfenceで拒否します。
+ゲストの統合と昇格（account の文脈の `use-cases/guestLink.ts`、`guestMerge.ts` と `flows/guestRegistration/guestLink.ts`）は、既存のOAuth stateとゲストCookie・認証後のsessionを結び付けます。新規連携では一時登録者のprovider・sessionを元ゲストへ移し、内部ID・表示用ID・記録を保って初回設定へ進みます。既存登録者への統合は本人の確認後にD1の単一batchで行い、プロフィールは統合先を優先します。マイページから連携する場合は参加中の席を退室し、大会待機を取り消します。終局後の結果からの連携は、同じ席だけを保持する専用の経路を使います。対局・大会の競合と別タブの再参加はDBのfenceで拒否します。
 
 migration 0022は `guest_sessions.registered_at_ms` を追加します。登録者への認証成功後は、ゲスト資格を統合確認専用へ切り替え、登録セッションや引き継ぎ確認の期限切れでも本人認証に戻しません。既存のCookieが並存する場合も、登録者本人の取得時にこの状態へ移します。確認の辞退と登録者のログアウトではCookie・ゲストセッション・対応する全OAuth手続きを失効させ、元アカウント・記録は削除しません。OAuthの取消・失敗では切り替えません。辞退操作は認証した本人と元ゲスト資格の対応・同一Originを検査します。
 

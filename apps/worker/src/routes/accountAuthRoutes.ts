@@ -4,12 +4,9 @@ import {
   parseRegistrationAnalytics,
 } from "../usageEvents/registration";
 import { matchmakingQueueKeys, type RegistrationAnalyticsInput } from "@tetraboard/protocol";
-import {
-  prepareGuestLink,
-  rememberGuestLink,
-  completeGuestLink,
-  GuestLinkError,
-} from "../accounts/guestLinking";
+import { prepareGuestLink, rememberGuestLink } from "../flows/guestRegistration/guestLink";
+import { completeGuestLink } from "./guestLinkOAuth";
+import { GuestLinkError } from "@tetraboard/context-account";
 import { clearGuestSession } from "../routes/guestSession";
 import { completeLegalAuthentication } from "../privacy/oauthConsent";
 import { completeReauthentication } from "../privacy/deletion";
