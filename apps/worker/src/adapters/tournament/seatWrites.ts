@@ -11,8 +11,7 @@ export function prepareTournamentPlayer(
   const candidate = {
     sql: `FROM user u JOIN tournament_wait_reservations w ON w.account_id=u.id
       JOIN tournament_entries e ON e.account_id=u.id AND e.tournament_key=w.tournament_key AND e.deleted=0
-      WHERE u.id=? AND w.operation_id=? AND w.tournament_key=? AND w.match_operation_id=? AND u.profileCompleted=1 AND u.name=? AND u.avatarKey IS ? AND u.avatarPresetId IS ?
-        AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)`,
+      WHERE u.id=? AND w.operation_id=? AND w.tournament_key=? AND w.match_operation_id=? AND u.profileCompleted=1 AND u.name=? AND u.avatarKey IS ? AND u.avatarPresetId IS ?`,
     values: [
       a.accountId,
       player.operationId,

@@ -4,7 +4,11 @@ import type {
   MatchClaimInput,
   MatchClaimStore,
 } from "@tetraboard/context-record";
-import { acceptedDeletionSql, type DeletionBatch } from "../../db/deletionGuard";
+import {
+  acceptedDeletionSql,
+  deletedAccountExistsSql,
+  type DeletionBatch,
+} from "../../db/deletionGuard";
 import { D1MatchClaimReadStore } from "./matchClaimReadStore";
 import { mergedAccountIdSql } from "./guestMerges";
 import { scrubRetiredMatchClaimStatements } from "./privacyScrub";
@@ -49,7 +53,8 @@ export class D1MatchClaimStore
         ),
       db
         .prepare(`INSERT OR IGNORE INTO privacy_room_accounts(account_id,room_id)
-      SELECT account_id,room_id FROM match_participant_accounts WHERE match_id=? AND player_id=? AND account_id=?`)
+      SELECT account_id,room_id FROM match_participant_accounts c
+      WHERE match_id=? AND player_id=? AND account_id=? AND NOT ${deletedAccountExistsSql("c.account_id")}`)
         .bind(input.matchId, input.playerId, input.accountId),
     ]);
   }
