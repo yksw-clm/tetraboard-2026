@@ -13,14 +13,20 @@ export class TournamentCoordinator extends DurableObject<Env> {
   private get ports() {
     return createTournamentRuntime(this.ctx, this.env);
   }
+  private async scheduleRecovery() {
+    const recoveryAt = Date.now() + 5000;
+    const scheduledAt = await this.ctx.storage.getAlarm();
+    if (scheduledAt === null || recoveryAt < scheduledAt)
+      await this.ctx.storage.setAlarm(recoveryAt);
+  }
   private async serial<T>(operation: () => Promise<T>): Promise<T> {
     const result = await this.ctx.blockConcurrencyWhile(async () => {
       try {
         // D1 と RPC の副作用の前に復旧を予約します。
-        await this.ctx.storage.setAlarm(Date.now() + 5000);
+        await this.scheduleRecovery();
         return { success: true as const, value: await operation() };
       } catch (error: unknown) {
-        await this.ctx.storage.setAlarm(Date.now() + 5000);
+        await this.scheduleRecovery();
         return { success: false as const, error };
       }
     });

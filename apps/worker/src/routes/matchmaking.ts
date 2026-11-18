@@ -11,7 +11,7 @@ import {
 } from "@tetraboard/protocol";
 import { accountIdentity } from "../accounts/auth";
 import { roomEntryProfile, RoomAccountError } from "../flows/accountSeats/entryProfile";
-import { readLimitedBody } from "../feedback/images";
+import { readLimitedBody } from "./readLimitedBody";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { ratedMatchmakingPolicy } from "../adapters/matchmaking/ratedMatchmaking";
 import { readPreviousRatedMatch } from "../adapters/matchmaking/previousMatch";

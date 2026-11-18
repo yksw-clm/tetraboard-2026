@@ -27,7 +27,7 @@ import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { requestDeletion } from "../src/privacy/deletion";
 import worker from "../src/worker";
 import { lobbyChatSchema, lobbyPostResultSchema } from "@tetraboard/protocol/general-lobby";
-import { cleanupLobbyChat } from "../src/lobby/chatStore";
+import { cleanupLobbyChat } from "../src/adapters/community/chatCleanup";
 
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));

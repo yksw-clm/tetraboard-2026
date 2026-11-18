@@ -12,114 +12,127 @@ import { humanFixtureRecord } from "./matchFixtures";
 import { humanShogiRecord } from "./shogiMatchFixtures";
 import { standardShogiRecord } from "./standardShogiFixtures";
 import { prepareStoredMatchFixture } from "./snapshotMatchFixtures";
-import {
-  databases,
-  withTriggers,
-  withoutTriggers,
-  mergeTriggers,
-  seedMerge,
-  storedRecord,
-  history,
-  clearRecord,
-  legacyPublication,
-  legacyHistory,
-} from "./guestMergeRecordFixtures";
+import { guestMergeDb as db, seedMerge, storedRecord, history } from "./guestMergeRecordFixtures";
 
-test("専用DBだけで統合トリガー3つを外し、退会トリガーは保持する", async () => {
-  const triggers = async (db: D1Database) =>
-    (
-      await db
-        .prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name")
-        .all<{ name: string; sql: string }>()
-    ).results;
-  const before = await triggers(withTriggers);
-  expect(mergeTriggers.every((name) => before.some((t) => t.name === name))).toBe(true);
-  expect(await triggers(withoutTriggers)).toEqual(
-    before.filter((t) => !mergeTriggers.includes(t.name)),
+function historyRows(
+  matchId: string,
+  game: string,
+  mode: string,
+  startedAtMs: number,
+  accounts: string[],
+) {
+  return [...accounts].sort().map((accountId) => ({
+    account_id: accountId,
+    match_id: matchId,
+    game,
+    mode,
+    started_at_ms: startedAtMs,
+  }));
+}
+
+const retired = { accountId: null, name: "退会したプレイヤー", retired: true };
+
+async function markDeleted(accountId: string) {
+  await db
+    .prepare("INSERT INTO deleted_accounts(id,requested_at_ms,receipt_hash) VALUES(?,2000,?)")
+    .bind(accountId, crypto.randomUUID())
+    .run();
+}
+
+async function retireClaim(matchId: string, playerId: string) {
+  await db
+    .prepare(`INSERT INTO match_participant_accounts
+      (match_id,player_id,account_id,room_id,instance_id,state,accepted_at_ms,retry_at_ms)
+      VALUES(?,?,NULL,'room','instance','retired',0,0)`)
+    .bind(matchId, playerId)
+    .run();
+}
+
+test("棋譜と履歴の退会トリガーは残ります", async () => {
+  const { results } = await db
+    .prepare("SELECT name FROM sqlite_master WHERE type='trigger'")
+    .all<{ name: string }>();
+  expect(results.map(({ name }) => name)).toEqual(
+    expect.arrayContaining([
+      "privacy_fence_account_match_history",
+      "privacy_scrub_matches_insert",
+      "privacy_scrub_matches_update",
+      "privacy_scrub_shogi_match_uploads_insert",
+      "privacy_scrub_shogi_match_uploads_update",
+      "privacy_scrub_claimed_match_insert",
+      "privacy_scrub_claimed_match_update",
+      "privacy_scrub_claimed_upload_insert",
+      "privacy_scrub_claimed_upload_update",
+      "privacy_scrub_existing",
+      "privacy_retire_match_claims",
+      "privacy_scrub_retired_match_claim",
+    ]),
   );
 });
 
-for (const privacy of [
-  "none",
-  "deleted-target",
-  "deleted-other",
-  "retired-same",
-  "retired-other",
+for (const [name, deletedAccount, retiredPlayer] of [
+  ["退会なし", null, null],
+  ["統合先が退会済み", "target", null],
+  ["別の参加者が退会済み", "other", null],
+  ["統合した席の引き継ぎが失効済み", null, "merged"],
+  ["別の席の引き継ぎが失効済み", null, "other"],
 ] as const)
-  test(`${privacy}: 旧INSERT＋トリガーと、新INSERTのトリガー有無でJSON・履歴が一致する`, async () => {
+  test(`${name}の場合も、保存待ちと公開済みの棋譜・履歴を統合先と退会状態に合わせます`, async () => {
     const guest = crypto.randomUUID(),
       account = crypto.randomUUID(),
       other = crypto.randomUUID();
+    const participants = [
+      { id: "merged", kind: "human", accountId: guest, name: "統合前の名前", seat: 0 },
+      { id: "other", kind: "human", accountId: other, name: "別の人", seat: 1 },
+      { id: "guest", kind: "human", accountId: null, name: "未登録", seat: 2 },
+      { id: "cpu", kind: "cpu", level: 2, name: "CPU", seat: 3 },
+    ] as const;
     const record = {
       id: crypto.randomUUID(),
       settings: { game: "shogi" },
       startedAtMs: 1,
       endedAtMs: 2,
       replay: { eventCount: 0 },
-      participants: [
-        { id: "merged", kind: "human", accountId: guest, name: "統合前の名前", seat: 0 },
-        { id: "other", kind: "human", accountId: other, name: "別の人", seat: 1 },
-        { id: "guest", kind: "human", accountId: null, name: "未登録", seat: 2 },
-        { id: "cpu", kind: "cpu", level: 2, name: "CPU", seat: 3 },
-      ],
+      participants,
       profileRatings: { merged: { rating: 1500 }, other: { rating: 1600 } },
       untouched: { moves: [1, 2], result: "original" },
     };
     const json = JSON.stringify(record, null, 2);
-    for (const db of databases) {
-      await seedMerge(db, guest, account);
-      if (privacy.startsWith("deleted"))
-        await db
-          .prepare("INSERT INTO deleted_accounts(id,requested_at_ms,receipt_hash) VALUES(?,2000,?)")
-          .bind(privacy === "deleted-target" ? account : other, crypto.randomUUID())
-          .run();
-      if (privacy.startsWith("retired"))
-        await db
-          .prepare(`INSERT INTO match_participant_accounts
-        (match_id,player_id,account_id,room_id,instance_id,state,accepted_at_ms,retry_at_ms)
-        VALUES(?,?,NULL,'room','instance','retired',0,0)`)
-          .bind(record.id, privacy === "retired-same" ? "merged" : "other")
-          .run();
-    }
-    await withTriggers
-      .prepare("INSERT INTO match_uploads VALUES(?,?,0,0)")
-      .bind(record.id, json)
-      .run();
-    const expectedUpload = await storedRecord(withTriggers, "match_uploads", record.id);
-    await withTriggers.batch([
-      legacyPublication(withTriggers, record.id),
-      legacyHistory(withTriggers, record.id),
+    await seedMerge(db, guest, account);
+    if (deletedAccount) await markDeleted(deletedAccount === "target" ? account : other);
+    if (retiredPlayer) await retireClaim(record.id, retiredPlayer);
+
+    const hideMerged = deletedAccount === "target" || retiredPlayer === "merged";
+    const hideOther = deletedAccount === "other" || retiredPlayer === "other";
+    const expectedJson = JSON.stringify({
+      ...record,
+      participants: [
+        { ...participants[0], ...(hideMerged ? retired : { accountId: account }) },
+        { ...participants[1], ...(hideOther ? retired : {}) },
+        participants[2],
+        participants[3],
+      ],
+    });
+    const expectedHistory = historyRows(record.id, "shogi", "standard", 1, [
+      ...(hideMerged ? [] : [account]),
+      ...(hideOther ? [] : [other]),
     ]);
-    const expectedMatch = await storedRecord(withTriggers, "matches", record.id);
-    const expectedHistory = await history(withTriggers, record.id);
-    await clearRecord(withTriggers, record.id);
-    for (const db of databases) {
-      const store = new D1MatchRecordStore(db);
-      await store.insertUpload(record, json, 0);
-      expect(await store.readUpload(record.id)).toBe(expectedUpload);
-      await db.batch([publishMatchStatement(db, record.id), shogiHistoryStatement(db, record.id)]);
-      expect(await storedRecord(db, "matches", record.id)).toBe(expectedMatch);
-      expect(await history(db, record.id)).toEqual(expectedHistory);
-      // 再送は保存済みの内容を変えません。
-      await store.insertUpload(record, json.replace("original", "retry"), 0);
-      await db.batch([publishMatchStatement(db, record.id), shogiHistoryStatement(db, record.id)]);
-      expect(await store.readUpload(record.id)).toBe(expectedUpload);
-      expect(await history(db, record.id)).toEqual(expectedHistory);
-    }
-    const saved = JSON.parse(expectedMatch!);
-    const hidden = privacy === "deleted-target" || privacy === "retired-same";
-    expect(saved.participants[0]).toMatchObject(
-      hidden
-        ? { accountId: null, name: "退会したプレイヤー", retired: true }
-        : { accountId: account, name: "統合前の名前" },
-    );
-    if (privacy === "deleted-other" || privacy === "retired-other")
-      expect(saved.participants[1]).toMatchObject({ accountId: null, retired: true });
-    expect(saved.profileRatings).toEqual(record.profileRatings);
-    expect(expectedHistory.some((row) => row.account_id === guest)).toBe(false);
+
+    const store = new D1MatchRecordStore(db);
+    await store.insertUpload(record, json, 0);
+    expect(await store.readUpload(record.id)).toBe(expectedJson);
+    await db.batch([publishMatchStatement(db, record.id), shogiHistoryStatement(db, record.id)]);
+    expect(await storedRecord(db, "matches", record.id)).toBe(expectedJson);
+    expect(await history(db, record.id)).toEqual(expectedHistory);
+
+    await store.insertUpload(record, json.replace("original", "retry"), 0);
+    await db.batch([publishMatchStatement(db, record.id), shogiHistoryStatement(db, record.id)]);
+    expect(await store.readUpload(record.id)).toBe(expectedJson);
+    expect(await storedRecord(db, "matches", record.id)).toBe(expectedJson);
+    expect(await history(db, record.id)).toEqual(expectedHistory);
   });
 
-test("対応なしのJSONは表記を保ち、空の参加者・null・欠落したID・CPUも保持する", async () => {
+test("対応なしのJSONは表記を保ち、空の参加者・null・欠落したID・CPUも保持します", async () => {
   for (const participants of [[], [{ kind: "human", accountId: null }, { kind: "cpu" }]]) {
     const record = {
       id: crypto.randomUUID(),
@@ -130,17 +143,15 @@ test("対応なしのJSONは表記を保ち、空の参加者・null・欠落し
       replay: { eventCount: 0 },
     };
     const json = JSON.stringify(record, null, 2);
-    for (const db of databases) {
-      const store = new D1MatchRecordStore(db);
-      await store.insertUpload(record, json, 0);
-      await store.publication(record.id).run();
-      expect(await store.readUpload(record.id)).toBe(json);
-      expect(await storedRecord(db, "matches", record.id)).toBe(json);
-    }
+    const store = new D1MatchRecordStore(db);
+    await store.insertUpload(record, json, 0);
+    await store.publication(record.id).run();
+    expect(await store.readUpload(record.id)).toBe(json);
+    expect(await storedRecord(db, "matches", record.id)).toBe(json);
   }
 });
 
-test("アップロード後に統合された対局も、公開INSERTで統合先に書き換える", async () => {
+test("アップロード後に統合された対局も公開時に統合先へ書き換えます", async () => {
   const guest = crypto.randomUUID(),
     account = crypto.randomUUID();
   const record = {
@@ -151,80 +162,65 @@ test("アップロード後に統合された対局も、公開INSERTで統合�
     replay: { eventCount: 0 },
     participants: [{ kind: "human", accountId: guest, name: "名前" }],
   };
-  for (const db of databases) {
-    const store = new D1MatchRecordStore(db);
-    await store.insertUpload(record, JSON.stringify(record), 0);
-    await seedMerge(db, guest, account);
-    await db.batch([store.publication(record.id), shogiHistoryStatement(db, record.id)]);
-    expect(
-      JSON.parse((await storedRecord(db, "matches", record.id))!).participants[0].accountId,
-    ).toBe(account);
-    expect((await history(db, record.id)).map((r) => r.account_id)).toEqual([account]);
-  }
-  expect(await storedRecord(withoutTriggers, "matches", record.id)).toBe(
-    await storedRecord(withTriggers, "matches", record.id),
+  const store = new D1MatchRecordStore(db);
+  const json = JSON.stringify(record);
+  await store.insertUpload(record, json, 0);
+  expect(await store.readUpload(record.id)).toBe(json);
+  await seedMerge(db, guest, account);
+  await db.batch([store.publication(record.id), shogiHistoryStatement(db, record.id)]);
+
+  expect(await storedRecord(db, "matches", record.id)).toBe(
+    JSON.stringify({
+      ...record,
+      participants: [{ ...record.participants[0], accountId: account }],
+    }),
+  );
+  expect(await history(db, record.id)).toEqual(
+    historyRows(record.id, "shogi", "standard", 1, [account]),
   );
 });
 
-for (const privacy of ["deleted-target", "retired-same", "retired-other"] as const)
-  test(`${privacy}: 古いアップロードを公開するときも統合UPDATE経由の退会処理と一致する`, async () => {
+for (const { name, retiredPlayer } of [
+  { name: "統合先が退会済み", retiredPlayer: null },
+  { name: "統合した席の引き継ぎが失効済み", retiredPlayer: "merged" },
+  { name: "別の席の引き継ぎが失効済み", retiredPlayer: "other" },
+] as const)
+  test(`${name}の場合に古いアップロードを公開しても退会済みの参加者を伏せます`, async () => {
     const guest = crypto.randomUUID(),
       account = crypto.randomUUID();
+    const mergedPlayer = { id: "merged", kind: "human", accountId: guest, name: "統合前" };
+    const otherPlayer = { id: "other", kind: "human", accountId: null, name: "別の人" };
     const record = {
       id: crypto.randomUUID(),
       settings: { game: "shogi" },
       startedAtMs: 1,
       endedAtMs: 2,
-      participants: [
-        { id: "merged", kind: "human", accountId: guest, name: "統合前" },
-        { id: "other", kind: "human", accountId: null, name: "別の人" },
-      ],
+      participants: [mergedPlayer, otherPlayer],
+      replay: { eventCount: 0 },
     };
-    for (const db of databases) {
-      // 統合も退会もまだない時点のアップロードを残します。
-      await db
-        .prepare("INSERT INTO match_uploads VALUES(?,?,0,0)")
-        .bind(record.id, JSON.stringify(record))
-        .run();
-      await seedMerge(db, guest, account);
-      if (privacy === "deleted-target")
-        await db
-          .prepare("INSERT INTO deleted_accounts(id,requested_at_ms,receipt_hash) VALUES(?,2000,?)")
-          .bind(account, crypto.randomUUID())
-          .run();
-      else
-        await db
-          .prepare(`INSERT INTO match_participant_accounts
-          (match_id,player_id,account_id,room_id,instance_id,state,accepted_at_ms,retry_at_ms)
-          VALUES(?,?,NULL,'room','instance','retired',0,0)`)
-          .bind(record.id, privacy === "retired-same" ? "merged" : "other")
-          .run();
-    }
-    await withTriggers.batch([
-      legacyPublication(withTriggers, record.id),
-      legacyHistory(withTriggers, record.id),
-    ]);
-    const expected = await storedRecord(withTriggers, "matches", record.id);
-    const expectedHistory = await history(withTriggers, record.id);
-    await withTriggers
-      .prepare("DELETE FROM account_match_history WHERE match_id=?")
-      .bind(record.id)
-      .run();
-    await withTriggers.prepare("DELETE FROM matches WHERE id=?").bind(record.id).run();
-    for (const db of databases) {
-      await db.batch([publishMatchStatement(db, record.id), shogiHistoryStatement(db, record.id)]);
-      expect(await storedRecord(db, "matches", record.id)).toBe(expected);
-      expect(await history(db, record.id)).toEqual(expectedHistory);
-    }
-    const players = JSON.parse(expected!).participants;
-    expect(players[privacy === "retired-other" ? 1 : 0]).toMatchObject({
-      accountId: null,
-      name: "退会したプレイヤー",
-      retired: true,
-    });
+    const store = new D1MatchRecordStore(db);
+    await store.insertUpload(record, JSON.stringify(record), 0);
+    await seedMerge(db, guest, account);
+    if (retiredPlayer === null) await markDeleted(account);
+    else await retireClaim(record.id, retiredPlayer);
+
+    await db.batch([store.publication(record.id), shogiHistoryStatement(db, record.id)]);
+    const keepMerged = retiredPlayer === "other";
+    expect(await storedRecord(db, "matches", record.id)).toBe(
+      JSON.stringify({
+        ...record,
+        participants: [
+          { ...mergedPlayer, ...(keepMerged ? { accountId: account } : retired) },
+          { ...otherPlayer, ...(keepMerged ? retired : {}) },
+        ],
+      }),
+    );
+    expect(await history(db, record.id)).toEqual(
+      historyRows(record.id, "shogi", "standard", 1, keepMerged ? [account] : []),
+    );
   });
 
-test("複数の統合済みゲストをそれぞれの統合先へ置き換え、席の順序を保つ", async () => {
+test("複数の統合済みゲストをそれぞれの統合先へ置き換え、席の順序を保ちます", async () => {
   const guests = [crypto.randomUUID(), crypto.randomUUID()];
   const accounts = [crypto.randomUUID(), crypto.randomUUID()];
   const record = {
@@ -241,24 +237,27 @@ test("複数の統合済みゲストをそれぞれの統合先へ置き換え�
       seat,
     })),
   };
-  for (const db of databases) {
-    for (let i = 0; i < guests.length; i++) await seedMerge(db, guests[i], accounts[i]);
-    const store = new D1MatchRecordStore(db);
-    await store.insertUpload(record, JSON.stringify(record), 0);
-    expect(JSON.parse((await store.readUpload(record.id))!).participants).toEqual(
-      record.participants.map((p, i) => ({ ...p, accountId: accounts[i] })),
-    );
-    await db.batch([store.publication(record.id), shogiHistoryStatement(db, record.id)]);
-    expect((await history(db, record.id)).map((r) => r.account_id)).toEqual([...accounts].sort());
-  }
-  expect(await storedRecord(withoutTriggers, "matches", record.id)).toBe(
-    await storedRecord(withTriggers, "matches", record.id),
+  for (let i = 0; i < guests.length; i++) await seedMerge(db, guests[i], accounts[i]);
+  const store = new D1MatchRecordStore(db);
+  const expected = JSON.stringify({
+    ...record,
+    participants: record.participants.map((p, i) => ({ ...p, accountId: accounts[i] })),
+  });
+  await store.insertUpload(record, JSON.stringify(record), 0);
+  expect(await store.readUpload(record.id)).toBe(expected);
+  await db.batch([store.publication(record.id), shogiHistoryStatement(db, record.id)]);
+  expect(await storedRecord(db, "matches", record.id)).toBe(expected);
+  expect(await history(db, record.id)).toEqual(
+    historyRows(record.id, "shogi", "standard", 1, accounts),
   );
 });
 
-for (const statement of [snapshotHistoryStatement, shogiHistoryStatement])
+for (const [name, statement] of [
+  ["スナップショット", snapshotHistoryStatement],
+  ["将棋", shogiHistoryStatement],
+] as const)
   for (const deleted of [false, true])
-    test(`${statement.name}: 履歴だけが遅れて挿入されても統合先の1行になり、退会後は残さない (${deleted})`, async () => {
+    test(`${name}で履歴だけが遅れて挿入される場合に${deleted ? "退会済みの統合先の行を残しません" : "統合先の1行にまとめます"}`, async () => {
       const guest = crypto.randomUUID(),
         account = crypto.randomUUID(),
         id = crypto.randomUUID();
@@ -270,83 +269,82 @@ for (const statement of [snapshotHistoryStatement, shogiHistoryStatement])
           { kind: "cpu" },
         ],
       });
-      for (const db of databases) {
-        await db
-          .prepare("INSERT INTO matches VALUES(?,'shogi','standard',1,2,?)")
-          .bind(id, json)
-          .run();
-        await seedMerge(db, guest, account);
-        if (deleted)
-          await db
-            .prepare(
-              "INSERT INTO deleted_accounts(id,requested_at_ms,receipt_hash) VALUES(?,2000,?)",
-            )
-            .bind(account, crypto.randomUUID())
-            .run();
-      }
-      await legacyHistory(withTriggers, id).run();
-      const expected = await history(withTriggers, id);
-      await withTriggers
-        .prepare("DELETE FROM account_match_history WHERE match_id=?")
-        .bind(id)
+      await db
+        .prepare("INSERT INTO matches VALUES(?,'shogi','standard',1,2,?)")
+        .bind(id, json)
         .run();
-      for (const db of databases) {
-        await statement(db, id).run();
-        await statement(db, id).run();
-        expect(await history(db, id)).toEqual(expected);
-        expect((await history(db, id)).map((r) => r.account_id)).toEqual(deleted ? [] : [account]);
-      }
+      await seedMerge(db, guest, account);
+      if (deleted) await markDeleted(account);
+      const expectedHistory = historyRows(id, "shogi", "standard", 1, deleted ? [] : [account]);
+      await statement(db, id).run();
+      expect(await history(db, id)).toEqual(expectedHistory);
+      await statement(db, id).run();
+      expect(await history(db, id)).toEqual(expectedHistory);
     });
 
-test("引き継ぎ適用の履歴も統合先に挿入し、再適用で増やさない", async () => {
+test("引き継ぎ適用で履歴を統合先に挿入し、再適用でも1行を保ちます", async () => {
   const guest = crypto.randomUUID(),
     account = crypto.randomUUID();
   const record = humanFixtureRecord(guest, 1);
   for (const p of record.participants) if (p.kind === "human") p.accountId = null;
-  for (const db of databases) {
-    const json = await prepareStoredMatchFixture(db, JSON.stringify(record));
-    await db
-      .prepare("INSERT INTO matches VALUES(?,'four-reversi','singles',?,?,?)")
-      .bind(record.id, record.startedAtMs, record.endedAtMs, json)
-      .run();
-    await seedMerge(db, guest, account);
-    await db
-      .prepare(`INSERT INTO match_participant_accounts
+  const json = await prepareStoredMatchFixture(db, JSON.stringify(record));
+  await db
+    .prepare("INSERT INTO matches VALUES(?,'four-reversi','singles',?,?,?)")
+    .bind(record.id, record.startedAtMs, record.endedAtMs, json)
+    .run();
+  await seedMerge(db, guest, account);
+  await db
+    .prepare(`INSERT INTO match_participant_accounts
       (match_id,player_id,account_id,room_id,instance_id,state,accepted_at_ms,retry_at_ms)
       VALUES(?,?,?,?,?,'pending',0,0)`)
-      .bind(record.id, record.participants[0].id, guest, record.roomId, record.instanceId)
-      .run();
-    await applyMatchClaims(db, record.id);
-    await applyMatchClaims(db, record.id);
-    expect((await history(db, record.id)).map((r) => r.account_id)).toEqual([account]);
-  }
-  expect(await history(withoutTriggers, record.id)).toEqual(await history(withTriggers, record.id));
+    .bind(record.id, record.participants[0].id, guest, record.roomId, record.instanceId)
+    .run();
+  const expectedHistory = historyRows(record.id, "four-reversi", "singles", record.startedAtMs, [
+    account,
+  ]);
+  await applyMatchClaims(db, record.id);
+  expect(await history(db, record.id)).toEqual(expectedHistory);
+  await applyMatchClaims(db, record.id);
+  expect(await history(db, record.id)).toEqual(expectedHistory);
 });
 
 for (const game of ["four-reversi", "shogi", "four-shogi"] as const)
-  test(`${game}: 既存fixtureの保存・再送経路でも統合後の本体・履歴が一致する`, async () => {
+  test(`${game}の保存で棋譜・履歴を統合先へ書き換え、再送後も保ちます`, async () => {
     const guest = crypto.randomUUID(),
       account = crypto.randomUUID();
     const source = game === "shogi" ? standardShogiRecord(guest) : humanShogiRecord(guest);
     const snapshot = humanFixtureRecord(guest, 1);
-    const id = game === "four-reversi" ? snapshot.id : source.record.id;
-    for (const db of databases) {
-      await seedMerge(db, guest, account);
-      for (let retry = 0; retry < 2; retry++) {
-        if (game === "four-reversi") await writeMatch(db, snapshot);
-        else {
-          let progress: ShogiSaveProgress | null = { phase: "upload", cursor: 0 };
-          while (progress)
-            progress = await advanceShogiMatchSave(db, source.record, progress, (cursor) =>
-              source.events.slice(cursor, cursor + 100),
-            );
-        }
-      }
-      expect(await storedRecord(db, "match_uploads", id)).toBeNull();
-      expect((await history(db, id)).map((r) => r.account_id)).toEqual([account]);
-    }
-    expect(await storedRecord(withoutTriggers, "matches", id)).toBe(
-      await storedRecord(withTriggers, "matches", id),
+    const record = game === "four-reversi" ? snapshot : source.record;
+    const { id } = record;
+    const save = async () => {
+      if (game === "four-reversi") return writeMatch(db, snapshot);
+      let progress: ShogiSaveProgress | null = { phase: "upload", cursor: 0 };
+      while (progress)
+        progress = await advanceShogiMatchSave(db, source.record, progress, (cursor) =>
+          source.events.slice(cursor, cursor + 100),
+        );
+    };
+
+    await seedMerge(db, guest, account);
+    await save();
+    const saved = await storedRecord(db, "matches", id);
+    expect(JSON.parse(saved!).participants).toEqual(
+      record.participants.map((p) =>
+        p.kind === "human" && p.accountId === guest ? { ...p, accountId: account } : p,
+      ),
     );
-    expect(await history(withoutTriggers, id)).toEqual(await history(withTriggers, id));
+    const expectedHistory = historyRows(
+      id,
+      game,
+      game === "shogi" ? "standard" : "singles",
+      record.startedAtMs,
+      [account],
+    );
+    expect(await history(db, id)).toEqual(expectedHistory);
+    expect(await storedRecord(db, "match_uploads", id)).toBeNull();
+
+    await save();
+    expect(await storedRecord(db, "matches", id)).toBe(saved);
+    expect(await history(db, id)).toEqual(expectedHistory);
+    expect(await storedRecord(db, "match_uploads", id)).toBeNull();
   });

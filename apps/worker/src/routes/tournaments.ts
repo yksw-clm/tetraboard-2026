@@ -19,7 +19,7 @@ import { accountIdentity, accountAvatarUrl, type StoredProfile } from "../accoun
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { consentStatement } from "../privacy/consent";
 import { adminIdentity } from "../admin/auth";
-import { readLimitedBody } from "../feedback/images";
+import { readLimitedBody } from "./readLimitedBody";
 import {
   adminList,
   lobbySections,
@@ -38,7 +38,16 @@ import {
   type TournamentRow,
 } from "../adapters/tournament/store";
 
-type Variables = { tournament: TournamentRow; user: StoredProfile };
+import { canReadTournamentChatAnonymously, chatPageQuery } from "./lobbyChatQuery";
+
+export const tournamentUnavailableMessage =
+  "処理できませんでした。時間をおいて再試行してください。";
+
+type Variables = {
+  tournament: TournamentRow;
+  user: StoredProfile;
+  readTournamentInChatBatch?: boolean;
+};
 export const tournamentRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 export const tournamentAdminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 const noStore: MiddlewareHandler = async (c, next) => {
@@ -47,9 +56,7 @@ const noStore: MiddlewareHandler = async (c, next) => {
 };
 for (const routes of [tournamentRoutes, tournamentAdminRoutes]) {
   routes.use("*", noStore);
-  routes.onError((_error, c) =>
-    c.json({ message: "処理できませんでした。時間をおいて再試行してください。" }, 503),
-  );
+  routes.onError((_error, c) => c.json({ message: tournamentUnavailableMessage }, 503));
 }
 async function json(request: Request) {
   const bytes = await readLimitedBody(request, 32768);
@@ -228,6 +235,14 @@ tournamentRoutes.get("/tournaments/lobby", async (c) => {
 tournamentRoutes.use("/tournaments/:id/*", async (c, next) => {
   const id = tournamentIdSchema.safeParse(c.req.param("id"));
   if (!id.success) return c.notFound();
+  // 本人確認用のCookieがないチャットGETでは、公開確認もチャットのbatchで行います。
+  if (
+    canReadTournamentChatAnonymously(c.req.path, c.req.raw) &&
+    chatPageQuery.safeParse(c.req.query()).success
+  ) {
+    c.set("readTournamentInChatBatch", true);
+    return next();
+  }
   const row = await publicTournament(c.env.APP_DB, id.data);
   if (!row) return c.notFound();
   c.set("tournament", row);

@@ -7,7 +7,7 @@ import { D1TournamentEntries } from "../src/adapters/tournament/entries";
 import { D1TournamentQueueStore } from "../src/adapters/tournament/queue";
 import { reserveAccountSeat } from "../src/flows/accountSeats/reserve";
 import {
-  guestFenceDatabases,
+  guestFenceDb as db,
   guestFenceFixture,
   tournamentFixture,
   withBatchInterleaving,
@@ -66,142 +66,117 @@ async function staleWait(db: D1Database, f: Awaited<ReturnType<typeof mergedGues
   return () => db.prepare(`SELECT * FROM ${table} WHERE account_id=?`).bind(f.guest.id).first();
 }
 
-for (const [index, { db, mode }] of guestFenceDatabases.entries()) {
-  test(`${mode}のguest_merged_entry_fenceは成立済みの行を変更せず新規エントリーを拒否します`, async () => {
-    const { guest, key } = await mergedGuest(db);
-    const otherKey = await tournamentFixture(db);
-    const id = crypto.randomUUID();
-    const store = new D1TournamentEntries(db);
-    if (index === 0) {
-      await expect(
-        db
-          .prepare("INSERT OR IGNORE INTO tournament_entries VALUES(?,?,?,?,0)")
-          .bind(id, otherKey, guest.id, 1)
-          .run(),
-      ).rejects.toThrow("guest_merged");
-    }
-    await expect(store.insert(otherKey, guest.id, id, 1)).rejects.toThrow("guest_merged");
-    expect(await store.eligible(guest.id, otherKey)).toBeNull();
-    expect(await store.eligible(guest.id, key)).toBeTruthy();
-  });
+test("統合済みのゲストの新規エントリーを拒否し、成立済みの行を保持します", async () => {
+  const { guest, key } = await mergedGuest(db);
+  const otherKey = await tournamentFixture(db);
+  const id = crypto.randomUUID();
+  const store = new D1TournamentEntries(db);
+  const entries = () =>
+    db
+      .prepare("SELECT * FROM tournament_entries WHERE account_id=? ORDER BY id")
+      .bind(guest.id)
+      .all();
+  const { results: before } = await entries();
+  await expect(store.insert(otherKey, guest.id, id, 1)).rejects.toThrow("guest_merged");
+  expect((await entries()).results).toEqual(before);
+  expect(await store.eligible(guest.id, otherKey)).toBeNull();
+  expect(await store.eligible(guest.id, key)).toBeTruthy();
+});
 
-  test(`${mode}のguest_merged_seat_fenceは通常席を拒否し期限切れ待機の削除も取り消します`, async () => {
+test("統合済みのゲストの通常席を拒否し、期限切れ待機の削除も取り消します", async () => {
+  const f = await mergedGuest(db);
+  const { guest, player, profile } = f;
+  const wait = await staleWait(db, f, "matchmaking");
+  const before = await wait();
+  await expect(
+    reserveAccountSeat(
+      new Request(env.APP_ORIGIN),
+      { ...env, APP_DB: db },
+      profile,
+      { id: player.admission.roomId, instanceId: player.admission.instanceId },
+      player.admission.playerId,
+    ),
+  ).rejects.toThrow("guest_merged");
+  expect(await wait()).toEqual(before);
+  expect(
+    await db.prepare("SELECT 1 FROM account_room_seats WHERE account_id=?").bind(guest.id).first(),
+  ).toBeNull();
+});
+
+for (const kind of ["matchmaking", "tournament"] as const) {
+  test(`統合済みのゲストの${kind}の席確定を拒否し、待機の変更も取り消します`, async () => {
     const f = await mergedGuest(db);
-    const { guest, player, profile } = f;
-    const wait = await staleWait(db, f, "matchmaking");
+    const { player, profile } = f;
+    const wait = await staleWait(db, f, kind);
     const before = await wait();
-    if (index === 0) {
-      const a = player.admission;
-      await expect(
-        db
-          .prepare(`INSERT OR IGNORE INTO account_room_seats
-        (account_id,operation_id,room_id,instance_id,player_id,name,created_at_ms)
-        VALUES(?,?,?,?,?,'登録名',1)`)
-          .bind(guest.id, a.operationId, a.roomId, a.instanceId, a.playerId)
-          .run(),
-      ).rejects.toThrow("guest_merged");
-    }
-    await expect(
-      reserveAccountSeat(
-        new Request(env.APP_ORIGIN),
-        { ...env, APP_DB: db },
-        profile,
-        { id: player.admission.roomId, instanceId: player.admission.instanceId },
-        player.admission.playerId,
-      ),
-    ).rejects.toThrow("guest_merged");
+    const group: Group = {
+      id: crypto.randomUUID(),
+      roomId: player.admission.roomId,
+      instanceId: player.admission.instanceId,
+      players: [player],
+      preparedAtMs: 1,
+      expiresAtMs: 1,
+      phase: "preparing",
+    };
+    const writes =
+      kind === "matchmaking"
+        ? preparePlayerWrites(db, undefined, player, group, 1)
+        : new D1TournamentQueueStore(db).preparePlayer(
+            player,
+            {
+              ...profile,
+              isAnonymous: 1,
+              avatarPresetId: profile.avatarPresetId ?? null,
+              entryId: player.entryId,
+              operationId: player.operationId,
+            },
+            f.key,
+          );
+    await expect(db.batch(writes.map(({ value }) => value as D1PreparedStatement))).rejects.toThrow(
+      "guest_merged",
+    );
     expect(await wait()).toEqual(before);
     expect(
       await db
         .prepare("SELECT 1 FROM account_room_seats WHERE account_id=?")
-        .bind(guest.id)
-        .first(),
-    ).toBeNull();
-  });
-
-  for (const kind of ["matchmaking", "tournament"] as const) {
-    test(`${mode}のguest_merged_seat_fenceは${kind}の席確定と待機の変更を取り消します`, async () => {
-      const f = await mergedGuest(db);
-      const { player, profile } = f;
-      const wait = await staleWait(db, f, kind);
-      const before = await wait();
-      const group: Group = {
-        id: crypto.randomUUID(),
-        roomId: player.admission.roomId,
-        instanceId: player.admission.instanceId,
-        players: [player],
-        preparedAtMs: 1,
-        expiresAtMs: 1,
-        phase: "preparing",
-      };
-      const writes =
-        kind === "matchmaking"
-          ? preparePlayerWrites(db, undefined, player, group, 1)
-          : new D1TournamentQueueStore(db).preparePlayer(
-              player,
-              {
-                ...profile,
-                isAnonymous: 1,
-                avatarPresetId: profile.avatarPresetId ?? null,
-                entryId: player.entryId,
-                operationId: player.operationId,
-              },
-              f.key,
-            );
-      await expect(
-        db.batch(writes.map(({ value }) => value as D1PreparedStatement)),
-      ).rejects.toThrow("guest_merged");
-      expect(await wait()).toEqual(before);
-      expect(
-        await db
-          .prepare("SELECT 1 FROM account_room_seats WHERE account_id=?")
-          .bind(f.guest.id)
-          .first(),
-      ).toBeNull();
-    });
-  }
-
-  for (const method of ["enqueue", "restore"] as const) {
-    test(`${mode}のguest_merged_wait_fenceは${method}を拒否し待機を変更しません`, async () => {
-      const f = await mergedGuest(db);
-      const wait = await staleWait(db, f, "tournament");
-      const before = await wait();
-      if (index === 0) {
-        await expect(
-          db
-            .prepare("INSERT INTO tournament_wait_reservations VALUES(?,?,?,?,NULL)")
-            .bind(f.guest.id, f.key, crypto.randomUUID(), 1)
-            .run(),
-        ).rejects.toThrow("guest_merged");
-      }
-      await expect(
-        new D1TournamentQueueStore(db)[method](
-          { ...f.player, expiresAtMs: Date.now() + 60_000 },
-          f.key,
-        ),
-      ).rejects.toThrow("guest_merged");
-      expect(await wait()).toEqual(before);
-    });
-  }
-
-  test(`${mode}の大会待機でbatch後に統合の行が消えてもguest_mergedを返します`, async () => {
-    const f = await mergedGuest(db);
-    const afterReject = async () => {
-      await db.prepare("DELETE FROM guest_account_merges WHERE guest_id=?").bind(f.guest.id).run();
-    };
-    const store = new D1TournamentQueueStore(withBatchInterleaving(db, afterReject));
-    await expect(store.enqueue(f.player, f.key)).rejects.toThrow("guest_merged");
-    expect(
-      await db
-        .prepare("SELECT 1 FROM guest_account_merges WHERE guest_id=?")
-        .bind(f.guest.id)
-        .first(),
-    ).toBeNull();
-    expect(
-      await db
-        .prepare("SELECT 1 FROM tournament_wait_reservations WHERE account_id=?")
         .bind(f.guest.id)
         .first(),
     ).toBeNull();
   });
 }
+
+for (const method of ["enqueue", "restore"] as const) {
+  test(`統合済みのゲストの大会待機の${method}を拒否し、待機の行を保持します`, async () => {
+    const f = await mergedGuest(db);
+    const wait = await staleWait(db, f, "tournament");
+    const before = await wait();
+    await expect(
+      new D1TournamentQueueStore(db)[method](
+        { ...f.player, expiresAtMs: Date.now() + 60_000 },
+        f.key,
+      ),
+    ).rejects.toThrow("guest_merged");
+    expect(await wait()).toEqual(before);
+  });
+}
+
+test("大会待機でbatch後に統合の行が消えてもguest_mergedを返します", async () => {
+  const f = await mergedGuest(db);
+  const afterReject = async () => {
+    await db.prepare("DELETE FROM guest_account_merges WHERE guest_id=?").bind(f.guest.id).run();
+  };
+  const store = new D1TournamentQueueStore(withBatchInterleaving(db, afterReject));
+  await expect(store.enqueue(f.player, f.key)).rejects.toThrow("guest_merged");
+  expect(
+    await db
+      .prepare("SELECT 1 FROM guest_account_merges WHERE guest_id=?")
+      .bind(f.guest.id)
+      .first(),
+  ).toBeNull();
+  expect(
+    await db
+      .prepare("SELECT 1 FROM tournament_wait_reservations WHERE account_id=?")
+      .bind(f.guest.id)
+      .first(),
+  ).toBeNull();
+});

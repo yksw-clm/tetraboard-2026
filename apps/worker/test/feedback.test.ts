@@ -7,9 +7,9 @@ import {
   feedbackInputSchema,
 } from "@tetraboard/protocol";
 import worker from "../src/worker";
-import type { FeedbackEnv } from "../src/feedback/routes";
-import { cleanupFeedback, feedbackRetentionMs } from "../src/feedback/store";
-import { validFeedbackImage } from "../src/feedback/images";
+import type { FeedbackEnv } from "../src/routes/feedbackRoutes";
+import { cleanupFeedback } from "../src/adapters/community/feedbackCleanup";
+import { feedbackRetentionMs, validFeedbackImage } from "@tetraboard/context-community";
 import { accountFixture, origin } from "./accountFixtures";
 const context = { waitUntil: () => {} } as unknown as ExecutionContext;
 const fetchWith = (path: string, init?: RequestInit, bindings: FeedbackEnv = env) =>

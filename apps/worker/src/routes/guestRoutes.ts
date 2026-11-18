@@ -4,7 +4,7 @@ import { legalVersion } from "@tetraboard/protocol/privacy";
 import { changeGuestName, allowGuestCreation } from "@tetraboard/context-account";
 import { D1GuestAccounts } from "../adapters/account/guestAccounts";
 import { authSecret } from "../privacy/tokens";
-import { readLimitedBody } from "../feedback/images";
+import { readLimitedBody } from "./readLimitedBody";
 import { accountIdentity, publicProfile } from "../accounts/auth";
 import { createGuestAccount } from "./guestSession";
 async function guestInput(request: Request): Promise<{

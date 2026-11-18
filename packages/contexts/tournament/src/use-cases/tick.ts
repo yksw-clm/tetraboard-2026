@@ -113,18 +113,23 @@ export async function inspectRoom(
 }
 export async function schedule(r: TournamentQueueRuntime, state: State, row: TournamentRow) {
   const now = r.now();
+  const retryAt = now + 5000;
   const next = [
     ...state.waiting.map((w) => w.expiresAtMs),
     ...state.groups.map((g) =>
       g.phase === "playing" || g.phase === "cancelling"
-        ? now + 5000
-        : Math.min(g.expiresAtMs, now + 5000),
+        ? retryAt
+        : Math.min(g.expiresAtMs, retryAt),
     ),
     ...(row.finalized_at_ms === null ? [row.ends_at_ms!] : []),
   ].filter((n) => n > now);
+  // 見直しの途中で期限が切れた待機は、次のAlarmですぐ回収します。
+  if (state.waiting.some((w) => w.expiresAtMs <= now)) next.push(now);
+  // 番号の衝突などで4人以上が待機に残った場合は、待機期限より前に再抽選します。
+  if (state.waiting.length >= 4) next.push(retryAt);
   if (row.ends_at_ms! <= now && row.finalized_at_ms === null) {
     const fresh = await r.read(row.key);
-    if (fresh?.finalized_at_ms === null) next.push(now + 5000);
+    if (fresh?.finalized_at_ms === null) next.push(retryAt);
   }
   if (next.length) await r.storage.setAlarm(Math.min(...next));
   else await r.storage.deleteAlarm();

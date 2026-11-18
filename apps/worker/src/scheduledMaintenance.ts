@@ -1,9 +1,9 @@
-import { cleanupLobbyChat } from "./lobby/chatStore";
+import { cleanupLobbyChat } from "./adapters/community/chatCleanup";
 import { processDeletions } from "./privacy/deletion";
 import { recoverAccountReservations } from "./flows/accountSeats/reserve";
 import { retryPendingMatchClaims } from "./adapters/record/matchClaims";
-import { deleteExpiredReports } from "./rooms/reportStore";
-import { cleanupFeedback } from "./feedback/store";
+import { deleteExpiredReports } from "./adapters/community/reports";
+import { cleanupFeedback } from "./adapters/community/feedbackCleanup";
 import { deleteUnusedAvatars } from "./routes/accountAvatars";
 import { recoverTournaments } from "./adapters/tournament/recovery";
 import { matchmakingQueueKeys } from "@tetraboard/protocol";
