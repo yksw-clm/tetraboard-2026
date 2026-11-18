@@ -1,3 +1,4 @@
+import type { Room } from "@tetraboard/protocol";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { writeRoomIndex, type PendingRoomIndex } from "../../rooms/roomIndex";
 import { RoomJob } from "../../rooms/roomJobs";
@@ -12,13 +13,30 @@ export function createRoomIndexJob(runtime: RoomRuntime) {
       return job ? [job] : [];
     },
     retryAt: (job) => job.retryAtMs,
-    execute: (job) => writeRoomIndex(runtime.db, job),
+    execute: (job) => publishPendingIndex(runtime, job),
     complete: (job) => updatePendingIndex(runtime, job),
     retry: (job, retryAtMs, error) => {
       console.error("Room index update failed", error);
       updatePendingIndex(runtime, job, retryAtMs);
     },
   });
+}
+
+async function publishPendingIndex(runtime: RoomRuntime, job: PendingRoomIndex) {
+  if (job.closed || job.metadata.instanceId != null) return writeRoomIndex(runtime.db, job);
+
+  const { storage } = runtime.ctx;
+  const shouldClose = storage.transactionSync(() => {
+    const current = storage.kv.get<PendingRoomIndex>(pendingIndexKey);
+    if (current?.revision !== job.revision) return false;
+    const room = readRoom(runtime);
+    if (room === null) return true;
+
+    // 旧版の書き込みがすでにD1へ届いていても、新しい版で置き換えます。
+    queueLobbyIndex(runtime, room, current.revision, current.retryAtMs);
+    return false;
+  });
+  if (shouldClose) await closeIndexedRoom(runtime.db, job.metadata.id, null, job.revision);
 }
 
 export function updatePendingIndex(
@@ -42,25 +60,44 @@ export async function refreshLobbyIndex(
 ) {
   const room = readRoom(runtime);
   if (room === null) {
-    // 番号が再利用された後の行や、新しいrevisionは閉じません。
     await runtime.alarms.sync();
-    await runtime.db
-      .prepare("UPDATE room_index SET closed=1 WHERE room_id=? AND instance_id IS ? AND revision=?")
-      .bind(runtime.ctx.id.name, expectedInstanceId, expectedRevision)
-      .run();
+    await closeIndexedRoom(runtime.db, runtime.ctx.id.name, expectedInstanceId, expectedRevision);
     return;
   }
-  runtime.ctx.storage.transactionSync(() => {
-    const revision =
-      Math.max(runtime.ctx.storage.kv.get<number>(indexRevisionKey) ?? 0, expectedRevision) + 1;
-    runtime.ctx.storage.kv.put(indexRevisionKey, revision);
-    runtime.ctx.storage.kv.put(pendingIndexKey, {
-      revision,
-      closed: false,
-      metadata: publicMetadata(runtime, room),
-      retryAtMs: Date.now(),
-    } satisfies PendingRoomIndex);
-  });
+  runtime.ctx.storage.transactionSync(() =>
+    queueLobbyIndex(runtime, room, expectedRevision, Date.now()),
+  );
   runtime.alarms.mark();
   await runtime.jobs.roomIndexJob.flush();
+}
+
+function queueLobbyIndex(
+  runtime: RoomRuntime,
+  room: Room,
+  expectedRevision: number,
+  retryAtMs: number,
+) {
+  const { kv } = runtime.ctx.storage;
+  const revision = Math.max(kv.get<number>(indexRevisionKey) ?? 0, expectedRevision) + 1;
+  kv.put(indexRevisionKey, revision);
+  kv.put(pendingIndexKey, {
+    revision,
+    closed: false,
+    metadata: publicMetadata(runtime, room),
+    retryAtMs,
+  } satisfies PendingRoomIndex);
+}
+
+function closeIndexedRoom(
+  db: D1Database,
+  roomId: string | undefined,
+  expectedInstanceId: string | null,
+  expectedRevision: number,
+) {
+  return db
+    .prepare(
+      "UPDATE room_index SET closed=1 WHERE room_id=? AND instance_id IS ? AND revision=? AND closed=0",
+    )
+    .bind(roomId, expectedInstanceId, expectedRevision)
+    .run();
 }
