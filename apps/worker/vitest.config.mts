@@ -59,6 +59,7 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
             PRIVACY_CONCURRENCY_TEST_DB: "privacy-concurrency-tests",
             GUEST_FENCES_TEST_DB: "guest-fences-tests",
             GUEST_MERGES_TEST_DB: "guest-merges-tests",
+            RECORD_PRIVACY_TEST_DB: "record-privacy-tests",
             COMMUNITY_WRITES_TEST_DB: "community-writes-tests",
             COMMUNITY_BATCHES_TEST_DB: "community-batches-tests",
           },

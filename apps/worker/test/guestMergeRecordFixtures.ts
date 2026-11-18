@@ -1,5 +1,4 @@
 import { applyD1Migrations, env } from "cloudflare:test";
-import { beforeAll } from "vitest";
 import { accountFixture } from "./accountFixtures";
 
 const bindings = env as typeof env & {
@@ -7,9 +6,7 @@ const bindings = env as typeof env & {
   TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1];
 };
 export const guestMergeDb = bindings.GUEST_MERGES_TEST_DB;
-beforeAll(async () => {
-  await applyD1Migrations(guestMergeDb, bindings.TEST_MIGRATIONS);
-});
+export const testMigrations = bindings.TEST_MIGRATIONS;
 
 export async function seedMerge(db: D1Database, guest: string, account: string) {
   await accountFixture(true, guest, db);

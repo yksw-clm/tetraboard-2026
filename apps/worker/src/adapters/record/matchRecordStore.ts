@@ -1,5 +1,6 @@
 import type { ChunkRow, MatchRecordStore, UploadRecord } from "@tetraboard/context-record";
 import { mergedRecordJsonSql } from "./guestMerges";
+import { scrubbedRecordJsonSql } from "./privacyScrub";
 
 export class D1MatchRecordStore implements MatchRecordStore<D1PreparedStatement> {
   constructor(private readonly db: D1Database) {}
@@ -13,7 +14,8 @@ export class D1MatchRecordStore implements MatchRecordStore<D1PreparedStatement>
   async insertUpload(record: UploadRecord, json: string, chunkCount: number) {
     await this.db
       .prepare(`INSERT INTO match_uploads
-    SELECT ?, ${mergedRecordJsonSql("input.record_json")}, ?, ? FROM (SELECT ? AS record_json) input
+    SELECT ?1, ${scrubbedRecordJsonSql(mergedRecordJsonSql("input.record_json"), "?1")}, ?, ?
+    FROM (SELECT ? AS record_json) input
     WHERE true
     ON CONFLICT(id) DO NOTHING`)
       .bind(record.id, record.replay.eventCount, chunkCount, json)
@@ -28,11 +30,12 @@ export class D1MatchRecordStore implements MatchRecordStore<D1PreparedStatement>
   }
   async replaceUpload(matchId: string, previous: string, json: string) {
     const row = await this.db
-      .prepare(`UPDATE match_uploads SET record_json=?
-      WHERE id=? AND record_json=? RETURNING record_json`)
+      .prepare(`UPDATE match_uploads SET record_json=${scrubbedRecordJsonSql("?1", "match_uploads.id")}
+      WHERE id=? AND record_json=? RETURNING id`)
       .bind(json, matchId, previous)
-      .first<{ record_json: string }>();
-    return row?.record_json ?? null;
+      .first<{ id: string }>();
+    // 呼び出し元との照合には、AFTER トリガー時の RETURNING と同じ更新入力を返します。
+    return row ? json : null;
   }
   async insertChunk(matchId: string, row: ChunkRow) {
     await this.db
@@ -59,7 +62,8 @@ export function publishMatchStatement(db: D1Database, matchId: string) {
   return db
     .prepare(`INSERT INTO matches (id, game, mode, started_at_ms, ended_at_ms, record_json)
     SELECT id, json_extract(record_json, '$.settings.game'), COALESCE(json_extract(record_json, '$.settings.mode'), 'standard'),
-      json_extract(record_json, '$.startedAtMs'), json_extract(record_json, '$.endedAtMs'), ${mergedRecordJsonSql("u.record_json")}
+      json_extract(record_json, '$.startedAtMs'), json_extract(record_json, '$.endedAtMs'),
+      ${scrubbedRecordJsonSql(mergedRecordJsonSql("u.record_json"), "u.id")}
     FROM match_uploads u WHERE id = ?
       AND (SELECT COUNT(*) FROM match_event_chunks WHERE match_id = u.id) = u.chunk_count
       AND COALESCE((SELECT SUM(event_count) FROM match_event_chunks WHERE match_id = u.id), 0) = u.event_count

@@ -1,4 +1,5 @@
-import { expect, test } from "vitest";
+import { applyD1Migrations } from "cloudflare:test";
+import { beforeAll, expect, test } from "vitest";
 import { D1MatchRecordStore, publishMatchStatement } from "../src/adapters/record/matchRecordStore";
 import {
   snapshotHistoryStatement,
@@ -12,7 +13,17 @@ import { humanFixtureRecord } from "./matchFixtures";
 import { humanShogiRecord } from "./shogiMatchFixtures";
 import { standardShogiRecord } from "./standardShogiFixtures";
 import { prepareStoredMatchFixture } from "./snapshotMatchFixtures";
-import { guestMergeDb as db, seedMerge, storedRecord, history } from "./guestMergeRecordFixtures";
+import {
+  guestMergeDb as db,
+  seedMerge,
+  storedRecord,
+  history,
+  testMigrations,
+} from "./guestMergeRecordFixtures";
+
+beforeAll(async () => {
+  await applyD1Migrations(db, testMigrations);
+});
 
 function historyRows(
   matchId: string,
