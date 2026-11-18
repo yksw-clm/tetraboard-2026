@@ -8,7 +8,9 @@ import {
   type RoomPublicMetadata,
 } from "@tetraboard/protocol";
 import { lobbyRoomCardSchema, type LobbyRoomsQuery } from "@tetraboard/protocol/general-lobby";
+import { retiredName } from "@tetraboard/context-privacy";
 import { z } from "zod";
+import { roomHostAccountExistsSql, roomParticipantScrubSql } from "../adapters/room/indexScrub";
 
 const indexedParticipantsSchema = z
   .array(
@@ -59,12 +61,42 @@ type IndexRow = {
 
 export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex): Promise<void> {
   const room = pending.metadata;
+  // ホストは直接の退会だけを照合し、参加者はゲストの統合先も照合します。
+  const retiredHost = roomHostAccountExistsSql(
+    "incoming.room_id",
+    "incoming.instance_id",
+    "incoming.host_player_id",
+    "r.account_id IN (SELECT id FROM deleted_accounts)",
+  );
+  const participants = roomParticipantScrubSql(
+    "scrub_input.room_id",
+    "scrub_input.instance_id",
+    "scrub_input.participants_json",
+  );
   await db
     .prepare(
-      `INSERT INTO room_index (
+      `WITH incoming (
         room_id, game, mode, main_time_ms, byoyomi_ms, status, host_name, host_avatar_url,
-        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed, instance_id, host_player_id, tournament_id, matchmaking, participants_json, match_kind, match_sequence
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed,
+        instance_id, host_player_id, tournament_id, matchmaking, participants_json, match_kind, match_sequence
+      ) AS (VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)),
+      scrub_input AS MATERIALIZED (
+        SELECT incoming.*, ${retiredHost} AS retired_host FROM incoming
+      )
+      INSERT INTO room_index (
+        room_id, game, mode, main_time_ms, byoyomi_ms, status, host_name, host_avatar_url,
+        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed,
+        instance_id, host_player_id, tournament_id, matchmaking, participants_json, match_kind, match_sequence
+      )
+      SELECT room_id, game, mode, main_time_ms, byoyomi_ms, status,
+        CASE WHEN retired_host THEN ? ELSE host_name END,
+        CASE WHEN retired_host THEN NULL ELSE host_avatar_url END,
+        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed, instance_id,
+        CASE WHEN retired_host THEN NULL ELSE host_player_id END,
+        tournament_id, matchmaking,
+        CASE WHEN ${participants.needed} THEN ${participants.scrubbed} ELSE participants_json END,
+        match_kind, match_sequence
+      FROM scrub_input WHERE true
       ON CONFLICT(room_id) DO UPDATE SET
         game = excluded.game,
         mode = excluded.mode,
@@ -81,8 +113,8 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
         revision = excluded.revision,
         closed = excluded.closed,
         instance_id = excluded.instance_id,
-        host_player_id = excluded.host_player_id
-        , tournament_id = excluded.tournament_id,
+        host_player_id = excluded.host_player_id,
+        tournament_id = excluded.tournament_id,
         matchmaking = excluded.matchmaking,
         participants_json = excluded.participants_json,
         match_kind = excluded.match_kind,
@@ -114,6 +146,7 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
         : JSON.stringify(indexedParticipantsSchema.parse(room.participantPreviews)),
       room.matchKind ?? null,
       room.matchSequence ?? null,
+      retiredName,
     )
     .run();
 }
