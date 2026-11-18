@@ -66,6 +66,7 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
             DELETION_WITH_TRIGGERS_TEST_DB: "deletion-with-triggers-tests",
             COMMUNITY_WRITES_TEST_DB: "community-writes-tests",
             COMMUNITY_BATCHES_TEST_DB: "community-batches-tests",
+            TB_158_TEST_DB: "tb-158-tests",
           },
           bindings: {
             APP_ORIGIN: "http://localhost:5173",

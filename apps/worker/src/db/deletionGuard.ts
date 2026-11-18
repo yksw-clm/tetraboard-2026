@@ -2,8 +2,12 @@
 export const acceptedDeletionSql =
   "EXISTS(SELECT 1 FROM deleted_accounts WHERE id=?1 AND receipt_hash=?2)";
 
+export function deletedAccountExistsSql(accountId: string) {
+  return `EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=${accountId})`;
+}
+
 export function accountNotDeletedSql(accountId: string) {
-  return `NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=${accountId})`;
+  return `NOT ${deletedAccountExistsSql(accountId)}`;
 }
 
 export type DeletionBatch = { accountId: string; batchReceipt: string };

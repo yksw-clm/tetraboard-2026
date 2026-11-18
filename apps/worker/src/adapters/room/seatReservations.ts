@@ -1,4 +1,5 @@
 import type { StoredProfile } from "../../accounts/auth";
+import { deletedAccountExistsSql } from "../../db/deletionGuard";
 import {
   prepareSeatMergedAbort,
   prepareSeatWaitFence,
@@ -47,8 +48,7 @@ export async function insertReservation(
   admission: AccountAdmission,
 ) {
   const candidate = {
-    sql: `FROM user WHERE id = ? AND profileCompleted = 1 AND name = ? AND avatarKey IS ? AND avatarPresetId IS ?
-        AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id)`,
+    sql: `FROM user WHERE id = ? AND profileCompleted = 1 AND name = ? AND avatarKey IS ? AND avatarPresetId IS ?`,
     values: [user.id, user.name, user.avatarKey, user.avatarPresetId ?? null],
   };
   const fence = seatFence("user.id", admission.operationId);
@@ -96,12 +96,14 @@ export function seatReferenceStatements(db: D1Database, operationId: string) {
       .bind(operationId),
     db
       .prepare(
-        "INSERT OR IGNORE INTO privacy_room_accounts SELECT account_id,room_id FROM account_room_seats WHERE operation_id=?",
+        `INSERT OR IGNORE INTO privacy_room_accounts SELECT account_id,room_id FROM account_room_seats s
+        WHERE operation_id=? AND NOT ${deletedAccountExistsSql("s.account_id")}`,
       )
       .bind(operationId),
     db
       .prepare(
-        "INSERT OR IGNORE INTO privacy_room_players SELECT account_id,room_id,instance_id,player_id,avatar_key FROM account_room_seats WHERE operation_id=?",
+        `INSERT OR IGNORE INTO privacy_room_players SELECT account_id,room_id,instance_id,player_id,avatar_key FROM account_room_seats s
+        WHERE operation_id=? AND NOT ${deletedAccountExistsSql("s.account_id")}`,
       )
       .bind(operationId),
   ];

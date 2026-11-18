@@ -41,15 +41,20 @@ export class TournamentCoordinator extends DurableObject<Env> {
     });
   }
   async enroll(key: string, accountId: string): Promise<tournament.Result> {
-    return this.serial(() =>
-      tournament.enroll(
-        new D1TournamentReader(this.env.APP_DB),
-        new D1TournamentEntries(this.env.APP_DB),
-        key,
-        accountId,
-        { id: () => crypto.randomUUID(), now: Date.now },
-      ),
-    );
+    return this.serial(async () => {
+      try {
+        return await tournament.enroll(
+          new D1TournamentReader(this.env.APP_DB),
+          new D1TournamentEntries(this.env.APP_DB),
+          key,
+          accountId,
+          { id: () => crypto.randomUUID(), now: Date.now },
+        );
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("account_deleted")) throw error;
+        return { ok: false, status: 403, message: "プロフィール登録を完了してください。" };
+      }
+    });
   }
   async status(key: string, accountId: string, controllerId?: string) {
     return tournament.participation(this.ports, this.storage.load(key), accountId, controllerId);

@@ -7,6 +7,7 @@ import type {
 import {
   acceptedDeletionSql,
   accountNotDeletedSql,
+  deletedAccountExistsSql,
   type DeletionBatch,
 } from "../../db/deletionGuard";
 import { D1MatchClaimReadStore } from "./matchClaimReadStore";
@@ -53,7 +54,8 @@ export class D1MatchClaimStore
         ),
       db
         .prepare(`INSERT OR IGNORE INTO privacy_room_accounts(account_id,room_id)
-      SELECT account_id,room_id FROM match_participant_accounts WHERE match_id=? AND player_id=? AND account_id=?`)
+      SELECT account_id,room_id FROM match_participant_accounts c
+      WHERE match_id=? AND player_id=? AND account_id=? AND NOT ${deletedAccountExistsSql("c.account_id")}`)
         .bind(input.matchId, input.playerId, input.accountId),
     ]);
   }
