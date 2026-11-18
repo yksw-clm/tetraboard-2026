@@ -10,8 +10,8 @@ import {
   previewRankingsSchema,
 } from "@tetraboard/protocol";
 import { accountAvatarUrl } from "../accounts/auth";
-import { matchDataContracts } from "../accounts/matchDataContracts";
-import { matchOutcomesCte } from "../accounts/matchOutcomes";
+import { matchDataContracts } from "../adapters/record/matchDataContracts";
+import { matchOutcomesCte } from "../adapters/record/matchOutcomes";
 import {
   ratedMatchmakingGameIds,
   ratingRankingContracts,

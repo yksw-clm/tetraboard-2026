@@ -7,8 +7,8 @@ import {
   getPublicMatchContract,
   getPublicMatchReplayContract,
 } from "@tetraboard/protocol";
-import { participantProfiles } from "../accounts/matchProfiles";
-import { readStoredMatch } from "../accounts/matchDataContracts";
+import { participantProfiles } from "../adapters/record/matchProfiles";
+import { readStoredMatch } from "../adapters/record/matchDataContracts";
 import { readShogiMatchReplayPage } from "./shogiMatchStore";
 
 export const publicMatchRoutes = new Hono<{ Bindings: Env }>();

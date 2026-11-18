@@ -1,4 +1,4 @@
-import { participantProfiles } from "../src/accounts/matchProfiles";
+import { participantProfiles } from "../src/adapters/record/matchProfiles";
 import { env } from "cloudflare:workers";
 import { afterEach, expect, test } from "vitest";
 import { reversiArchives } from "../../../test-fixtures/matches";
@@ -16,7 +16,7 @@ import {
   readMatchRecord,
   publicMatchDetail,
   matchDetail,
-} from "../src/accounts/matchDataContracts";
+} from "../src/adapters/record/matchDataContracts";
 import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import type { SnapshotMatch } from "../src/rooms/snapshotMatchEvents";

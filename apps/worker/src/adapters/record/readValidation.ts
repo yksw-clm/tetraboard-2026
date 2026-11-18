@@ -4,7 +4,7 @@ import {
   readMatchRecord,
   type DecodedMatch,
   type ReplayedMatch,
-} from "../../accounts/matchDataContracts";
+} from "./matchDataContracts";
 import { matchEventSchema, rebuildSnapshotMatch } from "../../rooms/snapshotMatchEvents";
 export const matchReadValidation: MatchReadValidation<DecodedMatch, ReplayedMatch> = {
   readStored: readStoredMatch,

@@ -103,3 +103,86 @@ export async function prepareMatchClaimTransitions<D extends ReadableRecordMatch
   });
   return { record, transitions };
 }
+
+export interface MatchClaimStore<Write> extends MatchClaimReadStore {
+  accept(input: MatchClaimInput, now: number, guard?: MatchClaimGuard): Promise<void>;
+  readAccepted(matchId: string, playerId: string): Promise<ClaimRow | null>;
+  transition(matchId: string, row: ClaimRow, valid: boolean): Write;
+  history(matchId: string): Write;
+  badges(game: string, matchId: string): Write[];
+  save(writes: Write[]): Promise<void>;
+  findPendingRetries(now: number, roomId?: string): Promise<string[]>;
+  postponeRetry(matchId: string, retryAt: number): Promise<void>;
+}
+
+type DecodeMatch = (json: string, game: string) => ReadableRecordMatch;
+type ClaimRuntime = { now(): number; reportRetry(message: string): void };
+
+/** ゲスト本人の資格を検証した後だけ呼び、保存待ちでも受付を永続化します。 */
+export async function acceptMatchClaim<Write>(
+  store: MatchClaimStore<Write>,
+  input: MatchClaimInput,
+  decode: DecodeMatch,
+  runtime: ClaimRuntime,
+  guard?: MatchClaimGuard,
+): Promise<"pending" | "applied"> {
+  await checkMatchClaim(store, input, decode);
+  await store.accept(input, runtime.now(), guard);
+
+  const row = await store.readAccepted(input.matchId, input.playerId);
+  if (row?.state === "retired" || (await store.isDeleted(input.accountId)))
+    throw new MatchClaimError("retired");
+  if (
+    !row ||
+    row.state === "rejected" ||
+    row.account_id !== input.accountId ||
+    row.room_id !== input.roomId ||
+    row.instance_id !== input.instanceId
+  )
+    throw new MatchClaimError("conflict");
+  try {
+    await applyMatchClaims(store, input.matchId, decode);
+  } catch (error) {
+    if (error instanceof MatchClaimError) throw error;
+    // 受付は確定済みなので、一時的な保存障害は独立した再試行へ残します。
+    runtime.reportRetry("Accepted match claim will be retried");
+  }
+
+  const state = await readClaimState(store, input.matchId, input.playerId, input.accountId);
+  if (state === "retired") throw new MatchClaimError("retired");
+  if (!state || state === "rejected") throw new MatchClaimError("conflict");
+  return state;
+}
+
+/** 公開済みの棋譜を正本として、本人索引・獲得通知と紐付けを同時に確定します。 */
+export async function applyMatchClaims<Write>(
+  store: MatchClaimStore<Write>,
+  matchId: string,
+  decode: DecodeMatch,
+): Promise<void> {
+  const prepared = await prepareMatchClaimTransitions(store, matchId, decode);
+  if (!prepared) return;
+  // 保存前に受け付けた不適格な1件で、他の本人索引や棋譜保存を停止しません。
+  await store.save([
+    ...prepared.transitions.map(({ row, valid }) => store.transition(matchId, row, valid)),
+    store.history(matchId),
+    ...store.badges(prepared.record.game, matchId),
+  ]);
+}
+
+/** 部屋閉鎖・再利用から独立して、確定前の引継ぎを少量ずつ回収します。 */
+export async function retryPendingMatchClaims<Write>(
+  store: MatchClaimStore<Write>,
+  decode: DecodeMatch,
+  runtime: ClaimRuntime,
+  roomId?: string,
+): Promise<void> {
+  for (const matchId of await store.findPendingRetries(runtime.now(), roomId)) {
+    await store.postponeRetry(matchId, runtime.now() + 5_000);
+    try {
+      await applyMatchClaims(store, matchId, decode);
+    } catch {
+      runtime.reportRetry("Pending match claim will be retried");
+    }
+  }
+}

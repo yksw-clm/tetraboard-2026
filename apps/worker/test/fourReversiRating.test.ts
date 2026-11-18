@@ -18,7 +18,7 @@ import { namedCpuProfile } from "../src/adapters/matchmaking/cpuProfiles";
 import { type MatchRecord } from "../src/rooms/matchStore";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { publicRatingForMu } from "../src/rooms/fourReversiRating";
-import { readAccountStats } from "../src/accounts/statsRoutes";
+import { readAccountStats } from "../src/adapters/record/stats";
 
 const ratingPath = "/matchmaking/four-reversi/rating";
 

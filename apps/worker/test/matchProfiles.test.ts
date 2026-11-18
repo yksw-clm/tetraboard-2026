@@ -2,8 +2,8 @@ import { encodeSnapshotMatch } from "../src/rooms/snapshotMatchEvents";
 import { accountAvatarPresetId, avatarPresetUrl } from "@tetraboard/protocol";
 import { env } from "cloudflare:workers";
 import { afterEach, expect, test } from "vitest";
-import { participantProfiles } from "../src/accounts/matchProfiles";
-import { matchSummary, readStoredMatch } from "../src/accounts/matchDataContracts";
+import { participantProfiles } from "../src/adapters/record/matchProfiles";
+import { matchSummary, readStoredMatch } from "../src/adapters/record/matchDataContracts";
 import { accountFixture } from "./accountFixtures";
 import { fixtureRecord, humanFixtureRecord } from "./matchFixtures";
 

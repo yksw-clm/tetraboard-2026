@@ -13,15 +13,15 @@ import { encodeValidatedSnapshot, normalizeMatchUpload } from "./validation";
 import { matchEventSchema } from "../../rooms/snapshotMatchEvents";
 import type { MatchRecord } from "../../rooms/matchStore";
 import { tournamentMatchStatements } from "../../adapters/tournament/store";
-import { readStoredMatch } from "../../accounts/matchDataContracts";
+import { readStoredMatch } from "../../adapters/record/matchDataContracts";
 import { fourReversiRatingStore } from "../../rooms/fourReversiRating";
 import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 import { redactParticipants } from "../../privacy/identity";
-import { applyMatchClaims } from "../../accounts/matchClaims";
+import { applyMatchClaims } from "../../adapters/record/matchClaims";
 import type { MatchRecord as FourGomokuMatchRecord } from "../../rooms/fourGomokuMatchStore";
 import type { MatchRecord as GomokuMatchRecord } from "../../rooms/gomokuMatchStore";
 import type { MatchRecord as ReversiMatchRecord } from "../../rooms/reversiMatchStore";
-import { badgeAwardStatements } from "../../accounts/badgeAwards";
+import { badgeAwardStatements } from "../../adapters/record/badgeAwards";
 export async function writeMatch(
   db: D1Database,
   record: MatchRecord | ReversiMatchRecord | GomokuMatchRecord | FourGomokuMatchRecord,

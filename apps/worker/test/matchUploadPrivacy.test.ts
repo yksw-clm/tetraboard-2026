@@ -6,12 +6,12 @@ import { boundaryRequest } from "./roomBoundaryFixtures";
 import { humanFixtureRecord } from "./matchFixtures";
 import { humanShogiRecord } from "./shogiMatchFixtures";
 import { standardShogiRecord } from "./standardShogiFixtures";
-import { reversiMatchData } from "../src/accounts/reversiMatchData";
+import { reversiMatchData } from "../src/adapters/record/reversiMatchData";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { requestDeletion } from "../src/privacy/deletion";
-import { readStoredMatch } from "../src/accounts/matchDataContracts";
+import { readStoredMatch } from "../src/adapters/record/matchDataContracts";
 import type { ProfileRatings } from "@tetraboard/protocol";
 
 type Game = "reversi" | "four-reversi" | "shogi" | "four-shogi";

@@ -62,8 +62,8 @@ export function emptyKnockouts(): Record<Side, number> {
   return { south: 0, west: 0, north: 0, east: 0 };
 }
 
-export { readFourShogiMatchRecord as readShogiMatchRecord } from "../accounts/matchDataContracts";
-import { readFourShogiMatchRecord as readShogiMatchRecord } from "../accounts/matchDataContracts";
+export { readFourShogiMatchRecord as readShogiMatchRecord } from "../adapters/record/matchDataContracts";
+import { readFourShogiMatchRecord as readShogiMatchRecord } from "../adapters/record/matchDataContracts";
 
 export type StandardShogiMatchRecord = {
   profileRatings?: ProfileRatings;
@@ -88,7 +88,7 @@ export type PendingStandardShogiMatch = {
   progress: ShogiSaveProgress;
   retryAtMs: number;
 };
-import { shogiMatchData } from "../accounts/shogiMatchData";
+import { shogiMatchData } from "../adapters/record/shogiMatchData";
 function eventSchema(game: "four-shogi" | "shogi") {
   return game === "four-shogi" ? fourShogiReplayEventSchema : shogiReplayEventSchema;
 }

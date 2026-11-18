@@ -36,7 +36,7 @@ import { requireGuestIdle } from "../src/accounts/guestLinking";
 import { accountIdentity } from "../src/accounts/auth";
 import { matchmakingRoutes } from "../src/routes/matchmaking";
 import { standardShogiRecord, saveStandardShogiFixture } from "./standardShogiFixtures";
-import { reversiMatchData } from "../src/accounts/reversiMatchData";
+import { reversiMatchData } from "../src/adapters/record/reversiMatchData";
 import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import type { ShogiCpuJob } from "../src/rooms/standardShogiProgress";

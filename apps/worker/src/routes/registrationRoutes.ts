@@ -5,7 +5,7 @@ import {
   registrationStatusSchema,
   membershipTokenSchema,
 } from "@tetraboard/protocol";
-import { MatchClaimError } from "../accounts/matchClaims";
+import { MatchClaimError } from "@tetraboard/context-record";
 import {
   RegistrationError,
   registrationFromRequest,

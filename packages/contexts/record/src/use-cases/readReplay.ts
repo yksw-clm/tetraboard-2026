@@ -1,3 +1,4 @@
+import type { ReadableRecordMatch } from "../domain/matchData";
 import { matchChunkSize, readMatchChunk } from "../domain/matchChunks";
 import type { MatchReadStore } from "./readPorts";
 
@@ -39,4 +40,23 @@ export async function readMatchReplayPage<R extends ReplayRecord, E>(
     events,
     nextCursor: cursor + count < record.replay.eventCount ? cursor + count : null,
   };
+}
+
+export async function readOwnMatchReplay<D extends ReadableRecordMatch, Page extends object>(
+  store: Pick<MatchReadStore, "readMatch">,
+  matchId: string,
+  accountId: string,
+  cursor: number,
+  decode: (json: string, game: string) => D,
+  readPage: (id: string, cursor: number, game: "shogi" | "four-shogi") => Promise<Page | null>,
+) {
+  const row = await store.readMatch(matchId, accountId);
+  if (!row) return { status: "not_found" as const };
+  const match = decode(row.record_json, row.game);
+  if (match.game !== "four-shogi" && match.game !== "shogi")
+    return { status: "not_found" as const };
+  if (cursor > match.record.replay.eventCount) return { status: "invalid_cursor" as const };
+  const page = await readPage(match.record.id, cursor, match.game);
+  if (!page) throw new Error("Archived replay missing");
+  return { status: "found" as const, page: { matchId: match.record.id, ...page } };
 }
