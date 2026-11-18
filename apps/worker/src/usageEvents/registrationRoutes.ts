@@ -1,6 +1,6 @@
 import { registrationAnalyticsInputSchema } from "@tetraboard/protocol";
 import { Hono } from "hono";
-import { readLimitedBody } from "../feedback/images";
+import { readLimitedBody } from "../routes/readLimitedBody";
 import { browserIdFromRequest } from "./browserId";
 import { registrationUsage } from "./registration";
 

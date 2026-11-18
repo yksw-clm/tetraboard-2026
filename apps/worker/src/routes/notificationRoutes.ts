@@ -6,15 +6,21 @@ import {
   notificationReadAllSchema,
 } from "@tetraboard/protocol";
 import { accountIdentity } from "../accounts/auth";
+import { notificationRequestStore } from "../adapters/community/notifications";
 import {
-  hasUnreadNotifications,
-  initializeNotifications,
-  notificationUpperBound,
-  readNotifications,
-  visibleNotificationSql,
-} from "./store";
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  prepareNotifications,
+  readNotification,
+  readNotificationStatus,
+  type NotificationStore,
+} from "@tetraboard/context-community";
 
-export const notificationRoutes = new Hono<{ Bindings: Env; Variables: { accountId: string } }>();
+export const notificationRoutes = new Hono<{
+  Bindings: Env;
+  Variables: { accountId: string; notifications: NotificationStore };
+}>();
 for (const path of ["/notifications", "/notifications/*", "/account/notifications/*"]) {
   notificationRoutes.use(path, async (c, next) => {
     c.header("Cache-Control", "no-store");
@@ -25,7 +31,9 @@ for (const path of ["/notifications", "/notifications/*", "/account/notification
       if (c.req.method !== "GET" && c.req.header("Origin") !== c.env.APP_ORIGIN)
         return c.json({ message: "操作元を確認できません。" }, 403);
     }
-    if (identity) await initializeNotifications(c.env.APP_DB, identity.id);
+    const store = notificationRequestStore(c.env.APP_DB);
+    if (identity) await prepareNotifications(store, identity.id);
+    c.set("notifications", store);
     await next();
   });
 }
@@ -47,64 +55,40 @@ const querySchema = z
 notificationRoutes.get("/notifications", async (c) => {
   const query = querySchema.safeParse(c.req.query());
   if (!query.success) return c.json({ message: "取得条件を確認してください。" }, 400);
-  const accountId = c.get("accountId");
-  const upperBound = await notificationUpperBound(c.env.APP_DB, accountId);
-  const rows = await readNotifications(c.env.APP_DB, accountId, {
-    before: query.data.cursor,
-    after: query.data.after,
-    announcementId: query.data.announcementId,
-  });
-  const notifications = rows.slice(0, 20);
-  return c.json({
-    notifications,
-    upperBound: Math.max(upperBound, notifications[0]?.id ?? 0),
-    nextCursor: rows.length > 20 ? String(notifications.at(-1)!.id) : null,
-  });
+  return c.json(
+    await listNotifications(c.get("notifications"), c.get("accountId"), {
+      before: query.data.cursor,
+      after: query.data.after,
+      announcementId: query.data.announcementId,
+    }),
+  );
 });
 notificationRoutes.get("/notifications/:id", async (c) => {
   const id = numberQuery.safeParse(c.req.param("id"));
   if (!id.success) return c.notFound();
-  const row = (await readNotifications(c.env.APP_DB, c.get("accountId"), { id: id.data }))[0];
+  const row = await readNotification(c.get("notifications"), c.get("accountId"), id.data);
   return row ? c.json(row) : c.notFound();
 });
-notificationRoutes.get("/account/notifications/unread", async (c) => {
-  const db = c.env.APP_DB,
-    id = c.get("accountId");
-  return c.json({
-    hasUnread: await hasUnreadNotifications(db, id),
-    upperBound: await notificationUpperBound(db, id),
-  });
-});
+notificationRoutes.get("/account/notifications/unread", async (c) =>
+  c.json(await readNotificationStatus(c.get("notifications"), c.get("accountId"))),
+);
 notificationRoutes.post("/account/notifications/read", async (c) => {
   const input = notificationReadSchema.safeParse(await c.req.json().catch(() => null));
   if (!input.success) return c.json({ message: "通知の指定を確認してください。" }, 400);
-  const id = c.get("accountId"),
-    db = c.env.APP_DB;
-  const result = await db
-    .prepare(`INSERT OR IGNORE INTO account_notification_reads(account_id,notification_seq)
-    SELECT ?,e.seq FROM notification_events e WHERE e.seq=? AND ${visibleNotificationSql} RETURNING notification_seq`)
-    .bind(id, input.data.id, id)
-    .first();
-  if (!result && !(await readNotifications(db, id, { id: input.data.id })).length)
+  if (!(await markNotificationRead(c.get("notifications"), c.get("accountId"), input.data.id)))
     return c.notFound();
   return c.json({ ok: true });
 });
 notificationRoutes.post("/account/notifications/read-all", async (c) => {
   const input = notificationReadAllSchema.safeParse(await c.req.json().catch(() => null));
   if (!input.success) return c.json({ message: "通知の指定を確認してください。" }, 400);
-  const db = c.env.APP_DB,
-    id = c.get("accountId");
-  // 入力を実在する通知上限で制限し、将来の通知まで既読にする指定を拒否します。
-  const frontier = await db
-    .prepare("SELECT seq FROM sqlite_sequence WHERE name='notification_events'")
-    .first<{ seq: number }>();
-  if (input.data.through > (frontier?.seq ?? 0))
+  if (
+    !(await markAllNotificationsRead(
+      c.get("notifications"),
+      c.get("accountId"),
+      input.data.through,
+    ))
+  )
     return c.json({ message: "通知の上限を確認してください。" }, 400);
-  await db
-    .prepare(
-      "UPDATE account_notification_state SET read_all_seq=MAX(read_all_seq,?) WHERE account_id=?",
-    )
-    .bind(input.data.through, id)
-    .run();
   return c.json({ ok: true });
 });

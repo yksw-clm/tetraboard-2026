@@ -1,11 +1,11 @@
+import type { AnnouncementQueries, AnnouncementWrites } from "@tetraboard/context-community";
 import {
-  announcementFirstLine,
   announcementRecordSchema,
   type AnnouncementInput,
   type AnnouncementRecord,
 } from "@tetraboard/protocol";
 
-export type Row = {
+type Row = {
   id: string;
   title: string;
   body: string;
@@ -17,8 +17,8 @@ export type Row = {
   version: number;
   lobby_games: string;
 };
-export const columns = `a.*, (SELECT json_group_array(game) FROM announcement_lobby_targets WHERE announcement_id = a.id) AS lobby_games`;
-export function record(row: Row): AnnouncementRecord {
+const columns = `a.*, (SELECT json_group_array(game) FROM announcement_lobby_targets WHERE announcement_id = a.id) AS lobby_games`;
+function record(row: Row): AnnouncementRecord {
   return announcementRecordSchema.parse({
     id: row.id,
     title: row.title,
@@ -32,15 +32,7 @@ export function record(row: Row): AnnouncementRecord {
     lobbyGames: JSON.parse(row.lobby_games),
   });
 }
-export function detail(row: Row) {
-  const { id, title, body, date, kind } = record(row);
-  return { id, title, body, date, kind };
-}
-export function summary(row: Row) {
-  const { body, ...value } = detail(row);
-  return { ...value, summary: announcementFirstLine(body) };
-}
-export const read = (db: D1Database, id: string, publicOnly = false) =>
+const read = (db: D1Database, id: string, publicOnly = false) =>
   db
     .prepare(
       `SELECT ${columns} FROM announcements a WHERE a.id = ? ${publicOnly ? "AND a.published = 1" : ""}`,
@@ -100,4 +92,32 @@ export async function update(
       ),
   ]);
   return result.at(-1)!.results.length === 1;
+}
+
+export function announcementStore(db: D1Database): AnnouncementQueries<Row> & AnnouncementWrites {
+  return {
+    record,
+    position: (row) => ({ date: row.date, at: row.created_at_ms, id: row.id }),
+    read: (id, publishedOnly) => read(db, id, publishedOnly),
+    async list(publishedOnly, after, take) {
+      const conditions = [publishedOnly ? "a.published = 1" : "1 = 1"];
+      if (after) conditions.push("(a.date, a.created_at_ms, a.id) < (?, ?, ?)");
+      const rows = await db
+        .prepare(
+          `SELECT ${columns} FROM announcements a WHERE ${conditions.join(" AND ")} ORDER BY a.date DESC, a.created_at_ms DESC, a.id DESC LIMIT ?`,
+        )
+        .bind(...(after ? [after.date, after.at, after.id] : []), take)
+        .all<Row>();
+      return rows.results;
+    },
+    latestPublishedForLobby: (game) =>
+      db
+        .prepare(
+          `SELECT ${columns} FROM announcements a WHERE a.published = 1 AND EXISTS (SELECT 1 FROM announcement_lobby_targets WHERE announcement_id = a.id AND game = ?) ORDER BY a.date DESC, a.created_at_ms DESC, a.id DESC LIMIT 1`,
+        )
+        .bind(game)
+        .first<Row>(),
+    create: (input) => create(db, input),
+    update: (id, input, version) => update(db, id, input, version),
+  };
 }

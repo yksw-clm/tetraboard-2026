@@ -7,14 +7,14 @@ import { afterEach, beforeAll, expect, test } from "vitest";
 import { notificationListSchema, notificationSchema } from "@tetraboard/protocol";
 import worker from "../src/worker";
 import { accountFixture as baseAccountFixture, origin } from "./accountFixtures";
-import { create, update } from "../src/announcements/store";
+import { create, update } from "../src/adapters/community/announcements";
 import { finalizeTournament } from "../src/adapters/tournament/store";
 import {
   initializeNotifications,
   mergeNotificationStatements,
   hasUnreadNotifications,
   readNotifications,
-} from "../src/notifications/store";
+} from "../src/adapters/community/notifications";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { humanFixtureRecord } from "./matchFixtures";
 import { requestDeletion, processDeletions } from "../src/privacy/deletion";

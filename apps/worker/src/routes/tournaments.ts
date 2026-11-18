@@ -19,7 +19,7 @@ import { accountIdentity, accountAvatarUrl, type StoredProfile } from "../accoun
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { consentStatement } from "../privacy/consent";
 import { adminIdentity } from "../admin/auth";
-import { readLimitedBody } from "../feedback/images";
+import { readLimitedBody } from "./readLimitedBody";
 import {
   adminList,
   lobbySections,

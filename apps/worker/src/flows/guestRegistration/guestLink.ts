@@ -27,7 +27,7 @@ import {
 import { guestSeatTransferStatement } from "../../adapters/room/guestMergeWrites";
 import { guestTournamentTransferStatements } from "../../adapters/tournament/guestMergeWrites";
 import { guestChatMergeStatements } from "../../lobby/mergeGuestChat";
-import { mergeNotificationStatements } from "../../notifications/store";
+import { mergeNotificationStatements } from "../../adapters/community/notifications";
 import {
   clearGuestSession,
   guestIdentity,

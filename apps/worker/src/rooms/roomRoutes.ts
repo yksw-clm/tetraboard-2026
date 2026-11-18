@@ -13,9 +13,6 @@ import {
   leaveRoomContract,
   listRoomsContract,
   previewRoomListSchema,
-  listReportsContract,
-  moderateReportContract,
-  reportContract,
   roomCodeSchema,
   roomSocketContract,
   viewerContract,
@@ -27,7 +24,7 @@ import { reserveAccountSeat, cancelReservation } from "../flows/accountSeats/res
 import { type AccountAdmission } from "../flows/accountSeats/types";
 import { Hono } from "hono";
 import { listRoomIndex } from "./roomIndex";
-import { createReport, getReport, listReports, resolveReport } from "./reportStore";
+import { registerRoomReportRoutes } from "../routes/roomReportRoutes";
 
 export const roomRoutes = new Hono<{ Bindings: Env }>();
 
@@ -62,19 +59,6 @@ function generateRoomCode(): string {
 
 function roomError(error: RoomError["error"]): RoomError {
   return createRoomContract.error.parse({ error });
-}
-
-function moderatorAuthorized(
-  authorization: string | undefined,
-  secret: string | undefined,
-): boolean {
-  if (!secret || !authorization?.startsWith("Bearer ")) return false;
-  const candidate = authorization.slice(7);
-  if (candidate.length !== secret.length) return false;
-  let difference = 0;
-  for (let index = 0; index < candidate.length; index++)
-    difference |= candidate.charCodeAt(index) ^ secret.charCodeAt(index);
-  return difference === 0;
 }
 
 roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context) => {
@@ -462,107 +446,4 @@ roomRoutes.on(viewerContract.method, viewerContract.path, async (context) => {
   }
 });
 
-roomRoutes.on(reportContract.method, reportContract.path, async (context) => {
-  const code = context.req.param("id");
-  if (!roomCodeSchema.safeParse(code).success)
-    return context.json(roomError("invalid_request"), 400);
-  const token = context.req.header("Authorization")?.match(/^Bearer ([0-9a-f]{64})$/)?.[1];
-  if (!token) return context.json(roomError("unauthorized"), 401);
-  let body: unknown;
-  try {
-    body = await context.req.json();
-  } catch {
-    return context.json(roomError("invalid_request"), 400);
-  }
-  const request = reportContract.request.safeParse(body);
-  if (!request.success) return context.json(roomError("invalid_request"), 400);
-  try {
-    const target = await context.env.GAME_ROOM.getByName(code).inspectReport(
-      token,
-      request.data.messageId,
-    );
-    if (target.status !== "found")
-      return target.status === "unauthorized"
-        ? context.json(roomError("unauthorized"), 401)
-        : context.json(roomError("not_found"), 404);
-    const result = await createReport(context.env.APP_DB, {
-      roomId: code,
-      instanceId: target.instanceId,
-      message: target.message,
-      reporterHash: target.reporterHash,
-    });
-    if (result.status !== "created")
-      return result.status === "duplicate"
-        ? context.json(roomError("conflict"), 409)
-        : context.json(roomError("rate_limited"), 429);
-    context.header("Cache-Control", "no-store");
-    return context.json(reportContract.response.parse({ id: result.id }), 201);
-  } catch {
-    return context.json(roomError("internal_error"), 500);
-  }
-});
-
-roomRoutes.on(listReportsContract.method, listReportsContract.path, async (context) => {
-  const secret = (context.env as Env & { MODERATOR_TOKEN?: string }).MODERATOR_TOKEN;
-  if (!secret) return context.json(roomError("internal_error"), 503);
-  if (!moderatorAuthorized(context.req.header("Authorization"), secret))
-    return context.json(roomError("unauthorized"), 401);
-  const query = listReportsContract.query.safeParse(context.req.query());
-  if (
-    !query.success ||
-    (query.data.cursor !== undefined && !/^\d{1,16}:[0-9a-f-]{36}$/.test(query.data.cursor))
-  )
-    return context.json(roomError("invalid_request"), 400);
-  try {
-    context.header("Cache-Control", "no-store");
-    return context.json(
-      listReportsContract.response.parse(await listReports(context.env.APP_DB, query.data.cursor)),
-    );
-  } catch {
-    return context.json(roomError("internal_error"), 500);
-  }
-});
-
-roomRoutes.on(moderateReportContract.method, moderateReportContract.path, async (context) => {
-  const secret = (context.env as Env & { MODERATOR_TOKEN?: string }).MODERATOR_TOKEN;
-  if (!secret) return context.json(roomError("internal_error"), 503);
-  if (!moderatorAuthorized(context.req.header("Authorization"), secret))
-    return context.json(roomError("unauthorized"), 401);
-  const id = context.req.param("id");
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))
-    return context.json(roomError("invalid_request"), 400);
-  let body: unknown;
-  try {
-    body = await context.req.json();
-  } catch {
-    return context.json(roomError("invalid_request"), 400);
-  }
-  const request = moderateReportContract.request.safeParse(body);
-  if (!request.success) return context.json(roomError("invalid_request"), 400);
-  try {
-    const report = await getReport(context.env.APP_DB, id);
-    if (report === null) return context.json(roomError("not_found"), 404);
-    if (report.status === "resolved")
-      return report.action === request.data.action
-        ? context.json(report)
-        : context.json(roomError("conflict"), 409);
-    const action = request.data.action;
-    if (action !== "dismiss") {
-      const status = await context.env.GAME_ROOM.getByName(report.roomId).moderateMessage(
-        report.instanceId,
-        report.message.id,
-        report.message.senderId,
-        action === "delete" || action === "delete_and_mute",
-        action === "mute" || action === "delete_and_mute",
-      );
-      if (status === "room_changed") return context.json(roomError("conflict"), 409);
-    }
-    const resolved = await resolveReport(context.env.APP_DB, id, action);
-    if (resolved === null) return context.json(roomError("not_found"), 404);
-    if (resolved.action !== action) return context.json(roomError("conflict"), 409);
-    context.header("Cache-Control", "no-store");
-    return context.json(moderateReportContract.response.parse(resolved));
-  } catch {
-    return context.json(roomError("internal_error"), 500);
-  }
-});
+registerRoomReportRoutes(roomRoutes, roomError);

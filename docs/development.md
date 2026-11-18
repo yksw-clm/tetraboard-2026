@@ -597,6 +597,17 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 - ゲストの統合と昇格: 文脈の `domain/guestLink.ts`（前提の判定）、`use-cases/guestMerge.ts`、`guestLink.ts`、`guestLinkChecks.ts`。D1 の実装は `adapters/account/guestLinks.ts`、`guestLinkWrites.ts` です。統合では、account の use-case が前提の検査と account の書き込みを返し、`flows/guestRegistration/guestLink.ts` がほかの文脈の付け替え（保持した席、フィードバック、棋譜、チャット、通知、大会、プライバシーの索引、バッジ。各文脈の adapter の `guestMergeWrites.ts`）を決まった順に挟んで、1 回の D1 の batch で確定します。通知はバッジより先に付け替えます（逆にすると通知が作り直され、中身からバッジが落ちます。`guestAccounts.test.ts` の回帰テストが確かめます）。統合、昇格、ルームの引き継ぎの確定、登録の流れのフェンスは、条件つきの書き込みです（`adapters/account/guestLinkFences.ts`、`registrationFence.ts`、TB-136）。拒まれたときは、同じ batch の中で `db/fenceAbort.ts` がわざと SQLite のエラーを起こし、batch 全体（ほかの文脈の付け替えを含む）を取り消します。エラーの文面に拒否の符号（`guest_merge_conflict` など）が入るので、ルートはそれで応答を決めます。以前は D1 のトリガー 10 個が同じことを守っていましたが、TB-138 で消しました。トリガーがないので、この条件とテストが唯一の守りです。挿入の場所が決めたファイルの外に増えていないことと、条件が外せない形で付いていることは `test-bun/guestFenceBoundaries.test.ts` が確かめます。
 - `apps/worker/src/routes/`: `accountRoutes.ts`、`accountAuthRoutes.ts`、`playerProfileRoutes.ts`、`guestRoutes.ts`、`registrationRoutes.ts`、`guestLinkRoutes.ts`、`guestLinkOAuth.ts` など HTTP の入口。better-auth と Cookie は殻に残ります（`accounts/auth.ts`）。
 
+## コミュニティの入口
+
+お知らせ、通知、フィードバック、ルームのチャットの通報は、ADR 0010 の形に分かれています（TB-143）。
+
+- `packages/contexts/community/src/domain/`: お知らせの公開の範囲とページ、通知の種類と既読の上限、フィードバックの入力と画像、通報の間隔と重複の判定。純粋な関数です。
+- `packages/contexts/community/src/use-cases/`: お知らせの一覧と保存、通知の一覧と既読、フィードバックの受付（`submitFeedback.ts`）、編集（`editFeedback.ts`）、期限の削除（`cleanupFeedback.ts`）、通報の受付と一覧と処理（`reports.ts`）。D1 と R2 はポートで受け取ります。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
+- `apps/worker/src/adapters/community/`: ポートの D1 と R2 の実装。
+- `apps/worker/src/flows/`: 文脈をまたぐもの。`feedbackSubmission.ts` は退会の確認（privacy）、`roomReports.ts` はルームの DO での発言の確認（room）と結びます。
+- `apps/worker/src/routes/`: `announcementRoutes.ts`、`notificationRoutes.ts`、`feedbackRoutes.ts`、`feedbackAdminRoutes.ts`、`roomReportRoutes.ts` などの HTTP の入口。本文の大きさの上限つきの読み取りは `readLimitedBody.ts` です。
+- 通知のイベントを作るトリガー（`notification_badge`、`notification_announcement_*`）は、まだ D1 に残っています（TB-145 で書き込みへ移します）。
+
 ## マッチングの入口
 
 レート戦の待機列は、ADR 0010 の形に分かれています（TB-115）。仕様は [docs/specs/matchmaking.md](specs/matchmaking.md) です。
@@ -1581,7 +1592,7 @@ Worker統合テストで保存・公開・掲載先・並び順・カーソル�
 
 ### ベルのお知らせ・既読の実装
 
-仕様は[READMEのベル機能](../README.md#ベルのお知らせ一覧と既読)を正本にします。`notifications/store.ts`・`routes.ts` が一覧・詳細・本人の既読を担当し、Protocolの `notifications.ts` で種類別payload・番号・入出力を共有します。
+仕様は[READMEのベル機能](../README.md#ベルのお知らせ一覧と既読)を正本にします。`routes/notificationRoutes.ts` が受け、community の文脈の `domain/notifications.ts`・`use-cases/notifications.ts` と `adapters/community/notifications.ts` が一覧・詳細・本人の既読を担当し、Protocolの `notifications.ts` で種類別payload・番号・入出力を共有します。
 
 `0029_notifications.sql` は単調増加番号の `notification_events`、初回全体基準とまとめて既読上限の `account_notification_state`、個別既読の `account_notification_reads` を追加します。全体イベントは記事ID、バッジは本人と対局ID、大会は本人とエントリーIDを一意にします。全体通知は現在の記事を参照し、個別通知は獲得・表彰時のpayloadを保持します。公開状態を全体の一覧・詳細・未読判定へ毎回適用します。
 
