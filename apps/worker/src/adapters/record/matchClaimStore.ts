@@ -4,8 +4,10 @@ import type {
   MatchClaimInput,
   MatchClaimStore,
 } from "@tetraboard/context-record";
+import { acceptedDeletionSql, type DeletionBatch } from "../../db/deletionGuard";
 import { D1MatchClaimReadStore } from "./matchClaimReadStore";
 import { mergedAccountIdSql } from "./guestMerges";
+import { scrubRetiredMatchClaimStatements } from "./privacyScrub";
 
 export class D1MatchClaimStore
   extends D1MatchClaimReadStore
@@ -100,4 +102,14 @@ export class D1MatchClaimStore
       .bind(retryAt, matchId)
       .run();
   }
+}
+
+export function retireDeletedAccountClaimStatements(db: D1Database, deletion: DeletionBatch) {
+  return [
+    ...scrubRetiredMatchClaimStatements(db, deletion),
+    db
+      .prepare(`UPDATE match_participant_accounts SET state='retired',account_id=NULL
+      WHERE account_id=?1 AND ${acceptedDeletionSql}`)
+      .bind(deletion.accountId, deletion.batchReceipt),
+  ];
 }

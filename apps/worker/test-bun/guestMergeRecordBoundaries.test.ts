@@ -79,5 +79,8 @@ test("棋譜の引き継ぎ状態は指定の箇所でだけ更新します", ()
   const stateUpdates = workerSqlWrites
     .filter(({ table }) => table === "match_participant_accounts")
     .filter((write) => updateClauses(write).some(({ columns }) => columns.includes("state")));
-  expect(stateUpdates.map(({ file }) => file)).toEqual(["adapters/record/matchClaimStore.ts"]);
+  expect(stateUpdates.map(({ file }) => file)).toEqual([
+    "adapters/record/matchClaimStore.ts",
+    "adapters/record/matchClaimStore.ts",
+  ]);
 });
