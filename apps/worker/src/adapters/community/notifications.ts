@@ -4,6 +4,11 @@ import {
   type NotificationStore,
 } from "@tetraboard/context-community";
 import { notificationSchema, type Notification } from "@tetraboard/protocol";
+import { accountNotDeletedSql } from "../../db/deletionGuard";
+
+export function notificationRecipientAllowedSql(accountId: string) {
+  return `(${accountId}='' OR ${accountNotDeletedSql(accountId)})`;
+}
 
 const visibleNotificationSql = `((e.account_id=? AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=e.account_id)) OR (e.account_id='' AND EXISTS(
   SELECT 1 FROM announcements a WHERE a.id=e.source_id AND a.published=1)))`;
@@ -13,7 +18,8 @@ const readSql = `(e.legacy=1 OR e.seq<=COALESCE(s.read_all_seq,0)
 export async function initializeNotifications(db: D1Database, accountId: string) {
   await db
     .prepare(`INSERT OR IGNORE INTO account_notification_state(account_id,baseline_seq)
-    SELECT ?,COALESCE(MAX(seq),0) FROM notification_events WHERE account_id=''`)
+    SELECT ?1,COALESCE((SELECT MAX(seq) FROM notification_events WHERE account_id=''),0)
+    WHERE ${accountNotDeletedSql("?1")}`)
     .bind(accountId)
     .run();
 }
@@ -108,7 +114,9 @@ export function notificationRequestStore(db: D1Database): NotificationStore {
     async insertRead(accountId, id) {
       const result = await db
         .prepare(`INSERT OR IGNORE INTO account_notification_reads(account_id,notification_seq)
-    SELECT ?,e.seq FROM notification_events e WHERE e.seq=? AND ${visibleNotificationSql} RETURNING notification_seq`)
+    SELECT ?1,e.seq FROM notification_events e
+    WHERE e.seq=? AND ${visibleNotificationSql} AND ${accountNotDeletedSql("?1")}
+    RETURNING notification_seq`)
         .bind(accountId, id, accountId)
         .first();
       return Boolean(result);
@@ -135,31 +143,36 @@ export function mergeNotificationStatements(db: D1Database, guest: string, targe
   return [
     db
       .prepare(`INSERT OR IGNORE INTO account_notification_reads(account_id,notification_seq)
-      SELECT ?,e.seq FROM notification_events e JOIN account_notification_state s ON s.account_id=?
-      WHERE (e.account_id=? OR e.account_id='') AND (e.seq<=s.read_all_seq OR (e.account_id='' AND e.seq<=s.baseline_seq))`)
-      .bind(target, target, target),
+      SELECT ?1,e.seq FROM notification_events e JOIN account_notification_state s ON s.account_id=?1
+      WHERE (e.account_id=?1 OR e.account_id='') AND (e.seq<=s.read_all_seq OR (e.account_id='' AND e.seq<=s.baseline_seq))
+        AND ${accountNotDeletedSql("?1")}`)
+      .bind(target),
     db
       .prepare(`INSERT OR IGNORE INTO account_notification_reads(account_id,notification_seq)
-      SELECT ?,COALESCE(t.seq,e.seq) FROM notification_events e
-      LEFT JOIN notification_events t ON t.account_id=? AND t.kind=e.kind AND t.source_id=e.source_id
+      SELECT ?1,COALESCE(t.seq,e.seq) FROM notification_events e
+      LEFT JOIN notification_events t ON t.account_id=?1 AND t.kind=e.kind AND t.source_id=e.source_id
       LEFT JOIN account_notification_state s ON s.account_id=?
       WHERE (e.account_id=? OR e.account_id='') AND (e.seq<=COALESCE(s.read_all_seq,0)
         OR (e.account_id='' AND e.seq<=COALESCE(s.baseline_seq,0))
-        OR EXISTS(SELECT 1 FROM account_notification_reads r WHERE r.account_id=? AND r.notification_seq=e.seq))`)
-      .bind(target, target, guest, guest, guest),
+        OR EXISTS(SELECT 1 FROM account_notification_reads r WHERE r.account_id=? AND r.notification_seq=e.seq))
+        AND ${accountNotDeletedSql("?1")}`)
+      .bind(target, guest, guest, guest),
     db
       .prepare(`DELETE FROM notification_events WHERE account_id=? AND EXISTS(
       SELECT 1 FROM notification_events t WHERE t.account_id=? AND t.kind=notification_events.kind AND t.source_id=notification_events.source_id)`)
       .bind(guest, target),
     db
-      .prepare("UPDATE notification_events SET account_id=? WHERE account_id=?")
+      .prepare(
+        `UPDATE notification_events SET account_id=?1 WHERE account_id=? AND ${notificationRecipientAllowedSql("?1")}`,
+      )
       .bind(target, guest),
     db
       .prepare(`INSERT INTO account_notification_state(account_id,baseline_seq,read_all_seq)
-      SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM account_notification_state WHERE account_id IN (?,?))
+      SELECT ?1,CASE WHEN EXISTS(SELECT 1 FROM account_notification_state WHERE account_id IN (?1,?))
         THEN 0 ELSE COALESCE((SELECT MAX(seq) FROM notification_events WHERE account_id=''),0) END,0
+      WHERE ${accountNotDeletedSql("?1")}
       ON CONFLICT(account_id) DO UPDATE SET baseline_seq=0,read_all_seq=0`)
-      .bind(target, guest, target),
+      .bind(target, guest),
     db.prepare("DELETE FROM account_notification_reads WHERE account_id=?").bind(guest),
     db.prepare("DELETE FROM account_notification_state WHERE account_id=?").bind(guest),
   ];

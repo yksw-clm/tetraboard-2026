@@ -45,8 +45,8 @@ const read = (db: D1Database, id: string, publicOnly = false) =>
 
 function publishAnnouncementEvent(db: D1Database, id: string) {
   return db
-    .prepare(`INSERT OR IGNORE INTO notification_events(kind,source_id,created_at_ms)
- SELECT 'announcement',a.id,a.updated_at_ms FROM announcements a
+    .prepare(`INSERT OR IGNORE INTO notification_events(kind,source_id,account_id,created_at_ms)
+ SELECT 'announcement',a.id,'',a.updated_at_ms FROM announcements a
  WHERE changes()=1 AND a.id=? AND a.published=1
  AND NOT EXISTS(SELECT 1 FROM notification_events WHERE kind='announcement' AND source_id=a.id AND account_id='')`)
     .bind(id);

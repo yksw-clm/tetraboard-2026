@@ -6,6 +6,7 @@ import type {
 } from "@tetraboard/context-record";
 import {
   acceptedDeletionSql,
+  accountNotDeletedSql,
   deletedAccountExistsSql,
   type DeletionBatch,
 } from "../../db/deletionGuard";
@@ -31,7 +32,7 @@ export class D1MatchClaimStore
         .prepare(`INSERT OR IGNORE INTO match_participant_accounts
       (match_id,player_id,account_id,room_id,instance_id,state,accepted_at_ms,retry_at_ms)
       SELECT ?,?,id,?,?,'pending',?,? FROM user WHERE id=? AND profileCompleted=1
-        AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=user.id)
+        AND ${accountNotDeletedSql("user.id")}
         ${
           guard
             ? `AND EXISTS(SELECT 1 FROM registration_flows f JOIN session s ON s.id=f.session_id AND s.userId=f.account_id
@@ -71,7 +72,7 @@ export class D1MatchClaimStore
       .prepare(`UPDATE match_participant_accounts SET state='${valid ? "applied" : "rejected"}'${valid ? "" : ",account_id=NULL"}
       WHERE match_id=? AND player_id=? AND account_id=? AND room_id=? AND instance_id=? AND state='pending'
         AND EXISTS(SELECT 1 FROM user u WHERE u.id=account_id AND u.profileCompleted=1)
-        AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=account_id)`)
+        AND ${accountNotDeletedSql("match_participant_accounts.account_id")}`)
       .bind(matchId, row.player_id, row.account_id, row.room_id, row.instance_id);
   }
 
@@ -81,6 +82,7 @@ export class D1MatchClaimStore
       SELECT ${mergedAccountIdSql("c.account_id")},m.id,m.mode,m.started_at_ms,m.game
       FROM match_participant_accounts c JOIN matches m ON m.id=c.match_id
       WHERE c.match_id=? AND c.state='applied'
+        AND ${accountNotDeletedSql(mergedAccountIdSql("c.account_id"))}
       ON CONFLICT(account_id,match_id) DO NOTHING`)
       .bind(matchId);
   }
@@ -101,9 +103,8 @@ export class D1MatchClaimStore
 
   async postponeRetry(matchId: string, retryAt: number) {
     await this.database
-      .prepare(
-        "UPDATE match_participant_accounts SET retry_at_ms=? WHERE match_id=? AND state='pending'",
-      )
+      .prepare(`UPDATE match_participant_accounts SET retry_at_ms=? WHERE match_id=? AND state='pending'
+        AND ${accountNotDeletedSql("match_participant_accounts.account_id")}`)
       .bind(retryAt, matchId)
       .run();
   }

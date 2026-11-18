@@ -61,6 +61,7 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
             GUEST_MERGES_TEST_DB: "guest-merges-tests",
             RECORD_PRIVACY_TEST_DB: "record-privacy-tests",
             ROOM_INDEX_PRIVACY_TEST_DB: "room-index-privacy-tests",
+            TB_154_WITHOUT_TRIGGERS_TEST_DB: "tb-154-without-triggers-tests",
             DELETION_CASCADE_TEST_DB: "deletion-cascade-tests",
             DELETION_WITH_TRIGGERS_TEST_DB: "deletion-with-triggers-tests",
             COMMUNITY_WRITES_TEST_DB: "community-writes-tests",

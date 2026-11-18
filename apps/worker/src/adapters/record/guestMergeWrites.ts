@@ -1,3 +1,4 @@
+import { accountNotDeletedSql } from "../../db/deletionGuard";
 import { badgeAwardsSql } from "./badgeAwards";
 import { scrubbedRecordJsonSql } from "./privacyScrub";
 
@@ -33,7 +34,8 @@ export function guestMatchAccountTransferStatements(
       .prepare("UPDATE account_match_history SET account_id=? WHERE account_id=?")
       .bind(targetId, guestId),
     db
-      .prepare("UPDATE match_participant_accounts SET account_id=? WHERE account_id=?")
+      .prepare(`UPDATE match_participant_accounts SET account_id=?1
+      WHERE account_id=? AND ${accountNotDeletedSql("?1")}`)
       .bind(targetId, guestId),
   ];
 }
@@ -42,12 +44,16 @@ export function guestBadgeTransferStatements(db: D1Database, guestId: string, ta
   return [
     db
       .prepare(
-        `INSERT OR IGNORE INTO account_badge_awards SELECT ?,game,badge_id,tier,value,previous_tier,match_id FROM account_badge_awards WHERE account_id=?`,
+        `INSERT OR IGNORE INTO account_badge_awards
+        SELECT ?1,game,badge_id,tier,value,previous_tier,match_id FROM account_badge_awards
+        WHERE account_id=? AND ${accountNotDeletedSql("?1")}`,
       )
       .bind(targetId, guestId),
     db
       .prepare(
-        `INSERT OR IGNORE INTO account_badge_notifications SELECT ?,match_id,game,created_at_ms,shown_at_ms,NULL,NULL FROM account_badge_notifications WHERE account_id=?`,
+        `INSERT OR IGNORE INTO account_badge_notifications
+        SELECT ?1,match_id,game,created_at_ms,shown_at_ms,NULL,NULL FROM account_badge_notifications
+        WHERE account_id=? AND ${accountNotDeletedSql("?1")}`,
       )
       .bind(targetId, guestId),
     db.prepare("DELETE FROM account_badge_awards WHERE account_id=?").bind(guestId),
