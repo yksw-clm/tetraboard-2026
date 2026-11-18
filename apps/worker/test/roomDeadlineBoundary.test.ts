@@ -7,7 +7,7 @@ import { pendingMatchPrefix, type PendingMatch } from "../src/rooms/matchStore";
 import { pendingShogiMatchPrefix, type PendingShogiMatch } from "../src/rooms/shogiMatchStore";
 import { analyticsActiveKey, type AnalyticsMatch } from "../src/usageEvents/matches";
 import type { PendingRoomIndex } from "../src/rooms/roomIndex";
-import type { AccountAdmission } from "../src/accounts/roomAccounts";
+import type { AccountAdmission } from "../src/flows/accountSeats/types";
 import { env } from "cloudflare:workers";
 import { evictDurableObject, runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";

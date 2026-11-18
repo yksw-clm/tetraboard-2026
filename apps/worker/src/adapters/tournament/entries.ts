@@ -1,3 +1,5 @@
+import { prepareFenceAbort } from "../../db/fenceAbort";
+import { guestMerged } from "../../flows/accountSeats/fences";
 import type { TournamentEntryStore } from "@tetraboard/context-tournament";
 export class D1TournamentEntries implements TournamentEntryStore {
   constructor(private db: D1Database) {}
@@ -16,10 +18,18 @@ export class D1TournamentEntries implements TournamentEntryStore {
       }>();
   }
   async insert(key: string, accountId: string, id: string, now: number) {
-    await this.db
-      .prepare(`INSERT OR IGNORE INTO tournament_entries(id,tournament_key,account_id,entered_at_ms)
-        SELECT ?,?,id,? FROM user WHERE id=? AND profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=user.id)`)
-      .bind(id, key, now, accountId)
-      .run();
+    const candidate = `FROM user WHERE id=? AND profileCompleted=1
+      AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=user.id)`;
+    await this.db.batch([
+      this.db
+        .prepare(`INSERT OR IGNORE INTO tournament_entries(id,tournament_key,account_id,entered_at_ms)
+          SELECT ?,?,id,? ${candidate} AND NOT ${guestMerged("user.id")}`)
+        .bind(id, key, now, accountId),
+      prepareFenceAbort(this.db, {
+        when: `changes()=0 AND EXISTS(SELECT 1 ${candidate} AND ${guestMerged("user.id")})`,
+        values: [accountId],
+        code: "guest_merged",
+      }),
+    ]);
   }
 }

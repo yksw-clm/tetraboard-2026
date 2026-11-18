@@ -22,13 +22,9 @@ import {
   type RoomError,
 } from "@tetraboard/protocol";
 import { profileAvatarUrl } from "../accounts/auth";
-import {
-  roomEntryProfile,
-  reserveAccountSeat,
-  cancelReservation,
-  RoomAccountError,
-  type AccountAdmission,
-} from "../accounts/roomAccounts";
+import { roomEntryProfile, RoomAccountError } from "../flows/accountSeats/entryProfile";
+import { reserveAccountSeat, cancelReservation } from "../flows/accountSeats/reserve";
+import { type AccountAdmission } from "../flows/accountSeats/types";
 import { Hono } from "hono";
 import { listRoomIndex } from "./roomIndex";
 import { createReport, getReport, listReports, resolveReport } from "./reportStore";

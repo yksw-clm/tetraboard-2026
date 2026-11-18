@@ -1,6 +1,6 @@
 import { type Room } from "@tetraboard/protocol";
 import { DurableObject } from "cloudflare:workers";
-import { type AccountAdmission } from "../../accounts/roomAccounts";
+import { type AccountAdmission } from "../../flows/accountSeats/types";
 import { purgeLegacyAnalytics } from "../../adapters/room/state";
 import { purgeAccount } from "../../flows/accountPurge/purge";
 import {

@@ -15,7 +15,7 @@ import {
 } from "@tetraboard/context-account";
 import { accountSessionIdentity, type AuthEnv } from "../../accounts/auth";
 import { D1GuestLinks } from "../../adapters/account/guestLinks";
-import { D1GuestLinkWrites } from "../../adapters/account/guestLinkWrites";
+import { D1GuestLinkWrites, type GuestLinkWrite } from "../../adapters/account/guestLinkWrites";
 import { D1Registrations } from "../../adapters/account/registrations";
 import { guestFeedbackTransferStatement } from "../../adapters/community/guestMergeWrites";
 import { guestPrivacyTransferStatements } from "../../adapters/privacy/guestMergeWrites";
@@ -118,7 +118,7 @@ export async function mergeGuestAccounts(env: Env, flow: GuestMergeFlow) {
   const db = env.APP_DB;
   const store = new D1GuestLinks(db);
   const { guest_id: guestId, target_id: targetId } = flow;
-  const account = await merge(
+  const account = await merge<GuestLinkWrite>(
     {
       ...guestLinkChecks(env, store),
       roomsForAccount: (id) => store.roomsForAccount(id),
@@ -128,24 +128,26 @@ export async function mergeGuestAccounts(env: Env, flow: GuestMergeFlow) {
     new D1GuestLinkWrites(db),
     flow,
   );
-  await db.batch([
-    ...account.initialWrites,
-    ...(account.held ? [guestSeatTransferStatement(db, guestId, targetId, account.held)] : []),
-    guestFeedbackTransferStatement(db, guestId, targetId),
-    ...guestReplayTransferStatements(db, guestId, targetId),
-    ...guestChatMergeStatements(db, guestId, targetId),
-    ...mergeNotificationStatements(db, guestId, targetId),
-    ...guestMatchAccountTransferStatements(db, guestId, targetId),
-    ...guestTournamentTransferStatements(db, guestId, targetId),
-    ...guestPrivacyTransferStatements(db, guestId, targetId),
-    ...guestBadgeTransferStatements(db, guestId, targetId),
-    ...account.prepareFinalWrites(),
-  ]);
+  await db.batch(
+    [
+      ...account.initialWrites,
+      ...(account.held ? [guestSeatTransferStatement(db, guestId, targetId, account.held)] : []),
+      guestFeedbackTransferStatement(db, guestId, targetId),
+      ...guestReplayTransferStatements(db, guestId, targetId),
+      ...guestChatMergeStatements(db, guestId, targetId),
+      ...mergeNotificationStatements(db, guestId, targetId),
+      ...guestMatchAccountTransferStatements(db, guestId, targetId),
+      ...guestTournamentTransferStatements(db, guestId, targetId),
+      ...guestPrivacyTransferStatements(db, guestId, targetId),
+      ...guestBadgeTransferStatements(db, guestId, targetId),
+      ...account.prepareFinalWrites(),
+    ].flat(),
+  );
 }
 
 export async function promoteGuestLink(request: Request, env: AuthEnv, flow: GuestMergeFlow) {
   const store = new D1GuestLinks(env.APP_DB);
-  const statements = await promote(
+  const statements = await promote<GuestLinkWrite>(
     {
       ...guestLinkChecks(env, store),
       tokenHash: () => guestTokenHash(request),
@@ -155,7 +157,7 @@ export async function promoteGuestLink(request: Request, env: AuthEnv, flow: Gue
     new D1GuestLinkWrites(env.APP_DB),
     flow,
   );
-  await env.APP_DB.batch(statements);
+  await env.APP_DB.batch(statements.flat());
 }
 
 export function readGuestMerge(request: Request, env: AuthEnv) {

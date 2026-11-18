@@ -10,7 +10,7 @@ import {
   type MatchmakingState,
 } from "@tetraboard/protocol";
 import { accountIdentity } from "../accounts/auth";
-import { roomEntryProfile, RoomAccountError } from "../accounts/roomAccounts";
+import { roomEntryProfile, RoomAccountError } from "../flows/accountSeats/entryProfile";
 import { readLimitedBody } from "../feedback/images";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { ratedMatchmakingPolicy } from "../adapters/matchmaking/ratedMatchmaking";

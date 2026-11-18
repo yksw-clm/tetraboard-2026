@@ -1,3 +1,4 @@
+import { registrationAccountAllowed } from "./registrationFence";
 import type {
   RegistrationStore,
   RegistrationFlow,
@@ -59,7 +60,7 @@ export class D1Registrations implements RegistrationStore {
         .prepare(`UPDATE registration_flows SET account_id=?,session_id=? WHERE id=?
       AND cancelled_at_ms IS NULL AND claim_until_ms>? AND account_id IS NULL AND session_id IS NULL
       AND EXISTS (SELECT 1 FROM registration_oauth_states WHERE state=? AND registration_id=registration_flows.id AND provider=? AND expires_at_ms>?)
-      AND NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=?)`)
+      AND ${registrationAccountAllowed("?")}`)
         .bind(
           identity.user.id,
           identity.sessionId,

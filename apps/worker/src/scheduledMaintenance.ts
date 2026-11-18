@@ -1,6 +1,6 @@
 import { cleanupLobbyChat } from "./lobby/chatStore";
 import { processDeletions } from "./privacy/deletion";
-import { recoverAccountReservations } from "./accounts/roomAccounts";
+import { recoverAccountReservations } from "./flows/accountSeats/reserve";
 import { retryPendingMatchClaims } from "./adapters/record/matchClaims";
 import { deleteExpiredReports } from "./rooms/reportStore";
 import { cleanupFeedback } from "./feedback/store";

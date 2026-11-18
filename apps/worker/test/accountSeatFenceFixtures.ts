@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { afterEach } from "vitest";
 import { accountFixture, origin } from "./accountFixtures";
-import { reserveAccountSeat } from "../src/accounts/roomAccounts";
+import { reserveAccountSeat } from "../src/flows/accountSeats/reserve";
 import type { StoredProfile } from "../src/accounts/auth";
 import { D1MatchmakingStore } from "../src/adapters/matchmaking/store";
 import { D1TournamentQueueStore } from "../src/adapters/tournament/queue";

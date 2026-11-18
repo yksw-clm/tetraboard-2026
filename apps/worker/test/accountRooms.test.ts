@@ -15,7 +15,7 @@ import {
 } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
 import { accountIdentity, publicProfile } from "../src/accounts/auth";
-import { reserveAccountSeat, recoverAccountReservations } from "../src/accounts/roomAccounts";
+import { reserveAccountSeat, recoverAccountReservations } from "../src/flows/accountSeats/reserve";
 import { deleteUnusedAvatars } from "../src/routes/accountAvatars";
 import { prepareLegacyAccounts } from "../scripts/legacyAccountPlan";
 import { dispatchInTestContext } from "./dispatchInTestContext";

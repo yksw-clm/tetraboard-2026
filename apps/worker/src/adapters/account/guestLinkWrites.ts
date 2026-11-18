@@ -5,16 +5,26 @@ import type {
   GuestPromotionWrites,
 } from "@tetraboard/context-account";
 
+import { prepareFenceAbort } from "../../db/fenceAbort";
+import { mergeFence, matchmakingBusy, promotionFence, roomLinkFence } from "./guestLinkFences";
+import { prepareRegistrationUpdateAbort, registrationAccountAllowed } from "./registrationFence";
+
+export type GuestLinkWrite = D1PreparedStatement | D1PreparedStatement[];
+
 export class D1GuestLinkWrites
-  implements GuestMergeWrites<D1PreparedStatement>, GuestPromotionWrites<D1PreparedStatement>
+  implements GuestMergeWrites<GuestLinkWrite>, GuestPromotionWrites<GuestLinkWrite>
 {
   constructor(private readonly db: D1Database) {}
 
   commitRoomLink(id: string, flow: GuestMergeFlow, now: number) {
-    return this.db
-      .prepare(`INSERT INTO guest_room_link_commits
-      (registration_id,guest_id,target_id,oauth_state,committed_at_ms) VALUES(?,?,?,?,?)`)
-      .bind(id, flow.guest_id, flow.target_id, flow.state, now);
+    return [
+      this.db
+        .prepare(`WITH c(registration_id,guest_id,target_id,oauth_state,now) AS (VALUES(?,?,?,?,?))
+          INSERT INTO guest_room_link_commits(registration_id,guest_id,target_id,oauth_state,committed_at_ms)
+          SELECT registration_id,guest_id,target_id,oauth_state,now FROM c WHERE ${roomLinkFence}`)
+        .bind(id, flow.guest_id, flow.target_id, flow.state, now),
+      prepareFenceAbort(this.db, { when: "changes()=0", code: "guest_merge_conflict" }),
+    ];
   }
 
   releaseRoomLink(id: string) {
@@ -22,9 +32,14 @@ export class D1GuestLinkWrites
   }
 
   recordMerge(guestId: string, targetId: string, now: number) {
-    return this.db
-      .prepare("INSERT INTO guest_account_merges(guest_id,account_id,merged_at_ms) VALUES(?,?,?)")
-      .bind(guestId, targetId, now);
+    return [
+      this.db
+        .prepare(`WITH c(guest_id,target_id,now) AS (VALUES(?,?,?))
+          INSERT INTO guest_account_merges(guest_id,account_id,merged_at_ms)
+          SELECT guest_id,target_id,now FROM c WHERE ${mergeFence}`)
+        .bind(guestId, targetId, now),
+      this.rejectGuestLink(guestId, targetId, "guest_merge_conflict"),
+    ];
   }
 
   retireGuest(guestId: string) {
@@ -48,11 +63,30 @@ export class D1GuestLinkWrites
   }
 
   recordPromotion(flow: GuestMergeFlow, hash: string, now: number) {
-    return this.db
-      .prepare(
-        "INSERT INTO guest_promotions(guest_id,temporary_id,token_hash,session_id,created_at_ms) VALUES(?,?,?,?,?)",
-      )
-      .bind(flow.guest_id, flow.target_id, hash, flow.target_session_id, now);
+    return [
+      this.db
+        .prepare(`WITH c(guest_id,target_id,token_hash,session_id,now) AS (VALUES(?,?,?,?,?))
+          INSERT INTO guest_promotions(guest_id,temporary_id,token_hash,session_id,created_at_ms)
+          SELECT guest_id,target_id,token_hash,session_id,now FROM c WHERE ${promotionFence}`)
+        .bind(flow.guest_id, flow.target_id, hash, flow.target_session_id, now),
+      this.rejectGuestLink(flow.guest_id, flow.target_id, "guest_promotion_conflict"),
+    ];
+  }
+
+  private rejectGuestLink(
+    guestId: string,
+    targetId: string,
+    code: "guest_merge_conflict" | "guest_promotion_conflict",
+  ) {
+    return prepareFenceAbort(
+      this.db,
+      {
+        when: `changes()=0 AND ${matchmakingBusy("?", "?")}`,
+        values: [guestId, targetId],
+        code: "account_busy",
+      },
+      { when: "changes()=0", code },
+    );
   }
 
   releaseTemporaryEmail(targetId: string) {
@@ -91,11 +125,15 @@ export class D1GuestLinkWrites
   }
 
   transferRegistration(id: string, flow: GuestMergeFlow) {
-    return this.db
-      .prepare(
-        "UPDATE registration_flows SET account_id=? WHERE id=? AND account_id=? AND session_id=?",
-      )
-      .bind(flow.guest_id, id, flow.target_id, flow.target_session_id);
+    const candidate = "id=? AND account_id=? AND session_id=?";
+    const values = [id, flow.target_id, flow.target_session_id];
+    return [
+      this.db
+        .prepare(`UPDATE registration_flows SET account_id=? WHERE ${candidate}
+          AND ${registrationAccountAllowed("?")}`)
+        .bind(flow.guest_id, ...values, flow.guest_id),
+      prepareRegistrationUpdateAbort(this.db, flow.guest_id, candidate, values),
+    ];
   }
 
   deleteTemporaryUser(targetId: string) {

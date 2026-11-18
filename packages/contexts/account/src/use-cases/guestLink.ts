@@ -58,16 +58,16 @@ export type PendingGuestLink = {
   room_registration_id: string | null;
 };
 
-export interface GuestLinkClaimStore<Write> {
+export interface GuestLinkClaimStore<Write, RoomWrite = Write> {
   pending(state: string, hash: string, now: number): Promise<PendingGuestLink | null>;
   ensurePublicProfileId(id: string, profileId: string): Promise<void>;
   targetCreated(id: string): Promise<{ createdAt: string } | null>;
   claim(flow: GuestMergeFlow, expiresAt: number, now: () => number): Write;
-  fixRoomRegistration(registrationId: string, flow: GuestMergeFlow): Write;
+  fixRoomRegistration(registrationId: string, flow: GuestMergeFlow): RoomWrite;
 }
 
-export async function prepareGuestLinkClaim<Write>(
-  store: GuestLinkClaimStore<Write>,
+export async function prepareGuestLinkClaim<Write, RoomWrite = Write>(
+  store: GuestLinkClaimStore<Write, RoomWrite>,
   ports: {
     tokenHash(): Promise<string | null>;
     identity(): Promise<RegistrationIdentity | null>;

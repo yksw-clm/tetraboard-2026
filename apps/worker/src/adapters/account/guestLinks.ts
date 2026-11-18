@@ -6,7 +6,12 @@ import type {
   RegistrationIdentity,
 } from "@tetraboard/context-account";
 
-export class D1GuestLinks implements GuestLinkClaimStore<D1PreparedStatement> {
+import { prepareRegistrationUpdateAbort, registrationAccountAllowed } from "./registrationFence";
+
+export class D1GuestLinks implements GuestLinkClaimStore<
+  D1PreparedStatement,
+  D1PreparedStatement[]
+> {
   constructor(private readonly db: D1Database) {}
 
   async guestBusy(id: string) {
@@ -93,25 +98,23 @@ export class D1GuestLinks implements GuestLinkClaimStore<D1PreparedStatement> {
   }
 
   fixRoomRegistration(id: string, flow: GuestMergeFlow) {
-    return this.db
-      .prepare(`UPDATE registration_flows SET account_id=?,session_id=? WHERE id=?
-          AND account_id IS NULL AND cancelled_at_ms IS NULL AND EXISTS (
-            SELECT 1 FROM guest_oauth_flows f WHERE f.state=? AND f.room_registration_id=registration_flows.id
-              AND f.target_id=? AND f.target_session_id=?
-          )`)
-      .bind(
-        flow.target_id,
-        flow.target_session_id,
-        id,
-        flow.state,
-        flow.target_id,
-        flow.target_session_id,
-      );
+    const candidate = `id=? AND account_id IS NULL AND cancelled_at_ms IS NULL AND EXISTS (
+      SELECT 1 FROM guest_oauth_flows f WHERE f.state=? AND f.room_registration_id=registration_flows.id
+        AND f.target_id=? AND f.target_session_id=?
+    )`;
+    const values = [id, flow.state, flow.target_id, flow.target_session_id];
+    return [
+      this.db
+        .prepare(`UPDATE registration_flows SET account_id=?,session_id=? WHERE ${candidate}
+          AND ${registrationAccountAllowed("?")}`)
+        .bind(flow.target_id, flow.target_session_id, ...values, flow.target_id),
+      prepareRegistrationUpdateAbort(this.db, flow.target_id, candidate, values),
+    ];
   }
 
-  async commitClaim(claim: D1PreparedStatement, roomClaim?: D1PreparedStatement) {
+  async commitClaim(claim: D1PreparedStatement, roomClaim?: D1PreparedStatement[]) {
     if (!roomClaim) return claim.first();
-    const [result] = await this.db.batch([claim, roomClaim]);
+    const [result] = await this.db.batch([claim, ...roomClaim]);
     return result.results[0];
   }
 

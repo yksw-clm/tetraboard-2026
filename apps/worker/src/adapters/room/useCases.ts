@@ -10,7 +10,7 @@ import {
 import type { Room } from "@tetraboard/protocol";
 import { gameCapacity } from "@tetraboard/protocol/games";
 import { profileAvatarUrl } from "../../accounts/auth";
-import type { AccountAdmission } from "../../accounts/roomAccounts";
+import type { AccountAdmission } from "../../flows/accountSeats/types";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { prepareRoomSettings } from "../../rooms/applyRoomSettings";
 import { lifecycleState, type LifecycleIdentity } from "./lifecycleState";

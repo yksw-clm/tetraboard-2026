@@ -1,11 +1,8 @@
 import type { RegistrationIdentity } from "@tetraboard/context-account";
 import type { StoredProfile } from "../../accounts/auth";
 import { legalVersion } from "@tetraboard/protocol/privacy";
-import {
-  reserveAccountSeat,
-  cancelReservation,
-  RoomAccountError,
-} from "../../accounts/roomAccounts";
+import { reserveAccountSeat, cancelReservation } from "../accountSeats/reserve";
+import { RoomAccountError } from "../accountSeats/entryProfile";
 import { acceptMatchClaim, readMatchClaimState } from "../../adapters/record/matchClaims";
 import { browserIdFromRequest } from "../../usageEvents/browserId";
 import { D1RegistrationWrites } from "../../adapters/account/registrationWrites";
