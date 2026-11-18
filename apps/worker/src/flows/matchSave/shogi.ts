@@ -20,8 +20,8 @@ import {
   formationUsageStatement,
 } from "../../adapters/record/publication";
 import { redactParticipants } from "../../privacy/identity";
-import { applyMatchClaims } from "../../adapters/record/matchClaims";
-import { badgeAwardStatements } from "../../adapters/record/badgeAwards";
+import { applyMatchClaims } from "./claims";
+import { matchBadgeStatements } from "./badges";
 import { tournamentMatchStatements } from "../../adapters/tournament/store";
 import { fourShogiRatingStore } from "../../rooms/fourReversiRating";
 import {
@@ -115,7 +115,7 @@ async function publishShogiMatch(
     publication,
     shogiHistoryStatement(db, record.id),
     ...(formationUsage ? [formationUsageStatement(db, record.id, formationUsage)] : []),
-    ...badgeAwardStatements(db, record.settings.game, record.id),
+    ...matchBadgeStatements(db, record.settings.game, record.id),
     ...("rating" in record && record.rating
       ? prepareEloRating(new D1RatingPublication(db), "shogi", record.id)
       : []),

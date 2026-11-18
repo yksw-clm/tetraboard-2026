@@ -12,7 +12,7 @@ import { accountRoutes } from "../src/routes/accountRoutes";
 import { readRegistrationFlow } from "../src/flows/guestRegistration/account";
 import { accountSessionIdentity } from "../src/accounts/auth";
 import { digest } from "../src/privacy/deletion";
-import { acceptMatchClaim, applyMatchClaims } from "../src/adapters/record/matchClaims";
+import { acceptMatchClaim, applyMatchClaims } from "../src/flows/matchSave/claims";
 import { accountFixture, origin } from "./accountFixtures";
 import { boundaryRequest, RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 const request = (path: string, init?: RequestInit) =>

@@ -25,6 +25,15 @@ function publicMessage(row: Row, viewer?: string): LobbyMessage {
   };
 }
 
+function ensureSender(db: D1Database, accountId: string) {
+  return db
+    .prepare(
+      "INSERT OR IGNORE INTO lobby_chat_senders(account_id,public_id) SELECT id,? FROM user WHERE id=? AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=user.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id)",
+    )
+    .bind(crypto.randomUUID(), accountId)
+    .run();
+}
+
 export class D1ChatStore implements ChatWriter {
   constructor(private readonly db: D1Database) {}
 
@@ -98,15 +107,12 @@ export class D1ChatStore implements ChatWriter {
     { lastPostByMs, finalizedAfterMs }: Parameters<ChatWriter["insertEligiblePost"]>[1],
   ) {
     const db = this.db;
-    await db
-      .prepare(
-        "INSERT OR IGNORE INTO lobby_chat_senders(account_id,public_id) SELECT id,? FROM user WHERE id=? AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=user.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id)",
-      )
-      .bind(crypto.randomUUID(), accountId)
-      .run();
-    // 一つのSQLとトリガーで確定し、並行送信と再送にも同じ制限を適用します。
-    await db
-      .prepare(`INSERT OR IGNORE INTO lobby_chat_messages(id,account_id,body,sent_at_ms,request_id,body_hash,tournament_id)
+    await ensureSender(db, accountId);
+    const id = crypto.randomUUID();
+    // 投稿と送信時刻・再送台帳・件数制限を同じ batch で確定します。
+    await db.batch([
+      db
+        .prepare(`INSERT OR IGNORE INTO lobby_chat_messages(id,account_id,body,sent_at_ms,request_id,body_hash,tournament_id)
  SELECT ?,u.id,?,?,?,?,? FROM user u JOIN lobby_chat_senders s ON s.account_id=u.id
  WHERE u.id=? AND u.profileCompleted=1 AND s.stopped=0 AND s.last_sent_at_ms<=?
  AND (COALESCE(u.isAnonymous,0)=0 OR u.guestNameCustomized=1)
@@ -117,21 +123,36 @@ export class D1ChatStore implements ChatWriter {
    AND (t.finalized_at_ms IS NULL OR t.finalized_at_ms>?) AND e.account_id=u.id AND e.deleted=0))
  AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)
  AND NOT EXISTS(SELECT 1 FROM lobby_chat_requests r WHERE r.account_id=u.id AND r.request_id=?)`)
-      .bind(
-        crypto.randomUUID(),
-        text,
-        sentAtMs,
-        requestId,
-        bodyHash,
-        tournamentId,
-        accountId,
-        lastPostByMs,
-        tournamentId,
-        tournamentId,
-        finalizedAfterMs,
-        requestId,
-      )
-      .run();
+        .bind(
+          id,
+          text,
+          sentAtMs,
+          requestId,
+          bodyHash,
+          tournamentId,
+          accountId,
+          lastPostByMs,
+          tournamentId,
+          tournamentId,
+          finalizedAfterMs,
+          requestId,
+        ),
+      db
+        .prepare(`UPDATE lobby_chat_senders SET last_sent_at_ms=? WHERE account_id=?
+ AND EXISTS(SELECT 1 FROM lobby_chat_messages WHERE id=?)`)
+        .bind(sentAtMs, accountId, id),
+      db
+        .prepare(`INSERT OR IGNORE INTO lobby_chat_requests(account_id,request_id,message_id,body_hash,sent_at_ms,tournament_id)
+ SELECT account_id,request_id,id,body_hash,sent_at_ms,tournament_id FROM lobby_chat_messages WHERE id=?`)
+        .bind(id),
+      db
+        .prepare(`DELETE FROM lobby_chat_messages WHERE id IN (
+ SELECT m.id FROM lobby_chat_messages posted
+ JOIN lobby_chat_messages m ON m.tournament_id IS posted.tournament_id
+ WHERE posted.id=? ORDER BY m.sent_at_ms DESC,m.id DESC LIMIT -1 OFFSET 500
+ )`)
+        .bind(id),
+    ]);
   }
 
   async readAcceptedPost(

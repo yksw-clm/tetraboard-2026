@@ -6,11 +6,15 @@ import {
   type MatchClaimInput,
   type MatchClaimGuard,
 } from "@tetraboard/context-record";
-import { readStoredMatch } from "./matchDataContracts";
-import { D1MatchClaimReadStore } from "./matchClaimReadStore";
-import { D1MatchClaimStore } from "./matchClaimStore";
+import { readStoredMatch } from "../../adapters/record/matchDataContracts";
+import { D1MatchClaimReadStore } from "../../adapters/record/matchClaimReadStore";
+import { D1MatchClaimStore } from "../../adapters/record/matchClaimStore";
+import { matchBadgeStatements } from "./badges";
 
 const runtime = { now: () => Date.now(), reportRetry: (message: string) => console.error(message) };
+
+const claimStore = (db: D1Database) =>
+  new D1MatchClaimStore(db, (game, matchId) => matchBadgeStatements(db, game, matchId));
 
 export function readMatchClaimState(
   db: D1Database,
@@ -22,13 +26,13 @@ export function readMatchClaimState(
 }
 
 export function acceptMatchClaim(db: D1Database, input: MatchClaimInput, guard?: MatchClaimGuard) {
-  return acceptClaim(new D1MatchClaimStore(db), input, readStoredMatch, runtime, guard);
+  return acceptClaim(claimStore(db), input, readStoredMatch, runtime, guard);
 }
 
 export function applyMatchClaims(db: D1Database, matchId: string) {
-  return applyClaims(new D1MatchClaimStore(db), matchId, readStoredMatch);
+  return applyClaims(claimStore(db), matchId, readStoredMatch);
 }
 
 export function retryPendingMatchClaims(db: D1Database, roomId?: string) {
-  return retryClaims(new D1MatchClaimStore(db), readStoredMatch, runtime, roomId);
+  return retryClaims(claimStore(db), readStoredMatch, runtime, roomId);
 }

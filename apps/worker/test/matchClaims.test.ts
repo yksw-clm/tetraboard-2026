@@ -11,7 +11,7 @@ import {
   applyMatchClaims,
   readMatchClaimState,
   retryPendingMatchClaims,
-} from "../src/adapters/record/matchClaims";
+} from "../src/flows/matchSave/claims";
 import {
   readStoredMatch,
   readMatchRecord,
