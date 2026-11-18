@@ -1,3 +1,4 @@
+import { deletedAccountExistsSql } from "../../db/deletionGuard";
 import { prepareFenceAbort } from "../../db/fenceAbort";
 
 type FenceCode =
@@ -79,7 +80,10 @@ function condition(fences: Fence[]): SqlFragment {
 // 列で表せるアカウントIDはbindせず、操作IDだけを出現順に返します。
 export function seatFence(account: AccountColumn, operationId: string) {
   const wait = condition(seatWaitFences({ sql: account, values: [] }, operationId));
-  return { sql: `${wait.sql} AND NOT ${guestMerged(account)}`, values: wait.values };
+  return {
+    sql: `${wait.sql} AND NOT ${deletedAccountExistsSql(account)} AND NOT ${guestMerged(account)}`,
+    values: wait.values,
+  };
 }
 
 export function prepareSeatMergedAbort(
@@ -90,7 +94,7 @@ export function prepareSeatMergedAbort(
 ) {
   const wait = condition(seatWaitFences({ sql: account, values: [] }, operationId));
   return prepareFenceAbort(db, {
-    when: `changes()=0 AND EXISTS(SELECT 1 ${candidate.sql} AND ${wait.sql} AND ${guestMerged(account)})`,
+    when: `changes()=0 AND EXISTS(SELECT 1 ${candidate.sql} AND NOT ${deletedAccountExistsSql(account)} AND ${wait.sql} AND ${guestMerged(account)})`,
     values: [...candidate.values, ...wait.values],
     code: "guest_merged",
   });

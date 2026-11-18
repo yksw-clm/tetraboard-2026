@@ -1,7 +1,9 @@
-import type {
-  DeletionChallengeStarter,
-  DeletionProvider,
-  DeletionReauthenticationStore,
+import {
+  deletionChallengeLimit,
+  deletionChallengeWindowMs,
+  type DeletionChallengeStarter,
+  type DeletionProvider,
+  type DeletionReauthenticationStore,
 } from "@tetraboard/context-privacy";
 import { digest } from "../../crypto";
 
@@ -47,9 +49,20 @@ export class D1DeletionConfirmation
   ) {
     const inserted = await this.db
       .prepare(
-        "INSERT INTO deletion_challenges(id,account_id,provider,created_at_ms,expires_at_ms) VALUES (?,?,?,?,?)",
+        `INSERT INTO deletion_challenges(id,account_id,provider,created_at_ms,expires_at_ms)
+        SELECT ?,?,?,?,? WHERE (SELECT COUNT(*) FROM deletion_challenges
+          WHERE account_id=? AND created_at_ms>?) < ?`,
       )
-      .bind(id, accountId, provider, now, expiresAt)
+      .bind(
+        id,
+        accountId,
+        provider,
+        now,
+        expiresAt,
+        accountId,
+        now - deletionChallengeWindowMs,
+        deletionChallengeLimit,
+      )
       .run();
     return inserted.meta.changes === 1;
   }
