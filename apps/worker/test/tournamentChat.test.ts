@@ -8,9 +8,10 @@ import {
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import worker from "../src/worker";
 import { accountFixture, origin } from "./accountFixtures";
-import { cleanupLobbyChat, lobbyRetentionMs } from "../src/lobby/chatStore";
+import { cleanupLobbyChat } from "../src/adapters/community/chatCleanup";
+import { lobbyRetentionMs } from "@tetraboard/context-community";
 import { requestDeletion } from "../src/privacy/deletion";
-import { guestChatMergeStatements } from "../src/lobby/mergeGuestChat";
+import { guestChatMergeStatements } from "../src/adapters/community/guestMergeWrites";
 
 const db = (env as typeof env & { LOBBY_TEST_DB: D1Database }).LOBBY_TEST_DB;
 beforeAll(async () => {

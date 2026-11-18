@@ -1,4 +1,4 @@
-import { guestIdentity, suspendGuestSession } from "../routes/guestSession";
+import { guestIdentity, hasGuestSessionCookie, suspendGuestSession } from "../routes/guestSession";
 import { authSecret } from "../privacy/tokens";
 import { isDeleted } from "../privacy/identity";
 import { betterAuth } from "better-auth";
@@ -130,6 +130,9 @@ function hasAccountSessionCookie(request: Request) {
   return /(?:^|;\s*)(?:__Secure-)?tetraboard-2026\.session_token=/.test(
     request.headers.get("Cookie") ?? "",
   );
+}
+export function hasIdentityCookie(request: Request) {
+  return hasAccountSessionCookie(request) || hasGuestSessionCookie(request);
 }
 export async function accountSessionIdentity(request: Request, env: AuthEnv) {
   if (!hasAccountSessionCookie(request)) return null;

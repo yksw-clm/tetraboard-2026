@@ -6,10 +6,16 @@ import { D1GuestAccounts } from "../adapters/account/guestAccounts";
 import { appendSessionCookie, type StoredProfile } from "../accounts/auth";
 export { guestLifetimeMs } from "@tetraboard/context-account";
 const cookieName = "tetraboard-2026.guest";
-export async function guestTokenHash(request: Request): Promise<string | null> {
-  const token = request.headers
+function guestSessionToken(request: Request) {
+  return request.headers
     .get("Cookie")
     ?.match(/(?:^|;\s*)tetraboard-2026\.guest=([a-f0-9]{64})(?:;|$)/)?.[1];
+}
+export function hasGuestSessionCookie(request: Request) {
+  return guestSessionToken(request) !== undefined;
+}
+export async function guestTokenHash(request: Request): Promise<string | null> {
+  const token = guestSessionToken(request);
   if (!token) return null;
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");

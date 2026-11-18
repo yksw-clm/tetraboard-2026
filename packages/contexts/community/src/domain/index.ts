@@ -4,3 +4,4 @@ export * from "./feedbackImages";
 export * from "./notifications";
 export * from "./reports";
 export {};
+export * from "./chat";

@@ -71,8 +71,6 @@
         "apps/worker/src/routes/accountAuthRoutes.ts",
         "apps/worker/src/accounts/auth.ts",
         "apps/worker/src/kpi/calculations.ts",
-        "apps/worker/src/lobby/chatRoutes.ts",
-        "apps/worker/src/lobby/chatStore.ts",
         "apps/worker/src/routes/matchmaking.ts",
         "apps/worker/src/privacy/deletion.ts",
         "apps/worker/src/privacy/deletionRoutes.ts",
