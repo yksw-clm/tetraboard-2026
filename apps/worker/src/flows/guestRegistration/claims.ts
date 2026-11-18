@@ -1,4 +1,4 @@
-import { retryPendingMatchClaims } from "../../adapters/record/matchClaims";
+import { retryPendingMatchClaims } from "../matchSave/claims";
 import { readStoredMatch } from "../../adapters/record/matchDataContracts";
 import { pendingMatches } from "../../adapters/room/matchJob";
 import { pendingShogiMatches } from "../../adapters/room/shogiMatchJob";

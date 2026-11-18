@@ -4,7 +4,6 @@ import type {
   MatchClaimInput,
   MatchClaimStore,
 } from "@tetraboard/context-record";
-import { badgeAwardStatements } from "./badgeAwards";
 import { D1MatchClaimReadStore } from "./matchClaimReadStore";
 import { mergedAccountIdSql } from "./guestMerges";
 
@@ -12,7 +11,10 @@ export class D1MatchClaimStore
   extends D1MatchClaimReadStore
   implements MatchClaimStore<D1PreparedStatement>
 {
-  constructor(private readonly database: D1Database) {
+  constructor(
+    private readonly database: D1Database,
+    readonly badges: MatchClaimStore<D1PreparedStatement>["badges"],
+  ) {
     super(database);
   }
 
@@ -74,10 +76,6 @@ export class D1MatchClaimStore
       WHERE c.match_id=? AND c.state='applied'
       ON CONFLICT(account_id,match_id) DO NOTHING`)
       .bind(matchId);
-  }
-
-  badges(game: string, matchId: string) {
-    return badgeAwardStatements(this.database, game, matchId);
   }
 
   async save(statements: D1PreparedStatement[]) {

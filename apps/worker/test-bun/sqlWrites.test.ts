@@ -64,6 +64,15 @@ test("単引用符で囲まれたUPDATEの対象表と代入先を検出しま�
   expect(updateClauses(write!)[0]!.columns).toEqual(["account_id"]);
 });
 
+test("DELETE FROM の対象表を副問い合わせと区別します", () => {
+  const statement =
+    'DELETE FROM main."notification_events" WHERE EXISTS(SELECT 1 FROM deleted_accounts)';
+  const writes = findSqlWrites("example.ts", JSON.stringify(statement));
+  expect(writes.map(({ operation, table }) => [operation, table])).toEqual([
+    ["DELETE", "notification_events"],
+  ]);
+});
+
 test.each([
   ["(${fence.sql}) AND (state=? OR state=?)", true],
   ["${fence.sql} OR 1", false],

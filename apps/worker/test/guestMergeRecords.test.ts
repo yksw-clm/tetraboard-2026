@@ -4,7 +4,7 @@ import {
   snapshotHistoryStatement,
   shogiHistoryStatement,
 } from "../src/adapters/record/publication";
-import { applyMatchClaims } from "../src/adapters/record/matchClaims";
+import { applyMatchClaims } from "../src/flows/matchSave/claims";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import type { ShogiSaveProgress } from "../src/rooms/shogiMatchStore";

@@ -3,7 +3,7 @@ import type { StoredProfile } from "../../accounts/auth";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { reserveAccountSeat, cancelReservation } from "../accountSeats/reserve";
 import { RoomAccountError } from "../accountSeats/entryProfile";
-import { acceptMatchClaim, readMatchClaimState } from "../../adapters/record/matchClaims";
+import { acceptMatchClaim, readMatchClaimState } from "../matchSave/claims";
 import { browserIdFromRequest } from "../../usageEvents/browserId";
 import { D1RegistrationWrites } from "../../adapters/account/registrationWrites";
 import {

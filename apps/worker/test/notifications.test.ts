@@ -312,12 +312,19 @@ test("既存公開記事だけを導入時に既読相当とし、過去のバ�
     migrations.filter((m) => m.name < "0029"),
   );
   const user = await baseAccountFixture(true, crypto.randomUUID(), isolated);
-  const published = await create(isolated, input()),
-    draft = await create(isolated, input(false));
-  await isolated
-    .prepare("INSERT INTO account_badge_notifications VALUES(?,?,?,?,NULL,NULL,NULL)")
-    .bind(user.id, "past-match", "four-reversi", 1)
-    .run();
+  const published = crypto.randomUUID();
+  const draft = crypto.randomUUID();
+  await isolated.batch([
+    ...[published, draft].map((id) =>
+      isolated
+        .prepare(`INSERT INTO announcements(id,title,body,date,kind,published,created_at_ms,updated_at_ms)
+        VALUES(?, '旧記事', '本文', '2026-11-07', 'feature', ?, 1, 1)`)
+        .bind(id, Number(id === published)),
+    ),
+    isolated
+      .prepare("INSERT INTO account_badge_notifications VALUES(?,?,?,?,NULL,NULL,NULL)")
+      .bind(user.id, "past-match", "four-reversi", 1),
+  ]);
   await applyD1Migrations(isolated, migrations);
   expect(
     (

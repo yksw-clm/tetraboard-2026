@@ -1,7 +1,7 @@
 import { cleanupLobbyChat } from "./adapters/community/chatCleanup";
 import { processDeletions } from "./privacy/deletion";
 import { recoverAccountReservations } from "./flows/accountSeats/reserve";
-import { retryPendingMatchClaims } from "./adapters/record/matchClaims";
+import { retryPendingMatchClaims } from "./flows/matchSave/claims";
 import { deleteExpiredReports } from "./adapters/community/reports";
 import { cleanupFeedback } from "./adapters/community/feedbackCleanup";
 import { deleteUnusedAvatars } from "./routes/accountAvatars";

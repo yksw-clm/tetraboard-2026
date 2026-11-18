@@ -17,6 +17,7 @@ export const announcements = sqliteTable(
     version: integer("version")
       .notNull()
       .default(sql`1`),
+    publishedOn: text("published_on"),
   },
   (t) => [
     primaryKey({ columns: [t.id] }),
@@ -28,6 +29,17 @@ export const announcements = sqliteTable(
     index("announcements_public_order").on(
       t.published,
       sql`${t.date} desc`,
+      sql`${t.createdAtMs} desc`,
+      sql`${t.id} desc`,
+    ),
+    index("announcements_published_on_order").on(
+      sql`coalesce(${t.publishedOn}, ${t.date}) desc`,
+      sql`${t.createdAtMs} desc`,
+      sql`${t.id} desc`,
+    ),
+    index("announcements_public_published_on_order").on(
+      t.published,
+      sql`coalesce(${t.publishedOn}, ${t.date}) desc`,
       sql`${t.createdAtMs} desc`,
       sql`${t.id} desc`,
     ),
