@@ -1,6 +1,6 @@
 import * as roomUseCases from "@tetraboard/context-room";
 import { joinRoomContract, roomSchema, type Room, type RoomMembership } from "@tetraboard/protocol";
-import { type AccountAdmission } from "../../accounts/roomAccounts";
+import { type AccountAdmission } from "../../flows/accountSeats/types";
 import { invokeRoomTransaction } from "../../adapters/room/useCaseTransaction";
 import { roomAdmission } from "../../adapters/room/useCases";
 import { withAccountAdmission } from "../../flows/accountSeats/admission";

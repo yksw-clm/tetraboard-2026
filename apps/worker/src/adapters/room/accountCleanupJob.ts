@@ -1,4 +1,4 @@
-import { releaseReservation } from "../../accounts/roomAccounts";
+import { releaseReservation } from "./seatReservations";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { cancelledAdmissionKey } from "../../durableObjects/gameRoom/storageKeys";
 import { accountCleanupKey, type AccountCleanup } from "../../flows/accountSeats/types";

@@ -1,14 +1,20 @@
+import { prepareFenceAbort } from "../../db/fenceAbort";
+
 type FenceCode =
   | "matchmaking_waiting"
   | "tournament_waiting"
   | "account_busy"
   | "account_seated"
   | "account_deleted";
-type SqlFragment = { sql: string; values: string[] };
+type SqlFragment = { sql: string; values: (string | number | null)[] };
 type Fence = readonly [FenceCode, SqlFragment[]];
 type AccountColumn = "user.id" | "u.id";
 
-function seatFences(account: SqlFragment, operationId: string): Fence[] {
+export function guestMerged(account: AccountColumn | "?") {
+  return `EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=${account})`;
+}
+
+function seatWaitFences(account: SqlFragment, operationId: string): Fence[] {
   return (
     [
       ["matchmaking_waiting", "matchmaking_wait_reservations"],
@@ -71,12 +77,39 @@ function condition(fences: Fence[]): SqlFragment {
 }
 
 // 列で表せるアカウントIDはbindせず、操作IDだけを出現順に返します。
-export const seatFence = (account: AccountColumn, operationId: string) =>
-  condition(seatFences({ sql: account, values: [] }, operationId));
+export function seatFence(account: AccountColumn, operationId: string) {
+  const wait = condition(seatWaitFences({ sql: account, values: [] }, operationId));
+  return { sql: `${wait.sql} AND NOT ${guestMerged(account)}`, values: wait.values };
+}
+
+export function prepareSeatMergedAbort(
+  db: D1Database,
+  account: AccountColumn,
+  operationId: string,
+  candidate: SqlFragment,
+) {
+  const wait = condition(seatWaitFences({ sql: account, values: [] }, operationId));
+  return prepareFenceAbort(db, {
+    when: `changes()=0 AND EXISTS(SELECT 1 ${candidate.sql} AND ${wait.sql} AND ${guestMerged(account)})`,
+    values: [...candidate.values, ...wait.values],
+    code: "guest_merged",
+  });
+}
 export const matchmakingWaitFence = (accountId: string) =>
   condition(matchmakingWaitFences(accountId));
-export const tournamentWaitFence = (accountId: string) =>
-  condition(tournamentWaitFences(accountId));
+export function tournamentWaitFence(accountId: string) {
+  const wait = condition(tournamentWaitFences(accountId));
+  return { sql: `${wait.sql} AND NOT ${guestMerged("?")}`, values: [...wait.values, accountId] };
+}
+
+export function prepareTournamentWaitMergedAbort(db: D1Database, accountId: string) {
+  const wait = condition(tournamentWaitFences(accountId));
+  return prepareFenceAbort(db, {
+    when: `changes()=0 AND ${wait.sql} AND ${guestMerged("?")}`,
+    values: [...wait.values, accountId],
+    code: "guest_merged",
+  });
+}
 
 function prepareFence(db: D1Database, fences: Fence[]) {
   return db
@@ -92,7 +125,7 @@ async function readFence(db: D1Database, fences: Fence[]) {
 }
 
 export const readSeatFence = (db: D1Database, accountId: string, operationId: string) =>
-  readFence(db, seatFences({ sql: "?", values: [accountId] }, operationId));
+  readFence(db, seatWaitFences({ sql: "?", values: [accountId] }, operationId));
 export const readMatchmakingWaitFence = (db: D1Database, accountId: string) =>
   readFence(db, matchmakingWaitFences(accountId));
 export const readTournamentWaitFence = (db: D1Database, accountId: string) =>
@@ -102,3 +135,6 @@ export const prepareMatchmakingWaitFence = (db: D1Database, accountId: string) =
   prepareFence(db, matchmakingWaitFences(accountId));
 export const prepareTournamentWaitFence = (db: D1Database, accountId: string) =>
   prepareFence(db, tournamentWaitFences(accountId));
+
+export const prepareSeatWaitFence = (db: D1Database, accountId: string, operationId: string) =>
+  prepareFence(db, seatWaitFences({ sql: "?", values: [accountId] }, operationId));

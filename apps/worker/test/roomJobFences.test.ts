@@ -1,7 +1,7 @@
 import { runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { expect, test, vi } from "vitest";
-import * as accounts from "../src/accounts/roomAccounts";
+import * as seats from "../src/adapters/room/seatReservations";
 import { publicMetadata } from "../src/adapters/room/metadata";
 import * as indexes from "../src/rooms/roomIndex";
 import type { RoomJob } from "../src/rooms/roomJobs";
@@ -73,7 +73,7 @@ for (const fail of [false, true]) {
     await runInDurableObject(stub, async (instance, ctx) => {
       const job = Reflect.get(instance, "runtime").jobs.accountCleanupJob as RoomJob<unknown>;
       const gate = barrier(fail);
-      const spy = vi.spyOn(accounts, "releaseReservation").mockImplementation(gate.execute);
+      const spy = vi.spyOn(seats, "releaseReservation").mockImplementation(gate.execute);
       const reservation = {
         accountId: "account",
         operationId: "old-operation",

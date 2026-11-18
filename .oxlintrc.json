@@ -72,7 +72,6 @@
       "files": [
         "apps/worker/src/routes/accountAuthRoutes.ts",
         "apps/worker/src/accounts/auth.ts",
-        "apps/worker/src/accounts/roomAccounts.ts",
         "apps/worker/src/feedback/routes.ts",
         "apps/worker/src/feedback/store.ts",
         "apps/worker/src/kpi/calculations.ts",

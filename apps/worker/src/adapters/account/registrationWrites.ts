@@ -4,31 +4,17 @@ import type {
   RegistrationStarted,
   RegistrationFlow,
 } from "@tetraboard/context-account";
+import { prepareFenceAbort } from "../../db/fenceAbort";
+import { registrationAccountAllowed } from "./registrationFence";
 import { D1Registrations } from "./registrations";
 export class D1RegistrationWrites extends D1Registrations implements RegistrationWriter {
   constructor(private readonly writeDb: D1Database) {
     super(writeDb);
   }
   async create(command: RegistrationStart) {
-    await this.writeDb
-      .prepare(`INSERT INTO registration_flows
-    (id,secret_hash,room_id,instance_id,match_id,old_token_hash,new_token_hash,created_at_ms,hold_until_ms,claim_until_ms,guest_account_id)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`)
-      .bind(
-        command.registrationId,
-        command.secretHash,
-        command.roomId,
-        command.instanceId,
-        command.matchId,
-        command.oldTokenHash,
-        command.newTokenHash,
-        command.now,
-        command.now + 600_000,
-        command.now + 3_600_000,
-        command.guestAccountId,
-      )
-      .run();
+    await this.writeDb.batch(prepareRegistrationInsert(this.writeDb, command, null));
   }
+
   async removeUnprepared(id: string, secretHash: string) {
     await this.writeDb
       .prepare(
@@ -112,4 +98,39 @@ export class D1RegistrationWrites extends D1Registrations implements Registratio
     ]);
     return cancelled[0].results[0];
   }
+}
+
+// 開始時点では account_id は NULL です。OAuth の確定で初めて登録者を割り当てます。
+export function prepareRegistrationInsert(
+  db: D1Database,
+  command: RegistrationStart,
+  accountId: string | null,
+) {
+  return [
+    db
+      .prepare(`WITH candidate(account_id) AS (VALUES(?))
+      INSERT INTO registration_flows
+        (id,secret_hash,room_id,instance_id,match_id,old_token_hash,new_token_hash,created_at_ms,hold_until_ms,claim_until_ms,guest_account_id,account_id)
+      SELECT ?,?,?,?,?,?,?,?,?,?,?,candidate.account_id FROM candidate
+      WHERE ${registrationAccountAllowed("candidate.account_id")} ON CONFLICT(id) DO NOTHING`)
+      .bind(
+        accountId,
+        command.registrationId,
+        command.secretHash,
+        command.roomId,
+        command.instanceId,
+        command.matchId,
+        command.oldTokenHash,
+        command.newTokenHash,
+        command.now,
+        command.now + 600_000,
+        command.now + 3_600_000,
+        command.guestAccountId,
+      ),
+    prepareFenceAbort(db, {
+      when: `changes()=0 AND NOT ${registrationAccountAllowed("?")}`,
+      values: [accountId],
+      code: "registration account deleted",
+    }),
+  ];
 }

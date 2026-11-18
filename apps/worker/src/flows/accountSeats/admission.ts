@@ -1,4 +1,4 @@
-import type { AccountAdmission } from "../../accounts/roomAccounts";
+import type { AccountAdmission } from "./types";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { cancelledAdmissionKey } from "../../durableObjects/gameRoom/storageKeys";
 
