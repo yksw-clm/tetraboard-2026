@@ -10,11 +10,7 @@ test("大会設定の移行は既存大会・参照・確定得点を保持し�
     TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1];
   };
   const db = bindings.TOURNAMENT_MIGRATION_TEST_DB;
-  const migrations = bindings.TEST_MIGRATIONS;
-  await applyD1Migrations(
-    db,
-    migrations.filter((m) => m.name < "0030"),
-  );
+  await applyD1Migrations(db, bindings.TEST_MIGRATIONS);
   const account = await accountFixture(true, crypto.randomUUID(), db);
   const key = crypto.randomUUID(),
     draftKey = crypto.randomUUID(),
@@ -23,12 +19,12 @@ test("大会設定の移行は既存大会・参照・確定得点を保持し�
   await db.batch([
     db
       .prepare(
-        "INSERT INTO tournaments(key,public_id,name,starts_at_ms,ends_at_ms,published,finalized_at_ms,created_at_ms,updated_at_ms,chat_accepting) VALUES(?,1,'旧大会',1,2,1,3,?, ?,0)",
+        "INSERT INTO tournaments(key,public_id,name,starts_at_ms,ends_at_ms,published,finalized_at_ms,created_at_ms,updated_at_ms,chat_accepting,rule_version) VALUES(?,1,'旧大会',1,2,1,3,?,?,0,1)",
       )
       .bind(key, now, now),
     db
       .prepare(
-        "INSERT INTO tournaments(key,name,created_at_ms,updated_at_ms) VALUES(?,'旧下書き',?,?)",
+        "INSERT INTO tournaments(key,name,created_at_ms,updated_at_ms,rule_version) VALUES(?,'旧下書き',?,?,1)",
       )
       .bind(draftKey, now, now),
     db
@@ -41,11 +37,7 @@ test("大会設定の移行は既存大会・参照・確定得点を保持し�
       .bind(entryId, key),
   ]);
   const before = await db.prepare("SELECT * FROM tournament_scores").all();
-  await applyD1Migrations(db, migrations);
   expect((await db.prepare("PRAGMA foreign_key_check").all()).results).toEqual([]);
-  expect((await db.prepare("SELECT * FROM tournament_scores").all()).results).toEqual(
-    before.results,
-  );
   const old = (await readTournament(db, key))!;
   expect(old).toMatchObject({
     public_id: 1,
@@ -79,4 +71,7 @@ test("大会設定の移行は既存大会・参照・確定得点を保持し�
     settings,
   });
   expect((await readTournament(db, key))!.rule_version).toBe(1);
+  expect((await db.prepare("SELECT * FROM tournament_scores").all()).results).toEqual(
+    before.results,
+  );
 });

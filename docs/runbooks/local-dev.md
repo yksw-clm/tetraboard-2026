@@ -18,6 +18,23 @@
 規約・年齢条件の確認後、作成と入室のHTTPリクエストに `X-Legal-Consent: 2026-10-21` を付けます。版は `packages/protocol/src/privacy.ts` の `legalVersion` と一致させます。
 
 ルーム作成は `POST http://127.0.0.1:8787/rooms` に `{"name":"てとら","quickPlay":false,"mode":"singles"}` をJSONで送ります。`mode` は `singles` または `doubles` の必須項目です。成功応答の `room.id` に含まれる5桁のIDを使い、`GET http://127.0.0.1:8787/rooms/<ID>` で保存した部屋を確認できます。Workerを再起動した後も同じIDで取得できます。開発時のDurable ObjectとD1の状態は `apps/worker/.wrangler/state` に保存されます。D1だけを準備する場合は `bun run --cwd apps/worker db:migrate:local` を実行します。
+
+TB-75 で migration を `0058_baseline.sql` にまとめる前に作ったローカルのD1は、0001〜0057 を当ててあります。そのまま `db:migrate:local` を実行すると、基準を当てようとして `table "user" already exists` で失敗します。次のどちらかを行います。
+
+- データを残すとき: 0057 まで当たっていることを確かめてから、基準を適用済みとして登録します。プレビュー用のD1（`db:migrate:preview`）も同じです。
+  - 当たっている最後の migration は `wrangler d1 execute ... --command "SELECT name FROM d1_migrations ORDER BY id DESC LIMIT 1"` で確かめます。
+  - 0057 より前で止まっているときは、先に残りを当てます。`git log --oneline -- apps/worker/migrations/0058_baseline.sql` で TB-75 のコミットを探し、作業中の変更を退避してから、同じチェックアウトで `git switch --detach <そのコミット>^` に切り替えて migration のコマンドを実行し、元のブランチに戻ります。0057 まで当たる前に基準を登録すると、残りの migration は当たらないままになります。
+
+  ```sh
+  mise exec -- bun run --cwd apps/worker wrangler d1 execute tetraboard-lobby-local --local --command "INSERT INTO d1_migrations (name) VALUES ('0058_baseline.sql')"
+  ```
+
+  ```sh
+  mise exec -- bun run --cwd apps/worker wrangler d1 execute APP_DB --env production --local --persist-to .wrangler/production-preview --command "INSERT INTO d1_migrations (name) VALUES ('0058_baseline.sql')"
+  ```
+
+- 作り直すとき: Workerを止め、`apps/worker/.wrangler/state/v3/d1`（プレビューは `apps/worker/.wrangler/production-preview/v3/d1`）を退避してから、migration のコマンドを実行します。空のD1には基準だけが当たります。
+
 既存ルームへの入室は `POST http://127.0.0.1:8787/rooms/<ID>/players` に `{"name":"二人目"}` をJSONで送ります。作成・入室の成功応答は `{ "room": ..., "membership": { "playerId": ..., "role": ..., "token": ... } }` です。満室なら409を返します。本人確認は `GET http://127.0.0.1:8787/rooms/<ID>/me` に `Authorization: Bearer <token>` を付けて行います。トークンは公開GETやWebSocketの応答には含めません。
 Webの `/` は総合ロビーを表示します。各ゲームロビーの「CPUと遊ぶ」「公開ルームを作る」、公開一覧の「参加する」から入力ダイアログを開きます。名前などを入力して確定すると、`/rooms/<ID>` に移動します。「ルーム番号で参加」の入力入口は設けず、公開一覧と招待URLを使います。ルームページはGETで保存済みの情報を確認してから表示し、WebSocket接続後に受信したルーム情報と接続状態を表示します。別の画面からの入室もWebSocketで反映します。ページを再読み込みしても同じルームを取得できます。接続が切れた場合はGETで状態を再取得してから再接続します。開発機のブラウザで確認後、スマートフォンでもViteの `Network` URLから同じルームURLを開いて確認します。
 作成・「CPUと遊ぶ」のダイアログでシングルス・ダブルスを選択します。初期値はシングルスです。「CPUと遊ぶ」を確定すると、選択したモードでホストは準備完了、CPU 3体は作成時に選んだレベル（省略時はLv1）で待機します。ホストが「対局開始」を押した後、CPUの各手番は最低2秒待ってから自動で進みます。通常の待機部屋では、ホストがCPUの追加・削除・レベル変更とモード変更を行えます。モード・時間設定の変更時は人間全員の準備状態を解除します。人間とCPUの合計が4席で、接続中の人間全員が準備完了なら開始できます。設定変更と自動着手はWebSocketのルームスナップショットで他の画面へ反映されます。

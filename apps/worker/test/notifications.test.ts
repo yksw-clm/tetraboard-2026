@@ -318,30 +318,42 @@ test("退会受付直後は取得できず、削除と遅延保存のフェン�
 });
 
 test("既存公開記事だけを導入時に既読相当とし、過去のバッジは追加生成しない", async () => {
-  const isolated = (env as typeof env & { NOTIFICATION_MIGRATION_TEST_DB: D1Database })
-    .NOTIFICATION_MIGRATION_TEST_DB;
+  const isolated = (env as typeof env & { HISTORICAL_NOTIFICATION_TEST_DB: D1Database })
+    .HISTORICAL_NOTIFICATION_TEST_DB;
   const migrations = (
     env as typeof env & { TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1] }
   ).TEST_MIGRATIONS;
-  await applyD1Migrations(
-    isolated,
-    migrations.filter((m) => m.name < "0029"),
-  );
+  await applyD1Migrations(isolated, migrations);
   const user = await baseAccountFixture(true, crypto.randomUUID(), isolated);
   const published = crypto.randomUUID();
   const draft = crypto.randomUUID();
   await isolated.batch([
     ...[published, draft].map((id) =>
       isolated
-        .prepare(`INSERT INTO announcements(id,title,body,date,kind,published,created_at_ms,updated_at_ms)
+        .prepare(`INSERT INTO announcements(id,title,body,published_on,kind,published,created_at_ms,updated_at_ms)
         VALUES(?, '旧記事', '本文', '2026-11-07', 'feature', ?, 1, 1)`)
         .bind(id, Number(id === published)),
     ),
     isolated
+      .prepare(`INSERT INTO notification_events(kind,source_id,created_at_ms,legacy)
+        VALUES('announcement',?,1,1)`)
+      .bind(published),
+    isolated
       .prepare("INSERT INTO account_badge_notifications VALUES(?,?,?,?,NULL,NULL,NULL)")
       .bind(user.id, "past-match", "four-reversi", 1),
   ]);
-  await applyD1Migrations(isolated, migrations);
+  const notifications = await readNotifications(isolated, user.id);
+  expect(notifications.filter(({ kind }) => kind === "announcement")).toContainEqual(
+    expect.objectContaining({
+      announcement: expect.objectContaining({ id: published }),
+      read: true,
+      legacy: true,
+    }),
+  );
+  expect(
+    notifications.some((item) => item.kind === "announcement" && item.announcement.id === draft),
+  ).toBe(false);
+  expect(notifications.some(({ kind }) => kind === "badge")).toBe(false);
   expect(
     (
       await isolated

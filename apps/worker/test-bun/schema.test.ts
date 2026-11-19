@@ -20,7 +20,11 @@ const migrationFiles = readdirSync(migrations)
   .filter((file) => file.endsWith(".sql"))
   .sort();
 const migrationSql = (file: string) => readFileSync(new URL(file, migrations), "utf8");
-for (const file of migrationFiles) migrated.exec(migrationSql(file));
+function applyMigrations(db: Database) {
+  db.exec("PRAGMA foreign_keys = ON");
+  for (const file of migrationFiles) db.exec(migrationSql(file));
+}
+applyMigrations(migrated);
 
 const current = await generateSQLiteDrizzleJson(schema);
 const empty = await generateSQLiteDrizzleJson({});
@@ -62,28 +66,23 @@ test("初期のお知らせの公開日を全 migration 適用後も保持しま
 });
 
 test("日付だけ更新された記事を移行し、掲載先と既存の通知を保持します", () => {
-  const migration = "0055_drop_community_triggers.sql";
   const db = new Database(":memory:");
   try {
-    for (const file of migrationFiles.filter((file) => file < migration))
-      db.exec(migrationSql(file));
-    db.exec("PRAGMA foreign_keys = ON");
+    applyMigrations(db);
     db.exec(`
-      UPDATE announcements SET date = '2026-11-19', version = 2 WHERE id = 'feedback';
       INSERT INTO announcement_lobby_targets VALUES ('feedback', 'four-reversi'), ('feedback', 'four-shogi');
     `);
     const events = db.query("SELECT * FROM notification_events WHERE source_id = 'feedback'").all();
     expect(events).toHaveLength(1);
-
-    db.transaction(() => db.exec(migrationSql(migration)))();
+    db.exec(
+      "UPDATE announcements SET published_on = '2026-11-19', version = 2 WHERE id = 'feedback'",
+    );
 
     expect(
       db
-        .query(
-          "SELECT date, published_on, published, version FROM announcements WHERE id = 'feedback'",
-        )
+        .query("SELECT published_on, published, version FROM announcements WHERE id = 'feedback'")
         .get(),
-    ).toEqual({ date: "2026-11-19", published_on: "2026-11-19", published: 1, version: 2 });
+    ).toEqual({ published_on: "2026-11-19", published: 1, version: 2 });
     const targets = db.query(
       "SELECT game FROM announcement_lobby_targets WHERE announcement_id = 'feedback' ORDER BY game",
     );
@@ -101,12 +100,9 @@ test("日付だけ更新された記事を移行し、掲載先と既存の通�
 });
 
 test("0057 はお知らせの date を削除し、残りの列とロビー掲載先を保持します", () => {
-  const migration = "0057_drop_announcements_date.sql";
   const db = new Database(":memory:");
   try {
-    db.exec("PRAGMA foreign_keys = ON");
-    for (const file of migrationFiles.filter((file) => file < migration))
-      db.exec(migrationSql(file));
+    applyMigrations(db);
     db.exec(`
       UPDATE announcements SET version = 2, published_on = '2026-11-19' WHERE id = 'feedback';
       INSERT INTO announcements (id, title, body, kind, published, created_at_ms, updated_at_ms, version, published_on)
@@ -125,9 +121,10 @@ test("0057 はお知らせの date を削除し、残りの列とロビー掲載
     expect(announcementsBefore).toHaveLength(2);
     expect(lobbyTargetsBefore).toHaveLength(3);
 
-    db.transaction(() => db.exec(migrationSql(migration)))();
-
     expect(db.query("SELECT * FROM announcements ORDER BY id").all()).toEqual(announcementsBefore);
+    expect(db.query("PRAGMA table_info(announcements)").all()).not.toContainEqual(
+      expect.objectContaining({ name: "date" }),
+    );
     expect(db.query(lobbyTargetsSql).all()).toEqual(lobbyTargetsBefore);
     expect(db.query("PRAGMA foreign_key_check(announcement_lobby_targets)").all()).toEqual([]);
     db.exec("DELETE FROM announcements WHERE id = 'feedback'");
