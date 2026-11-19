@@ -1,5 +1,5 @@
 import { matchmakingRules, tournamentRules, type Room } from "@tetraboard/protocol";
-import { earliestAlarmAt } from "./roomDeadlines";
+import { earliestAlarmAt } from "@tetraboard/context-room";
 
 export type RoomAlarmInput = {
   room: Room | null;

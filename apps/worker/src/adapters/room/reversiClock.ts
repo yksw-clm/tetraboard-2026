@@ -1,63 +1,58 @@
-import { initializeClock, advanceTurnClock } from "./clockCore";
-import {
-  roomTimeControl,
-  type RoomTimeControl,
-  type FinishedRoomClock,
-  type PlayingRoomClock,
-} from "@tetraboard/protocol";
-import { type Color } from "@tetraboard/four-reversi";
+import { initializeClock, advanceTurnClock } from "@tetraboard/context-room";
+import { roomTimeControl, type RoomTimeControl, type ReversiClock } from "@tetraboard/protocol";
+import { type Color } from "@tetraboard/reversi";
 
+type FinishedReversiClock = {
+  remainingMainMs: Record<Color, number>;
+  turnStartedAt: null;
+  turnExpiresAt: null;
+};
 export function createClock(
   at: number,
   timeControl: RoomTimeControl = roomTimeControl,
-): PlayingRoomClock {
+): ReversiClock {
   const remainingMainMs: Record<Color, number> = {
     black: timeControl.mainTimeMs,
     white: timeControl.mainTimeMs,
-    red: timeControl.mainTimeMs,
-    blue: timeControl.mainTimeMs,
   };
   return initializeClock(remainingMainMs, at, timeControl);
 }
 
-export function isClockExpired(
-  clock: Pick<PlayingRoomClock, "turnExpiresAt">,
-  at: number,
-): boolean {
+export function isClockExpired(clock: Pick<ReversiClock, "turnExpiresAt">, at: number): boolean {
   return at >= clock.turnExpiresAt;
 }
 
 export function advanceClock(
-  clock: PlayingRoomClock,
+  clock: ReversiClock,
   previousTurn: Color,
   nextTurn: Color,
   at: number,
   turnEnded: boolean,
   timeControl?: RoomTimeControl,
-): PlayingRoomClock;
+): ReversiClock;
 export function advanceClock(
-  clock: PlayingRoomClock,
+  clock: ReversiClock,
   previousTurn: Color,
   nextTurn: null,
   at: number,
   turnEnded: boolean,
   timeControl?: RoomTimeControl,
-): FinishedRoomClock;
+): FinishedReversiClock;
 export function advanceClock(
-  clock: PlayingRoomClock,
+  clock: ReversiClock,
   previousTurn: Color,
   nextTurn: Color | null,
   at: number,
   turnEnded: boolean,
   timeControl?: RoomTimeControl,
-): PlayingRoomClock | FinishedRoomClock;
+): ReversiClock | FinishedReversiClock;
 export function advanceClock(
-  clock: PlayingRoomClock,
+  clock: ReversiClock,
   previousTurn: Color,
   nextTurn: Color | null,
   at: number,
   turnEnded: boolean,
   timeControl: RoomTimeControl = roomTimeControl,
-): PlayingRoomClock | FinishedRoomClock {
+): ReversiClock | FinishedReversiClock {
   return advanceTurnClock(clock, previousTurn, nextTurn, at, turnEnded, timeControl);
 }

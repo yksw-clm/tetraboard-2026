@@ -4,7 +4,10 @@ import type { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 import { FourShogiProgress } from "../src/rooms/fourShogiProgress";
 import { FourReversiProgress } from "../src/rooms/fourReversiProgress";
 import { FourGomokuProgress } from "../src/rooms/fourGomokuProgress";
-import { currentRoomStateVersion, roomStateVersionKey } from "../src/rooms/roomStateVersion";
+import {
+  currentRoomStateVersion,
+  roomStateVersionKey,
+} from "../src/adapters/room/roomStateVersion";
 
 export async function expectVersionedRoom(stub: DurableObjectStub<GameRoom>) {
   await runInDurableObject(stub, async (instance, ctx) => {

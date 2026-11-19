@@ -5,7 +5,7 @@ import * as seats from "../src/adapters/room/seatReservations";
 import { reversiRoomSchema } from "@tetraboard/protocol";
 import { publicMetadata } from "../src/adapters/room/metadata";
 import * as indexes from "../src/adapters/room/roomIndexWrite";
-import type { RoomJob } from "../src/rooms/roomJobs";
+import type { RoomJob } from "../src/adapters/room/roomJobs";
 import {
   pendingTournamentStatePrefix,
   type PendingTournamentState,

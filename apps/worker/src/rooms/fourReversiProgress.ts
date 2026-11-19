@@ -1,4 +1,4 @@
-import { migrateLegacyFourReversiRoom } from "./legacyRoomMigrations";
+import { migrateLegacyFourReversiRoom } from "../adapters/room/legacyRoomMigrations";
 import { checkGameCommand } from "@tetraboard/context-room";
 import { gameDefinitions } from "./gameDefinitions";
 import {
@@ -9,7 +9,7 @@ import {
   type GameActionCommandFor,
 } from "@tetraboard/protocol";
 import type { Position, FourReversiState } from "@tetraboard/four-reversi";
-import { advanceClock, isClockExpired } from "./clock";
+import { advanceClock, isClockExpired } from "../adapters/room/clock";
 import { nextPublicUpdateAt } from "./progressHelpers";
 import type {
   ProgressDependencies,

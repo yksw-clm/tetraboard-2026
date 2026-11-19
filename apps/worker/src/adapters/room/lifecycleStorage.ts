@@ -12,7 +12,7 @@ import { fourShogiAiJobKey, shogiEliminatedHandsKey } from "../../rooms/fourShog
 import { gomokuCpuJobKey } from "../../rooms/gomokuProgress";
 import { matchStartKey } from "../../rooms/matchStore";
 import { replayKey, roomStorageKey, shogiCpuJobKey } from "../../rooms/progressHelpers";
-import { currentRoomStateVersion, roomStateVersionKey } from "../../rooms/roomStateVersion";
+import { currentRoomStateVersion, roomStateVersionKey } from "./roomStateVersion";
 import { shogiMatchStartKey, standardShogiMatchStartKey } from "../../rooms/shogiMatchStore";
 import { tournamentCredentialVersionKey } from "@tetraboard/context-tournament";
 import { departedKey } from "./state";

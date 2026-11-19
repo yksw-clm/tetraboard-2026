@@ -15,8 +15,8 @@ import {
   type ExternalEliminationReason,
 } from "@tetraboard/shogi";
 import { StandardShogiStore } from "./standardShogiStore";
-import { advanceTurnClock } from "./clockCore";
-import { isClockExpired } from "./clock";
+import { advanceTurnClock } from "@tetraboard/context-room";
+import { isClockExpired } from "../adapters/room/clock";
 import { nextPublicUpdateAt } from "./progressHelpers";
 import type {
   ProgressDependencies,

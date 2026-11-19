@@ -4,7 +4,7 @@ import type { PendingMatch as PendingGomokuMatch } from "../../rooms/gomokuMatch
 import { pendingMatchPrefix, type PendingMatch } from "../../rooms/matchStore";
 import { writeMatch } from "../../flows/matchSave/snapshot";
 import type { PendingMatch as PendingReversiMatch } from "../../rooms/reversiMatchStore";
-import { RoomJob } from "../../rooms/roomJobs";
+import { RoomJob } from "./roomJobs";
 
 export function pendingMatches(runtime: RoomRuntime) {
   return new Map(

@@ -1,4 +1,4 @@
-import { migrateLegacyFourShogiRoom } from "./legacyRoomMigrations";
+import { migrateLegacyFourShogiRoom } from "../adapters/room/legacyRoomMigrations";
 import {
   fourShogiRoomSchema,
   isFourShogiRoom,
@@ -23,8 +23,8 @@ import { checkGameCommand } from "@tetraboard/context-room";
 import { ShogiStore } from "./shogiStore";
 import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 import type { FourShogiRatingSource } from "@tetraboard/context-matchmaking";
-import { advanceShogiClock } from "./shogiClock";
-import { isClockExpired } from "./clock";
+import { advanceShogiClock } from "../adapters/room/shogiClock";
+import { isClockExpired } from "../adapters/room/clock";
 import { shogiCpuJobKey, nextPublicUpdateAt } from "./progressHelpers";
 import type {
   ProgressDependencies,

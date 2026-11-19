@@ -6,7 +6,10 @@ import { fourReversiRoomSchema, gameIds, roundReplaySchema, type Room } from "@t
 import { getLegalMoves } from "@tetraboard/four-reversi";
 import { RoomBoundaryFixtures, boundaryRequest } from "./roomBoundaryFixtures";
 import { FourShogiProgress } from "../src/rooms/fourShogiProgress";
-import { currentRoomStateVersion, roomStateVersionKey } from "../src/rooms/roomStateVersion";
+import {
+  currentRoomStateVersion,
+  roomStateVersionKey,
+} from "../src/adapters/room/roomStateVersion";
 
 let fixtures = new RoomBoundaryFixtures();
 afterEach(async () => {

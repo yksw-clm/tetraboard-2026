@@ -17,7 +17,7 @@ import type {
   MatchmakingRoomReservation,
 } from "@tetraboard/context-matchmaking";
 import { playerLabel, roomStorageKey } from "../../rooms/progressHelpers";
-import { currentRoomStateVersion, roomStateVersionKey } from "../../rooms/roomStateVersion";
+import { currentRoomStateVersion, roomStateVersionKey } from "../../adapters/room/roomStateVersion";
 import { analyticsPlayerKey } from "../../usageEvents/matches";
 
 export function persistMatchmakingRoom(

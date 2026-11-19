@@ -8,7 +8,7 @@ import { storedAccount } from "../../flows/accountSeats/seats";
 import { registrationForPlayer } from "../../flows/guestRegistration/records";
 import type { MatchmakingRoomReservation } from "@tetraboard/context-matchmaking";
 import { roomStorageKey } from "../../rooms/progressHelpers";
-import { currentRoomStateVersion, roomStateVersionKey } from "../../rooms/roomStateVersion";
+import { currentRoomStateVersion, roomStateVersionKey } from "../../adapters/room/roomStateVersion";
 import type { RoomRuntime } from "./runtime";
 import { hasOpenConnection } from "./socket/membership";
 import { disconnectedAtKey, reconnectGraceMs } from "./storageKeys";

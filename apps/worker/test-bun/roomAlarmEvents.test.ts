@@ -1,5 +1,5 @@
 import { expect, test, mock } from "bun:test";
-import { RoomAlarmEvents } from "../src/rooms/roomAlarmEvents";
+import { RoomAlarmEvents } from "../src/adapters/room/roomAlarmEvents";
 
 function scheduler() {
   let alarm: number | null = null;

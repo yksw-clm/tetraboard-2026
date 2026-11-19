@@ -1,5 +1,11 @@
-export { checkGameCommand } from "./domain";
-export type { GameCommandInput, GameCommandRejection } from "./domain";
+export {
+  advanceTurnClock,
+  checkGameCommand,
+  earliestAlarmAt,
+  initializeClock,
+  normalizeLegacyShogiState,
+} from "./domain";
+export type { FinishedClock, GameCommandInput, GameCommandRejection, PlayingClock } from "./domain";
 export * from "./use-cases/close";
 export * from "./use-cases/create";
 export type * from "./use-cases/effects";

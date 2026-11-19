@@ -1,7 +1,7 @@
 import { evictDurableObject, runInDurableObject } from "cloudflare:test";
 import { expect, test } from "vitest";
 import { roomSchema } from "@tetraboard/protocol";
-import { nextDueRoomDeadline } from "../src/rooms/roomDeadlines";
+import { nextDueRoomDeadline } from "@tetraboard/context-room";
 import { registrationKey, type StoredGuestRegistration } from "../src/rooms/registrationTypes";
 import { useGuestRegistrationRooms } from "./guestRegistrationRoomsFixtures";
 

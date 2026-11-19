@@ -1,5 +1,5 @@
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import { RoomJob } from "../../rooms/roomJobs";
+import { RoomJob } from "./roomJobs";
 import {
   pendingShogiMatchPrefix,
   pendingStandardShogiMatchPrefix,

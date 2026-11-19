@@ -7,7 +7,7 @@ import {
   type GameActionCommandFor,
 } from "@tetraboard/protocol";
 import type { ReversiState } from "@tetraboard/reversi";
-import { advanceClock, isClockExpired } from "./reversiClock";
+import { advanceClock, isClockExpired } from "../adapters/room/reversiClock";
 import { gameDefinitions } from "./gameDefinitions";
 import {
   startReversiRound,

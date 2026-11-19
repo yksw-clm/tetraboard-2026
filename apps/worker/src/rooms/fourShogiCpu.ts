@@ -10,7 +10,7 @@ import type { PlayingFor } from "./gameProgress";
 import type { ShogiStore } from "./shogiStore";
 import { shogiMatchStartKey, type ActiveShogiMatch } from "./shogiMatchStore";
 import { shogiCpuJobKey } from "./progressHelpers";
-import { isClockExpired } from "./clock";
+import { isClockExpired } from "../adapters/room/clock";
 import {
   currentExternalCpuJob,
   prepareExternalCpu,
