@@ -32,10 +32,15 @@ export type ProgressCpuJob<T extends ProgressGameTypes> = {
 
 type AccountId = (playerId: string) => string | null;
 
-export interface GameProgressStore<G extends GameId, T extends ProgressGameTypes> {
+export interface GameProgressStore<
+  G extends GameId,
+  T extends ProgressGameTypes,
+  StartArgs extends unknown[] = [],
+> {
   start(
     room: WaitingFor<G>,
     accountId: AccountId,
+    ...args: StartArgs
   ): { room: PlayingFor<G>; roundId: string; at: number };
   recordTransition(room: PlayingFor<G>, transition: GameTransition<T["state"], T["event"]>): void;
   finalize(result: FinishedProgress<G>): LastRoundFor<G>;
@@ -44,13 +49,17 @@ export interface GameProgressStore<G extends GameId, T extends ProgressGameTypes
   deleteCpuJob(): void;
 }
 
-export interface GameProgressSpec<G extends GameId, T extends ProgressGameTypes> {
+export interface GameProgressSpec<
+  G extends GameId,
+  T extends ProgressGameTypes,
+  StartArgs extends unknown[] = [],
+> {
   gameId: G;
   definition: GameDefinition<T, G>;
   parseRoom(input: unknown): ProgressRoom<G, T>;
   parseFinishedState(input: T["state"]): FinishedFor<G>;
   seat(player: RoomFor<G>["players"][number]): T["seat"] | null;
-  eliminatedSeats(state: T["state"]): readonly T["seat"][];
+  inactiveSeats(state: T["state"]): readonly T["seat"][];
   waitingSeat: RoomGamePort<G>["waitingSeat"];
   unknownPlayerMessage: string;
   toAction(command: GameActionCommandFor<G>): T["action"];
@@ -64,7 +73,7 @@ export interface GameProgressSpec<G extends GameId, T extends ProgressGameTypes>
     timeControl: PlayingFor<G>["settings"]["timeControl"],
   ): PlayingFor<G>["clock"];
   isClockExpired(clock: PlayingFor<G>["clock"], at: number): boolean;
-  store: GameProgressStore<G, T>;
+  store: GameProgressStore<G, T, StartArgs>;
   membership(hash: string): RoomMembership | null;
   accountId: AccountId;
   now(): number;

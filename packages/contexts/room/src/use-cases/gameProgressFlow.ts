@@ -14,12 +14,16 @@ import { cpuMoveDelayMs } from "./processDeadlines";
 
 type PreparedLeave<T extends ProgressGameTypes> = { ok: true; state: T["state"] } | null;
 
-class GameProgress<G extends GameId, T extends ProgressGameTypes> {
-  constructor(private readonly spec: GameProgressSpec<G, T>) {}
+class GameProgress<
+  G extends GameId,
+  T extends ProgressGameTypes,
+  StartArgs extends unknown[] = [],
+> {
+  constructor(private readonly spec: GameProgressSpec<G, T, StartArgs>) {}
 
-  start(room: WaitingFor<G>) {
+  start(room: WaitingFor<G>, ...args: StartArgs) {
     this.spec.store.deleteCpuJob();
-    return this.spec.store.start(room, this.spec.accountId);
+    return this.spec.store.start(room, this.spec.accountId, ...args);
   }
 
   play(
@@ -59,7 +63,7 @@ class GameProgress<G extends GameId, T extends ProgressGameTypes> {
     operation: "play" | "resign",
     positionMatches: boolean,
   ) {
-    const { definition, eliminatedSeats, isClockExpired, membership, now, seat } = this.spec;
+    const { definition, inactiveSeats, isClockExpired, membership, now, seat } = this.spec;
     const member = membership(tokenHash);
     const player = room.players.find((p) => p.id === member?.playerId);
     return checkGameCommand({
@@ -67,7 +71,7 @@ class GameProgress<G extends GameId, T extends ProgressGameTypes> {
       status: room.status,
       hasLastRound: room.lastRound !== null,
       seat: player ? seat(player) : null,
-      eliminatedSeats: room.game === null ? [] : eliminatedSeats(room.game),
+      eliminatedSeats: room.game === null ? [] : inactiveSeats(room.game),
       turn: room.game === null ? null : definition.rules.getTurn(room.game),
       positionMatches,
       clockExpired: room.clock !== null && isClockExpired(room.clock, now()),
@@ -126,7 +130,7 @@ class GameProgress<G extends GameId, T extends ProgressGameTypes> {
 
   prepareLeave(room: ProgressPlayingRoom<G, T>, playerId: string): PreparedLeave<T> {
     const seat = this.playerSeat(room, playerId);
-    if (this.spec.eliminatedSeats(room.game).includes(seat)) return null;
+    if (this.spec.inactiveSeats(room.game).includes(seat)) return null;
     return { ok: true, state: this.recordElimination(room, seat, "left") };
   }
 
@@ -162,9 +166,9 @@ class GameProgress<G extends GameId, T extends ProgressGameTypes> {
     reason: "timeout" | "disconnected",
     at: number,
   ): ProgressFor<G> {
-    const { gameId, parseRoom, eliminatedSeats } = this.spec;
+    const { gameId, parseRoom, inactiveSeats } = this.spec;
     const seat = this.playerSeat(room, playerId);
-    if (reason === "disconnected" && eliminatedSeats(room.game).includes(seat))
+    if (reason === "disconnected" && inactiveSeats(room.game).includes(seat))
       return {
         kind: "unchanged",
         gameId,
@@ -258,8 +262,10 @@ class GameProgress<G extends GameId, T extends ProgressGameTypes> {
   }
 }
 
-export function createGameProgress<G extends GameId, T extends ProgressGameTypes>(
-  spec: GameProgressSpec<G, T>,
-) {
+export function createGameProgress<
+  G extends GameId,
+  T extends ProgressGameTypes,
+  StartArgs extends unknown[] = [],
+>(spec: GameProgressSpec<G, T, StartArgs>) {
   return new GameProgress(spec);
 }

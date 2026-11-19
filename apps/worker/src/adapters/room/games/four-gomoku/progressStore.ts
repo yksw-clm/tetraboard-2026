@@ -1,10 +1,11 @@
+import type { GameProgressStore } from "@tetraboard/context-room";
 import {
   activeTournamentContextKey,
   type TournamentRoomContext,
 } from "@tetraboard/context-tournament";
 import type { GameTransition } from "@tetraboard/game-contract";
-import type { FourGomokuState } from "@tetraboard/four-gomoku";
-import type { FourGomokuEvent } from "@tetraboard/four-gomoku/definition";
+import type { Color, FourGomokuState, Position } from "@tetraboard/four-gomoku";
+import type { FourGomokuEvent, FourGomokuTypes } from "@tetraboard/four-gomoku/definition";
 import {
   fourGomokuRoomSchema,
   fourGomokuReplaySchema as roundReplaySchema,
@@ -30,6 +31,50 @@ import {
 import { createClock } from "../../clock";
 
 type Playing = PlayingFor<"four-gomoku">;
+export type FourGomokuStartArgs = [tournament?: TournamentRoomContext];
+
+export const fourGomokuCpuJobKey = "four-gomoku-cpu-job";
+export type FourGomokuCpuJob = {
+  roundId: string;
+  positionRevision: number;
+  color: Color;
+  move: Position;
+  applyAt: number;
+};
+
+export function fourGomokuProgressStore(
+  storage: DurableObjectStorage,
+): GameProgressStore<"four-gomoku", FourGomokuTypes, FourGomokuStartArgs> {
+  return {
+    start: (room, accountId, tournament) =>
+      startFourGomokuRound(storage, room, accountId, tournament),
+    recordTransition: (room, transition) => recordFourGomokuTransition(storage, room, transition),
+    finalize: ({ room, game, at }) => finalizeFourGomokuRound(storage, room, game, at),
+    readCpuJob: () => {
+      const job = storage.kv.get<FourGomokuCpuJob>(fourGomokuCpuJobKey);
+      if (!job) return undefined;
+      return {
+        roundId: job.roundId,
+        positionRevision: job.positionRevision,
+        seat: job.color,
+        action: { type: "placeStone", position: job.move },
+        applyAt: job.applyAt,
+      };
+    },
+    writeCpuJob: (job) => {
+      storage.kv.put(fourGomokuCpuJobKey, {
+        roundId: job.roundId,
+        positionRevision: job.positionRevision,
+        color: job.seat,
+        move: job.action.position,
+        applyAt: job.applyAt,
+      } satisfies FourGomokuCpuJob);
+    },
+    deleteCpuJob: () => {
+      storage.kv.delete(fourGomokuCpuJobKey);
+    },
+  };
+}
 
 export function startFourGomokuRound(
   storage: DurableObjectStorage,

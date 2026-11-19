@@ -20,7 +20,7 @@ export function createGomokuProgress({ storage, membership, accountId }: Progres
       return game;
     },
     seat: (player) => player.color,
-    eliminatedSeats: (state) => state.eliminatedColors,
+    inactiveSeats: (state) => state.eliminatedColors,
     waitingSeat: { color: null },
     unknownPlayerMessage: "Unknown Gomoku player",
     toAction: (command) => ({ type: "placeStone", position: command.action.position }),
