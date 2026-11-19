@@ -1,5 +1,5 @@
 import type { GameId, Room, RoomFor } from "@tetraboard/protocol";
-import type { CpuCapacityGame } from "../cpuCapacity";
+import type { CpuCapacityGame } from "../../durableObjects/cpuCapacity";
 import type { PlayingFor, ProgressFor } from "../gameProgress";
 
 export type CpuPlayerFor<G extends GameId> = Extract<

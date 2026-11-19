@@ -16,7 +16,7 @@ import {
   matchmakingRoomConfiguration,
   matchmakingRoomMetadata,
 } from "../../rooms/gameAdapters/matchmaking";
-import { waitingRoomFactories } from "../../rooms/waitingRoomFactories";
+import { waitingRoomFactories } from "../../adapters/room/waitingRoomFactories";
 import { persistMatchmakingRoom } from "./prepareStorage";
 
 type MatchmakingConfiguration = ReturnType<typeof matchmakingRoomConfiguration>;

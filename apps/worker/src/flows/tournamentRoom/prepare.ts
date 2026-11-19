@@ -10,7 +10,7 @@ import {
   type PrepareTournamentRoomInput,
   type TournamentRoomReservation,
 } from "@tetraboard/context-tournament";
-import { waitingRoomFactories } from "../../rooms/waitingRoomFactories";
+import { waitingRoomFactories } from "../../adapters/room/waitingRoomFactories";
 import { readTournament, tournamentSettingsMatch } from "../../adapters/tournament/store";
 import { persistTournamentRoom } from "./prepareStorage";
 

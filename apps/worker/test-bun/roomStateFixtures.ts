@@ -10,7 +10,7 @@ import {
 import { createInitialState as createShogiState } from "@tetraboard/shogi";
 import { createInitialState as createFourShogiState } from "@tetraboard/four-shogi";
 import { gameDefinitions } from "../src/rooms/gameDefinitions";
-import { waitingRoomFactories } from "../src/rooms/waitingRoomFactories";
+import { waitingRoomFactories } from "../src/adapters/room/waitingRoomFactories";
 import type { RoomStateMigrationDependencies } from "../src/rooms/roomStateVersion";
 
 import {

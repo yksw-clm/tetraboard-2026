@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import { evictDurableObject, runInDurableObject } from "cloudflare:test";
 import { expect, test, vi } from "vitest";
 import { matchmakingQueues } from "@tetraboard/protocol";
-import { CpuCapacity } from "../src/rooms/cpuCapacity";
+import { CpuCapacity } from "../src/durableObjects/cpuCapacity";
 import { recordUsageEvents } from "./usageEventsRecorder";
 import { useMatchmakingFixtures, shogiQueue, rooms, fixture, connect } from "./matchmakingFixtures";
 

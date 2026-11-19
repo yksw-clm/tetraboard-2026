@@ -12,7 +12,7 @@ import {
   type BeginGuestRegistrationResult,
   type GuestRegistrationInput,
   type StoredGuestRegistration,
-} from "../../rooms/registrationTypes";
+} from "../../adapters/account/registrationTypes";
 import { storedAccount } from "../accountSeats/seats";
 import { registrationForPlayer } from "./records";
 
