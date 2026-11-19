@@ -64,7 +64,6 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
             TB_154_WITHOUT_TRIGGERS_TEST_DB: "tb-154-without-triggers-tests",
             DELETION_CASCADE_TEST_DB: "deletion-cascade-tests",
             DELETION_WITH_TRIGGERS_TEST_DB: "deletion-with-triggers-tests",
-            COMMUNITY_WRITES_TEST_DB: "community-writes-tests",
             COMMUNITY_BATCHES_TEST_DB: "community-batches-tests",
             TB_158_TEST_DB: "tb-158-tests",
           },
