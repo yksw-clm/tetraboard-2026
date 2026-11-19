@@ -68,6 +68,8 @@ export async function getTournamentReservationState(runtime: RoomRuntime, matchI
   return reservation
     ? {
         status: reservation.status,
+        instanceId: reservation.instanceId,
+        preparedAtMs: reservation.preparedAtMs,
         connectedPlayerIds,
         ...(reservation.startedAtMs !== undefined ? { startedAtMs: reservation.startedAtMs } : {}),
       }
