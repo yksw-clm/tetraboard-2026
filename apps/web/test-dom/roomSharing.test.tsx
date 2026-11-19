@@ -1,3 +1,4 @@
+import { roomForEntryResponse } from "@tetraboard/protocol";
 import { completeGuestAccount } from "./guestAccountFixtures";
 import { expect, spyOn, test } from "bun:test";
 import { StrictMode } from "react";
@@ -60,7 +61,10 @@ test("全6ゲームの通常作成だけが作成者・世代を照合する共�
       await flush();
       const room = fixture(game);
       const submitted = await completeGuestAccount("ホスト");
-      submitted.respond({ room, membership: { ...membership, token } }, 201);
+      submitted.respond(
+        { room: roomForEntryResponse(room), membership: { ...membership, token } },
+        201,
+      );
       await flush();
       expect(h.current.location.pathname).toBe(`/rooms/${room.id}`);
       expect(canOpenCreatedRoomShare(h.current.location.state, room, membership)).toBe(

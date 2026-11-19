@@ -46,12 +46,18 @@ export function useRoomSession(
       if (
         !canPlay ||
         game === null ||
+        room.status !== "playing" ||
         !legalMoves.some((move) => move.x === position.x && move.y === position.y)
       )
         return;
       const sent = session.sendGameMessage(
-        { type: "room.game.action", action: { type: "placeStone", position } },
-        { type: "move", moveNumber: game.moveNumber },
+        {
+          type: "room.game.action",
+          action: { type: "placeStone", position },
+          roundId: room.roundId,
+          positionRevision: room.positionRevision,
+        },
+        { type: "move", roundId: room.roundId, positionRevision: room.positionRevision },
       );
       if (sent) session.playOwnMove(reversiSoundMove(position, game.turn));
     },

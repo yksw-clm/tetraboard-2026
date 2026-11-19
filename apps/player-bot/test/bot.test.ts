@@ -1,3 +1,4 @@
+import { roomForEntryResponse } from "@tetraboard/protocol";
 import { test, expect } from "bun:test";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -122,7 +123,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
             if (p === "/api/rooms") createRoomContract.request.parse(await request.json());
             else joinRoomContract.request.parse(await request.json());
             f.members.add(i);
-            return Response.json({ room: f.room(), membership });
+            return Response.json({ room: roomForEntryResponse(f.room()), membership });
           }
           if (p.endsWith("/me"))
             return Response.json({ playerId: membership.playerId, role: membership.role });
@@ -174,6 +175,8 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
               }
               if (m.type === "room.game.action") {
                 expect(["placeStone", "movePiece", "dropPiece"]).toContain(m.action.type);
+                const { roundId, positionRevision } = f.room();
+                expect(m).toMatchObject({ roundId, positionRevision });
                 f.action(i, m.action as Parameters<GameFixture["action"]>[1]);
                 if (f.rounds === 2) stop.request();
                 broadcast();

@@ -12,16 +12,17 @@ import {
   finishedShogiRound,
 } from "./fixtures/fourShogiFixtures";
 
-test("リバーシは同局面・他人の脱落ではpendingを維持し、着手進行・本人脱落・終局で解除", () => {
+test("四人リバーシは着手待ちを局面の版で解除し、投了待ちを本人の脱落か終局で解除", () => {
   const room = playingRoom();
   if (room.status !== "playing") throw new Error("fixture");
-  const move = { type: "move", moveNumber: room.game.moveNumber } as const;
+  const move = {
+    type: "move",
+    roundId: room.roundId,
+    positionRevision: room.positionRevision,
+  } as const;
   expect(reversiActionComplete(room, move)).toBe(false);
   expect(
-    reversiActionComplete(
-      { ...room, game: { ...room.game, moveNumber: room.game.moveNumber + 1 } },
-      move,
-    ),
+    reversiActionComplete({ ...room, positionRevision: room.positionRevision + 1 }, move),
   ).toBe(true);
   const resign = { type: "resign", participant: "black" } as const;
   expect(

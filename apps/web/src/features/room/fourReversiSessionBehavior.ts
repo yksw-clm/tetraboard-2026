@@ -4,7 +4,7 @@ import type { FourReversiRoom } from "@tetraboard/protocol";
 import { assertNever } from "@tetraboard/protocol";
 
 export type PendingReversiAction =
-  | { type: "move"; moveNumber: number }
+  | { type: "move"; roundId: string; positionRevision: number }
   | { type: "resign"; participant: Color };
 
 export function reversiActionComplete(
@@ -14,7 +14,7 @@ export function reversiActionComplete(
   if (room.status === "waiting") return room.lastRound !== null;
   switch (pending.type) {
     case "move":
-      return room.game.moveNumber > pending.moveNumber;
+      return room.roundId !== pending.roundId || room.positionRevision > pending.positionRevision;
     case "resign":
       return room.game.eliminatedColors.includes(pending.participant);
     default:

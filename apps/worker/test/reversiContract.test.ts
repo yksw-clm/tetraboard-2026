@@ -123,7 +123,7 @@ test("版のない保存状態は棋譜IDと版0で読み込み、移行を保�
       roundId: room.roundId,
       positionRevision: 0,
     });
-    expect(state.storage.kv.get("room-state-version")).toBe(1);
+    expect(state.storage.kv.get("room-state-version")).toBe(2);
   });
   black.send({
     type: "room.game.action",

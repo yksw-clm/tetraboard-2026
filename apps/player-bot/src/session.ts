@@ -121,7 +121,12 @@ export class RoomSession {
           }
         } else if (parsed.type === "room.error") {
           this.commandFailed = true;
-          this.log("room_error", { reason: parsed.error });
+          this.log("room_error", {
+            reason: parsed.error,
+            ...(this.game === "four-reversi" && parsed.error === "stale_position"
+              ? { message: "局面が更新されました。最新の局面で選び直してください。" }
+              : {}),
+          });
           if (["unauthorized", "not_found", "room_changed"].includes(parsed.error))
             this.fatal = "対局の参加資格を確認できません";
           this.invalidate();

@@ -1,9 +1,10 @@
 import { runInDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
-import { isFourShogiRoom } from "@tetraboard/protocol";
+import { isFourReversiRoom, isFourShogiRoom, roundReplaySchema } from "@tetraboard/protocol";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 import { startCpuRoom } from "./cpuAdapterFixtures";
 import { externalCpuEnvironment, prepareExternalCpuRoom } from "./cpuExternalFixtures";
+import { cpuAiReply } from "./cpuAiReplies";
 import type { PlayingFor } from "../src/rooms/gameProgress";
 import type { GameId } from "@tetraboard/protocol";
 
@@ -57,6 +58,44 @@ test.each(paths.flatMap((path) => [true, false].map((fallback) => ({ ...path, fa
     });
   },
 );
+
+test("四人リバーシの外部AIは、応答待ちに局面が進んだら候補を破棄する", async () => {
+  const { stub, room, at } = await startCpuRoom(fixtures, "four-reversi", 2);
+  if (!isFourReversiRoom(room) || room.status !== "playing") throw new Error("Expected playing");
+  const key = "four-reversi-ai-job";
+  await runInDurableObject(stub, async (instance, ctx) => {
+    const observed = externalCpuEnvironment(instance, ctx, room, {
+      game: "four-reversi",
+      key,
+      at,
+      fallback: false,
+    });
+    try {
+      observed.gateway.mockImplementation(async (request) => {
+        expect(ctx.storage.kv.get(key)).toBeDefined();
+        const deadline = at + 2001;
+        ctx.storage.kv.put("room", { ...room, clock: { ...room.clock, turnExpiresAt: deadline } });
+        observed.clock.mockReturnValue(deadline);
+        await instance.alarm();
+        return cpuAiReply(request, room);
+      });
+      await instance.alarm();
+      expect(observed.gateway).toHaveBeenCalledTimes(1);
+      expect(ctx.storage.kv.get("four-reversi-cpu-job")).toBeUndefined();
+      expect(await instance.getRoom()).toMatchObject({
+        roundId: room.roundId,
+        positionRevision: room.positionRevision + 1,
+        game: { moveNumber: room.game.moveNumber, eliminatedColors: [room.game.turn] },
+      });
+      const { steps } = roundReplaySchema.parse(ctx.storage.kv.get("round-replay"));
+      expect(steps.map(({ action }) => action)).toEqual([
+        { type: "eliminate", reason: "timeout", color: room.game.turn },
+      ]);
+    } finally {
+      await observed.restore();
+    }
+  });
+});
 
 function expectDiagnostics(
   logs: Pick<Console, "info" | "warn">,

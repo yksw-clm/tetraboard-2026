@@ -55,6 +55,8 @@ export function startFourReversiRound(
   const startedRoom = fourReversiRoomSchema.parse({
     ...waiting,
     status: "playing",
+    roundId: matchId,
+    positionRevision: 0,
     eliminations: [],
     publicUpdatedAtMs: nextPublicUpdateAt(room),
     lastActivityAtMs: startedAtMs,

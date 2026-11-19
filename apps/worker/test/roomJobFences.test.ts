@@ -2,6 +2,7 @@ import { runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { expect, test, vi } from "vitest";
 import * as seats from "../src/adapters/room/seatReservations";
+import { reversiRoomSchema } from "@tetraboard/protocol";
 import { publicMetadata } from "../src/adapters/room/metadata";
 import * as indexes from "../src/rooms/roomIndex";
 import type { RoomJob } from "../src/rooms/roomJobs";
@@ -39,7 +40,10 @@ for (const fail of [false, true]) {
         try {
           const pending = {
             revision: ctx.storage.kv.get<number>("room-index-revision")! + 1,
-            metadata: publicMetadata(Reflect.get(instance, "runtime"), entry.room),
+            metadata: publicMetadata(
+              Reflect.get(instance, "runtime"),
+              reversiRoomSchema.parse(entry.room),
+            ),
             closed: false,
             retryAtMs: Date.now(),
           };

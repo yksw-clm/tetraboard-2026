@@ -1,4 +1,5 @@
 import {
+  legacyReversiActionMessageSchema,
   membershipTokenSchema,
   roomSocketContract,
   type RoomSocketClientMessage,
@@ -15,7 +16,7 @@ function parseMessage(
   runtime: RoomRuntime,
   socket: WebSocket,
   message: string | ArrayBuffer,
-): RoomSocketClientMessage | null {
+): RoomSocketClientMessage | "invalid_place_stone" | null {
   if (typeof message !== "string" || message.length > 8192) {
     sendSocketError(runtime, socket, "invalid_request");
     return null;
@@ -29,6 +30,20 @@ function parseMessage(
   }
   const parsed = roomSocketContract.clientMessage.safeParse(body);
   if (parsed.success) return parsed.data;
+  const legacy = legacyReversiActionMessageSchema.safeParse(body);
+  if (legacy.success) return legacy.data;
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "type" in body &&
+    body.type === "room.game.action" &&
+    "action" in body &&
+    typeof body.action === "object" &&
+    body.action !== null &&
+    "type" in body.action &&
+    body.action.type === "placeStone"
+  )
+    return "invalid_place_stone";
   // スタンプの拒否は、並行する準備や着手の応答と区別します。
   const stampError =
     typeof body === "object" &&
@@ -98,9 +113,20 @@ export async function webSocketMessage(
   socket: WebSocket,
   message: string | ArrayBuffer,
 ): Promise<void> {
-  const command = parseMessage(runtime, socket, message);
-  if (command === null) return;
+  let command: RoomSocketClientMessage | null = null;
   try {
+    const parsed = parseMessage(runtime, socket, message);
+    if (parsed === "invalid_place_stone") {
+      const room = readRoom(runtime);
+      if (room && runtime.gameAdapter(room).snapshotOnMalformedAction) {
+        // 拒否時の盤面にも退会や期限切れを反映してから返します。
+        await runtime.reconcileDeadlines();
+        rejectAction(runtime, socket, "invalid_request");
+      } else sendSocketError(runtime, socket, "invalid_request");
+      return;
+    }
+    command = parsed;
+    if (command === null) return;
     // hash計算中に復帰期限を越える場合も、照合直前に期限を処理します。
     const authTokenHash =
       command.type === "room.auth" ? await hashMembershipToken(command.token) : null;
@@ -113,7 +139,7 @@ export async function webSocketMessage(
     if (canDispatch(runtime, socket, command, tokenHash))
       await dispatchMessage(runtime, socket, command, tokenHash);
   } catch {
-    if (command.type === "room.stamp.send" && runtime.ctx.getTags(socket).includes(stampTag)) {
+    if (command?.type === "room.stamp.send" && runtime.ctx.getTags(socket).includes(stampTag)) {
       socket.send(
         JSON.stringify({
           type: "room.stamp.error",

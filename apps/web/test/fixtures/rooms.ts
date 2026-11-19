@@ -1,5 +1,5 @@
 import { createInitialState } from "@tetraboard/four-reversi";
-import { fourReversiRoomSchema, roomTimeControl, type FourReversiRoom } from "@tetraboard/protocol";
+import { fourReversiRoomSchema, roomTimeControl } from "@tetraboard/protocol";
 
 export const now = 1_790_899_200_000;
 export const playerIds = [1, 2, 3, 4].map((id) => `00000000-0000-4000-8000-00000000000${id}`);
@@ -11,6 +11,8 @@ export function waitingRoom() {
     id: "12345",
     instanceId: "00000000-0000-4000-8000-000000000010",
     status: "waiting",
+    roundId: null,
+    positionRevision: 0,
     settings: { game: "four-reversi", mode: "singles", timeControl: roomTimeControl },
     publicUpdatedAtMs: now,
     lastActivityAtMs: now,
@@ -30,11 +32,12 @@ export function waitingRoom() {
   return room;
 }
 
-export function playingRoom(): FourReversiRoom {
+export function playingRoom() {
   const room = waitingRoom();
-  return fourReversiRoomSchema.parse({
+  const playing = fourReversiRoomSchema.parse({
     ...room,
     status: "playing",
+    roundId: "00000000-0000-4000-8000-000000000020",
     players: room.players.map((player, index) => ({
       ...player,
       ready: true,
@@ -47,4 +50,6 @@ export function playingRoom(): FourReversiRoom {
       turnExpiresAt: now + 330000,
     },
   });
+  if (playing.status !== "playing") throw new Error("Expected playing fixture");
+  return playing;
 }

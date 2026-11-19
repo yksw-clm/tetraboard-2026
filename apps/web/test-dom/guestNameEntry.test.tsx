@@ -1,3 +1,4 @@
+import { roomForEntryResponse } from "@tetraboard/protocol";
 import { completeGuestAccount } from "./guestAccountFixtures";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { expect, test } from "bun:test";
@@ -147,7 +148,7 @@ test("ゲストの作成・すぐ遊ぶ・番号／一覧参加の成功後だ�
       act(() => h.current.setName("送信後の入力"));
       submitted.respond(
         {
-          room: roomFor(game),
+          room: roomForEntryResponse(roomFor(game)),
           membership: { ...membership, role: entry.intent === "join" ? "player" : "host", token },
         },
         entry.intent === "join" ? 200 : 201,
@@ -196,7 +197,10 @@ test("招待・ルーム内参加の成功後も正規化したゲスト名を�
         instanceId: room.instanceId,
       });
       expect(localStorage.getItem(storageKey)).toBe("前の名前");
-      submitted.respond({ room, membership: { ...membership, role: "player", token } });
+      submitted.respond({
+        room: roomForEntryResponse(room),
+        membership: { ...membership, role: "player", token },
+      });
       await flush();
       expect(h.current.location.pathname).toBe("/rooms/12345");
       expect(localStorage.getItem(storageKey)).toBe("招待の名前");
@@ -313,7 +317,7 @@ test("作成・参加の通信失敗・拒否・不正応答・資格保存失�
         else
           submitted.respond(
             {
-              room: waitingRoom(),
+              room: roomForEntryResponse(waitingRoom()),
               membership: {
                 ...membership,
                 playerId:
@@ -375,7 +379,7 @@ test("アカウントの作成・参加では名前を送信せず保存済み�
     expect(JSON.parse(String(requests[1]!.init.body)).name).toBeUndefined();
     requests[1]!.respond(
       {
-        room: waitingRoom(),
+        room: roomForEntryResponse(waitingRoom()),
         membership: {
           ...membership,
           role: intent === "create" ? "host" : "player",
@@ -419,7 +423,7 @@ test("名前の保存領域が読取り／書込み不能でもゲストの作�
       expect(new Headers(submitted.init.headers).get("X-Legal-Consent")).toBe(legalVersion);
       submitted.respond(
         {
-          room: waitingRoom(),
+          room: roomForEntryResponse(waitingRoom()),
           membership: {
             ...membership,
             role: intent === "create" ? "host" : "player",

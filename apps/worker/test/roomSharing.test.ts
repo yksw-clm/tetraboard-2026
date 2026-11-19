@@ -166,7 +166,7 @@ test("共有情報の取得はDO状態・期限・alarmを変更せず、閉鎖�
   });
   expect(await stub.getShareMetadata(entry.room.instanceId)).toBeNull();
   await runInDurableObject(stub, async (_instance, state) => {
-    state.storage.kv.put("room", entry.room);
+    state.storage.kv.put("room", new Map(before.values).get("room"));
   });
 });
 

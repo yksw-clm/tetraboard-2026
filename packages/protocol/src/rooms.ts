@@ -263,17 +263,25 @@ const playingRoomSchema = activeRoomBaseSchema.safeExtend({
   clock: playingClockSchema,
   lastRound: z.null(),
 });
+function checkFourReversiRoomMode(
+  room: z.infer<typeof waitingRoomSchema | typeof playingRoomSchema>,
+  context: z.RefinementCtx,
+) {
+  if (room.status === "playing" && room.game.mode !== room.settings.mode) {
+    context.addIssue({
+      code: "custom",
+      message: "Room mode does not match game mode",
+      path: ["game", "mode"],
+    });
+  }
+}
+
 export const fourReversiRoomSchema = z
-  .discriminatedUnion("status", [waitingRoomSchema, playingRoomSchema])
-  .superRefine((room, context) => {
-    if (room.status !== "waiting" && room.game.mode !== room.settings.mode) {
-      context.addIssue({
-        code: "custom",
-        message: "Room mode does not match game mode",
-        path: ["game", "mode"],
-      });
-    }
-  });
+  .discriminatedUnion("status", [
+    waitingRoomSchema.extend({ roundId: z.null(), positionRevision: z.literal(0) }),
+    playingRoomSchema.safeExtend({ roundId: z.uuid(), positionRevision: z.int().nonnegative() }),
+  ])
+  .superRefine(checkFourReversiRoomMode);
 
 export const reversiColorSchema = z.enum(["black", "white"]);
 export const reversiSettingsSchema = z.strictObject({
@@ -836,14 +844,14 @@ export const shogiRoomSchema = z.discriminatedUnion("status", [
   standardShogiWaitingSchema,
   standardShogiPlayingSchema,
 ]);
-export const roomSchema = z.union([
-  fourReversiRoomSchema,
+const otherRoomSchemas = [
   fourShogiRoomSchema,
   reversiRoomSchema,
   gomokuRoomSchema,
   fourGomokuRoomSchema,
   shogiRoomSchema,
-]);
+] as const;
+export const roomSchema = z.union([fourReversiRoomSchema, ...otherRoomSchemas]);
 export type FourReversiRoom = z.infer<typeof fourReversiRoomSchema>;
 export type FourShogiRoom = z.infer<typeof fourShogiRoomSchema>;
 export type FourShogiLastRound = z.infer<typeof fourShogiLastRoundSchema>;
@@ -937,10 +945,20 @@ const roomMembershipIssuedSchema = z.strictObject({
   token: membershipTokenSchema,
 });
 
+// 作成・参加では旧クライアントもこの応答を検証してから参加資格を保存します。
+export const fourReversiEntryRoomSchema = z
+  .discriminatedUnion("status", [waitingRoomSchema, playingRoomSchema])
+  .superRefine(checkFourReversiRoomMode);
 const roomEntryResponseSchema = z.strictObject({
-  room: roomSchema,
+  room: z.union([fourReversiEntryRoomSchema, ...otherRoomSchemas]),
   membership: roomMembershipIssuedSchema,
 });
+
+export function roomForEntryResponse(room: Room): z.infer<typeof roomEntryResponseSchema>["room"] {
+  if (!isFourReversiRoom(room)) return room;
+  const { roundId: _roundId, positionRevision: _positionRevision, ...entryRoom } = room;
+  return entryRoom;
+}
 
 const roomErrorSchema = z.strictObject({
   error: z.enum([
@@ -1095,6 +1113,19 @@ export const moderateReportContract = {
   error: roomErrorSchema,
 } as const;
 
+const placeStoneActionSchema = z.strictObject({
+  type: z.literal("placeStone"),
+  position: z.strictObject({ x: z.int().min(0).max(7), y: z.int().min(0).max(7) }),
+});
+
+// 版のない旧着手は Worker で最新スナップショット付きの拒否に使います。
+export const legacyReversiActionMessageSchema = z.strictObject({
+  type: z.literal("room.game.action"),
+  roundId: z.uuid().optional(),
+  positionRevision: z.int().nonnegative().optional(),
+  action: placeStoneActionSchema,
+});
+
 export const roomSocketContract = {
   method: "GET",
   path: "/rooms/:id/ws",
@@ -1164,20 +1195,14 @@ export const roomSocketContract = {
             type: z.literal("placeFourGomokuStone"),
             position: fourGomokuPositionSchema,
           }),
-          z.strictObject({
-            type: z.literal("placeStone"),
-            position: z.strictObject({ x: z.int().min(0).max(7), y: z.int().min(0).max(7) }),
-          }),
+          placeStoneActionSchema,
         ]),
       })
       .superRefine((message, context) => {
-        if (
-          message.action.type !== "placeStone" &&
-          (message.roundId === undefined || message.positionRevision === undefined)
-        )
+        if (message.roundId === undefined || message.positionRevision === undefined)
           context.addIssue({
             code: "custom",
-            message: "Shogi actions require roundId and positionRevision",
+            message: "Game actions require roundId and positionRevision",
           });
       }),
   ]),

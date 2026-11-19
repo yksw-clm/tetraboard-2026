@@ -6,6 +6,7 @@ import {
   listMatchesContract,
   getAccountStatsContract,
   roomTimeControl,
+  roomForEntryResponse,
   isFourShogiRoom,
   type RoomMode,
   type RoomPublicMetadata,
@@ -108,8 +109,9 @@ describe("ゲーム境界: 作成・一覧", () => {
               selector.expected === "four-shogi" ? "color" : "side",
             );
           }
-          if (isFourShogiRoom(room)) {
-            expect(room.settings.threePlayerAttackProhibited).toBe(true);
+          const { room: snapshot } = await fixtures.snapshot(room.id);
+          if (isFourShogiRoom(snapshot)) {
+            expect(snapshot.settings.threePlayerAttackProhibited).toBe(true);
             expect(room).toMatchObject({
               roundId: null,
               positionRevision: 0,
@@ -121,7 +123,7 @@ describe("ゲーム境界: 作成・一覧", () => {
             expect(room.settings).not.toHaveProperty("threePlayerAttackProhibited");
             expect(room).not.toHaveProperty("roundId");
           }
-          expect((await fixtures.snapshot(room.id)).room).toEqual(room);
+          expect(roomForEntryResponse(snapshot)).toEqual(room);
         });
       }
     }

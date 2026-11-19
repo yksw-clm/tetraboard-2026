@@ -1,3 +1,4 @@
+import { roomForEntryResponse } from "@tetraboard/protocol";
 import { expect, test } from "bun:test";
 import { useLocation } from "react-router";
 import { useRoomEntry } from "../src/features/lobby/useRoomEntry";
@@ -50,7 +51,10 @@ test("両ゲームの作成・すぐ遊ぶは入力と設定を送り、アカ�
       expect(payload.threePlayerAttackProhibited).toBeUndefined();
     }
     const room = game === "four-shogi" ? waitingShogiRoom() : waitingRoom();
-    actions()[1]!.respond({ room, membership: { ...membership, token } }, 201);
+    actions()[1]!.respond(
+      { room: roomForEntryResponse(room), membership: { ...membership, token } },
+      201,
+    );
     await flush();
     expect(h.current.location.pathname).toBe("/rooms/12345");
     expect(sessionStorage.getItem("tetraboard:room:12345:membership")).toBe(token);

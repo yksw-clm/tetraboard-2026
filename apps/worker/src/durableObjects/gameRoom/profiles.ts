@@ -1,18 +1,14 @@
 import { hasProfileRating } from "@tetraboard/context-rating";
 import { roomIdleMs } from "@tetraboard/context-room";
 import type { ProfileRatings } from "@tetraboard/protocol";
+import { roomSchema } from "@tetraboard/protocol";
 import { profileRatingsKey } from "../../adapters/rating/profileRatings";
-import { isHumanParticipant, playerTokenHash } from "../../adapters/room/state";
+import { isHumanParticipant, migrateStoredRoom, playerTokenHash } from "../../adapters/room/state";
 import { storedAccount } from "../../flows/accountSeats/seats";
 import { registrationForPlayer } from "../../flows/guestRegistration/records";
 import type { MatchmakingRoomReservation } from "@tetraboard/context-matchmaking";
-import { replayKey, roomStorageKey } from "../../rooms/progressHelpers";
-import {
-  currentRoomStateVersion,
-  migrateRoomStateV0ToV1,
-  roomStateVersionKey,
-  roomStateSchemaForVersion,
-} from "../../rooms/roomStateVersion";
+import { roomStorageKey } from "../../rooms/progressHelpers";
+import { currentRoomStateVersion, roomStateVersionKey } from "../../rooms/roomStateVersion";
 import type { RoomRuntime } from "./runtime";
 import { hasOpenConnection } from "./socket/membership";
 import { disconnectedAtKey, reconnectGraceMs } from "./storageKeys";
@@ -24,12 +20,8 @@ export async function getShareMetadata(runtime: RoomRuntime, instanceId: string)
   const version = runtime.ctx.storage.kv.get<number>(roomStateVersionKey) ?? 0;
   const parsed =
     version >= currentRoomStateVersion
-      ? roomStateSchemaForVersion(version).safeParse(saved)
-      : migrateRoomStateV0ToV1(saved, {
-          readReplay: () => runtime.ctx.storage.kv.get(replayKey),
-          migrateLegacy: (room, original, readReplay) =>
-            runtime.gameAdapter(room).migrateLegacy(room, original, readReplay),
-        });
+      ? roomSchema.safeParse(saved)
+      : migrateStoredRoom(runtime, saved, version);
   if (!parsed.success) return null;
   const room = parsed.data;
   const now = Date.now();
