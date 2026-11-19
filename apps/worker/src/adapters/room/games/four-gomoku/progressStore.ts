@@ -50,28 +50,30 @@ export function fourGomokuProgressStore(
       startFourGomokuRound(storage, room, accountId, tournament),
     recordTransition: (room, transition) => recordFourGomokuTransition(storage, room, transition),
     finalize: ({ room, game, at }) => finalizeFourGomokuRound(storage, room, game, at),
-    readCpuJob: () => {
-      const job = storage.kv.get<FourGomokuCpuJob>(fourGomokuCpuJobKey);
-      if (!job) return undefined;
-      return {
-        roundId: job.roundId,
-        positionRevision: job.positionRevision,
-        seat: job.color,
-        action: { type: "placeStone", position: job.move },
-        applyAt: job.applyAt,
-      };
-    },
-    writeCpuJob: (job) => {
-      storage.kv.put(fourGomokuCpuJobKey, {
-        roundId: job.roundId,
-        positionRevision: job.positionRevision,
-        color: job.seat,
-        move: job.action.position,
-        applyAt: job.applyAt,
-      } satisfies FourGomokuCpuJob);
-    },
-    deleteCpuJob: () => {
-      storage.kv.delete(fourGomokuCpuJobKey);
+    cpuJobs: {
+      read: () => {
+        const job = storage.kv.get<FourGomokuCpuJob>(fourGomokuCpuJobKey);
+        if (!job) return undefined;
+        return {
+          roundId: job.roundId,
+          positionRevision: job.positionRevision,
+          seat: job.color,
+          action: { type: "placeStone", position: job.move },
+          applyAt: job.applyAt,
+        };
+      },
+      write: (job) => {
+        storage.kv.put(fourGomokuCpuJobKey, {
+          roundId: job.roundId,
+          positionRevision: job.positionRevision,
+          color: job.seat,
+          move: job.action.position,
+          applyAt: job.applyAt,
+        } satisfies FourGomokuCpuJob);
+      },
+      delete: () => {
+        storage.kv.delete(fourGomokuCpuJobKey);
+      },
     },
   };
 }

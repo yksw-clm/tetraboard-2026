@@ -30,7 +30,15 @@ export type ProgressCpuJob<T extends ProgressGameTypes> = {
   applyAt: number;
 };
 
+export type ProgressCpuJobs<T extends ProgressGameTypes> = {
+  read(): ProgressCpuJob<T> | undefined;
+  write(job: ProgressCpuJob<T>): void;
+  delete(): void;
+};
+
 type AccountId = (playerId: string) => string | null;
+
+export type PreparedLeave<T extends ProgressGameTypes> = { ok: true; state: T["state"] };
 
 export interface GameProgressStore<
   G extends GameId,
@@ -44,15 +52,14 @@ export interface GameProgressStore<
   ): { room: PlayingFor<G>; roundId: string; at: number };
   recordTransition(room: PlayingFor<G>, transition: GameTransition<T["state"], T["event"]>): void;
   finalize(result: FinishedProgress<G>): LastRoundFor<G>;
-  readCpuJob(): ProgressCpuJob<T> | undefined;
-  writeCpuJob(job: ProgressCpuJob<T>): void;
-  deleteCpuJob(): void;
+  cpuJobs?: ProgressCpuJobs<T>;
 }
 
 export interface GameProgressSpec<
   G extends GameId,
   T extends ProgressGameTypes,
   StartArgs extends unknown[] = [],
+  Prepared extends PreparedLeave<T> = PreparedLeave<T>,
 > {
   gameId: G;
   definition: GameDefinition<T, G>;
@@ -64,6 +71,10 @@ export interface GameProgressSpec<
   unknownPlayerMessage: string;
   toAction(command: GameActionCommandFor<G>): T["action"];
   moveError(reason: T["rejection"]): ProgressError;
+  prepareLeaveResult(transition: GameTransition<T["state"], T["event"]>): Prepared;
+  preservePositionOnInactiveLeave?: boolean;
+  incrementRevisionOnFinish?: boolean;
+  clearCpuJobsOnAccept?(): void;
   advanceClock(
     clock: PlayingFor<G>["clock"],
     previousTurn: T["seat"],
@@ -77,5 +88,5 @@ export interface GameProgressSpec<
   membership(hash: string): RoomMembership | null;
   accountId: AccountId;
   now(): number;
-  random(): number;
+  random?(): number;
 }

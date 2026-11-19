@@ -40,6 +40,7 @@ export class FourGomokuProgress {
       unknownPlayerMessage: "Unknown FourGomoku player",
       toAction: (command) => ({ type: "placeStone", position: command.action.position }),
       moveError: () => "invalid_move",
+      prepareLeaveResult: ({ state }) => ({ ok: true, state }),
       advanceClock,
       isClockExpired,
       store: fourGomokuProgressStore(storage),

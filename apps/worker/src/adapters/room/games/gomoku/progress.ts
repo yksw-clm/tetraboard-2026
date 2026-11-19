@@ -25,6 +25,7 @@ export function createGomokuProgress({ storage, membership, accountId }: Progres
     unknownPlayerMessage: "Unknown Gomoku player",
     toAction: (command) => ({ type: "placeStone", position: command.action.position }),
     moveError: gomokuMoveError,
+    prepareLeaveResult: ({ state }) => ({ ok: true, state }),
     advanceClock,
     isClockExpired,
     store: gomokuProgressStore(storage),

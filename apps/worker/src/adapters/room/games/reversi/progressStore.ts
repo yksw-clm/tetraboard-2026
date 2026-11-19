@@ -1,7 +1,8 @@
 import { savedProfileRatings } from "../../../rating/profileRatings";
 import type { GameTransition } from "@tetraboard/game-contract";
+import type { GameProgressStore } from "@tetraboard/context-room";
 import type { ReversiState } from "@tetraboard/reversi";
-import type { ReversiEvent } from "@tetraboard/reversi/definition";
+import type { ReversiEvent, ReversiTypes } from "@tetraboard/reversi/definition";
 import {
   reversiRoomSchema,
   reversiReplaySchema as roundReplaySchema,
@@ -29,6 +30,18 @@ import type { EloRatingSource } from "../../../rating/eloRating";
 
 type Playing = PlayingFor<"reversi">;
 export const externalCpuJobKey = "reversi-external-cpu-job";
+
+export type ReversiStartArgs = [rating?: EloRatingSource];
+
+export function reversiProgressStore(
+  storage: DurableObjectStorage,
+): GameProgressStore<"reversi", ReversiTypes, ReversiStartArgs> {
+  return {
+    start: (room, accountId, rating) => startReversiRound(storage, room, accountId, rating),
+    recordTransition: (room, transition) => recordReversiTransition(storage, room, transition),
+    finalize: ({ room, game, at }) => finalizeReversiRound(storage, room, game, at),
+  };
+}
 
 export function startReversiRound(
   storage: DurableObjectStorage,
