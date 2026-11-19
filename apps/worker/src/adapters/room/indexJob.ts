@@ -1,11 +1,37 @@
 import type { Room } from "@tetraboard/protocol";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
+import { roomStorageKey } from "../../rooms/progressHelpers";
 import { writeRoomIndex, type PendingRoomIndex } from "../../rooms/roomIndex";
 import { RoomJob } from "../../rooms/roomJobs";
 import { publicMetadata } from "./metadata";
+import type { RoomJobs } from "./jobs";
 import { readRoom } from "./state";
 export const indexRevisionKey = "room-index-revision";
 export const pendingIndexKey = "room-index-pending";
+
+export type RoomIndexRetentionStatus =
+  | "ready"
+  | "room-present"
+  | "working"
+  | "revision-mismatch"
+  | keyof RoomJobs;
+
+export function checkRoomIndexRetention(
+  runtime: RoomRuntime,
+  expectedRevision: number,
+): RoomIndexRetentionStatus {
+  const { kv } = runtime.ctx.storage;
+  if (kv.get(roomStorageKey) !== undefined) return "room-present";
+  if (runtime.alarms.hasActiveWork) return "working";
+  for (const name of Object.keys(runtime.jobs) as (keyof RoomJobs)[]) {
+    const job = runtime.jobs[name];
+    if (job.running || job.hasPending()) return name;
+  }
+  // 番号の再利用時に、削除台帳を越える版を発行できることも確かめます。
+  if (kv.get(indexRevisionKey) !== expectedRevision) return "revision-mismatch";
+  return "ready";
+}
+
 export function createRoomIndexJob(runtime: RoomRuntime) {
   return new RoomJob(runtime.alarms, {
     pending: () => {

@@ -21,6 +21,10 @@ export class RoomJob<T, R = void> {
     private readonly options: RoomJobOptions<T, R>,
   ) {}
 
+  hasPending(): boolean {
+    return !this.options.pending()[Symbol.iterator]().next().done;
+  }
+
   nextAlarmAt(): number | null {
     let next: number | null = null;
     for (const job of this.options.pending()) {

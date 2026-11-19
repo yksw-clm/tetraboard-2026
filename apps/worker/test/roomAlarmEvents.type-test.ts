@@ -14,7 +14,8 @@ type UnimplementedEvents<T> = {
 }[keyof typeof nonEventMethods & keyof T];
 type MissingEvents<T> = Exclude<
   PublicMethods<T>,
-  (typeof eventMethods)[number] | UnimplementedEvents<T>
+  // 閉鎖確認の入口は Alarm の同期を起こさず、他の入口の実行状況を読みます。
+  (typeof eventMethods)[number] | UnimplementedEvents<T> | "checkRoomIndexRetention"
 >;
 type CompleteEvents<T> = [MissingEvents<T>] extends [never] ? true : never;
 
