@@ -2,12 +2,15 @@ import { fixTestTime } from "./fixedTimeFixture";
 import { expectVersionedRoom } from "./roomStateVersionAssertions";
 import { roomSchema, type TournamentSettings } from "@tetraboard/protocol";
 import { isTournamentGameRoom } from "@tetraboard/context-tournament";
-import { pendingMatchPrefix, type PendingMatch } from "../src/rooms/matchStore";
+import { pendingMatchPrefix, type PendingMatch } from "../src/adapters/record/matchStore";
 import { env } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { expect, test, vi } from "vitest";
 import { tournamentRules } from "@tetraboard/protocol";
-import { pendingShogiMatchPrefix, type PendingShogiMatch } from "../src/rooms/shogiMatchStore";
+import {
+  pendingShogiMatchPrefix,
+  type PendingShogiMatch,
+} from "../src/adapters/record/shogiMatchStore";
 import {
   useTournamentRoomFixtures,
   fixture,

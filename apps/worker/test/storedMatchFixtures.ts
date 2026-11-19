@@ -1,9 +1,12 @@
 import { matchChunkSize } from "@tetraboard/context-record";
 import { readMatchRecord } from "../src/adapters/record/matchDataContracts";
-import { encodeSnapshotMatch } from "../src/rooms/snapshotMatchEvents";
-import type { MatchRecord } from "../src/rooms/matchStore";
-import type { ShogiMatchRecord, StandardShogiMatchRecord } from "../src/rooms/shogiMatchStore";
-import type { ShogiFormationUsage } from "../src/rooms/shogiFormationUsage";
+import { encodeSnapshotMatch } from "../src/adapters/record/snapshotMatchEvents";
+import type { MatchRecord } from "../src/adapters/record/matchStore";
+import type {
+  ShogiMatchRecord,
+  StandardShogiMatchRecord,
+} from "../src/adapters/record/shogiMatchStore";
+import type { ShogiFormationUsage } from "../src/adapters/record/shogiFormationUsage";
 import type { FourShogiReplayEvent, ShogiReplayEvent } from "@tetraboard/protocol";
 
 type Fixture = {

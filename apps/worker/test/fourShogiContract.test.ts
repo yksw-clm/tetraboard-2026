@@ -11,7 +11,7 @@ import {
 import type { FourShogiCpuResponse } from "../src/rooms/fourShogiCpu";
 import { selectFourShogi } from "../src/adapters/matchmaking/fourShogiSelection";
 import { shogiCpuJobKey } from "../src/rooms/progressHelpers";
-import { shogiMatchStartKey, type ActiveShogiMatch } from "../src/rooms/shogiMatchStore";
+import { shogiMatchStartKey, type ActiveShogiMatch } from "../src/adapters/record/shogiMatchStore";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 
 let fixtures = new RoomBoundaryFixtures();

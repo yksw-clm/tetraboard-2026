@@ -9,7 +9,7 @@ import {
   getMatchReplayContract,
 } from "@tetraboard/protocol";
 import { accountIdentity } from "../adapters/account/auth";
-import { readShogiMatchReplayPage } from "../rooms/shogiMatchStore";
+import { readShogiMatchReplayPage } from "../adapters/record/shogiMatchStore";
 import { readStoredMatch } from "../adapters/record/matchDataContracts";
 
 export const matchRoutes = new Hono<{ Bindings: Env }>();

@@ -10,10 +10,10 @@ import { fourGomokuCpuJobKey } from "../../rooms/fourGomokuProgress";
 import { fourReversiAiJobKey, fourReversiCpuJobKey } from "../../rooms/fourReversiProgress";
 import { fourShogiAiJobKey, shogiEliminatedHandsKey } from "../../rooms/fourShogiProgress";
 import { gomokuCpuJobKey } from "../../rooms/gomokuProgress";
-import { matchStartKey } from "../../rooms/matchStore";
+import { matchStartKey } from "../record/matchStore";
 import { replayKey, roomStorageKey, shogiCpuJobKey } from "../../rooms/progressHelpers";
 import { currentRoomStateVersion, roomStateVersionKey } from "../../rooms/roomStateVersion";
-import { shogiMatchStartKey, standardShogiMatchStartKey } from "../../rooms/shogiMatchStore";
+import { shogiMatchStartKey, standardShogiMatchStartKey } from "../record/shogiMatchStore";
 import { tournamentCredentialVersionKey } from "@tetraboard/context-tournament";
 import { departedKey } from "./state";
 export function clearRoom(runtime: RoomRuntime): void {

@@ -32,7 +32,7 @@ const wrongReversiStats: StatsFor<"four-reversi"> = shogiStats;
 const wrongReader: MatchDataContract<"four-reversi"> = matchDataContracts["four-shogi"];
 void [missing, missingSql, wrongSql, wrongShogiStats, wrongReversiStats, wrongReader];
 
-import type { StoredRecord } from "../src/rooms/eventRecord";
+import type { StoredRecord } from "../src/adapters/record/eventRecord";
 import {
   matchDetail,
   type DecodedMatch,

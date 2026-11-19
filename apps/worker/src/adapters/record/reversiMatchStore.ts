@@ -5,7 +5,7 @@ import {
   type ReversiMatchDetail,
 } from "@tetraboard/protocol";
 
-import type { EloRatingSource } from "./eloRating";
+import type { EloRatingSource } from "../rating/eloRating";
 import { type ReversiState } from "@tetraboard/reversi";
 
 export type MatchParticipant = {

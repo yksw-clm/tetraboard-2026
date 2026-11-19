@@ -1,7 +1,7 @@
 import { isReversiRoom, isShogiRoom } from "@tetraboard/protocol";
 import { gameProgress } from "../src/rooms/gameProgress";
-import { pendingMatchPrefix } from "../src/rooms/matchStore";
-import { pendingShogiMatchPrefix } from "../src/rooms/shogiMatchStore";
+import { pendingMatchPrefix } from "../src/adapters/record/matchStore";
+import { pendingShogiMatchPrefix } from "../src/adapters/record/shogiMatchStore";
 import type { AccountAdmission } from "../src/flows/accountSeats/types";
 import { env } from "cloudflare:workers";
 import { evictDurableObject, runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";

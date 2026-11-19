@@ -14,9 +14,9 @@ import {
   pendingStandardShogiMatchPrefix as pendingShogiMatchPrefix,
   type StandardShogiMatchRecord,
   type PendingStandardShogiMatch,
-} from "./shogiMatchStore";
+} from "../adapters/record/shogiMatchStore";
 import { initializeClock } from "./clockCore";
-import { ratedTimeControls } from "./ratedTimeControls";
+import { ratedTimeControls } from "../adapters/rating/ratedTimeControls";
 import {
   roomStorageKey,
   playerLabel,
@@ -30,7 +30,7 @@ import type {
   WaitingFor,
   FinishedProgress,
 } from "./gameProgress";
-import type { ShogiRatingSource } from "./shogiRating";
+import type { ShogiRatingSource } from "../adapters/rating/shogiRating";
 import { shogiCpuJobKey, externalShogiCpuJobKey } from "./standardShogiCpu";
 type Playing = PlayingFor<"shogi">;
 export type ActiveShogiMatch = {

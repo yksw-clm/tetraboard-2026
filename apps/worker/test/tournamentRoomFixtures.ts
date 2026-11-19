@@ -1,5 +1,5 @@
 import { type TournamentSettings } from "@tetraboard/protocol";
-import { pendingMatchPrefix, type PendingMatch } from "../src/rooms/matchStore";
+import { pendingMatchPrefix, type PendingMatch } from "../src/adapters/record/matchStore";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, expect, vi } from "vitest";
@@ -12,7 +12,10 @@ import {
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import type { PrepareTournamentRoomInput } from "@tetraboard/context-tournament";
-import { pendingShogiMatchPrefix, type PendingShogiMatch } from "../src/rooms/shogiMatchStore";
+import {
+  pendingShogiMatchPrefix,
+  type PendingShogiMatch,
+} from "../src/adapters/record/shogiMatchStore";
 import { releaseReservation } from "../src/adapters/room/seatReservations";
 import type { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 import { unusedRoomId } from "./unusedRoomId";

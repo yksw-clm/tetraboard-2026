@@ -15,9 +15,9 @@ import { accountFixture } from "./accountFixtures";
 import { boundaryRequest } from "./roomBoundaryFixtures";
 import { fixtureRecord, writeOutcomeFixture } from "./matchFixtures";
 import { namedCpuProfile } from "../src/adapters/matchmaking/cpuProfiles";
-import { type MatchRecord } from "../src/rooms/matchStore";
+import { type MatchRecord } from "../src/adapters/record/matchStore";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
-import { publicRatingForMu } from "../src/rooms/fourReversiRating";
+import { publicRatingForMu } from "../src/adapters/rating/fourReversiRating";
 import { readAccountStats } from "../src/adapters/record/stats";
 
 const ratingPath = "/matchmaking/four-reversi/rating";

@@ -5,7 +5,7 @@ import {
   pendingStandardShogiMatchPrefix,
   type PendingShogiMatch,
   type PendingStandardShogiMatch,
-} from "../../rooms/shogiMatchStore";
+} from "../record/shogiMatchStore";
 import { advanceShogiMatchSave } from "../../flows/matchSave/shogi";
 import { readRoom } from "./state";
 

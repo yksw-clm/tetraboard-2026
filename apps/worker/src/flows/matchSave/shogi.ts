@@ -23,17 +23,17 @@ import { redactParticipants } from "../accountPurge/redactParticipants";
 import { applyMatchClaims } from "./claims";
 import { matchBadgeStatements } from "./badges";
 import { tournamentMatchStatements } from "../../adapters/tournament/store";
-import { fourShogiRatingStore } from "../../rooms/fourReversiRating";
+import { fourShogiRatingStore } from "../../adapters/rating/fourReversiRating";
 import {
   readShogiMatchRecord,
   type ShogiMatchRecord,
   type StandardShogiMatchRecord,
-} from "../../rooms/shogiMatchStore";
+} from "../../adapters/record/shogiMatchStore";
 import {
   shogiFormationUsageSchema,
   isFormationMatchEligible,
   type ShogiFormationUsage,
-} from "../../rooms/shogiFormationUsage";
+} from "../../adapters/record/shogiFormationUsage";
 import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 import { normalizeMatchUpload } from "./validation";
 

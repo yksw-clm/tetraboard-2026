@@ -1,6 +1,6 @@
 import { roomSocketContract } from "@tetraboard/protocol";
 import { readRoom } from "../../adapters/room/state";
-import { formationAnalysisTag } from "../../rooms/fourShogiFormationAnalysis";
+import { formationAnalysisTag } from "../../adapters/record/fourShogiFormationAnalysis";
 import { eliminatedHandsTag } from "../../rooms/fourShogiProgress";
 import { chatSnapshot } from "./chat";
 import type { RoomRuntime } from "./runtime";

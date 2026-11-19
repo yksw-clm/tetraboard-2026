@@ -15,7 +15,7 @@ import type { MatchRecord as Gomoku } from "./gomokuMatchStore";
 import type { MatchRecord as FourGomoku } from "./fourGomokuMatchStore";
 import { rebuildSnapshotMatch as rebuild, encodeSnapshotMatch } from "@tetraboard/context-record";
 export { encodeSnapshotMatch };
-import type { DecodedMatch } from "../adapters/record/matchDataContracts";
+import type { DecodedMatch } from "./matchDataContracts";
 
 export type SnapshotMatch = Reversi | FourReversi | Gomoku | FourGomoku;
 const reversiStep = reversiReplaySchema.shape.steps.element.shape;

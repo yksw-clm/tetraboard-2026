@@ -1,7 +1,7 @@
 import { applySkillRating } from "@tetraboard/context-rating";
 import { D1SkillRatingStore } from "../../adapters/rating/skillStore";
-import type { MatchRecord } from "../../rooms/matchStore";
-import type { ShogiMatchRecord } from "../../rooms/shogiMatchStore";
+import type { MatchRecord } from "../../adapters/record/matchStore";
+import type { ShogiMatchRecord } from "../../adapters/record/shogiMatchStore";
 export function applyFourReversiRating(db: D1Database, record: Omit<MatchRecord, "replay">) {
   return applySkillRating(new D1SkillRatingStore(db), "four-reversi", {
     id: record.id,

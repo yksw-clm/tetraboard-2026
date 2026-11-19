@@ -6,7 +6,7 @@ import { getRoomContract, fourShogiRoomSchema, isFourShogiRoom } from "@tetraboa
 import { ShogiStore } from "../src/rooms/shogiStore";
 import { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 import { formationAction, formationState } from "../../../test-fixtures/shogiFormations";
-import { shogiMatchStartKey, type ActiveShogiMatch } from "../src/rooms/shogiMatchStore";
+import { shogiMatchStartKey, type ActiveShogiMatch } from "../src/adapters/record/shogiMatchStore";
 import {
   registerFourShogiRoomFixtures,
   create,

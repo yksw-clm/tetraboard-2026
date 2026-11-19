@@ -11,7 +11,7 @@ import {
   readShogiMatchRecord,
   type ShogiMatchRecord,
   type ShogiSaveProgress,
-} from "../src/rooms/shogiMatchStore";
+} from "../src/adapters/record/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { fourShogiReplayEventSchema } from "@tetraboard/protocol";
 import { migratedShogiArchiveJson } from "./legacyDataFixtures";
