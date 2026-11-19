@@ -55,7 +55,7 @@
 | 共有着手   | 生成済み合法候補の返す座標・盤面を再利用する内部経路を設け、通常着手と手番・パス・終局まで共有する                                    |
 | 探索・評価 | `cpuSearch.ts`・`cpuEvaluation.ts`・`cpuForecast.ts` を分離する。根の全候補・反復深化・予算・全読み・キャッシュ・元の列挙順を管理する |
 | 測定       | `packages/four-reversi/bench/` に対戦・戦術・性能・集計を置く。長時間benchを通常testへ組み込まない                                    |
-| Worker     | `fourReversiProgress.ts` の内部ジョブ、`gameRoom.ts` のAlarm選択・適用・破棄を変更する。通常リバーシなど他ゲームの方式は維持する      |
+| Worker     | `adapters/room/games/four-reversi/` の進行の内部ジョブ、`gameRoom.ts` のAlarm選択・適用・破棄を変更する。通常リバーシなど他ゲームの方式は維持する      |
 
 ### Workerの選択保存と適用
 

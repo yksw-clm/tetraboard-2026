@@ -196,11 +196,11 @@ IDと `all` の境界・既定値は `bun run --cwd apps/worker test test/gameCa
 
 `ReversiRoom`・対局記録・戦績・ランキングは専用の公開契約を持ち、通常リバーシの作成と履歴取得はモード指定を受け付けません。公開JSONにもモードを含めません。既存のD1のNOT NULLモード列には内部識別値 `standard` を保存します。既存の四人ゲームのモード値・JSONと既定ゲームを維持し、過去データの移行は行いません。保存は四人リバーシと同じ局面列方式で、保存待ち・5秒後の再送・本人索引・閉鎖後の保持を共用します。本人索引のゲーム列は保存済み対局から明示的に設定します。
 
-Workerは `reversiProgress`・`reversiClock`・`reversiMatchStore` を登録し、共有GameRoomから呼びます。戦績は専用の勝敗SQL、ランキングは勝数と対局数、公開プレイヤー情報はモードなしの戦績を返します。通常リバーシのバッジは判定・表示しません。
+Workerは `adapters/room/games/reversi/` の進行の spec と保存（`progress.ts`、`progressStore.ts`）、`reversiClock`、`reversiMatchStore` を登録し、共有GameRoomから呼びます。戦績は専用の勝敗SQL、ランキングは勝数と対局数、公開プレイヤー情報はモードなしの戦績を返します。通常リバーシのバッジは判定・表示しません。
 
 Webの通常リバーシロビー・ライブ・保存棋譜はゲーム別に登録し、独立したエンジンだけを読み込みます。盤面描画と石・プレイヤーカードの基本描画は共有します。通常リバーシの対局・棋譜は上下2カード、観戦・保存棋譜は180度回転、ゲーム本文・マイページ・棋譜・Portalは薄い緑テーマです。静的生成・配信・サイトマップは6ロビーに対応します。
 
-開発環境の `AI_REVERSI_ENABLED` はLv2のCPU手番だけを対象とします。 `reversiProgress.ts` はAlarmで局IDと着手番号に結び付けた要求を保存し、GameRoomはtransaction外で `POST /v1/reversi/move` を呼びます。候補受領時と適用時に現在の局と時計を確認します。着手要求が失われても期限のAlarmで従来のLv2を使用します。`Reversi AI response` ログの `source` と `elapsedMs` でServiceへの往復を確認できます。
+開発環境の `AI_REVERSI_ENABLED` はLv2のCPU手番だけを対象とします。 `adapters/room/ai/reversiExternalCpu.ts` はAlarmで局IDと着手番号に結び付けた要求を保存し、GameRoomはtransaction外で `POST /v1/reversi/move` を呼びます。候補受領時と適用時に現在の局と時計を確認します。着手要求が失われても期限のAlarmで従来のLv2を使用します。`Reversi AI response` ログの `source` と `elapsedMs` でServiceへの往復を確認できます。
 
 `Dockerfile.reversi` は固定コミットのEgaroucid Consoleをビルドします。本体はGPL-3.0-or-laterで、定跡を無効にし、公式ソース配布に含まれる2つの評価ファイルをハッシュ照合します。対応ソース、評価ファイル、ビルド手順とライセンス本文はイメージ内の `/usr/local/share/egaroucid/` に同梱します。開発Serviceを既存の手順で更新してからアプリWorkerを反映します。[公式ソース](https://github.com/Nyanyan/Egaroucid/tree/console_v7.8.2) · [確認手順](testing.md#通常リバーシの外部ai確認)
 
@@ -212,13 +212,13 @@ Webの通常リバーシロビー・ライブ・保存棋譜はゲーム別に�
 
 Webの `RatedMatchmakingDialog` とレート表示は対象ゲームを受け取ります。将棋の対局結果は既存APIの `opponent` を使い、名前の横のレート表示を `RatingResultLabel` に渡します。Workerの `matchmaking/ratingStore.ts` はレート保存待ちの予約・解除、適用済み対局の照合、確定時に使うSQL文を提供します。将棋のElo計算は rating の文脈（`packages/contexts/rating/src/domain/elo.ts`）が持ち、`adapters/rating/shogiRating.ts` の設定で、棋譜確定と同じD1バッチで更新します。
 
-開発環境の外部AI接続は `standardShogiProgress.ts` が棋譜からUSI要求を準備し、GameRoomがストレージのトランザクションを抜けてから `adapters/room/ai/shogiAi.ts` を呼びます。起動・探索はAI Serviceの `shogi.rs` が担当します。`apps/worker/test-ai-service/shogiAiService.test.ts` で応答とタイムアウトを確認できます。コンテナの実エンジンを使う場合は、既存のAI Service統合テストに `TETRABOARD_SHOGI_TEST_REAL=1` を指定します。
+開発環境の外部AI接続は `adapters/room/games/shogi/cpu.ts` が棋譜からUSI要求を準備し、GameRoomがストレージのトランザクションを抜けてから `adapters/room/ai/shogiAi.ts` を呼びます。起動・探索はAI Serviceの `shogi.rs` が担当します。`apps/worker/test-ai-service/shogiAiService.test.ts` で応答とタイムアウトを確認できます。コンテナの実エンジンを使う場合は、既存のAI Service統合テストに `TETRABOARD_SHOGI_TEST_REAL=1` を指定します。
 
 通常将棋のルール正本は `docs/rules/shogi.md` です。独立した `packages/shogi` に純粋なルールエンジンとCPUを置き、初期化・合法手・王手・着手・外部敗北・千日手・持将棋・入玉宣言・500手を扱います。先手と後手、持ち駒7種類、8種類の盤上駒を専用のprotocol契約で検証します。`rulesVersion: 1` の棋譜は初期の配席と受理したイベントを再実行して復元し、最終状態の一致を検査します。互換を壊すルール変更では再生版を追加します。
 
 CPU Lv1は合法手から一様に選びます。内蔵のLv2は駒の価値・成り・前進・無防備な駒・持ち駒・王手を評価し、最大3手・512回の着手評価で探索します。完了した深さの結果を採用し、予算が少なくても合法手を返します。探索時の入力と永続履歴を変更しません。Workerは勝てる入玉宣言を優先し、成立可能な人間の持将棋提案へ手番外でも同意します。CPUの選択をKVへ保存してから次のAlarmで期限・局・revision・手番を再検証して適用し、探索時間も時計に含めます。
 
-`standardShogiProgress.ts` は通常将棋の開始・着手・特殊操作・終局を担当し、認証・席管理・時計計算・準備・チャット・接続期限・保存再試行はGameRoomの既存処理を使います。`EventGameStore` は四人将棋と通常将棋のイベント・局・保護棋譜・ページングを共用します。通常将棋のSQLite表は `standard_shogi_`、四人将棋は既存の `shogi_` を使い、既存データを移行しません。通常将棋の反復辞書は配信せず、必要な局面の回数と初回時の連続王手判定用カウンターをSQLiteから取得し、変更分だけ保存します。公開状態には各側の王手をしなかった着手の累積カウンターだけを含めます。
+`adapters/room/games/shogi/progress.ts` は通常将棋の開始・着手・特殊操作・終局を担当し、認証・席管理・時計計算・準備・チャット・接続期限・保存再試行はGameRoomの既存処理を使います。`EventGameStore` は四人将棋と通常将棋のイベント・局・保護棋譜・ページングを共用します。通常将棋のSQLite表は `standard_shogi_`、四人将棋は既存の `shogi_` を使い、既存データを移行しません。通常将棋の反復辞書は配信せず、必要な局面の回数と初回時の連続王手判定用カウンターをSQLiteから取得し、変更分だけ保存します。公開状態には各側の王手をしなかった着手の累積カウンターだけを含めます。
 
 D1の分割棋譜転送・全ページ検証・本人索引・再送は `shogiMatchStore.ts` を共用し、ゲームごとにイベントと記録の契約を切り替えます。モードなしの内部DB値は通常リバーシと同じ `standard` です。勝敗集計・ランキング・公開プロフィール・モードの表示条件には通常リバーシの2人用処理とカタログの `capacity`・`hasModes` を再利用します。通常ルームのCPU戦も履歴と公開棋譜を保存します。レート戦の集計条件は[本人の戦績集計](#本人の戦績集計)を参照してください。
 
@@ -569,10 +569,13 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
   - `apps/worker/src/adapters/room/`: ポートの実装と保存。状態の読み書き（版の移行を含む）、`withIndexTransaction`、効果を transaction の確定後に実行する口、外部への反映のジョブ 7 種類、外部 AI の枠、利用イベント、Alarm の入力。
   - `apps/worker/src/flows/`: 他の文脈にまたがる処理（大会とレート戦のルーム、退会したアカウントの消去、ゲストの登録、席の台帳）。それぞれの文脈のパッケージへは、TB-71〜74 で移します。
   - ゲームの違いは `apps/worker/src/adapters/room/games/` のアダプター（ゲームのポートの実装）に閉じ込め、殻と use-case ではゲームの種類で分岐しません。
-- ゲームごとの進行は `*Progress.ts` にあり、ゲーム契約（`gameDefinitions.ts`）と room の文脈の `checkGameCommand` を使います。外部 AI のジョブは `externalCpu.ts` です。
-- 時計は `clockCore.ts`（席 ID を型パラメータとする純粋な計算）と、ゲームごとの wrapper（`clock.ts`、`shogiClock.ts`、`reversiClock.ts`）です。期限の選択は `roomDeadlines.ts` の純粋関数です。
+- 6 ゲームの進行は、room の文脈の共通の進行（`use-cases/gameProgressFlow.ts` の `createGameProgress`）で組み立てます（TB-178〜182）。本人と局面の確認、ルールの適用、確定、投了、退室と脱落、CPU の予定、再戦待機は共通の進行に 1 回だけ書き、ゲームごとの違いは spec（`gameProgressSpec.ts`）の項目で表します。共通の進行には、ゲームの名前で分ける処理を書きません。
+  - ゲームごとの spec と保存のポートは、`apps/worker/src/adapters/room/games/<ゲーム ID>/` の `progress.ts` と `progressStore.ts` です。ルールはゲーム契約（`games/gameDefinitions.ts`）を使います。
+  - 外部 AI、同期の CPU、引分提案、入玉宣言、旧形式の移行などのゲーム固有の処理は、継承ではなく、`createGameProgress` の結果と組み合わせて adapter に置きます（ADR 0011）。外部 AI のジョブは `adapters/room/ai/externalCpu.ts` です。
+  - 保存のキーと値の形は、移す前と同じです。共通の進行を変えるときは、6 ゲームの統合テストと `packages/contexts/room/test/` の単体テストで、振る舞いが変わらないことを確かめます。
+- 時計は room の文脈の `domain/clockCore.ts`（席 ID を型パラメータとする純粋な計算）と、`adapters/room/` のゲームごとの wrapper（`clock.ts`、`shogiClock.ts`、`reversiClock.ts`）です。期限の選択は room の文脈の `domain/roomDeadlines.ts` の純粋関数です。
 - 1 アカウント 1 席（通常ルームの席、レート戦の待機、大会の待機を合わせて 1 つ）は、`flows/accountSeats/fences.ts` の条件で守ります（TB-118）。統合済みのゲストの席、大会の待機、大会のエントリーを止める条件も同じファイルにあります（TB-136）。席の予約は `flows/accountSeats/reserve.ts`、`entryProfile.ts` と `adapters/room/seatReservations.ts` です（旧 `accounts/roomAccounts.ts`）。3 つの表（`account_room_seats`、`matchmaking_wait_reservations`、`tournament_wait_reservations`）への挿入は、すべてこの条件をつけた `INSERT ... SELECT ... WHERE` です。挿入されなかったときは、同じファイルの関数で理由を読み直します。挿入する場所が決めたファイルの外に増えていないことは、`test-bun/accountSeatFenceBoundaries.test.ts` が確かめます。以前は D1 のトリガー 5 つが同じことを守っていましたが、TB-130 で消しました。トリガーがないので、この条件とテストが唯一の守りです。
-- CPU の最低待ち時間は `progressHelpers.ts` の `cpuMoveDelayMs` を全ゲームで共用します。
+- CPU の最低待ち時間は、room の文脈の `cpuMoveDelayMs`（`use-cases/processDeadlines.ts`）を全ゲームで共用します。
 - CPU 付きのルームの作成（`POST /rooms`）は、任意の `cpuLevel: 1 | 2` を受け取ります。未指定は Lv1、不正な値は 400 です。`waitingRoomFactories` が全ての CPU に当てます。
 
 関連の回帰は `bun run --cwd apps/worker test test/clock.test.ts test/roomDeadlines.test.ts test/roomDeadlinePersistence.test.ts test/roomDeadlineActions.test.ts test/roomDeadlineCpu.test.ts test/roomDeadlineAlarm.test.ts test/gameRoom test/fourShogiRoom test/humanlessRooms.test.ts test/shogiStore.test.ts` で実行します。実 DO の `evictDurableObject` による復元、保存済みの CPU の手の再検証、終局を再実行したときの非重複、例外の後に kv と SQLite が元に戻ることを確かめます。公開の応答は通信契約で解析し、内部のメソッドのモック、固定の sleep、テスト用の公開 API を使いません。Color と Side、残り時間の record の取り違えは、型検査専用の fixture で確かめます。
