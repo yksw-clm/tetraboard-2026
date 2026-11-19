@@ -43,7 +43,6 @@
     },
     {
       "files": [
-        "apps/worker/src/rooms/aiService.ts",
         "apps/worker/src/rooms/roomIndex.ts",
         "apps/worker/src/rooms/roomRoutes.ts",
         "apps/worker/src/routes/tournaments.ts",
@@ -73,7 +72,6 @@
         "apps/worker/src/kpi/calculations.ts",
         "apps/worker/src/routes/matchmaking.ts",
         "apps/worker/src/publicAssets.ts",
-        "apps/worker/src/rooms/aiService.ts",
         "apps/worker/src/rooms/applyRoomSettings.ts",
         "apps/worker/src/rooms/rankingRoutes.ts",
         "apps/worker/src/rooms/roomIndex.ts",

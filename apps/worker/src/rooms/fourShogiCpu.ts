@@ -5,7 +5,7 @@ import {
 import type { FourShogiReplayEvent } from "@tetraboard/protocol";
 import type { Side, FourShogiAction } from "@tetraboard/four-shogi";
 import { calibratedFourShogiProfile } from "../adapters/matchmaking/fourShogiSelection";
-import type { FourShogiAiFailure, FourShogiAiResult } from "./aiService";
+import type { FourShogiAiFailure, FourShogiAiResult } from "../adapters/room/ai/fourShogiAi";
 import type { PlayingFor } from "./gameProgress";
 import type { ShogiStore } from "./shogiStore";
 import { shogiMatchStartKey, type ActiveShogiMatch } from "./shogiMatchStore";
@@ -17,7 +17,7 @@ import {
   completeExternalCpu,
   type ExternalCpuRuntime,
   type ExternalCpuJob,
-} from "./externalCpu";
+} from "../adapters/room/ai/externalCpu";
 
 type Playing = PlayingFor<"four-shogi">;
 export const fourShogiAiJobKey = "four-shogi-ai-job";

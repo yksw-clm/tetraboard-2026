@@ -3,9 +3,9 @@ import type { FourShogiProgress, FourShogiAiWork, ShogiCpuJob } from "../fourSho
 import {
   aiServiceConfigured,
   aiServiceTimeout,
-  requestFourShogiAiMove,
   roomAiAllowed,
-} from "../aiService";
+} from "../../adapters/room/ai/aiService";
+import { requestFourShogiAiMove } from "../../adapters/room/ai/fourShogiAi";
 import type { PlayingFor } from "../gameProgress";
 import { shogiCpuJobKey } from "../progressHelpers";
 import type { AdapterDependencies } from "./types";

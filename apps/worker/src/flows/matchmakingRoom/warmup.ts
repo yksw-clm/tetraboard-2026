@@ -4,7 +4,7 @@ import { withIndexTransaction } from "../../adapters/room/transaction";
 import { closeRoom } from "../../adapters/room/useCases";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import type { MatchmakingRoomReservation } from "@tetraboard/context-matchmaking";
-import { requestRatedAiWarmup, type RatedAiGame } from "../../rooms/aiService";
+import { requestRatedAiWarmup, type RatedAiGame } from "../../adapters/room/ai/ratedAiWarmup";
 import { advanceMatchmakingStart } from "./start";
 
 const aiWarmupAttemptMs = 8000;

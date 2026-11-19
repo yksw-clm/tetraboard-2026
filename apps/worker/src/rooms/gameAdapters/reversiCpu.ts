@@ -1,12 +1,8 @@
 import { isReversiRoom } from "@tetraboard/protocol";
 import type { ReversiProgress } from "../reversiProgress";
-import {
-  aiServiceTimeout,
-  reversiAiEnabled,
-  requestReversiAiMove,
-  roomAiAllowed,
-} from "../aiService";
-import type { ReversiAiWork } from "../aiService";
+import { aiServiceTimeout, roomAiAllowed } from "../../adapters/room/ai/aiService";
+import { reversiAiEnabled, requestReversiAiMove } from "../../adapters/room/ai/reversiAi";
+import type { ReversiAiWork } from "../../adapters/room/ai/reversiAi";
 import { cpuMoveDelayMs } from "../progressHelpers";
 import type { AdapterDependencies } from "./types";
 import type { ExternalCpuRequest, GameCpuAdapter } from "./cpuTypes";

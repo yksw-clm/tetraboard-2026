@@ -1,8 +1,9 @@
 import { isShogiRoom } from "@tetraboard/protocol";
 import type { ShogiProgress } from "../standardShogiProgress";
 import { shogiCpuJobKey } from "../standardShogiCpu";
-import { aiServiceTimeout, requestShogiAiMove, roomAiAllowed, shogiAiEnabled } from "../aiService";
-import type { ShogiAiWork } from "../aiService";
+import { aiServiceTimeout, roomAiAllowed } from "../../adapters/room/ai/aiService";
+import { requestShogiAiMove, shogiAiEnabled } from "../../adapters/room/ai/shogiAi";
+import type { ShogiAiWork } from "../../adapters/room/ai/shogiAi";
 import type { PlayingFor } from "../gameProgress";
 import type { AdapterDependencies } from "./types";
 import type { CpuStepContext, CpuStepResult, ExternalCpuRequest, GameCpuAdapter } from "./cpuTypes";

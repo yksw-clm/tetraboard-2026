@@ -9,7 +9,7 @@ import {
 } from "@tetraboard/protocol";
 import { getLegalMoves as fourMoves } from "@tetraboard/four-reversi";
 import { getLegalMoves as reversiMoves } from "@tetraboard/reversi";
-import { roomAiAllowed } from "../src/rooms/aiService";
+import { roomAiAllowed } from "../src/adapters/room/ai/aiService";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 
 let fixtures = new RoomBoundaryFixtures();

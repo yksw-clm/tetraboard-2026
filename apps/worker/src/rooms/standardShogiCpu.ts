@@ -10,7 +10,7 @@ import type { StandardShogiStore } from "./standardShogiStore";
 import type { ActiveShogiMatch } from "./standardShogiProgressStore";
 import { standardShogiMatchStartKey } from "./shogiMatchStore";
 import { shogiCpuProfile } from "@tetraboard/context-matchmaking";
-import type { ShogiAiWork } from "./aiService";
+import type { ShogiAiWork } from "../adapters/room/ai/shogiAi";
 import { isClockExpired } from "./clock";
 import {
   currentExternalCpuJob,
@@ -18,7 +18,7 @@ import {
   completeExternalCpu,
   type ExternalCpuRuntime,
   type ExternalCpuJob,
-} from "./externalCpu";
+} from "../adapters/room/ai/externalCpu";
 
 type Playing = PlayingFor<"shogi">;
 export const shogiCpuJobKey = "standard-shogi-cpu-job";
