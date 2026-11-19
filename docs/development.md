@@ -208,7 +208,7 @@ Webの通常リバーシロビー・ライブ・保存棋譜はゲーム別に�
 
 ## 通常将棋の実装
 
-[将棋のレート戦](shogi-rated-match.md)には、専用待機列、終局時のレート保存、CPUの採用前に行う検証を記載しています。Webの `features/matchmaking` をWorkerの `matchmaking/routes.ts` と `matchmaking/coordinator.ts` から通常将棋のGameRoomへ接続します。対人戦とCPU戦の待機・入室・終局は `apps/worker/test/matchmaking.test.ts`、Elo計算と認定情報の公開範囲は `apps/worker/test/shogiRating.test.ts`、画面は `apps/web/test-dom/matchmaking*.test.tsx` で確認します。
+[将棋のレート戦](shogi-rated-match.md)には、専用待機列、終局時のレート保存、CPUの採用前に行う検証を記載しています。Webの `features/matchmaking` をWorkerの `matchmaking/routes.ts` と `matchmaking/coordinator.ts` から通常将棋のGameRoomへ接続します。対人戦とCPU戦の待機・入室・終局は `apps/worker/test/matchmaking*.test.ts`、Elo計算と認定情報の公開範囲は `apps/worker/test/shogiRating.test.ts`、画面は `apps/web/test-dom/matchmaking*.test.tsx` で確認します。
 
 Webの `RatedMatchmakingDialog` とレート表示は対象ゲームを受け取ります。将棋の対局結果は既存APIの `opponent` を使い、名前の横のレート表示を `RatingResultLabel` に渡します。Workerの `matchmaking/ratingStore.ts` はレート保存待ちの予約・解除、適用済み対局の照合、確定時に使うSQL文を提供します。将棋のElo計算は rating の文脈（`packages/contexts/rating/src/domain/elo.ts`）が持ち、`rooms/shogiRating.ts` の設定で、棋譜確定と同じD1バッチで更新します。
 
@@ -426,7 +426,7 @@ Webはstrict型検査を使います。`bun run --cwd apps/web typecheck` とWor
 
 ルームGET・本人確認・接続開始・認証・準備・設定・開始・対局操作・チャットに各10000msの期限を設けます。操作の完了条件を満たさない通知では期限を延長・解除せず、設定は送信した値やCPU席の反映を確認します。期限超過はclose通知を待たずに接続を無効化し、全待ちを解除して、既存の1秒から最大30秒のバックオフで再取得・再接続します。結果不明の操作は再送しません。チャットは本人の同内容の新規投稿で完了し、切断では入力を保持します。表示復帰では経過した期限も確認します。サーバーの切断検知後30秒の復帰期限・複数本人接続の扱いは維持します。
 
-`roomTransportLifecycle.test.tsx` は両ゲームの離脱・履歴復帰・10秒境界、終了通知の遅延、無関係な通知、未応答GET・本人確認、旧取得結果の破棄、未確定着手・設定・チャットを確認します。WebSocketの状態と通知タイミング、fetchと時計は既存の境界で制御します。Workerの `roomDeadlineBoundary.test.ts` は両ゲームの最後の本人接続の終了を確認し、既存の復帰・脱落・席解放テストも実行します。ブラウザ履歴キャッシュの実際の使用・ネイティブURL移動・モバイルの強制終了はDOMテストでは確認せず、手動確認の結果または未確認としてPRに記載します。`pagehide` が発火しない終了とclose通知がサーバーへ届かない場合の一定時間内検出は保証しません。
+`roomTransportLifecycle.test.tsx` は両ゲームの離脱・履歴復帰・10秒境界、終了通知の遅延、無関係な通知、未応答GET・本人確認、旧取得結果の破棄、未確定着手・設定・チャットを確認します。WebSocketの状態と通知タイミング、fetchと時計は既存の境界で制御します。Workerの `roomDeadline{Persistence,Actions,Cpu,Alarm}.test.ts` は両ゲームの最後の本人接続の終了を確認し、既存の復帰・脱落・席解放テストも実行します。ブラウザ履歴キャッシュの実際の使用・ネイティブURL移動・モバイルの強制終了はDOMテストでは確認せず、手動確認の結果または未確認としてPRに記載します。`pagehide` が発火しない終了とclose通知がサーバーへ届かない場合の一定時間内検出は保証しません。
 
 ## ルームのスタンプ
 
@@ -575,7 +575,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 - CPU の最低待ち時間は `progressHelpers.ts` の `cpuMoveDelayMs` を全ゲームで共用します。
 - CPU 付きのルームの作成（`POST /rooms`）は、任意の `cpuLevel: 1 | 2` を受け取ります。未指定は Lv1、不正な値は 400 です。`waitingRoomFactories` が全ての CPU に当てます。
 
-関連の回帰は `bun run --cwd apps/worker test test/clock.test.ts test/roomDeadlines.test.ts test/roomDeadlineBoundary.test.ts test/gameRoom.test.ts test/fourShogiRoom.test.ts test/humanlessRooms.test.ts test/shogiStore.test.ts` で実行します。実 DO の `evictDurableObject` による復元、保存済みの CPU の手の再検証、終局を再実行したときの非重複、例外の後に kv と SQLite が元に戻ることを確かめます。公開の応答は通信契約で解析し、内部のメソッドのモック、固定の sleep、テスト用の公開 API を使いません。Color と Side、残り時間の record の取り違えは、型検査専用の fixture で確かめます。
+関連の回帰は `bun run --cwd apps/worker test test/clock.test.ts test/roomDeadlines.test.ts test/roomDeadlinePersistence.test.ts test/roomDeadlineActions.test.ts test/roomDeadlineCpu.test.ts test/roomDeadlineAlarm.test.ts test/gameRoom test/fourShogiRoom test/humanlessRooms.test.ts test/shogiStore.test.ts` で実行します。実 DO の `evictDurableObject` による復元、保存済みの CPU の手の再検証、終局を再実行したときの非重複、例外の後に kv と SQLite が元に戻ることを確かめます。公開の応答は通信契約で解析し、内部のメソッドのモック、固定の sleep、テスト用の公開 API を使いません。Color と Side、残り時間の record の取り違えは、型検査専用の fixture で確かめます。
 
 ## レートの入口
 
@@ -885,7 +885,7 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 
 ルーム連携の変更では [ルームの実装の入口](#ルームの実装の入口)と[ルームの仕様](specs/room.md#維持する契約) を確認します。ルール状態・通信・保存形式との境界を維持し、思考中の履歴を永続化しない注意点は正本と実装の両方で照合します。
 
-関連確認は [CPU探索](../packages/four-shogi/test/cpuSearch.test.ts)、[評価](../packages/four-shogi/test/cpuEvaluation.test.ts)、[手筋](../packages/four-shogi/test/cpuTactics.test.ts)、[序盤候補](../packages/four-shogi/test/cpuOpenings.test.ts)、[オンラインルーム](../apps/worker/test/fourShogiRoom.test.ts) のテストを使います。パッケージ全体は `bun run --cwd packages/four-shogi check`、ルーム側は `bun run --cwd apps/worker test test/fourShogiRoom.test.ts` で部分確認します。比較条件・測定対象コミット・結果と限界、再測定手順は [四人将棋AIの測定・採用記録](four-shogi-ai.md) を参照します。
+関連確認は [CPU探索](../packages/four-shogi/test/cpuSearch.test.ts)、[評価](../packages/four-shogi/test/cpuEvaluation.test.ts)、[手筋](../packages/four-shogi/test/cpuTactics.test.ts)、[序盤候補](../packages/four-shogi/test/cpuOpenings.test.ts)、[オンラインルーム](../apps/worker/test/) のテストを使います。パッケージ全体は `bun run --cwd packages/four-shogi check`、ルーム側は `bun run --cwd apps/worker test test/fourShogiRoom` で部分確認します。比較条件・測定対象コミット・結果と限界、再測定手順は [四人将棋AIの測定・採用記録](four-shogi-ai.md) を参照します。
 
 ## 軽量テスト
 

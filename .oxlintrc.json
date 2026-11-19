@@ -40,22 +40,6 @@
           }
         ]
       }
-    },
-    {
-      "files": [
-        "apps/worker/test/accountRooms.test.ts",
-        "apps/worker/test/fourShogiRoom.test.ts",
-        "apps/worker/test/gameRoom.test.ts",
-        "apps/worker/test/lobbyRoomCards.test.ts",
-        "apps/worker/test/matchmaking.test.ts",
-        "apps/worker/test/roomDeadlineBoundary.test.ts",
-        "apps/worker/test/tournamentQueue.test.ts",
-        "apps/worker/test/tournamentRooms.test.ts",
-        "apps/worker/test/tournaments.test.ts"
-      ],
-      "rules": {
-        "max-lines": "off"
-      }
     }
   ]
 }

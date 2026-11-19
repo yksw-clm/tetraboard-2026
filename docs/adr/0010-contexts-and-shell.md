@@ -51,9 +51,15 @@
 | --- | --- |
 | `routes/` | Hono のルート。入力を protocol の schema で検証し、use-case か流れを呼び、応答を整形します。 |
 | `durableObjects/` | 4 つの DO の殻（`GameRoom`、`MatchmakingCoordinator`、`TournamentCoordinator`、`CpuCapacity`） |
-| `adapters/<文脈>/` | ポートの実装（drizzle の D1、DO の kv と SQLite、外部 AI） |
+| `adapters/<文脈>/` | ポートの実装（D1 の SQL、DO の kv と SQLite、外部 AI） |
 | `flows/` | 複数の文脈にまたがる処理。例: 終局 → 棋譜の保存 → レートの更新 → 大会の勝ち点 → バッジ → 利用イベント |
 | `usageEvents/`、`kpi/`、`admin/`、`db/` | 今のまま |
+
+### D1 の SQL と drizzle（2026-11-19、開発者が決定）
+
+- drizzle で管理するのは、スキーマと migration です。スキーマの正本は `apps/worker/src/db/schema/` の drizzle の定義です。`test:db` で、全 migration を当てた SQLite と定義が一致することを確かめます。
+- adapter の読み書きは、D1 の SQL（`prepare` と `batch`）のまま書きます。drizzle のクエリビルダーには書き換えません。
+- 理由: 2026-11-19 の adapter の SQL は 458 か所です。うち EXISTS の条件が 134、JSON の関数が 72、batch が 38 です。多くは、退会、1 アカウント 1 席、ゲストの統合の競合を、1 つの文の条件や 1 つの batch で防ぐ書き込みです。クエリビルダーにしても、これらの多くは `sql` テンプレートに同じ SQL を書くことになります。書き換えた文が同じ意味になることを 1 つずつ確かめる手間と壊す危険に対して、利用者に見える効果がありません。
 
 ### DO のイベントの流れ
 
@@ -114,6 +120,7 @@ TB-85 の計測では、GET 1 回と Alarm 1 回で、ルームを 6〜7 回読�
 - **文脈が protocol の zod の schema を使う。** 文脈のテストに zod が入り、検証の場所が殻と文脈に分かれます。
 - **use-case が D1 や DO を直接呼ぶ。** Cloudflare なしでテストできなくなり、0003 の目的に合いません。
 - **DO のイベントごとに外部への反映の完了を待つ。** 今の C04 の遅れがそのまま残ります。
+- **adapter の SQL を drizzle のクエリビルダーへ書き換える（全部、または新しく書くものだけ）。** 理由は上の「D1 の SQL と drizzle」のとおりです。新しく書くものだけ drizzle にすると、同じ adapter の中に 2 つの書き方が混ざります（2026-11-19）。
 
 ## 影響と未決
 
