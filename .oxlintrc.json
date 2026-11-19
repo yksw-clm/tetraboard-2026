@@ -43,16 +43,11 @@
     },
     {
       "files": [
-        "apps/worker/test/accountRooms.test.ts",
         "apps/worker/test/feedback.test.ts",
-        "apps/worker/test/fourShogiRoom.test.ts",
-        "apps/worker/test/gameRoom.test.ts",
         "apps/worker/test/guestAccounts.test.ts",
         "apps/worker/test/guestRegistrationRooms.test.ts",
-        "apps/worker/test/lobbyRoomCards.test.ts",
         "apps/worker/test/privacy.test.ts",
-        "apps/worker/test/registrationApi.test.ts",
-        "apps/worker/test/roomDeadlineBoundary.test.ts"
+        "apps/worker/test/registrationApi.test.ts"
       ],
       "rules": {
         "max-lines": "off"
