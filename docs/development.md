@@ -250,7 +250,7 @@ Done Whenは全駒・禁止手・詰み・千日手・持将棋・入玉・500�
 ## 五目並べの実装
 
 - [packages/gomoku](../packages/gomoku/src/index.ts) が15路・手番・勝敗・外部敗北・全空点の合法手を扱います。[forbidden.ts](../packages/gomoku/src/forbidden.ts) は三三の発展先を再帰的に検証します。CPU専用の [cpu.ts](../packages/gomoku/src/cpu.ts) は `@tetraboard/gomoku/cpu` からWorkerだけが読み込みます。採用した探索上限・評価係数は[ルール正本](rules/gomoku.md#cpu)を参照します。
-- [gomokuProgress.ts](../apps/worker/src/adapters/room/games/gomoku/progress.ts) が配席・開始・着手・時計・終局・CPUを担当し、GameRoomの共通ライフサイクルへ接続します。CPUは候補をDOへ保存して次Alarmで期限を再確認し、同期計算時間を時計へ反映します。更新・終局・閉鎖時は候補を破棄します。時計の計算は既存の2色用モジュールを共用します。
+- [gomoku/progress.ts](../apps/worker/src/adapters/room/games/gomoku/progress.ts) が配席・開始・着手・時計・終局・CPUを担当し、GameRoomの共通ライフサイクルへ接続します。CPUは候補をDOへ保存して次Alarmで期限を再確認し、同期計算時間を時計へ反映します。更新・終局・閉鎖時は候補を破棄します。時計の計算は既存の2色用モジュールを共用します。
 - 着手通信は `placeGomokuStone` と0〜14の座標、必須の `roundId`・`positionRevision` を使います。既存リバーシの `placeStone` と0〜7の契約を維持します。禁手設定は待機中のホストだけが変更でき、対局開始時の設定はゲーム状態・対局記録・直前局に保持します。
 - [gomokuMatchStore.ts](../apps/worker/src/adapters/record/gomokuMatchStore.ts) と [gomokuMatchData.ts](../apps/worker/src/adapters/record/gomokuMatchData.ts) が保存・読取り・公開／本人棋譜・集計を接続します。D1の既存テーブルと再送処理を使い、新しいマイグレーションはありません。規則版1の局面列は [replay.ts](../packages/gomoku/src/replay.ts) で全着手を再実行し、途中・最終局面を照合します。
 - [GomokuLobbyPage](../apps/web/src/features/lobby/GomokuLobbyPage.tsx)、[GomokuRoomDetail](../apps/web/src/features/room/GomokuRoomDetail.tsx)、[GomokuMatchReplayView](../apps/web/src/features/room/GomokuMatchReplayView.tsx) を登録します。SVGの15路盤・上下カード・紫テーマ・座標表記を専用の画面で扱い、接続・設定・チャット・スタンプ・棋譜操作を共用します。禁手はクライアントとサーバーで検査し、本人の3秒toastへ接続します。
@@ -321,7 +321,7 @@ GameIdを追加すると型付きの必須登録が一斉に必要になるた�
 ## 四人五目並べの実装
 
 - [packages/four-gomoku](../packages/four-gomoku/src/index.ts) が15路・4色・両モード・順位を扱います。`completedColors` と `eliminatedColors` を分け、`standings` と `winningLines` は継続中も保持します。[CPU](../packages/four-gomoku/src/cpu.ts) は専用入口だけから読み込みます。探索方式・値は[ルール正本](rules/four-gomoku.md#cpu)を参照します。
-- [fourGomokuProgress.ts](../apps/worker/src/adapters/room/games/four-gomoku/progress.ts) が配席・着手・期限・CPU・全体終局を共通ライフサイクルへ接続します。通信は専用の `placeFourGomokuStone` に `roundId` と `positionRevision` を要求します。途中順位ではplayingを維持し、最後の確定で保存・結果・再戦へ進みます。
+- [four-gomoku/progress.ts](../apps/worker/src/adapters/room/games/four-gomoku/progress.ts) が配席・着手・期限・CPU・全体終局を共通ライフサイクルへ接続します。通信は専用の `placeFourGomokuStone` に `roundId` と `positionRevision` を要求します。途中順位ではplayingを維持し、最後の確定で保存・結果・再戦へ進みます。
 - [fourGomokuMatchData.ts](../apps/worker/src/adapters/record/fourGomokuMatchData.ts) が規則版1の全局面再生と保存理由を照合します。共通D1保存とモード別SQLを利用し、既存ゲームの契約は維持します。
 - [FourGomokuRoomView](../apps/web/src/features/room/FourGomokuRoomView.tsx) と [FourGomokuMatchReplayView](../apps/web/src/features/room/FourGomokuMatchReplayView.tsx) は4カード・途中順位・90度回転を扱います。木の盤面の描画は通常版と共用し、エンジンは別の遅延チャンクです。待機カードは現在の準備状態、保存棋譜カードは選択したフレームの順位を表示します。
 - 各色の最終手は表示用の省略可能な `lastMoves` として確定着手時に更新し、脱落・勝ち抜けでも保持します。旧進行局は `FourGomokuProgress.normalize` が永続棋譜から復元します。旧保存棋譜は `replayV1` の再実行で得た局面をWebのフレームへ使い、未来の最終手を持ち込みません。規則版1の勝敗照合には表示用情報を含めません。通常版と共用の `GomokuBoard` はSVGと操作領域に同じ寸法定数を使います。
@@ -881,7 +881,7 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 | 探索と処理量の計上、履歴・キャッシュの分離 | [cpuSearch.ts](../packages/four-shogi/src/cpuSearch.ts)               |
 | 局面の静的評価                             | [cpuEvaluation.ts](../packages/four-shogi/src/cpuEvaluation.ts)       |
 | 序盤候補の構成と照合                       | [cpuOpenings.ts](../packages/four-shogi/src/cpuOpenings.ts)           |
-| ルームでの選択保存とAlarmによる適用        | [fourShogiProgress.ts](../apps/worker/src/adapters/room/games/four-shogi/progress.ts) |
+| ルームでの選択保存とAlarmによる適用        | [four-shogi/progress.ts](../apps/worker/src/adapters/room/games/four-shogi/progress.ts) |
 
 ルーム連携の変更では [ルームの実装の入口](#ルームの実装の入口)と[ルームの仕様](specs/room.md#維持する契約) を確認します。ルール状態・通信・保存形式との境界を維持し、思考中の履歴を永続化しない注意点は正本と実装の両方で照合します。
 
