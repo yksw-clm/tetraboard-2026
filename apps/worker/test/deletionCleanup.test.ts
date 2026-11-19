@@ -1,7 +1,8 @@
 import { env, exports } from "cloudflare:workers";
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { describe, expect, test, vi } from "vitest";
-import { challengeCookie, flowCookie, requestDeletion } from "../src/privacy/deletion";
+import { challengeCookie, flowCookie } from "../src/adapters/privacy/deletionCookies";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import worker from "../src/worker";
 import { accountFixture, origin } from "./accountFixtures";
 import { disposeDurableObjects } from "./durableObjectCleanup";

@@ -1,8 +1,9 @@
 import { registrationCredentialSchema, type RegistrationStatus } from "@tetraboard/protocol";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { accountSessionIdentity, type AuthEnv } from "../../accounts/auth";
-import { digest, responseCookies } from "../../privacy/deletion";
-import { readMatchClaimState } from "../../adapters/record/matchClaims";
+import { digest } from "../../crypto";
+import { responseCookies } from "../../accounts/authCookies";
+import { readMatchClaimState } from "../matchSave/claims";
 import { D1Registrations } from "../../adapters/account/registrations";
 import {
   RegistrationError,

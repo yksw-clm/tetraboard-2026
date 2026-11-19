@@ -9,7 +9,7 @@ import {
   standingsPage,
   type TournamentRow,
 } from "../src/adapters/tournament/store";
-import { requestDeletion } from "../src/privacy/deletion";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { resultPublication } from "./tournamentResultFixtures";
 
 const fixtureKeys = new Set<string>();

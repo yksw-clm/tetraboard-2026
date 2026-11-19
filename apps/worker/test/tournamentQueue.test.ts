@@ -11,14 +11,20 @@ import {
   fourShogiRoomSchema,
   roomCodeSchema,
   roomSchema,
+  shogiMatchmakingRules,
   tournamentControllerResponseSchema,
   tournamentDetailSchema,
   tournamentParticipationSchema,
   tournamentSettingsSchema,
   type TournamentParticipation,
 } from "@tetraboard/protocol";
+import { insertDeletionStatement } from "../src/adapters/privacy/deletionRequest";
+import { D1TournamentEntries } from "../src/adapters/tournament/entries";
 import * as tournamentRuntime from "../src/adapters/tournament/runtime";
 import * as tournamentStore from "../src/adapters/tournament/store";
+import { DurableTournamentStorage } from "../src/adapters/tournament/storage";
+import * as tournamentRoomPreparation from "../src/flows/tournamentRoom/prepare";
+import type { State } from "@tetraboard/context-tournament";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { fixTestTime } from "./fixedTimeFixture";
@@ -998,6 +1004,312 @@ test("番号が既存ルームと衝突しても、待機継続で再抽選のAl
   }
 });
 
+test("最後の待機継続から29秒で準備に失敗しても、30秒ちょうどで失効し再抽選から外れる", async () => {
+  const f = await fixture();
+  const now = Date.now();
+  await f.enqueue(0);
+  clock.mockReturnValue(now + 1000);
+  const { operationId } = f.operations[0]!;
+  await expectOk(await f.invoke(0, "queue", "PATCH", { operationId }), "準備前の待機継続");
+  clock.mockReturnValue(now + 30_000);
+  await f.enqueue(1);
+  await f.enqueue(2);
+  const prepare = vi
+    .spyOn(tournamentRoomPreparation, "prepareTournamentRoom")
+    .mockResolvedValueOnce({ status: "room_in_use" });
+  try {
+    await f.enqueue(3);
+  } finally {
+    prepare.mockRestore();
+  }
+  expect(await f.status(0)).toMatchObject({ status: "waiting", operationId });
+  clock.mockReturnValue(now + 31_000);
+  expect((await f.status(0)).status).toBe("idle");
+  expect(await f.alarmTime()).toBe(Date.now());
+  expect(await runDurableObjectAlarm(f.stub)).toBe(true);
+  expect(
+    await env.APP_DB.prepare("SELECT 1 FROM tournament_wait_reservations WHERE operation_id=?")
+      .bind(operationId)
+      .first(),
+  ).toBeNull();
+
+  clock.mockReturnValue(now + 35_000);
+  await f.stub.refresh(f.key);
+  expect((await f.status(0)).status).toBe("idle");
+  for (const i of [1, 2, 3]) expect((await f.status(i)).status).toBe("waiting");
+});
+
+async function suspendDuringPreparation(f: Awaited<ReturnType<typeof fixture>>) {
+  await env.APP_DB.exec(
+    "CREATE TRIGGER fail_tournament_transfer BEFORE INSERT ON account_room_seats BEGIN SELECT RAISE(ABORT,'test transfer fault'); END",
+  );
+  try {
+    expect((await f.queue(3)).status).toBe(503);
+  } finally {
+    await env.APP_DB.exec("DROP TRIGGER fail_tournament_transfer");
+  }
+}
+
+async function prepareRollbackWithLaterGroup() {
+  const f = await fixture(8);
+  const now = Date.now();
+  for (const i of [4, 5, 6, 7]) await f.enqueue(i);
+  const laterMatch = requireMatched(await f.status(4));
+  for (const i of [0, 1, 2]) await f.enqueue(i);
+  await suspendDuringPreparation(f);
+  const accountId = await runInDurableObject(f.stub, (_instance, state) => {
+    const stored = state.storage.kv.get<State>("state")!;
+    // 準備中の組の復帰に続けて、成立済みの組の入室期限を同じAlarmで処理します。
+    stored.groups.reverse();
+    state.storage.kv.put("state", stored);
+    return stored.groups[0]!.players[0]!.accountId;
+  });
+  const index = f.users.findIndex((user) => user.id === accountId);
+  const heartbeatAt = now + 25_000;
+  clock.mockReturnValue(heartbeatAt);
+  for (const i of [0, 1, 2, 3])
+    await expectOk(
+      await f.invoke(i, "queue", "PATCH", { operationId: f.operations[i]!.operationId }),
+      `参加者${i + 1}の準備中の待機継続`,
+    );
+
+  clock.mockReturnValue(now + 30_000);
+  return {
+    f,
+    accountId,
+    index,
+    laterMatchId: laterMatch.matchId,
+    expiresAtMs: heartbeatAt + 30_000,
+  };
+}
+
+async function expectRollbackWithLaterGroup({
+  f,
+  accountId,
+  index,
+  laterMatchId,
+  expiresAtMs,
+}: Awaited<ReturnType<typeof prepareRollbackWithLaterGroup>>) {
+  await expect(runDurableObjectAlarm(f.stub)).resolves.toBe(true);
+  expect((await f.stub.status(f.key, accountId)).status).toBe("idle");
+  expect(
+    await env.APP_DB.prepare("SELECT 1 FROM tournament_wait_reservations WHERE account_id=?")
+      .bind(accountId)
+      .first(),
+  ).toBeNull();
+  for (const i of [0, 1, 2, 3].filter((i) => i !== index))
+    expect(await f.status(i)).toMatchObject({
+      status: "waiting",
+      operationId: f.operations[i]!.operationId,
+      expiresAtMs,
+    });
+  expect((await f.status(4)).status).toBe("idle");
+  expect(
+    await env.APP_DB.prepare("SELECT phase FROM tournament_matches WHERE id=?")
+      .bind(laterMatchId)
+      .first(),
+  ).toEqual({ phase: "aborted" });
+}
+
+test("準備中に通常ルームへ入った人だけを復帰から外し、同じAlarmで次の組も処理する", async () => {
+  const prepared = await prepareRollbackWithLaterGroup();
+  const { f, accountId, index } = prepared;
+  const response = await request("/rooms", {
+    method: "POST",
+    headers: f.users[index]!.headers,
+    body: JSON.stringify({ game: "four-shogi", mode: "singles", quickPlay: false }),
+  });
+  expect(response.status).toBe(201);
+  const { room, membership } = createRoomContract.response.parse(await response.json());
+  try {
+    await expectRollbackWithLaterGroup(prepared);
+    expect(
+      await env.APP_DB.prepare(
+        "SELECT room_id,instance_id FROM account_room_seats WHERE account_id=?",
+      )
+        .bind(accountId)
+        .first(),
+    ).toEqual({ room_id: room.id, instance_id: room.instanceId });
+  } finally {
+    const leave = await request(`/rooms/${room.id}/leave`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${membership.token}` },
+    });
+    expect(leave.status).toBe(204);
+  }
+});
+
+test("準備中にレート戦の待機に入った人だけを復帰から外し、同じAlarmで次の組も処理する", async () => {
+  const prepared = await prepareRollbackWithLaterGroup();
+  const { accountId } = prepared;
+  const queue = env.MATCHMAKING_COORDINATOR.getByName(shogiMatchmakingRules.key);
+  const operationId = crypto.randomUUID();
+  const controllerId = crypto.randomUUID();
+  expect(await queue.join(accountId, operationId, controllerId)).toMatchObject({
+    ok: true,
+    state: { status: "waiting", operationId, version: 1 },
+  });
+  try {
+    await expectRollbackWithLaterGroup(prepared);
+    expect(await queue.status(accountId, controllerId, false)).toMatchObject({
+      status: "waiting",
+      operationId,
+    });
+  } finally {
+    expect(
+      await queue.control(accountId, { operationId, controllerId, version: 1 }, "cancel"),
+    ).toMatchObject({ ok: true, state: { status: "idle" } });
+  }
+});
+
+test("復帰の資格確認直後に退会した人だけを復帰から外し、同じAlarmで次の組も処理する", async () => {
+  const prepared = await prepareRollbackWithLaterGroup();
+  const { f, accountId } = prepared;
+  const eligible = D1TournamentEntries.prototype.eligible;
+  const deletion = vi
+    .spyOn(D1TournamentEntries.prototype, "eligible")
+    .mockImplementation(async function (this: D1TournamentEntries, id, key) {
+      const profile = await eligible.call(this, id, key);
+      if (profile && id === accountId && key === f.key)
+        await insertDeletionStatement(
+          env.APP_DB,
+          { accountId, batchReceipt: crypto.randomUUID() },
+          Date.now(),
+        ).run();
+      return profile;
+    });
+  try {
+    await expectRollbackWithLaterGroup(prepared);
+    expect(
+      await env.APP_DB.prepare("SELECT id FROM deleted_accounts WHERE id=?")
+        .bind(accountId)
+        .first(),
+    ).toEqual({ id: accountId });
+  } finally {
+    deletion.mockRestore();
+  }
+});
+
+for (const phase of ["confirming", "preparing"] as const) {
+  test(`保存済みの${phase}で操作元の待機継続を受け付け、準備失敗後に同じ操作を元の期限で復帰させる`, async () => {
+    const f = await fixture();
+    const now = Date.now();
+    for (const i of [0, 1, 2]) await f.enqueue(i);
+    clock.mockReturnValue(now + 29_000);
+    await suspendDuringPreparation(f);
+    const preparationDeadline = await runInDurableObject(f.stub, (_instance, state) => {
+      const stored = state.storage.kv.get<State>("state")!;
+      const group = stored.groups[0]!;
+      group.phase = phase;
+      state.storage.kv.put("state", stored);
+      return group.expiresAtMs;
+    });
+
+    const { operationId } = f.operations[0]!;
+    const lease = env.APP_DB.prepare(
+      "SELECT lease_until_ms,match_operation_id FROM tournament_wait_reservations WHERE operation_id=?",
+    ).bind(operationId);
+    const preparationLease = await lease.first();
+    expect(preparationLease).toMatchObject({ lease_until_ms: preparationDeadline });
+    const alarmAt = await f.alarmTime();
+    const heartbeatAt = now + 29_500;
+    clock.mockReturnValue(heartbeatAt);
+    expect(
+      (await f.invoke(0, "queue", "PATCH", { operationId, controllerVersion: 0 })).status,
+    ).toBe(409);
+    const patch = await f.invoke(0, "queue", "PATCH", { operationId });
+    await expectOk(patch, `${phase}の待機継続`);
+    expect(await patch.json()).toEqual({ ok: true });
+    expect(await f.alarmTime()).toBe(alarmAt);
+    expect(await f.status(0)).toMatchObject({
+      status: "waiting",
+      expiresAtMs: preparationDeadline,
+    });
+    expect(await lease.first()).toEqual(preparationLease);
+
+    const prepare = vi
+      .spyOn(tournamentRoomPreparation, "prepareTournamentRoom")
+      .mockResolvedValueOnce({ status: "room_in_use" });
+    try {
+      clock.mockReturnValue(now + 31_000);
+      expect(await runDurableObjectAlarm(f.stub)).toBe(true);
+      expect(prepare).toHaveBeenCalledTimes(1);
+    } finally {
+      prepare.mockRestore();
+    }
+    const expiresAtMs = heartbeatAt + 30_000;
+    expect(await f.status(0)).toMatchObject({ status: "waiting", operationId, expiresAtMs });
+    expect((await f.status(1)).status).toBe("idle");
+    expect((await f.status(2)).status).toBe("idle");
+    clock.mockReturnValue(expiresAtMs - 1);
+    expect(await f.status(0)).toMatchObject({ status: "waiting", operationId, expiresAtMs });
+    clock.mockReturnValue(expiresAtMs);
+    expect(await runDurableObjectAlarm(f.stub)).toBe(true);
+    expect((await f.status(0)).status).toBe("idle");
+    expect(await lease.first()).toBeNull();
+  });
+}
+
+test("復帰用の期限がない旧形式の組は、準備期限まで元の操作で待機に戻る", async () => {
+  const f = await fixture();
+  const now = Date.now();
+  for (const i of [0, 1, 2]) await f.enqueue(i);
+  await suspendDuringPreparation(f);
+  const expiresAtMs = await runInDurableObject(f.stub, (_instance, state) => {
+    const stored = state.storage.kv.get<State>("state")!;
+    const group = stored.groups[0]!;
+    for (const player of group.players) delete player.waitingExpiresAtMs;
+    state.storage.kv.put("state", stored);
+    return group.expiresAtMs;
+  });
+  clock.mockReturnValue(now + 20_000);
+  expect(
+    (await f.invoke(3, "queue", "DELETE", { operationId: f.operations[3]!.operationId })).status,
+  ).toBe(200);
+  const { operationId } = f.operations[0]!;
+  expect(await f.status(0)).toMatchObject({ status: "waiting", operationId, expiresAtMs });
+  clock.mockReturnValue(expiresAtMs);
+  expect(await runDurableObjectAlarm(f.stub)).toBe(true);
+  expect((await f.status(0)).status).toBe("idle");
+});
+
+test("旧形式の取消途中の組から復旧した接続者に、復帰時刻から30秒の待機を与える", async () => {
+  const f = await fixture();
+  await f.enqueueAll();
+  const { roomId } = requireMatched(await f.status(0));
+  for (const i of [0, 1, 2]) await connect(roomId, f.operations[i]!.token);
+  const cancelledAtMs = await runInDurableObject(f.stub, (_instance, state) => {
+    const stored = state.storage.kv.get<State>("state")!;
+    const group = stored.groups[0]!;
+    // 旧版が入室猶予の終了を検知し、接続者の期限を付け直してから保存した状態です。
+    group.phase = "cancelling";
+    const disconnectedAccount = f.users[3]!.id;
+    group.remove = [disconnectedAccount];
+    delete group.rollbackAfterPublication;
+    for (const player of group.players) {
+      delete player.waitingExpiresAtMs;
+      if (player.accountId !== disconnectedAccount) player.expiresAtMs = group.expiresAtMs + 30_000;
+    }
+    state.storage.kv.put("state", stored);
+    return group.expiresAtMs;
+  });
+
+  const resumedAtMs = cancelledAtMs + 5000;
+  clock.mockReturnValue(resumedAtMs);
+  expect(await runDurableObjectAlarm(f.stub)).toBe(true);
+  const expiresAtMs = resumedAtMs + 30_000;
+  for (const i of [0, 1, 2])
+    expect(await f.status(i)).toMatchObject({
+      status: "waiting",
+      operationId: f.operations[i]!.operationId,
+      expiresAtMs,
+    });
+  expect((await f.status(3)).status).toBe("idle");
+  clock.mockReturnValue(expiresAtMs);
+  expect(await runDurableObjectAlarm(f.stub)).toBe(true);
+  for (const i of [0, 1, 2]) expect((await f.status(i)).status).toBe("idle");
+});
+
 test("待機の見直し中に期限が切れた予約を次のAlarmで回収する", async () => {
   const f = await fixture(2);
   const expiresAtMs = Date.now() + 30_000;
@@ -1129,6 +1441,69 @@ for (const game of ["four-reversi", "four-gomoku"] as const) {
   });
 }
 
+test("ルーム準備後に成立の保存が失敗しても、元の待機期限を越えて同じ組を配信する", async () => {
+  const f = await fixture();
+  const now = Date.now();
+  await f.enqueue(0);
+  clock.mockReturnValue(now + 25_000);
+  for (const i of [1, 2]) await f.enqueue(i);
+  const save = DurableTournamentStorage.prototype.save;
+  const fault = vi.spyOn(DurableTournamentStorage.prototype, "save").mockImplementation(function (
+    this: DurableTournamentStorage,
+    state: State,
+  ) {
+    if (state.groups.some((group) => group.phase === "matched"))
+      throw new Error("test matched save fault");
+    save.call(this, state);
+  });
+  try {
+    expect((await f.queue(3)).status).toBe(503);
+  } finally {
+    fault.mockRestore();
+  }
+  const reservation = await env.APP_DB.prepare(
+    "SELECT id, room_id, instance_id FROM tournament_matches WHERE tournament_key=? AND phase='reserved'",
+  )
+    .bind(f.key)
+    .first<{ id: string; room_id: string; instance_id: string }>();
+  expect(reservation).not.toBeNull();
+  const { id: matchId, room_id: roomId, instance_id: instanceId } = reservation!;
+  const room = env.GAME_ROOM.getByName(roomId);
+  expect(await room.getTournamentReservationState(matchId)).toMatchObject({ status: "waiting" });
+  expect((await f.status(0)).status).toBe("waiting");
+
+  clock.mockReturnValue(now + 30_001);
+  expect(await runDurableObjectAlarm(f.stub)).toBe(true);
+  for (let i = 0; i < 4; i++)
+    expect(await f.status(i)).toMatchObject({ status: "matched", matchId, roomId, instanceId });
+  expect(await room.getRoom()).toMatchObject({ instanceId });
+});
+
+test("ルーム準備のRPC応答を失っても、同じ組の予約を照合して成立を配信する", async () => {
+  const f = await fixture();
+  for (const i of [0, 1, 2]) await f.enqueue(i);
+  const prepare = tournamentRoomPreparation.prepareTournamentRoom;
+  const fault = vi
+    .spyOn(tournamentRoomPreparation, "prepareTournamentRoom")
+    .mockImplementationOnce(async (...args) => {
+      expect(await prepare(...args)).toEqual({ status: "prepared" });
+      throw new Error("test lost prepare response");
+    });
+  try {
+    await f.enqueue(3);
+  } finally {
+    fault.mockRestore();
+  }
+  const matched = requireMatched(await f.status(0));
+  for (const i of [1, 2, 3])
+    expect(await f.status(i)).toMatchObject({
+      status: "matched",
+      matchId: matched.matchId,
+      roomId: matched.roomId,
+      instanceId: matched.instanceId,
+    });
+});
+
 test("ルーム準備後にD1で失敗しても、元の待機期限を越えて同じルームの成立を復旧する", async () => {
   const f = await fixture();
   const now = Date.now();
@@ -1145,7 +1520,7 @@ test("ルーム準備後にD1で失敗しても、元の待機期限を越えて
     await env.APP_DB.exec("DROP TRIGGER fail_tournament_wait_release");
   }
 
-  expect((await f.status(0)).status).toBe("waiting");
+  expect((await f.status(0)).status).toBe("matched");
   const reservation = await env.APP_DB.prepare(
     "SELECT id, room_id, instance_id FROM tournament_matches WHERE tournament_key=? AND phase='reserved'",
   )

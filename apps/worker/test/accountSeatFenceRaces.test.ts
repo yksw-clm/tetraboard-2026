@@ -31,7 +31,7 @@ for (const operation of ["enqueue", "joinWait", "restore"] as const) {
           ? "account_seated"
           : "matchmaking_waiting"
         : "account_busy";
-    test(`${operation}はbatch後に${blocker}が解放されても${reason}を返します`, async () => {
+    test(`${operation}はbatch後に${blocker}が解放されても${operation === "restore" ? "復帰不可" : reason}を返します`, async () => {
       const f = await fenceFixture(db);
       const otherQueue = operation !== "joinWait" ? "matchmaking" : "tournament";
       if (blocker === "seat") await f.seat();
@@ -53,7 +53,8 @@ for (const operation of ["enqueue", "joinWait", "restore"] as const) {
             ? new D1TournamentQueueStore(interleaved).restore(player, f.key)
             : joinWait(interleaved, undefined, player, "fence-test", "retired");
 
-      await expect(result).rejects.toThrow(reason);
+      if (operation === "restore") await expect(result).resolves.toBe(false);
+      else await expect(result).rejects.toThrow(reason);
       expect(await occupancy(f)).toEqual([]);
     });
   }

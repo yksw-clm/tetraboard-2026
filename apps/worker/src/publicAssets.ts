@@ -1,4 +1,4 @@
-import { legalHtml } from "./privacy/legalHtml";
+import { legalHtml } from "./routes/legalHtml";
 import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { serveRoomShareHtml } from "./roomShareHtml";
 import { serveMatchShareHtml } from "./matchSharing/html";

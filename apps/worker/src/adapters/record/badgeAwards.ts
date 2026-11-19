@@ -6,6 +6,7 @@ import {
   type BadgeGame,
   type BadgeThreshold,
 } from "@tetraboard/context-record";
+import { accountNotDeletedSql } from "../../db/deletionGuard";
 import { matchOutcomesCte } from "./matchOutcomes";
 
 const badgeCatalog: BadgeCatalog = {
@@ -19,6 +20,7 @@ export function badgeAwardsSql(game: BadgeGame, baseline = false, personal = fal
 }
 
 function awardSql(game: BadgeGame, rows: BadgeThreshold[], baseline = false, personal = false) {
+  const gameLiteral = `'${game}'`;
   const thresholds = rows.map(({ id, tier, threshold }) => `('${id}', ${tier}, ${threshold})`);
   return `${matchOutcomesCte(game, personal, !baseline)}, totals AS (
     SELECT account_id, COUNT(*) AS games, SUM(rank = 1) AS wins,
@@ -36,11 +38,11 @@ function awardSql(game: BadgeGame, rows: BadgeThreshold[], baseline = false, per
     FROM totals CROSS JOIN thresholds
   )
   INSERT INTO account_badge_awards (account_id, game, badge_id, tier, value, previous_tier, match_id)
-  SELECT account_id, '${game}', badge_id, tier, value,
+  SELECT account_id, ${gameLiteral}, badge_id, tier, value,
     COALESCE((SELECT MAX(a.tier) FROM account_badge_awards a
-      WHERE a.account_id = v.account_id AND a.game = '${game}' AND a.badge_id = v.badge_id), 0),
+      WHERE a.account_id = v.account_id AND a.game = ${gameLiteral} AND a.badge_id = v.badge_id), 0),
     ${baseline ? "NULL" : "?"}
-  FROM values_by_badge v WHERE value >= threshold
+  FROM values_by_badge v WHERE value >= threshold AND ${accountNotDeletedSql("v.account_id")}
   ON CONFLICT(account_id, game, badge_id, tier) DO NOTHING`;
 }
 
@@ -52,7 +54,8 @@ export function badgeAwardStatements(db: D1Database, game: string, matchId: stri
       notification: (matchId, now) =>
         db
           .prepare(`INSERT INTO account_badge_notifications (account_id, match_id, game, created_at_ms)
-      SELECT DISTINCT account_id, match_id, game, ? FROM account_badge_awards WHERE match_id = ?
+      SELECT DISTINCT account_id, match_id, game, ? FROM account_badge_awards
+      WHERE match_id = ? AND ${accountNotDeletedSql("account_badge_awards.account_id")}
       ON CONFLICT(account_id, match_id) DO NOTHING`)
           .bind(now, matchId),
     },

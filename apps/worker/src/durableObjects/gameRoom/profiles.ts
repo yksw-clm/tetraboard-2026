@@ -1,7 +1,6 @@
 import { hasProfileRating } from "@tetraboard/context-rating";
 import { roomIdleMs } from "@tetraboard/context-room";
 import type { ProfileRatings } from "@tetraboard/protocol";
-import { roomSchema } from "@tetraboard/protocol";
 import { profileRatingsKey } from "../../adapters/rating/profileRatings";
 import { isHumanParticipant, playerTokenHash } from "../../adapters/room/state";
 import { storedAccount } from "../../flows/accountSeats/seats";
@@ -12,6 +11,7 @@ import {
   currentRoomStateVersion,
   migrateRoomStateV0ToV1,
   roomStateVersionKey,
+  roomStateSchemaForVersion,
 } from "../../rooms/roomStateVersion";
 import type { RoomRuntime } from "./runtime";
 import { hasOpenConnection } from "./socket/membership";
@@ -24,7 +24,7 @@ export async function getShareMetadata(runtime: RoomRuntime, instanceId: string)
   const version = runtime.ctx.storage.kv.get<number>(roomStateVersionKey) ?? 0;
   const parsed =
     version >= currentRoomStateVersion
-      ? roomSchema.safeParse(saved)
+      ? roomStateSchemaForVersion(version).safeParse(saved)
       : migrateRoomStateV0ToV1(saved, {
           readReplay: () => runtime.ctx.storage.kv.get(replayKey),
           migrateLegacy: (room, original, readReplay) =>

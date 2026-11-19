@@ -4,7 +4,7 @@ import { accountProfileSchema, createRoomContract } from "@tetraboard/protocol";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
-import { requestDeletion } from "../src/privacy/deletion";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));

@@ -47,12 +47,14 @@ export function withIndexTransaction<T>(
           const revision = (runtime.ctx.storage.kv.get<number>(indexRevisionKey) ?? 0) + 1;
           const metadata = after === null ? previous : publicMetadata(runtime, after);
           if (metadata === null) throw new Error("Missing room metadata for index update");
+          const now = Date.now();
           runtime.ctx.storage.kv.put(indexRevisionKey, revision);
           runtime.ctx.storage.kv.put(pendingIndexKey, {
             revision,
             closed: after === null,
+            ...(after === null ? { closedAtMs: now } : {}),
             metadata,
-            retryAtMs: Date.now(),
+            retryAtMs: now,
           } satisfies PendingRoomIndex);
         }
         return value;

@@ -2,7 +2,8 @@ import { Database } from "bun:sqlite";
 import { afterAll, expect, test } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { generateSQLiteDrizzleJson, generateSQLiteMigration } from "drizzle-kit/api";
-import { getTableConfig } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+import { getTableConfig, SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import * as schema from "../src/db/schema";
 import { inspectTable, tableNames } from "./schemaInspection";
 
@@ -21,23 +22,61 @@ for (const file of readdirSync(migrations)
 
 const current = await generateSQLiteDrizzleJson(schema);
 const empty = await generateSQLiteDrizzleJson({});
-for (const statement of await generateSQLiteMigration(empty, current)) defined.exec(statement);
+const definition = await generateSQLiteMigration(empty, current);
+const tableConfigs = Object.values(schema).map(getTableConfig);
+const dialect = new SQLiteSyncDialect();
+// drizzle-kit 0.31 は索引の式に含まれるカンマでも列を分割するため、該当する索引は Drizzle の列定義から組み立てます。
+for (const table of tableConfigs) {
+  for (const { config: index } of table.indexes) {
+    const columns = index.columns.map(
+      (column) => dialect.sqlToQuery(sql`${column}`, "indexes").sql,
+    );
+    if (!columns.some((column) => column.includes(","))) continue;
+    const prefix = `CREATE ${index.unique ? "UNIQUE " : ""}INDEX \`${index.name}\` ON \`${table.name}\``;
+    const position = definition.findIndex((statement) => statement.startsWith(prefix + " ("));
+    expect(position).toBeGreaterThanOrEqual(0);
+    const where = index.where ? ` WHERE ${dialect.sqlToQuery(index.where).sql}` : "";
+    definition[position] = `${prefix} (${columns.join(", ")})${where};`;
+  }
+}
+for (const statement of definition) defined.exec(statement);
 
 // KitはUNIQUE制約を一意索引として出力するため、SQLiteの自動名と対応づけます。
 const uniqueNames = new Set(
-  Object.values(schema)
-    .flatMap((table) =>
-      getTableConfig(table).uniqueConstraints.map((constraint) => constraint.getName()),
-    )
+  tableConfigs
+    .flatMap(({ uniqueConstraints }) => uniqueConstraints.map((constraint) => constraint.getName()))
     .filter((name) => name !== undefined),
 );
 
-test("既存migrationの全65テーブルと42トリガーを適用します", () => {
-  expect(tableNames(migrated)).toHaveLength(65);
+test("既存migrationの全67テーブルと42トリガーを適用します", () => {
+  expect(tableNames(migrated)).toHaveLength(67);
   expect(tableNames(defined)).toEqual(tableNames(migrated));
   expect(
     migrated.query("SELECT name FROM sqlite_master WHERE type = 'trigger'").all(),
   ).toHaveLength(42);
+});
+
+test("既存のお知らせの日付を published_on に引き継ぎます", () => {
+  expect(
+    migrated.query("SELECT published_on, date FROM announcements WHERE id='feedback'").get(),
+  ).toEqual({ published_on: expect.any(String), date: expect.any(String) });
+  expect(
+    migrated.query("SELECT id FROM announcements WHERE published_on IS NOT date").all(),
+  ).toEqual([]);
+});
+
+test("閉鎖・観測時刻は NULL を許容し、閉鎖行だけに期限走査用の索引を持つ", () => {
+  const columns = migrated
+    .query<{ name: string; notnull: number; dflt_value: null }, []>("PRAGMA table_info(room_index)")
+    .all();
+  for (const name of ["closed_at_ms", "closed_observed_at_ms"])
+    expect(columns.find((column) => column.name === name)).toMatchObject({
+      notnull: 0,
+      dflt_value: null,
+    });
+  expect(migrated.query("PRAGMA index_list(room_index)").all()).toContainEqual(
+    expect.objectContaining({ name: "room_index_closed_retention", partial: 1 }),
+  );
 });
 
 test.each([

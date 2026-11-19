@@ -1,3 +1,4 @@
+import { accountNotDeletedSql } from "../../db/deletionGuard";
 import type { ShogiFormationUsage } from "../../rooms/shogiFormationUsage";
 import { mergedAccountIdSql } from "./guestMerges";
 
@@ -9,6 +10,7 @@ export function snapshotHistoryStatement(db: D1Database, matchId: string) {
     FROM matches m, json_each(m.record_json, '$.participants') p
     WHERE m.id = ? AND json_extract(p.value, '$.kind') = 'human'
       AND json_extract(p.value, '$.accountId') IS NOT NULL
+      AND ${accountNotDeletedSql(mergedAccountIdSql("json_extract(p.value, '$.accountId')"))}
     ON CONFLICT(account_id, match_id) DO NOTHING`)
     .bind(matchId);
 }
@@ -20,6 +22,7 @@ export function shogiHistoryStatement(db: D1Database, matchId: string) {
       FROM matches m, json_each(m.record_json, '$.participants') p
       WHERE m.id = ? AND m.game IN ('four-shogi', 'shogi') AND json_extract(p.value, '$.kind') = 'human'
         AND json_extract(p.value, '$.accountId') IS NOT NULL
+        AND ${accountNotDeletedSql(mergedAccountIdSql("json_extract(p.value, '$.accountId')"))}
       ON CONFLICT(account_id, match_id) DO NOTHING`)
     .bind(matchId);
 }

@@ -17,7 +17,7 @@ import {
 } from "@tetraboard/protocol";
 import { accountIdentity, accountAvatarUrl, type StoredProfile } from "../accounts/auth";
 import { legalVersion } from "@tetraboard/protocol/privacy";
-import { consentStatement } from "../privacy/consent";
+import { consentStatement } from "../adapters/privacy/consent";
 import { adminIdentity } from "../admin/auth";
 import { readLimitedBody } from "./readLimitedBody";
 import {

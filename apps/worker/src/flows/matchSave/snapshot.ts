@@ -16,12 +16,12 @@ import { tournamentMatchStatements } from "../../adapters/tournament/store";
 import { readStoredMatch } from "../../adapters/record/matchDataContracts";
 import { fourReversiRatingStore } from "../../rooms/fourReversiRating";
 import type { TournamentRoomContext } from "@tetraboard/context-tournament";
-import { redactParticipants } from "../../privacy/identity";
-import { applyMatchClaims } from "../../adapters/record/matchClaims";
+import { redactParticipants } from "../accountPurge/redactParticipants";
+import { applyMatchClaims } from "./claims";
 import type { MatchRecord as FourGomokuMatchRecord } from "../../rooms/fourGomokuMatchStore";
 import type { MatchRecord as GomokuMatchRecord } from "../../rooms/gomokuMatchStore";
 import type { MatchRecord as ReversiMatchRecord } from "../../rooms/reversiMatchStore";
-import { badgeAwardStatements } from "../../adapters/record/badgeAwards";
+import { matchBadgeStatements } from "./badges";
 export async function writeMatch(
   db: D1Database,
   record: MatchRecord | ReversiMatchRecord | GomokuMatchRecord | FourGomokuMatchRecord,
@@ -46,7 +46,7 @@ export async function writeMatch(
   statements.push(snapshotHistoryStatement(db, record.id));
   if (record.settings.game === "reversi" && "rating" in record && record.rating)
     statements.push(...prepareEloRating(new D1RatingPublication(db), "reversi", record.id));
-  statements.push(...badgeAwardStatements(db, record.settings.game, record.id));
+  statements.push(...matchBadgeStatements(db, record.settings.game, record.id));
   statements.push(...tournamentStatements);
   await db.batch(statements);
   await finishSnapshotMatch(db, record, tournament);

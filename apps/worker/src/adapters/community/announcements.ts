@@ -17,7 +17,10 @@ type Row = {
   version: number;
   lobby_games: string;
 };
-const columns = `a.*, (SELECT json_group_array(game) FROM announcement_lobby_targets WHERE announcement_id = a.id) AS lobby_games`;
+const date = "COALESCE(a.published_on, a.date)";
+const columns = `a.id, a.title, a.body, ${date} AS date, a.kind, a.published, a.created_at_ms, a.updated_at_ms, a.version,
+ (SELECT json_group_array(game) FROM announcement_lobby_targets WHERE announcement_id = a.id) AS lobby_games`;
+const order = `${date} DESC, a.created_at_ms DESC, a.id DESC`;
 function record(row: Row): AnnouncementRecord {
   return announcementRecordSchema.parse({
     id: row.id,
@@ -39,15 +42,36 @@ const read = (db: D1Database, id: string, publicOnly = false) =>
     )
     .bind(id)
     .first<Row>();
+
+function publishAnnouncementEvent(db: D1Database, id: string) {
+  return db
+    .prepare(`INSERT OR IGNORE INTO notification_events(kind,source_id,account_id,created_at_ms)
+ SELECT 'announcement',a.id,'',a.updated_at_ms FROM announcements a
+ WHERE changes()=1 AND a.id=? AND a.published=1
+ AND NOT EXISTS(SELECT 1 FROM notification_events WHERE kind='announcement' AND source_id=a.id AND account_id='')`)
+    .bind(id);
+}
+
 export async function create(db: D1Database, input: AnnouncementInput) {
   const id = crypto.randomUUID();
   const now = Date.now();
   await db.batch([
     db
       .prepare(
-        "INSERT INTO announcements (id, title, body, date, kind, published, created_at_ms, updated_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO announcements (id, title, body, date, published_on, kind, published, created_at_ms, updated_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
-      .bind(id, input.title, input.body, input.date, input.kind, Number(input.published), now, now),
+      .bind(
+        id,
+        input.title,
+        input.body,
+        input.date,
+        input.date,
+        input.kind,
+        Number(input.published),
+        now,
+        now,
+      ),
+    publishAnnouncementEvent(db, id),
     ...input.lobbyGames.map((game) =>
       db
         .prepare("INSERT INTO announcement_lobby_targets (announcement_id, game) VALUES (?, ?)")
@@ -62,7 +86,8 @@ export async function update(
   input: AnnouncementInput,
   version: number,
 ) {
-  // batch内の各変更を同じ更新番号でガードし、最後に番号を進めます。競合時は掲載先も変更しません。
+  // 掲載先と記事は更新前の番号でガードし、通知は直前の記事更新が成功した場合にだけ追加します。
+  const articleUpdateIndex = input.lobbyGames.length + 1;
   const result = await db.batch([
     db
       .prepare(
@@ -78,11 +103,12 @@ export async function update(
     ),
     db
       .prepare(
-        "UPDATE announcements SET title = ?, body = ?, date = ?, kind = ?, published = ?, updated_at_ms = ?, version = version + 1 WHERE id = ? AND version = ? RETURNING id",
+        "UPDATE announcements SET title = ?, body = ?, date = ?, published_on = ?, kind = ?, published = ?, updated_at_ms = ?, version = version + 1 WHERE id = ? AND version = ? RETURNING id",
       )
       .bind(
         input.title,
         input.body,
+        input.date,
         input.date,
         input.kind,
         Number(input.published),
@@ -90,8 +116,9 @@ export async function update(
         id,
         version,
       ),
+    publishAnnouncementEvent(db, id),
   ]);
-  return result.at(-1)!.results.length === 1;
+  return result[articleUpdateIndex]!.results.length === 1;
 }
 
 export function announcementStore(db: D1Database): AnnouncementQueries<Row> & AnnouncementWrites {
@@ -101,19 +128,20 @@ export function announcementStore(db: D1Database): AnnouncementQueries<Row> & An
     read: (id, publishedOnly) => read(db, id, publishedOnly),
     async list(publishedOnly, after, take) {
       const conditions = [publishedOnly ? "a.published = 1" : "1 = 1"];
-      if (after) conditions.push("(a.date, a.created_at_ms, a.id) < (?, ?, ?)");
+      // 日付の上限も指定して、カーソルの位置から索引を読み始めます。
+      if (after) conditions.push(`${date} <= ? AND (${date}, a.created_at_ms, a.id) < (?, ?, ?)`);
       const rows = await db
         .prepare(
-          `SELECT ${columns} FROM announcements a WHERE ${conditions.join(" AND ")} ORDER BY a.date DESC, a.created_at_ms DESC, a.id DESC LIMIT ?`,
+          `SELECT ${columns} FROM announcements a WHERE ${conditions.join(" AND ")} ORDER BY ${order} LIMIT ?`,
         )
-        .bind(...(after ? [after.date, after.at, after.id] : []), take)
+        .bind(...(after ? [after.date, after.date, after.at, after.id] : []), take)
         .all<Row>();
       return rows.results;
     },
     latestPublishedForLobby: (game) =>
       db
         .prepare(
-          `SELECT ${columns} FROM announcements a WHERE a.published = 1 AND EXISTS (SELECT 1 FROM announcement_lobby_targets WHERE announcement_id = a.id AND game = ?) ORDER BY a.date DESC, a.created_at_ms DESC, a.id DESC LIMIT 1`,
+          `SELECT ${columns} FROM announcements a WHERE a.published = 1 AND EXISTS (SELECT 1 FROM announcement_lobby_targets WHERE announcement_id = a.id AND game = ?) ORDER BY ${order} LIMIT 1`,
         )
         .bind(game)
         .first<Row>(),

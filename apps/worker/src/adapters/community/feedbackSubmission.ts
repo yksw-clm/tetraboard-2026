@@ -6,6 +6,7 @@ import {
   type FeedbackSubmission,
   type FeedbackSubmissionStore,
 } from "@tetraboard/context-community";
+import { accountNotDeletedSql } from "../../db/deletionGuard";
 import { feedbackRow, type FeedbackRow } from "./feedbackRecord";
 
 async function submissionRow(db: D1Database, id: string) {
@@ -30,9 +31,11 @@ async function reserveFeedback(
     .join(" AND ");
   const insert = db
     .prepare(`INSERT OR IGNORE INTO feedback
-    (id, submission_id, payload_hash, author, reporter_hash, internal, kind, game, body, expectation, steps, technical, received_at_ms, expires_at_ms, attachment_key,account_id,rating,opponent)
-    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${checks}`)
+    (account_id, id, submission_id, payload_hash, author, reporter_hash, internal, kind, game, body, expectation, steps, technical, received_at_ms, expires_at_ms, attachment_key,rating,opponent)
+    SELECT ?1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+    WHERE (${checks}) AND ${accountNotDeletedSql("?1")}`)
     .bind(
+      identity.accountId ?? null,
       id,
       input.submissionId,
       payloadHash,
@@ -48,7 +51,6 @@ async function reserveFeedback(
       now,
       now + feedbackRetentionMs,
       key,
-      identity.accountId ?? null,
       input.rating ?? null,
       input.opponent ?? null,
       ...limits.flatMap((v) => [v.key, v.start, v.max]),

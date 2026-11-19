@@ -1,7 +1,16 @@
 import { expect, test } from "bun:test";
 import ts from "typescript";
 
-import { hasRequiredWhereTerms, workerSqlWrites } from "./sqlWrites";
+import { hasRequiredWhereTerms, updateClauses, workerSqlWrites } from "./sqlWrites";
+
+function callsSqlHelper(expression: ts.Expression, helper: string): boolean {
+  return (
+    ts.isCallExpression(expression) &&
+    ((ts.isIdentifier(expression.expression) && expression.expression.text === helper) ||
+      expression.arguments.some((argument) => callsSqlHelper(argument, helper)))
+  );
+}
+
 const allowed = {
   matches: { files: ["adapters/record/matchRecordStore.ts"], helper: "mergedRecordJsonSql" },
   match_uploads: { files: ["adapters/record/matchRecordStore.ts"], helper: "mergedRecordJsonSql" },
@@ -29,12 +38,7 @@ for (const [table, { files, helper }] of Object.entries(allowed)) {
       const { node, source } = write;
       expect(
         ts.isTemplateExpression(node) &&
-          node.templateSpans.some(
-            ({ expression }) =>
-              ts.isCallExpression(expression) &&
-              ts.isIdentifier(expression.expression) &&
-              expression.expression.text === helper,
-          ),
+          node.templateSpans.some(({ expression }) => callsSqlHelper(expression, helper)),
       ).toBe(true);
       expect(
         source.statements.some(
@@ -52,3 +56,31 @@ for (const [table, { files, helper }] of Object.entries(allowed)) {
     }
   });
 }
+
+test("公開済み・保存待ちの棋譜は指定の箇所でだけ書き込みます", () => {
+  const writes = workerSqlWrites.filter(
+    ({ table }) => table === "matches" || table === "match_uploads",
+  );
+  expect(
+    writes.map(({ table, operation, file }) => `${table} ${operation} ${file}`).sort(),
+  ).toEqual([
+    "match_uploads DELETE adapters/record/publication.ts",
+    "match_uploads INSERT adapters/record/matchRecordStore.ts",
+    "match_uploads UPDATE adapters/record/guestMergeWrites.ts",
+    "match_uploads UPDATE adapters/record/matchRecordStore.ts",
+    "match_uploads UPDATE adapters/record/privacyScrub.ts",
+    "matches INSERT adapters/record/matchRecordStore.ts",
+    "matches UPDATE adapters/record/guestMergeWrites.ts",
+    "matches UPDATE adapters/record/privacyScrub.ts",
+  ]);
+});
+
+test("棋譜の引き継ぎ状態は指定の箇所でだけ更新します", () => {
+  const stateUpdates = workerSqlWrites
+    .filter(({ table }) => table === "match_participant_accounts")
+    .filter((write) => updateClauses(write).some(({ columns }) => columns.includes("state")));
+  expect(stateUpdates.map(({ file }) => file)).toEqual([
+    "adapters/record/matchClaimStore.ts",
+    "adapters/record/matchClaimStore.ts",
+  ]);
+});

@@ -2,7 +2,7 @@ import { prepareStoredMatchFixture } from "./snapshotMatchFixtures";
 import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";
 import { legalDocuments, legalVersion } from "@tetraboard/protocol/privacy";
 import { symmetricEncrypt } from "better-auth/crypto";
-import { runInDurableObject } from "cloudflare:test";
+import { listDurableObjectIds, runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { afterEach, expect, test, vi } from "vitest";
 import fourGomoku from "../../../test-fixtures/matches/four-gomoku-singles-ranked.json";
@@ -15,22 +15,20 @@ import { publicMatchDetail } from "../src/adapters/record/matchDataContracts";
 import { reversiMatchData } from "../src/adapters/record/reversiMatchData";
 import type { RoomRuntime } from "../src/durableObjects/gameRoom/runtime";
 import type { PendingRoomIndex } from "../src/rooms/roomIndex";
-import {
-  challengeCookie,
-  completeReauthentication,
-  digest,
-  flowCookie,
-  processDeletions,
-  requestDeletion,
-  responseCookies,
-} from "../src/privacy/deletion";
-import { authSecret, unsealToken } from "../src/privacy/tokens";
+import { challengeCookie, flowCookie } from "../src/adapters/privacy/deletionCookies";
+import { completeReauthentication } from "../src/adapters/privacy/deletionAuthentication";
+import { digest } from "../src/crypto";
+import { processDeletions } from "../src/flows/accountPurge/processDeletions";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
+import { responseCookies } from "../src/accounts/authCookies";
+import { authSecret, unsealToken } from "../src/adapters/account/authTokens";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import type { AnalyticsMatch } from "../src/usageEvents/matches";
 import worker from "../src/worker";
 import { accountFixture, origin } from "./accountFixtures";
+import { fixTestTime } from "./fixedTimeFixture";
 import { humanFixtureRecord } from "./matchFixtures";
 import { privacyConcurrencyFixture, unrelatedDeletionFixture } from "./privacyConcurrencyFixture";
 import { humanShogiRecord } from "./shogiMatchFixtures";
@@ -1279,20 +1277,33 @@ test("再認証の取消を繰り返しても1分5回の制限をリセットで
 });
 
 test("閉鎖済みDOの索引保存待ちだけに残ったホスト名も保持した資格の対応から削除する", async () => {
-  const user = await accountFixture(),
-    room = "98477",
-    player = crypto.randomUUID();
+  // D1の索引を掃除した後も、前のテストのルームがDOに残ります。
+  const existingRooms = new Set((await listDurableObjectIds(env.GAME_ROOM)).map(String));
+  let room: string | undefined;
+  for (let number = 0; number < 100_000; number++) {
+    const candidate = String(number).padStart(5, "0");
+    if (!existingRooms.has(env.GAME_ROOM.idFromName(candidate).toString())) {
+      room = candidate;
+      break;
+    }
+  }
+  if (room === undefined) throw new Error("テスト用の空きルーム番号がありません。");
+  const user = await accountFixture();
+  const player = crypto.randomUUID();
   await env.APP_DB.prepare("INSERT INTO privacy_room_players VALUES (?,?,?,?,NULL)")
     .bind(user.id, room, crypto.randomUUID(), player)
     .run();
   expect(await tombstone(user.id)).toBe(true);
+  // 匿名化後の保存待ちを読むまで、実時間のAlarmが発火しないようにします。
+  const now = Date.now() + 60 * 60 * 1000;
+  fixTestTime(now);
   const stub = env.GAME_ROOM.getByName(room);
   await runInDurableObject(stub, async (_, ctx) => {
+    expect(ctx.storage.kv.get("room")).toBeUndefined();
     ctx.storage.kv.put("room-index-pending", {
       revision: 1,
       closed: true,
-      // 匿名化後の保存待ちを確認するまで、Alarmによる索引反映を止めます。
-      retryAtMs: Date.now() + 60_000,
+      retryAtMs: now + 60_000,
       metadata: {
         id: room,
         game: "reversi",
@@ -1302,7 +1313,7 @@ test("閉鎖済みDOの索引保存待ちだけに残ったホスト名も保持
         cpuCount: 0,
         capacity: 2,
         openSeats: 1,
-        updatedAtMs: Date.now(),
+        updatedAtMs: now,
         hostPlayerId: player,
         hostName: "閉鎖後の保存名",
         hostAvatarUrl: "/api/avatars/private",
@@ -1311,11 +1322,10 @@ test("閉鎖済みDOの索引保存待ちだけに残ったホスト名も保持
   });
   await stub.purgeAccount(user.id);
   await runInDurableObject(stub, async (_, ctx) => {
-    const value = ctx.storage.kv.get<{
-      metadata: { hostName: string; hostAvatarUrl: string | null };
-    }>("room-index-pending")!;
-    expect(value.metadata.hostName).toBe("退会したプレイヤー");
-    expect(value.metadata.hostAvatarUrl).toBeNull();
+    expect(ctx.storage.kv.get<PendingRoomIndex>("room-index-pending")).toMatchObject({
+      closed: true,
+      metadata: { hostName: "退会したプレイヤー", hostAvatarUrl: null },
+    });
     expect(JSON.stringify([...ctx.storage.kv.list()])).not.toContain("閉鎖後の保存名");
   });
 });

@@ -10,7 +10,7 @@ import worker from "../src/worker";
 import { accountFixture, origin } from "./accountFixtures";
 import { cleanupLobbyChat } from "../src/adapters/community/chatCleanup";
 import { lobbyRetentionMs } from "@tetraboard/context-community";
-import { requestDeletion } from "../src/privacy/deletion";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { guestChatMergeStatements } from "../src/adapters/community/guestMergeWrites";
 
 const db = (env as typeof env & { LOBBY_TEST_DB: D1Database }).LOBBY_TEST_DB;

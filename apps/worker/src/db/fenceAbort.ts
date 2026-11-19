@@ -1,5 +1,6 @@
 type FenceAbortCode =
   | "account_busy"
+  | "account_deleted"
   | "guest_merge_conflict"
   | "guest_promotion_conflict"
   | "guest_merged"

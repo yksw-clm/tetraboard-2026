@@ -39,6 +39,8 @@ export const roomIndex = sqliteTable(
       .default(sql`0`),
     matchKind: text("match_kind"),
     matchSequence: integer("match_sequence"),
+    closedAtMs: integer("closed_at_ms"),
+    closedObservedAtMs: integer("closed_observed_at_ms"),
   },
   (t) => [
     primaryKey({ columns: [t.roomId] }),
@@ -53,10 +55,28 @@ export const roomIndex = sqliteTable(
       sql`${t.updatedAtMs} desc`,
       sql`${t.roomId} desc`,
     ),
+    index("room_index_closed_retention")
+      .on(sql`coalesce(${t.closedAtMs}, ${t.closedObservedAtMs}, -1)`, t.roomId)
+      .where(sql`closed = 1`),
     check("room_index_check_1", sql`closed IN (0, 1)`),
     check("room_index_check_2", sql`match_kind IN ('rated', 'tournament', 'normal', 'unknown')`),
     check("room_index_check_3", sql`match_sequence BETWEEN 1 AND 9007199254740991`),
   ],
+);
+
+export const roomIndexDeletedRevisions = sqliteTable("room_index_deleted_revisions", {
+  roomId: text("room_id").primaryKey().notNull(),
+  deletedThroughRevision: integer("deleted_through_revision").notNull(),
+});
+
+export const roomIndexRetentionCursor = sqliteTable(
+  "room_index_retention_cursor",
+  {
+    id: integer("id").primaryKey(),
+    closedSortAtMs: integer("closed_sort_at_ms").notNull(),
+    roomId: text("room_id").notNull(),
+  },
+  () => [check("room_index_retention_singleton", sql`id = 1`)],
 );
 
 export const accountRoomSeats = sqliteTable(

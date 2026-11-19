@@ -3,7 +3,7 @@ import { profileInputSchema, isAvatarPresetId } from "@tetraboard/protocol";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { changeGuestName, allowGuestCreation } from "@tetraboard/context-account";
 import { D1GuestAccounts } from "../adapters/account/guestAccounts";
-import { authSecret } from "../privacy/tokens";
+import { authSecret } from "../adapters/account/authTokens";
 import { readLimitedBody } from "./readLimitedBody";
 import { accountIdentity, publicProfile } from "../accounts/auth";
 import { createGuestAccount } from "./guestSession";

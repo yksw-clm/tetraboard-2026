@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import ts from "typescript";
 
 type SqlToken = string | ts.Expression;
-type WriteOperation = "INSERT" | "UPDATE";
+type WriteOperation = "INSERT" | "UPDATE" | "DELETE";
 type SqlNode = ts.StringLiteralLike | ts.TemplateExpression;
 
 type SqlWrite = {
@@ -45,18 +45,20 @@ function identifier(token: SqlToken | undefined) {
 
 function writeTarget(tokens: SqlToken[], start: number) {
   const verb = keyword(tokens[start]);
-  if (verb !== "INSERT" && verb !== "REPLACE" && verb !== "UPDATE") return;
+  if (verb !== "INSERT" && verb !== "REPLACE" && verb !== "UPDATE" && verb !== "DELETE") return;
   let index = start + 1;
   if (keyword(tokens[index]) === "OR") index += 2;
-  if (verb !== "UPDATE") {
-    if (keyword(tokens[index]) !== "INTO") return;
+  if (verb === "UPDATE") {
+    if (keyword(tokens[index]) === "SET") return;
+  } else {
+    if (keyword(tokens[index]) !== (verb === "DELETE" ? "FROM" : "INTO")) return;
     index++;
-  } else if (keyword(tokens[index]) === "SET") return;
+  }
 
   let table = identifier(tokens[index]);
   if (table && tokens[index + 1] === ".") table = identifier(tokens[index + 2]);
   if (!table) return;
-  const operation: WriteOperation = verb === "UPDATE" ? "UPDATE" : "INSERT";
+  const operation: WriteOperation = verb === "REPLACE" ? "INSERT" : verb;
   return { table, operation };
 }
 

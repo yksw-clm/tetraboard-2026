@@ -2,6 +2,7 @@ import { type Room } from "@tetraboard/protocol";
 import { DurableObject } from "cloudflare:workers";
 import { type AccountAdmission } from "../../flows/accountSeats/types";
 import { purgeLegacyAnalytics } from "../../adapters/room/state";
+import { checkRoomIndexRetention } from "../../adapters/room/indexJob";
 import { purgeAccount } from "../../flows/accountPurge/purge";
 import {
   accountReservationState,
@@ -196,6 +197,10 @@ export class GameRoom extends DurableObject<Env> {
 
   async refreshLobbyIndex(expectedInstanceId: string | null, expectedRevision: number) {
     return queries.refreshLobbyIndex(this.runtime, expectedInstanceId, expectedRevision);
+  }
+
+  async checkRoomIndexRetention(expectedRevision: number) {
+    return checkRoomIndexRetention(this.runtime, expectedRevision);
   }
 
   async getPublicMetadata(profilePreview = false) {

@@ -6,7 +6,7 @@ import { roomSchema, joinRoomContract } from "@tetraboard/protocol";
 import { nextDueRoomDeadline } from "../src/rooms/roomDeadlines";
 import { accountIdentity } from "../src/accounts/auth";
 import { reserveAccountSeat } from "../src/flows/accountSeats/reserve";
-import { requestDeletion } from "../src/privacy/deletion";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { registrationKey, type StoredGuestRegistration } from "../src/rooms/registrationTypes";
 import { accountFixture, origin } from "./accountFixtures";
 import { boundaryRequest, RoomBoundaryFixtures, type BoundarySocket } from "./roomBoundaryFixtures";

@@ -102,7 +102,7 @@ export interface TournamentQueueStore {
   waitingProfiles(key: string): Promise<Map<string, WaitingProfile>>;
   leaseValid(wait: Waiting, key: string): Promise<boolean>;
   forget(wait: Waiting): Promise<void>;
-  restore(player: Player, key: string): Promise<void>;
+  restore(player: Player, key: string): Promise<boolean>;
   preparePlayer(player: Player, profile: WaitingProfile, key: string): TournamentCoordinatorWrite[];
   commit(writes: TournamentCoordinatorWrite[]): Promise<void>;
   releaseWaiting(players: Player[]): Promise<void>;
@@ -149,6 +149,8 @@ export type TournamentQueueRuntime = {
     rekeyTournamentPlayer(input: RekeyTournamentPlayerInput): Promise<{ status: string }>;
     getTournamentReservationState(id: string): Promise<{
       status: string;
+      instanceId?: string;
+      preparedAtMs?: number;
       startedAtMs?: number;
       connectedPlayerIds: string[];
     }>;

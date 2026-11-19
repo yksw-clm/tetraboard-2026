@@ -1,13 +1,17 @@
 import { cleanupLobbyChat } from "./adapters/community/chatCleanup";
-import { processDeletions } from "./privacy/deletion";
+import { processDeletions } from "./flows/accountPurge/processDeletions";
 import { recoverAccountReservations } from "./flows/accountSeats/reserve";
-import { retryPendingMatchClaims } from "./adapters/record/matchClaims";
+import { retryPendingMatchClaims } from "./flows/matchSave/claims";
 import { deleteExpiredReports } from "./adapters/community/reports";
 import { cleanupFeedback } from "./adapters/community/feedbackCleanup";
 import { deleteUnusedAvatars } from "./routes/accountAvatars";
 import { recoverTournaments } from "./adapters/tournament/recovery";
 import { matchmakingQueueKeys } from "@tetraboard/protocol";
 import { savePreviousMonthKpi } from "./kpi/monthly";
+import { runRoomIndexRetention } from "./rooms/roomIndexRetention";
+
+const roomIndexRetentionEnabled = false;
+const roomIndexRetentionInspectionEnabled = false;
 
 export type MaintenanceTask = { name: string; run: () => Promise<unknown> };
 
@@ -52,6 +56,17 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
     { name: "match-claims", run: () => retryPendingMatchClaims(env.APP_DB) },
     { name: "avatars", run: () => deleteUnusedAvatars(env) },
     { name: "expired-credentials", run: () => deleteExpiredCredentials(env) },
+    {
+      name: "room-index-retention",
+      run: async () => {
+        const stats = await runRoomIndexRetention(env, {
+          deleteExpired: roomIndexRetentionEnabled,
+          inspectCandidates: roomIndexRetentionInspectionEnabled,
+        });
+        console.info("Room index retention", stats);
+        if (stats.failures) throw new Error("Room index retention failed");
+      },
+    },
   ]);
 }
 

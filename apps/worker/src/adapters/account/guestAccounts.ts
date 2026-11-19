@@ -4,7 +4,7 @@ import type {
   GuestCreation,
   GuestNameChange,
 } from "@tetraboard/context-account";
-import { consentStatement } from "../../privacy/consent";
+import { consentStatement } from "../privacy/consent";
 export class D1GuestAccounts implements GuestAccountStore {
   constructor(private readonly db: D1Database) {}
   async create({ user, now, hash, username }: GuestCreation) {

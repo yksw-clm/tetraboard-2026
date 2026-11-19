@@ -13,7 +13,7 @@ import { publicTournament, type TournamentRow } from "../adapters/tournament/sto
 import { accountIdentity, type StoredProfile } from "../accounts/auth";
 import { adminIdentity } from "../admin/auth";
 import { readLimitedBody } from "./readLimitedBody";
-import { digest } from "../privacy/deletion";
+import { digest } from "../crypto";
 import {
   chatProfileRejection,
   postChatMessage,

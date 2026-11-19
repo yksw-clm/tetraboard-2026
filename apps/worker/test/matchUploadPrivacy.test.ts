@@ -10,7 +10,7 @@ import { reversiMatchData } from "../src/adapters/record/reversiMatchData";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
-import { requestDeletion } from "../src/privacy/deletion";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { readStoredMatch } from "../src/adapters/record/matchDataContracts";
 import type { ProfileRatings } from "@tetraboard/protocol";
 

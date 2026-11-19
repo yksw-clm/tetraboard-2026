@@ -146,7 +146,7 @@ test(`前局保存待ちはinserted:falseで競合は例外を保ちます`, asy
 });
 for (const method of ["enqueue", "restore"] as const) {
   for (const blocker of ["seat", "deleted", "matchmaking"] as const) {
-    test(`大会の${method}は${blocker}を例外で拒否します`, async () => {
+    test(`大会の${method}は${blocker}で${method === "restore" ? "復帰不可を返します" : "例外を投げます"}`, async () => {
       const f = await fenceFixture(db);
       if (blocker === "seat") await reserve(f);
       else if (blocker === "deleted") await deleted(f);
@@ -158,7 +158,9 @@ for (const method of ["enqueue", "restore"] as const) {
             ? "account_deleted"
             : "matchmaking_waiting";
       expect(await readTournamentWaitFence(db, f.users[0]!.player.accountId)).toBe(reason);
-      await expect(f.tournament[method](f.users[0]!.player, f.key)).rejects.toThrow(reason);
+      const result = f.tournament[method](f.users[0]!.player, f.key);
+      if (method === "restore") await expect(result).resolves.toBe(false);
+      else await expect(result).rejects.toThrow(reason);
       expect(await occupancy(f)).not.toContain("tournament");
     });
   }
@@ -222,7 +224,7 @@ test(`restoreは更新先の行があっても席のフェンスを優先しま�
       .map((w) => w.value as D1PreparedStatement),
   );
   expect(result[1].meta.changes).toBe(1);
-  await expect(f.tournament.restore(p, f.key)).rejects.toThrow("account_seated");
+  await expect(f.tournament.restore(p, f.key)).resolves.toBe(false);
   expect(
     await db
       .prepare("SELECT match_operation_id FROM tournament_wait_reservations WHERE account_id=?")
