@@ -44,28 +44,30 @@ export function gomokuProgressStore(
     start: (room, accountId) => startGomokuRound(storage, room, accountId),
     recordTransition: (room, transition) => recordGomokuTransition(storage, room, transition),
     finalize: ({ room, game, at }) => finalizeGomokuRound(storage, room, game, at),
-    readCpuJob: () => {
-      const job = storage.kv.get<GomokuCpuJob>(gomokuCpuJobKey);
-      if (!job) return undefined;
-      return {
-        roundId: job.roundId,
-        positionRevision: job.positionRevision,
-        seat: job.color,
-        action: { type: "placeStone", position: job.move },
-        applyAt: job.applyAt,
-      };
-    },
-    writeCpuJob: (job) => {
-      storage.kv.put(gomokuCpuJobKey, {
-        roundId: job.roundId,
-        positionRevision: job.positionRevision,
-        color: job.seat,
-        move: job.action.position,
-        applyAt: job.applyAt,
-      } satisfies GomokuCpuJob);
-    },
-    deleteCpuJob: () => {
-      storage.kv.delete(gomokuCpuJobKey);
+    cpuJobs: {
+      read: () => {
+        const job = storage.kv.get<GomokuCpuJob>(gomokuCpuJobKey);
+        if (!job) return undefined;
+        return {
+          roundId: job.roundId,
+          positionRevision: job.positionRevision,
+          seat: job.color,
+          action: { type: "placeStone", position: job.move },
+          applyAt: job.applyAt,
+        };
+      },
+      write: (job) => {
+        storage.kv.put(gomokuCpuJobKey, {
+          roundId: job.roundId,
+          positionRevision: job.positionRevision,
+          color: job.seat,
+          move: job.action.position,
+          applyAt: job.applyAt,
+        } satisfies GomokuCpuJob);
+      },
+      delete: () => {
+        storage.kv.delete(gomokuCpuJobKey);
+      },
     },
   };
 }

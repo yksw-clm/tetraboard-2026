@@ -4,7 +4,9 @@ import { checkGameCommand } from "../domain";
 import type { FinishedProgress, ProgressFor, RematchFor, WaitingFor } from "./gameProgress";
 import type {
   GameProgressSpec,
+  PreparedLeave,
   ProgressCpuJob,
+  ProgressCpuJobs,
   ProgressGameTypes,
   ProgressPlayingRoom,
   ProgressRoom,
@@ -12,17 +14,16 @@ import type {
 import { nextPublicUpdateAt } from "./ports";
 import { cpuMoveDelayMs } from "./processDeadlines";
 
-type PreparedLeave<T extends ProgressGameTypes> = { ok: true; state: T["state"] } | null;
-
 class GameProgress<
   G extends GameId,
   T extends ProgressGameTypes,
   StartArgs extends unknown[] = [],
+  Prepared extends PreparedLeave<T> = PreparedLeave<T>,
 > {
-  constructor(private readonly spec: GameProgressSpec<G, T, StartArgs>) {}
+  constructor(private readonly spec: GameProgressSpec<G, T, StartArgs, Prepared>) {}
 
   start(room: WaitingFor<G>, ...args: StartArgs) {
-    this.spec.store.deleteCpuJob();
+    this.spec.store.cpuJobs?.delete();
     return this.spec.store.start(room, this.spec.accountId, ...args);
   }
 
@@ -53,7 +54,7 @@ class GameProgress<
     const error = this.checkCommand(room, tokenHash, "resign", true);
     if (error) return { kind: "rejected", error };
     const playing = this.expectPlaying(room);
-    const state = this.recordElimination(playing, playing.game.turn, "resigned");
+    const { state } = this.recordElimination(playing, playing.game.turn, "resigned");
     return this.accept(playing, state, this.spec.now(), true);
   }
 
@@ -83,26 +84,35 @@ class GameProgress<
     return room;
   }
 
-  private accept(
+  // 操作や脱落を記録した後、その状態をルームに反映します。
+  accept(
     room: ProgressPlayingRoom<G, T>,
     state: T["state"],
     at: number,
     turnEnded: boolean,
+    { clockAt = at, positionChanged = true } = {},
   ): ProgressFor<G> {
     const { store, gameId, parseFinishedState, parseRoom, advanceClock } = this.spec;
-    store.deleteCpuJob();
-    if (state.status === "finished")
-      return { kind: "finished", gameId, room, game: parseFinishedState(state), at };
+    if (this.spec.clearCpuJobsOnAccept) this.spec.clearCpuJobsOnAccept();
+    else store.cpuJobs?.delete();
+    const positionRevision = room.positionRevision + (positionChanged ? 1 : 0);
+    if (state.status === "finished") {
+      const game = parseFinishedState(state);
+      const finishedRoom = this.spec.incrementRevisionOnFinish
+        ? { ...room, positionRevision }
+        : room;
+      return { kind: "finished", gameId, room: finishedRoom, game, at };
+    }
 
     const updated = parseRoom({
       ...room,
       game: state,
-      positionRevision: room.positionRevision + 1,
+      positionRevision,
       clock: advanceClock(
         room.clock,
         room.game.turn,
         state.turn,
-        at,
+        clockAt,
         turnEnded,
         room.settings.timeControl,
       ),
@@ -122,41 +132,45 @@ class GameProgress<
     room: ProgressPlayingRoom<G, T>,
     seat: T["seat"],
     reason: EliminationReason,
-  ): T["state"] {
+  ) {
     const result = this.spec.definition.rules.eliminateSeat(room.game, seat, reason);
     this.spec.store.recordTransition(room, result);
-    return result.state;
+    return result;
   }
 
-  prepareLeave(room: ProgressPlayingRoom<G, T>, playerId: string): PreparedLeave<T> {
+  prepareLeave(room: ProgressPlayingRoom<G, T>, playerId: string): Prepared | null {
     const seat = this.playerSeat(room, playerId);
     if (this.spec.inactiveSeats(room.game).includes(seat)) return null;
-    return { ok: true, state: this.recordElimination(room, seat, "left") };
+    return this.spec.prepareLeaveResult(this.recordElimination(room, seat, "left"));
   }
 
   leave(
     room: ProgressPlayingRoom<G, T>,
     playerId: string,
-    prepared: PreparedLeave<T>,
+    prepared: Prepared | null,
     at: number,
     hostLeaving: boolean,
   ): ProgressFor<G> {
     if (prepared?.state.status === "finished") return this.accept(room, prepared.state, at, true);
-    const input = this.spec.parseRoom({
-      ...room,
-      publicUpdatedAtMs: hostLeaving
-        ? nextPublicUpdateAt(room, this.spec.now())
-        : room.publicUpdatedAtMs,
-      players: room.players.map((p) => ({
-        ...p,
-        reconnectDeadline: p.id === playerId ? null : p.reconnectDeadline,
-      })),
-    });
+    const input = this.expectPlaying(
+      this.spec.parseRoom({
+        ...room,
+        publicUpdatedAtMs: hostLeaving
+          ? nextPublicUpdateAt(room, this.spec.now())
+          : room.publicUpdatedAtMs,
+        players: room.players.map((p) => ({
+          ...p,
+          reconnectDeadline: p.id === playerId ? null : p.reconnectDeadline,
+        })),
+      }),
+    );
+    const preservePosition = prepared === null && this.spec.preservePositionOnInactiveLeave;
     return this.accept(
-      this.expectPlaying(input),
-      prepared?.state ?? room.game,
+      input,
+      prepared?.state ?? (preservePosition ? input.game : room.game),
       at,
       !!prepared && prepared.state.turn !== room.game.turn,
+      { positionChanged: !preservePosition },
     );
   }
 
@@ -179,7 +193,7 @@ class GameProgress<
           ),
         }),
       };
-    const state = this.recordElimination(room, seat, reason);
+    const { state } = this.recordElimination(room, seat, reason);
     if (state.status === "finished") return this.accept(room, state, at, true);
     const input = parseRoom({
       ...room,
@@ -196,19 +210,21 @@ class GameProgress<
   }
 
   cpu(room: ProgressPlayingRoom<G, T>, now: number): ProgressFor<G> {
-    const { gameId, definition, isClockExpired, random, seat, store } = this.spec;
+    const { gameId, definition, isClockExpired, random = Math.random, seat, store } = this.spec;
+    const jobs = store.cpuJobs;
     const unchanged = { kind: "unchanged", gameId, room } as const;
+    if (!jobs) return unchanged;
     if (room.clock.turnStartedAt + cpuMoveDelayMs > now || isClockExpired(room.clock, now))
       return unchanged;
     const turn = room.game.turn;
     const cpu = room.players.find((p) => seat(p) === turn);
     if (cpu?.kind !== "cpu") return unchanged;
-    const job = store.readCpuJob();
-    if (job) return this.applyCpuJob(room, job, now);
+    const job = jobs.read();
+    if (job) return this.applyCpuJob(room, job, now, jobs);
     const action = definition.cpu.chooseAction(room.game, turn, cpu.level, random);
     if (action === null) throw new Error("CPU has no legal move");
     // Workersの同期計算中は時刻が進まないため、次のAlarmで期限を再確認します。
-    store.writeCpuJob({
+    jobs.write({
       roundId: room.roundId,
       positionRevision: room.positionRevision,
       seat: turn,
@@ -222,6 +238,7 @@ class GameProgress<
     room: ProgressPlayingRoom<G, T>,
     job: ProgressCpuJob<T>,
     now: number,
+    jobs: ProgressCpuJobs<T>,
   ): ProgressFor<G> {
     const { store, gameId, definition } = this.spec;
     if (
@@ -229,7 +246,7 @@ class GameProgress<
       job.positionRevision !== room.positionRevision ||
       job.seat !== room.game.turn
     ) {
-      store.deleteCpuJob();
+      jobs.delete();
     } else if (job.applyAt <= now) {
       const result = definition.rules.applyAction(room.game, job.seat, job.action);
       if (!result.ok) throw new Error("Saved CPU move is no longer legal");
@@ -266,6 +283,7 @@ export function createGameProgress<
   G extends GameId,
   T extends ProgressGameTypes,
   StartArgs extends unknown[] = [],
->(spec: GameProgressSpec<G, T, StartArgs>) {
+  Prepared extends PreparedLeave<T> = PreparedLeave<T>,
+>(spec: GameProgressSpec<G, T, StartArgs, Prepared>) {
   return new GameProgress(spec);
 }

@@ -76,12 +76,14 @@ export function fourGomokuProgressFixture(mode: Playing["settings"]["mode"] = "s
     finalize: () => {
       throw new Error("Unexpected finalize");
     },
-    readCpuJob: () => undefined,
-    writeCpuJob: () => {
-      throw new Error("Unexpected CPU job");
-    },
-    deleteCpuJob: () => {
-      saved.calls.push("deleteCpuJob");
+    cpuJobs: {
+      read: () => undefined,
+      write: () => {
+        throw new Error("Unexpected CPU job");
+      },
+      delete: () => {
+        saved.calls.push("deleteCpuJob");
+      },
     },
   };
   const progress = createGameProgress<"four-gomoku", FourGomokuTypes, StartArgs>({
@@ -95,6 +97,7 @@ export function fourGomokuProgressFixture(mode: Playing["settings"]["mode"] = "s
     unknownPlayerMessage: "Unknown FourGomoku player",
     toAction: (command) => ({ type: "placeStone", position: command.action.position }),
     moveError: () => "invalid_move",
+    prepareLeaveResult: ({ state }) => ({ ok: true, state }),
     advanceClock: (...args) => advanceTurnClock(...args),
     isClockExpired: (clock, time) => time >= clock.turnExpiresAt,
     membership: (token) => {

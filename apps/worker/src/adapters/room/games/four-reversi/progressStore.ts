@@ -1,4 +1,5 @@
 import { savedProfileRatings } from "../../../rating/profileRatings";
+import type { GameProgressStore } from "@tetraboard/context-room";
 import { fourReversiRatingMethod } from "@tetraboard/context-rating";
 import type { FourReversiRatingSource } from "@tetraboard/context-matchmaking";
 import {
@@ -15,6 +16,7 @@ import {
 import {
   fourReversiDefinition as definition,
   type FourReversiEvent,
+  type FourReversiTypes,
 } from "@tetraboard/four-reversi/definition";
 import type { FourReversiState } from "@tetraboard/four-reversi";
 import { createClock } from "../../clock";
@@ -37,6 +39,27 @@ import { fourReversiCpuJobKey, fourReversiAiJobKey } from "./cpu";
 type Playing = PlayingFor<"four-reversi">;
 const colors = definition.catalog.seats;
 
+export type FourReversiStartArgs = [
+  tournament?: TournamentRoomContext,
+  rating?: FourReversiRatingSource,
+];
+
+export function fourReversiProgressStore(
+  storage: DurableObjectStorage,
+): GameProgressStore<"four-reversi", FourReversiTypes, FourReversiStartArgs> {
+  return {
+    start: (room, accountId, tournament, rating) =>
+      startFourReversiRound(storage, room, accountId, tournament, rating),
+    recordTransition: (room, transition) => recordFourReversiTransition(storage, room, transition),
+    finalize: ({ room, game, at }) => finalizeFourReversiRound(storage, room, game, at),
+  };
+}
+
+export function clearFourReversiCpuJobs(storage: DurableObjectStorage): void {
+  storage.kv.delete(fourReversiCpuJobKey);
+  storage.kv.delete(fourReversiAiJobKey);
+}
+
 export function startFourReversiRound(
   storage: DurableObjectStorage,
   room: WaitingFor<"four-reversi">,
@@ -44,8 +67,7 @@ export function startFourReversiRound(
   tournament?: TournamentRoomContext,
   rating?: FourReversiRatingSource,
 ): { room: Playing; roundId: string; at: number } {
-  storage.kv.delete(fourReversiCpuJobKey);
-  storage.kv.delete(fourReversiAiJobKey);
+  clearFourReversiCpuJobs(storage);
   const assignments = shuffledAssignments(colors);
   const startedAtMs = Date.now();
   const matchId = tournament?.matchId ?? room.matchmaking?.id ?? crypto.randomUUID();
@@ -154,8 +176,7 @@ export function finalizeFourReversiRound(
   game: LastRound["game"],
   at: number,
 ): LastRound {
-  storage.kv.delete(fourReversiCpuJobKey);
-  storage.kv.delete(fourReversiAiJobKey);
+  clearFourReversiCpuJobs(storage);
   const start = storage.kv.get<MatchStart>(matchStartKey);
   const replay = storage.kv.get<RoundReplay>(replayKey);
   if (start && replay && start.id === replay.id) {

@@ -5,6 +5,7 @@ import {
   advanceTurnClock,
   createGameProgress,
   initializeClock,
+  type GameProgressSpec,
   type GameProgressStore,
   type PlayingFor,
 } from "../src";
@@ -63,19 +64,23 @@ function memoryProgressStore() {
     finalize: () => {
       throw new Error("Unexpected finalize");
     },
-    readCpuJob: () => saved.cpuJob,
-    writeCpuJob: (job) => {
-      saved.cpuJob = job;
-    },
-    deleteCpuJob: () => {
-      saved.calls.push("deleteCpuJob");
-      saved.cpuJob = undefined;
+    cpuJobs: {
+      read: () => saved.cpuJob,
+      write: (job) => {
+        saved.cpuJob = job;
+      },
+      delete: () => {
+        saved.calls.push("deleteCpuJob");
+        saved.cpuJob = undefined;
+      },
     },
   };
   return { store, saved };
 }
 
-export function gomokuProgressFixture() {
+export function gomokuProgressFixture(
+  overrides: Partial<GameProgressSpec<"gomoku", GomokuTypes>> = {},
+) {
   const room = gomokuPlayingRoom();
   const memberships = new Map<string, RoomMembership>([
     ["host-token", { playerId: "host", role: "host" }],
@@ -101,6 +106,7 @@ export function gomokuProgressFixture() {
     unknownPlayerMessage: "Unknown Gomoku player",
     toAction: (command) => ({ type: "placeStone", position: command.action.position }),
     moveError: () => "invalid_move",
+    prepareLeaveResult: ({ state }) => ({ ok: true, state }),
     advanceClock: (...args) => advanceTurnClock(...args),
     isClockExpired: (clock, at) => at >= clock.turnExpiresAt,
     membership: (hash) => memberships.get(hash) ?? null,
@@ -108,6 +114,7 @@ export function gomokuProgressFixture() {
     now: () => time.now,
     random: () => 0,
     store,
+    ...overrides,
   });
   return { room, progress, saved, time };
 }
