@@ -1,10 +1,5 @@
 import { env, exports } from "cloudflare:workers";
-import {
-  evictDurableObject,
-  listDurableObjectIds,
-  runInDurableObject,
-  runDurableObjectAlarm,
-} from "cloudflare:test";
+import { evictDurableObject, runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, beforeEach, expect, onTestFinished, test, vi } from "vitest";
 import {
   createRoomContract,
@@ -28,6 +23,7 @@ import type { State } from "@tetraboard/context-tournament";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { fixTestTime } from "./fixedTimeFixture";
+import { createUnusedRoomIdAllocator } from "./unusedRoomId";
 
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
@@ -41,34 +37,20 @@ const cleanup: {
 }[] = [];
 const sockets: WebSocket[] = [];
 const roomCandidates: string[] = [];
-let nextUnusedRoomId: () => string;
+let roomIds: Awaited<ReturnType<typeof createUnusedRoomIdAllocator>>;
 let clock: ReturnType<typeof fixTestTime>;
 
 beforeEach(async () => {
   // 実時間で動くAlarmが手動実行より先に発火しないよう、基準を1時間先に置きます。
   clock = fixTestTime(Date.now() + 60 * 60 * 1000);
   roomCandidates.length = 0;
-  // D1の索引を掃除した後も残るルームを、テストの採番から除外します。
-  const existingRooms = new Set((await listDurableObjectIds(env.GAME_ROOM)).map(String));
-  let nextRoomNumber = 0;
-  nextUnusedRoomId = () => {
-    while (nextRoomNumber < 100_000) {
-      const roomId = String(nextRoomNumber++).padStart(5, "0");
-      if (!existingRooms.has(env.GAME_ROOM.idFromName(roomId).toString())) return roomId;
-    }
-    throw new Error("テスト用の空きルーム番号がありません。");
-  };
+  roomIds = await createUnusedRoomIdAllocator();
   const createRuntime = tournamentRuntime.createTournamentRuntime;
   const runtime = vi
     .spyOn(tournamentRuntime, "createTournamentRuntime")
     .mockImplementation((...args) => ({
       ...createRuntime(...args),
-      randomRoomId: () => {
-        const roomId = roomCandidates.shift();
-        if (roomId === undefined) return nextUnusedRoomId();
-        existingRooms.add(env.GAME_ROOM.idFromName(roomId).toString());
-        return roomId;
-      },
+      randomRoomId: () => roomCandidates.shift() ?? roomIds.next(),
     }));
   onTestFinished(() => runtime.mockRestore());
 });
@@ -773,7 +755,7 @@ test("旧版の確認待ちを休止後に復元し、全員未承諾でも同�
   const f = await fixture();
   const matchId = crypto.randomUUID(),
     instanceId = crypto.randomUUID();
-  const roomId = nextUnusedRoomId();
+  const roomId = roomIds.next();
   const expiresAtMs = Date.now() + 30000;
   const players = await Promise.all(
     f.users.map(async (user, index) => {
@@ -951,6 +933,7 @@ test("番号が既存ルームと衝突しても、待機継続で再抽選のAl
       .bind(room.id)
       .run();
     expect(removed.meta.changes).toBe(1);
+    roomIds.exclude(room.id);
     roomCandidates.push(room.id);
     const f = await fixture();
 

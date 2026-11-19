@@ -28,6 +28,7 @@ import { processDeletions } from "../src/flows/accountPurge/processDeletions";
 import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { releaseReservation } from "../src/adapters/room/seatReservations";
 import type { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
+import { unusedRoomId } from "./unusedRoomId";
 
 type PreparedFixture = {
   input: PrepareTournamentRoomInput;
@@ -115,7 +116,7 @@ async function fixture(
   const row = await env.APP_DB.prepare("SELECT public_id FROM tournaments WHERE key=?")
     .bind(tournamentKey)
     .first<{ public_id: number }>();
-  const roomId = String(Math.floor(Math.random() * 100_000)).padStart(5, "0");
+  const roomId = await unusedRoomId();
   const instanceId = crypto.randomUUID();
   const matchId = crypto.randomUUID();
   await env.APP_DB.prepare("INSERT INTO tournament_matches VALUES(?,?,?,?,'reserved',NULL,NULL,?)")
