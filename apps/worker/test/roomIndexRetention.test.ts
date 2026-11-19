@@ -14,7 +14,7 @@ import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import * as monthlyKpi from "../src/kpi/monthly";
 import { guestClaimsKey } from "../src/flows/guestRegistration/claims";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
-import { pendingMatchPrefix } from "../src/rooms/matchStore";
+import { pendingMatchPrefix } from "../src/adapters/record/matchStore";
 import { roomStorageKey } from "../src/rooms/progressHelpers";
 import { writeRoomIndex, type PendingRoomIndex } from "../src/adapters/room/roomIndexWrite";
 import {
@@ -24,8 +24,8 @@ import {
 import {
   pendingShogiMatchPrefix,
   pendingStandardShogiMatchPrefix,
-} from "../src/rooms/shogiMatchStore";
-import { waitingRoomFactories } from "../src/rooms/waitingRoomFactories";
+} from "../src/adapters/record/shogiMatchStore";
+import { waitingRoomFactories } from "../src/adapters/room/waitingRoomFactories";
 import { runScheduledMaintenance } from "../src/scheduledMaintenance";
 import { pendingTournamentStatePrefix } from "@tetraboard/context-tournament";
 import { accountFixture } from "./accountFixtures";

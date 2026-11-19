@@ -23,9 +23,12 @@ import {
   shogiMatchStartKey,
   type ActiveShogiMatch,
   type PendingShogiMatch,
-} from "./shogiMatchStore";
+} from "../adapters/record/shogiMatchStore";
 import { createShogiClock } from "../adapters/room/shogiClock";
-import { emptyFormationUsage, isFormationMatchEligible } from "./shogiFormationUsage";
+import {
+  emptyFormationUsage,
+  isFormationMatchEligible,
+} from "../adapters/record/shogiFormationUsage";
 import {
   roomStorageKey,
   shogiCpuJobKey,

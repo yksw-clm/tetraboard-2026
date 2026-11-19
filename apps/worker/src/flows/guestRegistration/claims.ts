@@ -3,7 +3,7 @@ import { readStoredMatch } from "../../adapters/record/matchDataContracts";
 import { pendingMatches } from "../../adapters/room/matchJob";
 import { pendingShogiMatches } from "../../adapters/room/shogiMatchJob";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import type { GuestRegistrationInput } from "../../rooms/registrationTypes";
+import type { GuestRegistrationInput } from "../../adapters/account/registrationTypes";
 export const guestClaimsKey = "guest-match-claims-pending";
 export type PendingGuestClaims = { generation: string; retryAtMs: number };
 

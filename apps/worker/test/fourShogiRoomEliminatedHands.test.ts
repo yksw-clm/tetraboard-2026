@@ -15,7 +15,7 @@ import {
 } from "../../../packages/four-shogi/bench/positionFixture";
 import { ShogiStore } from "../src/rooms/shogiStore";
 import { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
-import { shogiMatchStartKey } from "../src/rooms/shogiMatchStore";
+import { shogiMatchStartKey } from "../src/adapters/record/shogiMatchStore";
 import {
   registerFourShogiRoomFixtures,
   start,

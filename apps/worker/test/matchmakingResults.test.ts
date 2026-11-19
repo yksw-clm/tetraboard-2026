@@ -10,7 +10,7 @@ import { getLegalMoves } from "@tetraboard/reversi";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { reversiMatchData } from "../src/adapters/record/reversiMatchData";
-import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";
+import { readMatchDetailRecord } from "../src/adapters/record/snapshotMatchStore";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import {
   useMatchmakingFixtures,

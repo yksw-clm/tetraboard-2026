@@ -7,7 +7,7 @@ import { ShogiProgress, type ShogiCpuJob } from "../src/rooms/standardShogiProgr
 import {
   pendingStandardShogiMatchPrefix,
   type PendingStandardShogiMatch,
-} from "../src/rooms/shogiMatchStore";
+} from "../src/adapters/record/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { accountFixture } from "./accountFixtures";
 import { boundaryRequest, RoomBoundaryFixtures } from "./roomBoundaryFixtures";

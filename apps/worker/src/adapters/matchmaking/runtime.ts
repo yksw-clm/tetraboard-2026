@@ -1,7 +1,7 @@
 import type { MatchmakingRuntime } from "@tetraboard/context-matchmaking";
 import { matchmakingQueues, matchmakingRules, type MatchmakingGame } from "@tetraboard/protocol";
 import { releaseReservation } from "../room/seatReservations";
-import { reserveMatchSequence } from "../../rooms/matchSequences";
+import { reserveMatchSequence } from "../record/matchSequences";
 import { logFourShogiDiagnostic } from "../../fourShogiDiagnostics";
 import { createUsageEventWriter } from "../../usageEvents/writer";
 import { DurableMatchmakingStorage } from "./storage";

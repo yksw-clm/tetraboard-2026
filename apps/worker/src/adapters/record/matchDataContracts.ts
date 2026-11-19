@@ -3,25 +3,25 @@ import {
   matchSummary as formatSummary,
 } from "@tetraboard/context-record";
 export { matchDetail, matchSummary, publicMatchDetail } from "@tetraboard/context-record";
-import { eventReplaySchema, type StoredRecord } from "../../rooms/eventRecord";
+import { eventReplaySchema, type StoredRecord } from "./eventRecord";
 import { profileRatingsSchema } from "@tetraboard/protocol";
 import { fourGomokuMatchData } from "./fourGomokuMatchData";
-import type { MatchRecord as FourGomokuMatchRecord } from "../../rooms/fourGomokuMatchStore";
+import type { MatchRecord as FourGomokuMatchRecord } from "./fourGomokuMatchStore";
 import type { FourGomokuMatchSummary, FourGomokuAccountStats } from "@tetraboard/protocol";
 import { gomokuMatchData } from "./gomokuMatchData";
-import type { MatchRecord as GomokuMatchRecord } from "../../rooms/gomokuMatchStore";
+import type { MatchRecord as GomokuMatchRecord } from "./gomokuMatchStore";
 import type { GomokuMatchSummary, GomokuAccountStats } from "@tetraboard/protocol";
 import { shogiMatchData } from "./shogiMatchData";
-import type { StandardShogiMatchRecord } from "../../rooms/shogiMatchStore";
+import type { StandardShogiMatchRecord } from "./shogiMatchStore";
 import type { ShogiMatchSummary, ShogiAccountStats } from "@tetraboard/protocol";
 import { reversiMatchData } from "./reversiMatchData";
-import type { MatchRecord as ReversiMatchRecord } from "../../rooms/reversiMatchStore";
+import type { MatchRecord as ReversiMatchRecord } from "./reversiMatchStore";
 import type { ReversiAccountStats, ReversiMatchSummary } from "@tetraboard/protocol";
 import { z } from "zod";
 import {
   fourReversiRatedMatchSchema,
   fourShogiRatedMatchSchema,
-} from "../../rooms/fourReversiRating";
+} from "../rating/fourReversiRating";
 import { type GameId } from "@tetraboard/protocol/games";
 import {
   gameIdSchema,
@@ -42,8 +42,8 @@ import {
   type FourShogiMatchSummary,
 } from "@tetraboard/protocol";
 import type { ParticipantProfiles } from "@tetraboard/context-record";
-import type { MatchRecord } from "../../rooms/matchStore";
-import type { ShogiMatchRecord } from "../../rooms/shogiMatchStore";
+import type { MatchRecord } from "./matchStore";
+import type { ShogiMatchRecord } from "./shogiMatchStore";
 
 export interface MatchDataMap {
   "four-gomoku": {
@@ -73,7 +73,7 @@ export type MatchDataContract<G extends GameId> = {
   read: (json: string) => RecordFor<G>;
   readStored?: (
     json: string,
-  ) => RecordFor<G> extends { replay: import("../../rooms/eventRecord").SnapshotReplay }
+  ) => RecordFor<G> extends { replay: import("./eventRecord").SnapshotReplay }
     ? StoredRecord<RecordFor<G>>
     : RecordFor<G>;
   detail: (
@@ -182,7 +182,7 @@ export const matchDataContracts = {
 export type DecodedMatch = {
   [G in GameId]: {
     game: G;
-    record: RecordFor<G> extends { replay: import("../../rooms/eventRecord").SnapshotReplay }
+    record: RecordFor<G> extends { replay: import("./eventRecord").SnapshotReplay }
       ? StoredRecord<RecordFor<G>>
       : RecordFor<G>;
   };

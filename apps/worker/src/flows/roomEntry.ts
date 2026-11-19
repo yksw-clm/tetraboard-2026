@@ -2,7 +2,7 @@ import type { CreateRoomRequest, JoinRoomRequest, Room, RoomError } from "@tetra
 import { defaultGameId } from "@tetraboard/protocol/games";
 import { profileAvatarUrl, type StoredProfile } from "../adapters/account/auth";
 import type { GameRoom } from "../durableObjects/gameRoom/gameRoom";
-import { waitingRoomFactories } from "../rooms/waitingRoomFactories";
+import { waitingRoomFactories } from "../adapters/room/waitingRoomFactories";
 import { browserIdFromRequest } from "../usageEvents/browserId";
 import { roomEntryProfile, RoomAccountError } from "./accountSeats/entryProfile";
 import { reserveAccountSeat, cancelReservation } from "./accountSeats/reserve";

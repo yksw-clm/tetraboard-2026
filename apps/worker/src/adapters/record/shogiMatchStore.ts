@@ -1,5 +1,5 @@
 import { readMatchReplayPage, type MatchSaveProgress } from "@tetraboard/context-record";
-import { D1MatchReadStore } from "../adapters/record/matchReadStore";
+import { D1MatchReadStore } from "./matchReadStore";
 import {
   getMatchReplayContract,
   shogiMatchReplayPageSchema,
@@ -14,8 +14,8 @@ import type {
   ShogiMatchDetail,
 } from "@tetraboard/protocol";
 import type { Side } from "@tetraboard/four-shogi";
-import type { FourShogiRatedMatch } from "./fourReversiRating";
-import type { ShogiRatingSource } from "./shogiRating";
+import type { FourShogiRatedMatch } from "../rating/fourReversiRating";
+import type { ShogiRatingSource } from "../rating/shogiRating";
 import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 import type { ShogiFormationUsage } from "./shogiFormationUsage";
 
@@ -62,8 +62,8 @@ export function emptyKnockouts(): Record<Side, number> {
   return { south: 0, west: 0, north: 0, east: 0 };
 }
 
-export { readFourShogiMatchRecord as readShogiMatchRecord } from "../adapters/record/matchDataContracts";
-import { readFourShogiMatchRecord as readShogiMatchRecord } from "../adapters/record/matchDataContracts";
+export { readFourShogiMatchRecord as readShogiMatchRecord } from "./matchDataContracts";
+import { readFourShogiMatchRecord as readShogiMatchRecord } from "./matchDataContracts";
 
 export type StandardShogiMatchRecord = {
   profileRatings?: ProfileRatings;
@@ -88,7 +88,7 @@ export type PendingStandardShogiMatch = {
   progress: ShogiSaveProgress;
   retryAtMs: number;
 };
-import { shogiMatchData } from "../adapters/record/shogiMatchData";
+import { shogiMatchData } from "./shogiMatchData";
 function eventSchema(game: "four-shogi" | "shogi") {
   return game === "four-shogi" ? fourShogiReplayEventSchema : shogiReplayEventSchema;
 }

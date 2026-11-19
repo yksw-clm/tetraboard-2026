@@ -27,7 +27,7 @@ import type {
   RematchFor,
 } from "./gameProgress";
 import type { ShogiAiWork } from "../adapters/room/ai/shogiAi";
-import type { ShogiRatingSource } from "./shogiRating";
+import type { ShogiRatingSource } from "../adapters/rating/shogiRating";
 import { startShogiRound, finalizeShogiRound } from "./standardShogiProgressStore";
 import { StandardShogiCpu, shogiCpuJobKey, externalShogiCpuJobKey } from "./standardShogiCpu";
 export type { ShogiCpuJob } from "./standardShogiCpu";

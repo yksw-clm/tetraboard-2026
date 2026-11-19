@@ -1,5 +1,5 @@
 import { prepareStoredMatchFixture } from "./snapshotMatchFixtures";
-import { readMatchDetailRecord } from "../src/rooms/snapshotMatchStore";
+import { readMatchDetailRecord } from "../src/adapters/record/snapshotMatchStore";
 import { runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { expect, test } from "vitest";
@@ -18,7 +18,7 @@ import {
 import { reversiMatchData } from "../src/adapters/record/reversiMatchData";
 import type { RoomRuntime } from "../src/durableObjects/gameRoom/runtime";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
-import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
+import { type ShogiSaveProgress } from "../src/adapters/record/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { accountFixture, origin } from "./accountFixtures";
 import { humanFixtureRecord } from "./matchFixtures";

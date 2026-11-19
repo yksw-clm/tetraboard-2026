@@ -8,8 +8,8 @@ import {
   readSkillRatingResult,
   type SkillGame,
 } from "@tetraboard/context-rating";
-import { D1RatingReader } from "../adapters/rating/reader";
-import { createRatingStore } from "../adapters/rating/matchmakingStore";
+import { D1RatingReader } from "./reader";
+import { createRatingStore } from "./matchmakingStore";
 export { publicRatingBase, publicRatingScale, publicRatingForMu } from "@tetraboard/context-rating";
 const cpuRating = z.strictObject({
   mu: z.number(),

@@ -18,7 +18,7 @@ import {
   pendingMatchPrefix,
   type MatchStart,
   type PendingMatch,
-} from "./fourGomokuMatchStore";
+} from "../adapters/record/fourGomokuMatchStore";
 import {
   nextPublicUpdateAt,
   playerAppearance,

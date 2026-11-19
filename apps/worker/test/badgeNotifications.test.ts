@@ -1,5 +1,5 @@
 import { seedStoredMatches } from "./storedMatchFixtures";
-import { encodeSnapshotMatch } from "../src/rooms/snapshotMatchEvents";
+import { encodeSnapshotMatch } from "../src/adapters/record/snapshotMatchEvents";
 import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
 import { expect, test } from "vitest";

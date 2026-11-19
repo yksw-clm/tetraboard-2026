@@ -12,7 +12,7 @@ import {
 import { fourShogiRoomSchema } from "@tetraboard/protocol";
 import { ShogiStore } from "../src/rooms/shogiStore";
 import { tacticalCases } from "../../../packages/four-shogi/bench/tactics";
-import { shogiMatchStartKey, type ActiveShogiMatch } from "../src/rooms/shogiMatchStore";
+import { shogiMatchStartKey, type ActiveShogiMatch } from "../src/adapters/record/shogiMatchStore";
 import { registerFourShogiRoomFixtures, create, connect, get } from "./fourShogiRoomFixtures";
 
 registerFourShogiRoomFixtures();

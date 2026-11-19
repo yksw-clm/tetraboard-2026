@@ -8,7 +8,7 @@ import { humanShogiRecord } from "./shogiMatchFixtures";
 import { standardShogiRecord } from "./standardShogiFixtures";
 import { reversiMatchData } from "../src/adapters/record/reversiMatchData";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
-import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
+import { type ShogiSaveProgress } from "../src/adapters/record/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { readStoredMatch } from "../src/adapters/record/matchDataContracts";

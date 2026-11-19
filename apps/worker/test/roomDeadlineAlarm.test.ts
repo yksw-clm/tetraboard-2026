@@ -1,8 +1,11 @@
 import { isReversiRoom, isShogiRoom } from "@tetraboard/protocol";
 import { humanFixtureRecord } from "./matchFixtures";
 import { humanShogiRecord } from "./shogiMatchFixtures";
-import { pendingMatchPrefix, type PendingMatch } from "../src/rooms/matchStore";
-import { pendingShogiMatchPrefix, type PendingShogiMatch } from "../src/rooms/shogiMatchStore";
+import { pendingMatchPrefix, type PendingMatch } from "../src/adapters/record/matchStore";
+import {
+  pendingShogiMatchPrefix,
+  type PendingShogiMatch,
+} from "../src/adapters/record/shogiMatchStore";
 import { analyticsActiveKey, type AnalyticsMatch } from "../src/usageEvents/matches";
 import type { PendingRoomIndex } from "../src/adapters/room/roomIndexWrite";
 import type { AccountAdmission } from "../src/flows/accountSeats/types";

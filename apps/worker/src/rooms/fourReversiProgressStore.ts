@@ -23,7 +23,7 @@ import {
   pendingMatchPrefix,
   type MatchStart,
   type PendingMatch,
-} from "./matchStore";
+} from "../adapters/record/matchStore";
 import {
   roomStorageKey,
   replayKey,

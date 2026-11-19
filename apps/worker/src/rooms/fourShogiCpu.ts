@@ -8,7 +8,7 @@ import { calibratedFourShogiProfile } from "../adapters/matchmaking/fourShogiSel
 import type { FourShogiAiFailure, FourShogiAiResult } from "../adapters/room/ai/fourShogiAi";
 import type { PlayingFor } from "./gameProgress";
 import type { ShogiStore } from "./shogiStore";
-import { shogiMatchStartKey, type ActiveShogiMatch } from "./shogiMatchStore";
+import { shogiMatchStartKey, type ActiveShogiMatch } from "../adapters/record/shogiMatchStore";
 import { shogiCpuJobKey } from "./progressHelpers";
 import { isClockExpired } from "../adapters/room/clock";
 import {

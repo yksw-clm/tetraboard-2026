@@ -31,7 +31,7 @@ import { feedbackAdminRoutes } from "./routes/feedbackAdminRoutes";
 import { servePublicAssets } from "./publicAssets";
 import { tournamentRoutes, tournamentAdminRoutes } from "./routes/tournaments";
 
-export { CpuCapacity } from "./rooms/cpuCapacity";
+export { CpuCapacity } from "./durableObjects/cpuCapacity";
 export { GameRoom } from "./durableObjects/gameRoom/gameRoom";
 export { MatchmakingCoordinator } from "./durableObjects/matchmakingCoordinator/coordinator";
 export { TournamentCoordinator } from "./durableObjects/tournamentCoordinator/coordinator";

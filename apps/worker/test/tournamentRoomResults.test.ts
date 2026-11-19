@@ -13,7 +13,7 @@ import {
   pendingShogiMatchPrefix,
   type PendingShogiMatch,
   readShogiMatchRecord,
-} from "../src/rooms/shogiMatchStore";
+} from "../src/adapters/record/shogiMatchStore";
 import { processDeletions } from "../src/flows/accountPurge/processDeletions";
 import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import {

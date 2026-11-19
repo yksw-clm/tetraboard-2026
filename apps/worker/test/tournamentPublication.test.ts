@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { afterEach, expect, test } from "vitest";
 import type { TournamentRoomContext } from "@tetraboard/context-tournament";
-import type { ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
+import type { ShogiSaveProgress } from "../src/adapters/record/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { finalizeTournament, readTournament } from "../src/adapters/tournament/store";
 import { humanShogiRecord } from "./shogiMatchFixtures";

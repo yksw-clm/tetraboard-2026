@@ -5,7 +5,7 @@ import { matchmakingQueues } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { matchmakingRoutes } from "../src/routes/matchmaking";
-import { CpuCapacity } from "../src/rooms/cpuCapacity";
+import { CpuCapacity } from "../src/durableObjects/cpuCapacity";
 import {
   useMatchmakingFixtures,
   stub,
