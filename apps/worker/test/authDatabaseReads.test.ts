@@ -8,7 +8,7 @@ import {
   createAuth,
   withAccountSessionCookies,
   type AuthEnv,
-} from "../src/accounts/auth";
+} from "../src/adapters/account/auth";
 import { createGuestAccount } from "../src/routes/guestSession";
 import { accountFixture, origin } from "./accountFixtures";
 

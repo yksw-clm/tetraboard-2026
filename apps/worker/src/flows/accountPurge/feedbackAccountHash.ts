@@ -1,4 +1,4 @@
-import type { AuthEnv } from "../../accounts/auth";
+import type { AuthEnv } from "../../adapters/account/auth";
 
 export async function feedbackAccountHash(env: AuthEnv, id: string) {
   const secret =

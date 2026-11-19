@@ -4,7 +4,7 @@ import {
   tournamentRules,
 } from "@tetraboard/protocol";
 import type { TournamentPolicy } from "@tetraboard/context-tournament";
-import { accountAvatarUrl } from "../../accounts/auth";
+import { accountAvatarUrl } from "../../adapters/account/auth";
 export const tournamentPolicy: TournamentPolicy = {
   settings: getTournamentSettings,
   parseSettings: (value) => tournamentSettingsSchema.parse(value),

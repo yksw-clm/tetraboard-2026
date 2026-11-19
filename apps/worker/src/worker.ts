@@ -15,7 +15,7 @@ import { adminIdentity, type AdminEnv } from "./admin/auth";
 import { clientErrorRoutes } from "./usageEvents/clientErrors";
 import { healthzContract } from "@tetraboard/protocol";
 import { accountRoutes } from "./routes/accountRoutes";
-import { withAccountSessionCookies } from "./accounts/auth";
+import { withAccountSessionCookies } from "./adapters/account/auth";
 import { registrationRoutes } from "./routes/registrationRoutes";
 import { publicMatchRoutes } from "./routes/publicMatchRoutes";
 import { matchRoutes } from "./routes/matchRoutes";

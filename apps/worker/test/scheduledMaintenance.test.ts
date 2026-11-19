@@ -4,7 +4,7 @@ import { applyD1Migrations } from "cloudflare:test";
 import worker from "../src/worker";
 import { runMaintenanceTasks } from "../src/scheduledMaintenance";
 import * as monthlyKpi from "../src/kpi/monthly";
-import { createAuth } from "../src/accounts/auth";
+import { createAuth } from "../src/adapters/account/auth";
 import { accountFixture } from "./accountFixtures";
 
 const env = {

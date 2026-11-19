@@ -1,6 +1,6 @@
 import { verifyDeletionReauthentication, type DeletionProvider } from "@tetraboard/context-privacy";
-import { createAuth, type AuthEnv } from "../../accounts/auth";
-import { responseCookies } from "../../accounts/authCookies";
+import { createAuth, type AuthEnv } from "../../adapters/account/auth";
+import { responseCookies } from "../../adapters/account/authCookies";
 import { challengeCookie, cookieValue } from "./deletionCookies";
 import { D1DeletionConfirmation } from "./deletionConfirmation";
 

@@ -1,4 +1,4 @@
-import type { StoredProfile } from "../../accounts/auth";
+import type { StoredProfile } from "../../adapters/account/auth";
 import { deletedAccountExistsSql } from "../../db/deletionGuard";
 import {
   prepareSeatMergedAbort,

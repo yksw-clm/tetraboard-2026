@@ -1,6 +1,6 @@
 import { cpuProfileRating, hasProfileRating } from "@tetraboard/context-rating";
 import { roomSchema, type ProfileRatings, type Room } from "@tetraboard/protocol";
-import { profileAvatarUrl } from "../../accounts/auth";
+import { profileAvatarUrl } from "../../adapters/account/auth";
 import { readProfileRating } from "../../adapters/rating/profileRatings";
 import { reserveCpuCapacity } from "../../adapters/room/cpuCapacity";
 import { readRoom } from "../../adapters/room/state";

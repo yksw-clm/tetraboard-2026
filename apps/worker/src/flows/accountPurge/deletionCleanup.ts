@@ -1,4 +1,4 @@
-import type { AuthEnv } from "../../accounts/auth";
+import type { AuthEnv } from "../../adapters/account/auth";
 import { deleteAccountChatStatements } from "../../adapters/community/chatCleanup";
 import { feedbackAccountHash } from "./feedbackAccountHash";
 

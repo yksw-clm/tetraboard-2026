@@ -1,6 +1,6 @@
 import type { TournamentQueueRuntime } from "@tetraboard/context-tournament";
 import { tournamentRules, accountAvatarPresetId } from "@tetraboard/protocol";
-import { avatarKeyPattern } from "../../accounts/auth";
+import { avatarKeyPattern } from "../../adapters/account/auth";
 import { releaseReservation } from "../room/seatReservations";
 import { reserveMatchSequence } from "../../rooms/matchSequences";
 import { finalizeTournament, settingsForTournament, readTournament } from "./store";

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import { gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import { roomSchema, joinRoomContract } from "@tetraboard/protocol";
 import { nextDueRoomDeadline } from "../src/rooms/roomDeadlines";
-import { accountIdentity } from "../src/accounts/auth";
+import { accountIdentity } from "../src/adapters/account/auth";
 import { reserveAccountSeat } from "../src/flows/accountSeats/reserve";
 import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { registrationKey, type StoredGuestRegistration } from "../src/rooms/registrationTypes";

@@ -1,6 +1,6 @@
 import type { CreateRoomRequest, JoinRoomRequest, Room, RoomError } from "@tetraboard/protocol";
 import { defaultGameId } from "@tetraboard/protocol/games";
-import { profileAvatarUrl, type StoredProfile } from "../accounts/auth";
+import { profileAvatarUrl, type StoredProfile } from "../adapters/account/auth";
 import type { GameRoom } from "../durableObjects/gameRoom/gameRoom";
 import { waitingRoomFactories } from "../rooms/waitingRoomFactories";
 import { browserIdFromRequest } from "../usageEvents/browserId";

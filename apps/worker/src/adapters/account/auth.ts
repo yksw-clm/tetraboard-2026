@@ -1,15 +1,19 @@
-import { guestIdentity, hasGuestSessionCookie, suspendGuestSession } from "../routes/guestSession";
-import { authSecret } from "../adapters/account/authTokens";
-import { isDeleted } from "../adapters/privacy/identity";
-import { betterAuth } from "better-auth";
-import { D1AccountProfiles } from "../adapters/account/profiles";
+import {
+  guestIdentity,
+  hasGuestSessionCookie,
+  suspendGuestSession,
+} from "../../routes/guestSession";
+import { authSecret } from "./authTokens";
+import { isDeleted } from "../privacy/identity";
+import { betterAuth, type BetterAuthOptions } from "better-auth";
+import { D1AccountProfiles } from "./profiles";
 export type { StoredProfile } from "@tetraboard/context-account";
 export {
   publicProfile,
   accountAvatarUrl,
   profileAvatarUrl,
   avatarKeyPattern,
-} from "../adapters/account/profilePolicy";
+} from "./profilePolicy";
 
 export type AuthEnv = Env & {
   BETTER_AUTH_SECRET?: string;
@@ -45,6 +49,37 @@ export async function withAccountSessionCookies(
   }
 }
 
+function socialProviders(env: AuthEnv) {
+  return {
+    discord: {
+      clientId: env.DISCORD_CLIENT_ID ?? "",
+      clientSecret: env.DISCORD_CLIENT_SECRET ?? "",
+      disableDefaultScope: true,
+      scope: ["identify", "email"],
+    },
+    google: {
+      accessType: "online",
+      clientId: env.GOOGLE_CLIENT_ID ?? "",
+      clientSecret: env.GOOGLE_CLIENT_SECRET ?? "",
+      disableDefaultScope: true,
+      scope: ["openid", "email", "profile"],
+    },
+  } satisfies BetterAuthOptions["socialProviders"];
+}
+
+function userOptions() {
+  return {
+    additionalFields: {
+      username: { type: "string", required: false, input: false },
+      profileCompleted: { type: "boolean", required: false, defaultValue: false, input: false },
+      avatarKey: { type: "string", required: false, input: false },
+      avatarPresetId: { type: "string", required: false, input: false },
+      profileMessage: { type: "string", required: false, input: false },
+      favoriteGames: { type: "string", required: false, input: false },
+    },
+  } satisfies BetterAuthOptions["user"];
+}
+
 export function createAuth(env: AuthEnv, createdAccounts?: Set<string>) {
   const local = new URL(env.APP_ORIGIN).protocol === "http:";
   const secret = authSecret(env);
@@ -63,21 +98,7 @@ export function createAuth(env: AuthEnv, createdAccounts?: Set<string>) {
       database: { validateSchema: false },
     },
     rateLimit: { enabled: !local, storage: "database" },
-    socialProviders: {
-      discord: {
-        clientId: env.DISCORD_CLIENT_ID ?? "",
-        clientSecret: env.DISCORD_CLIENT_SECRET ?? "",
-        disableDefaultScope: true,
-        scope: ["identify", "email"],
-      },
-      google: {
-        accessType: "online",
-        clientId: env.GOOGLE_CLIENT_ID ?? "",
-        clientSecret: env.GOOGLE_CLIENT_SECRET ?? "",
-        disableDefaultScope: true,
-        scope: ["openid", "email", "profile"],
-      },
-    },
+    socialProviders: socialProviders(env),
     account: {
       encryptOAuthTokens: true,
       accountLinking: {
@@ -87,16 +108,7 @@ export function createAuth(env: AuthEnv, createdAccounts?: Set<string>) {
         updateUserInfoOnLink: false,
       },
     },
-    user: {
-      additionalFields: {
-        username: { type: "string", required: false, input: false },
-        profileCompleted: { type: "boolean", required: false, defaultValue: false, input: false },
-        avatarKey: { type: "string", required: false, input: false },
-        avatarPresetId: { type: "string", required: false, input: false },
-        profileMessage: { type: "string", required: false, input: false },
-        favoriteGames: { type: "string", required: false, input: false },
-      },
-    },
+    user: userOptions(),
     databaseHooks: {
       session: {
         create: {

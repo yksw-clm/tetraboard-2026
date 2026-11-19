@@ -9,7 +9,7 @@ import {
 } from "@tetraboard/protocol";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { readRatingRankings as readContextRatingRankings } from "@tetraboard/context-rating";
-import { accountAvatarUrl } from "../../accounts/auth";
+import { accountAvatarUrl } from "../account/auth";
 import { matchDataContracts } from "../record/matchDataContracts";
 import { matchOutcomesCte } from "../record/matchOutcomes";
 import { D1RatingReader } from "./reader";

@@ -8,7 +8,7 @@ import {
   getMatchContract,
   getMatchReplayContract,
 } from "@tetraboard/protocol";
-import { accountIdentity } from "../accounts/auth";
+import { accountIdentity } from "../adapters/account/auth";
 import { readShogiMatchReplayPage } from "../rooms/shogiMatchStore";
 import { readStoredMatch } from "../adapters/record/matchDataContracts";
 

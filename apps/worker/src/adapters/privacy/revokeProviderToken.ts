@@ -1,4 +1,4 @@
-import type { AuthEnv } from "../../accounts/auth";
+import type { AuthEnv } from "../../adapters/account/auth";
 import { unsealToken } from "../account/authTokens";
 
 export async function revokeProviderToken(

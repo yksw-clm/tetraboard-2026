@@ -1,6 +1,6 @@
 import { prepareTournamentRoomSchema } from "./schema";
 import { getTournamentSettings, roomSchema, tournamentRules } from "@tetraboard/protocol";
-import { profileAvatarUrl } from "../../accounts/auth";
+import { profileAvatarUrl } from "../../adapters/account/auth";
 import { readMembership, readRoom } from "../../adapters/room/state";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { cancelledAdmissionKey } from "../../durableObjects/gameRoom/storageKeys";

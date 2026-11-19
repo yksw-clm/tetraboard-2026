@@ -14,6 +14,42 @@ export function withoutIndexing(response: Response): Response {
   });
 }
 
+function isSpaPath(path: string) {
+  return (
+    [
+      "/index.html",
+      "/login",
+      "/account",
+      "/account/setup",
+      "/account/deletion",
+      "/feedback",
+      "/updates",
+      "/how-to-play",
+      "/games/four-reversi/matchmaking",
+      "/games/shogi/matchmaking",
+    ].includes(path.replace(/\/$/, "")) ||
+    /^\/(?:rooms|matches|updates)\/[^/]+\/?$/.test(path) ||
+    /^\/tournaments\/[1-9]\d*\/?$/.test(path) ||
+    /^\/account\/matches\/[^/]+\/?$/.test(path)
+  );
+}
+
+async function serveNotFoundAsset(request: Request, url: URL, assets: Fetcher) {
+  url.pathname = "/404.html";
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("If-None-Match");
+  requestHeaders.delete("If-Modified-Since");
+  const response = await assets.fetch(
+    new Request(url, { method: request.method, headers: requestHeaders }),
+  );
+  const headers = new Headers(response.headers);
+  headers.delete("ETag");
+  headers.delete("Last-Modified");
+  headers.set("Cache-Control", "no-store");
+  headers.set("X-Robots-Tag", "noindex, follow");
+  return new Response(request.method === "HEAD" ? null : response.body, { status: 404, headers });
+}
+
 export async function servePublicAssets(
   request: Request,
   assets: Fetcher,
@@ -52,23 +88,7 @@ export async function servePublicAssets(
     const response = await assets.fetch(new Request(url, request));
     return html(response.status < 400 ? response : withoutIndexing(response));
   }
-  const spa =
-    [
-      "/index.html",
-      "/login",
-      "/account",
-      "/account/setup",
-      "/account/deletion",
-      "/feedback",
-      "/updates",
-      "/how-to-play",
-      "/games/four-reversi/matchmaking",
-      "/games/shogi/matchmaking",
-    ].includes(path.replace(/\/$/, "")) ||
-    /^\/(?:rooms|matches|updates)\/[^/]+\/?$/.test(path) ||
-    /^\/tournaments\/[1-9]\d*\/?$/.test(path) ||
-    /^\/account\/matches\/[^/]+\/?$/.test(path);
-  if (spa) {
+  if (isSpaPath(path)) {
     if (env && /^\/matches\/[^/]+\/?$/.test(path))
       return html(await serveMatchShareHtml(request, env, assets));
     if (env && /^\/rooms\/[^/]+\/?$/.test(path))
@@ -85,17 +105,5 @@ export async function servePublicAssets(
     const response = await assets.fetch(new Request(url, request));
     if (response.status !== 404) return response;
   }
-  url.pathname = "/404.html";
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.delete("If-None-Match");
-  requestHeaders.delete("If-Modified-Since");
-  const response = await assets.fetch(
-    new Request(url, { method: request.method, headers: requestHeaders }),
-  );
-  const headers = new Headers(response.headers);
-  headers.delete("ETag");
-  headers.delete("Last-Modified");
-  headers.set("Cache-Control", "no-store");
-  headers.set("X-Robots-Tag", "noindex, follow");
-  return new Response(request.method === "HEAD" ? null : response.body, { status: 404, headers });
+  return serveNotFoundAsset(request, url, assets);
 }

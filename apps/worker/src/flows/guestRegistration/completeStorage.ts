@@ -1,7 +1,7 @@
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { roomSchema, type Room, type RoomMembership } from "@tetraboard/protocol";
 import type { AccountAdmission } from "../accountSeats/types";
-import { profileAvatarUrl } from "../../accounts/auth";
+import { profileAvatarUrl } from "../../adapters/account/auth";
 import {
   accountKey,
   membershipStorageKey,
