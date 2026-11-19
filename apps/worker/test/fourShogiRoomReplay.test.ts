@@ -20,7 +20,7 @@ import {
   readShogiMatchRecord,
   shogiMatchStartKey,
   type PendingShogiMatch,
-} from "../src/rooms/shogiMatchStore";
+} from "../src/adapters/record/shogiMatchStore";
 import {
   registerFourShogiRoomFixtures,
   start,

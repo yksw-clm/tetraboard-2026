@@ -11,8 +11,8 @@ import {
   shogiAccountStatsSchema,
   reversiRankingsSchema,
 } from "@tetraboard/protocol";
-import type { StandardShogiMatchRecord } from "../../rooms/shogiMatchStore";
-import { shogiRatingSourceSchema } from "../../rooms/shogiRating";
+import type { StandardShogiMatchRecord } from "./shogiMatchStore";
+import { shogiRatingSourceSchema } from "../rating/shogiRating";
 import type { ParticipantProfiles } from "@tetraboard/context-record";
 const participants = z
   .array(

@@ -11,7 +11,7 @@ import { finishedShogiStateSchema, type ShogiReplayEvent } from "@tetraboard/pro
 import {
   type StandardShogiMatchRecord,
   type ShogiSaveProgress,
-} from "../src/rooms/shogiMatchStore";
+} from "../src/adapters/record/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 
 export const goldCycle: ShogiAction[] = [

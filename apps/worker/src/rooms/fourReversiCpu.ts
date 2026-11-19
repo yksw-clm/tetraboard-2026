@@ -6,7 +6,7 @@ import {
 } from "@tetraboard/four-reversi/definition";
 import { isClockExpired } from "./clock";
 import { cpuMoveDelayMs } from "./progressHelpers";
-import { matchStartKey, type MatchStart } from "./matchStore";
+import { matchStartKey, type MatchStart } from "../adapters/record/matchStore";
 import type { PlayingFor } from "./gameProgress";
 import { z } from "zod";
 import {

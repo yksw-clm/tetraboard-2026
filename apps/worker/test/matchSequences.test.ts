@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { expect, test } from "vitest";
-import { reserveMatchSequence } from "../src/rooms/matchSequences";
+import { reserveMatchSequence } from "../src/adapters/record/matchSequences";
 
 const scope = () => `tournament:${crypto.randomUUID()}` as const;
 

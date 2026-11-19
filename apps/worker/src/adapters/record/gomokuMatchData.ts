@@ -2,7 +2,7 @@ import {
   matchDetail as formatDetail,
   matchSummary as formatSummary,
 } from "@tetraboard/context-record";
-import { eventReplaySchema, type StoredRecord } from "../../rooms/eventRecord";
+import { eventReplaySchema, type StoredRecord } from "./eventRecord";
 import { replayV1, sameState } from "@tetraboard/gomoku/replay";
 import { z } from "zod";
 import {
@@ -12,7 +12,7 @@ import {
   gomokuAccountStatsSchema,
   reversiRankingsSchema,
 } from "@tetraboard/protocol";
-import type { MatchRecord } from "../../rooms/gomokuMatchStore";
+import type { MatchRecord } from "./gomokuMatchStore";
 import type { ParticipantProfiles } from "@tetraboard/context-record";
 const participants = z
   .array(

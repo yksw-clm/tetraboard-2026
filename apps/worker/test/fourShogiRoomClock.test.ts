@@ -5,7 +5,7 @@ import { expect, test, vi } from "vitest";
 import { getLegalActions } from "@tetraboard/four-shogi";
 import { createRoomContract, listRoomsContract, fourShogiRoomSchema } from "@tetraboard/protocol";
 import { ShogiStore } from "../src/rooms/shogiStore";
-import { readShogiMatchRecord } from "../src/rooms/shogiMatchStore";
+import { readShogiMatchRecord } from "../src/adapters/record/shogiMatchStore";
 import { accountFixture, origin } from "./accountFixtures";
 import {
   registerFourShogiRoomFixtures,

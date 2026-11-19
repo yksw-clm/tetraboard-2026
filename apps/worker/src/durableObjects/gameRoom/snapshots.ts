@@ -8,7 +8,7 @@ import { playerTokenHash, readMembership, readRoom } from "../../adapters/room/s
 import {
   formationAnalysisTag,
   roomFormationAnalysis,
-} from "../../rooms/fourShogiFormationAnalysis";
+} from "../../adapters/record/fourShogiFormationAnalysis";
 import { eliminatedHandsTag } from "../../rooms/fourShogiProgress";
 import { broadcastChat } from "./chat";
 import type { RoomRuntime, RoomSocketError } from "./runtime";

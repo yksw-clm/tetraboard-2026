@@ -12,7 +12,7 @@ import {
   type MatchStart,
   type MatchRecord,
   type PendingMatch,
-} from "../src/rooms/matchStore";
+} from "../src/adapters/record/matchStore";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import {
   matchClients,

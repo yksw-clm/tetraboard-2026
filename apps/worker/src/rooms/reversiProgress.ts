@@ -26,7 +26,7 @@ import type {
   RematchFor,
 } from "./gameProgress";
 import type { ReversiAiWork } from "../adapters/room/ai/reversiAi";
-import type { EloRatingSource } from "./eloRating";
+import type { EloRatingSource } from "../adapters/rating/eloRating";
 type Playing = PlayingFor<"reversi">;
 type Result = ProgressFor<"reversi">;
 const definition = gameDefinitions.reversi;

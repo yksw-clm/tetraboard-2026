@@ -8,7 +8,7 @@ import {
 import { applyMatchClaims } from "../src/flows/matchSave/claims";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
-import type { ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
+import type { ShogiSaveProgress } from "../src/adapters/record/shogiMatchStore";
 import { humanFixtureRecord } from "./matchFixtures";
 import { humanShogiRecord } from "./shogiMatchFixtures";
 import { standardShogiRecord } from "./standardShogiFixtures";

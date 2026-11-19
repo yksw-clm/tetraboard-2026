@@ -2,8 +2,8 @@ import { captureEliminatedHands, type FourShogiState } from "@tetraboard/four-sh
 import type { FourShogiEliminatedHands, FourShogiReplayEvent } from "@tetraboard/protocol";
 import type { PlayingFor } from "./gameProgress";
 import type { ShogiStore } from "./shogiStore";
-import { shogiMatchStartKey, type ActiveShogiMatch } from "./shogiMatchStore";
-import { recordFormationUsage } from "./shogiFormationUsage";
+import { shogiMatchStartKey, type ActiveShogiMatch } from "../adapters/record/shogiMatchStore";
+import { recordFormationUsage } from "../adapters/record/shogiFormationUsage";
 export const shogiEliminatedHandsKey = "shogi-eliminated-hands";
 export function saveFourShogiTransition(
   storage: DurableObjectStorage,

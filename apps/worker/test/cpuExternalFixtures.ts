@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { expect, vi } from "vitest";
 import { isFourShogiRoom, type GameId, type RatedMatchmakingGame } from "@tetraboard/protocol";
 import type { PlayingFor } from "../src/rooms/gameProgress";
-import type { ActiveShogiMatch } from "../src/rooms/shogiMatchStore";
+import type { ActiveShogiMatch } from "../src/adapters/record/shogiMatchStore";
 import { selectFourShogi } from "../src/adapters/matchmaking/fourShogiSelection";
 import { cpuAiReply } from "./cpuAiReplies";
 

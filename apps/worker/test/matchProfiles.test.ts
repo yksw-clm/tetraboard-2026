@@ -1,4 +1,4 @@
-import { encodeSnapshotMatch } from "../src/rooms/snapshotMatchEvents";
+import { encodeSnapshotMatch } from "../src/adapters/record/snapshotMatchEvents";
 import { accountAvatarPresetId, avatarPresetUrl } from "@tetraboard/protocol";
 import { env } from "cloudflare:workers";
 import { afterEach, expect, test } from "vitest";

@@ -8,7 +8,7 @@ import { declarationStatus, type Side, type ShogiAction } from "@tetraboard/shog
 import type { PlayingFor } from "./gameProgress";
 import type { StandardShogiStore } from "./standardShogiStore";
 import type { ActiveShogiMatch } from "./standardShogiProgressStore";
-import { standardShogiMatchStartKey } from "./shogiMatchStore";
+import { standardShogiMatchStartKey } from "../adapters/record/shogiMatchStore";
 import { shogiCpuProfile } from "@tetraboard/context-matchmaking";
 import type { ShogiAiWork } from "../adapters/room/ai/shogiAi";
 import { isClockExpired } from "./clock";

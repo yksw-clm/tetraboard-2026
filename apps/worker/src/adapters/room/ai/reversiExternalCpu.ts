@@ -2,7 +2,7 @@ import { getLegalMoves, type Position } from "@tetraboard/reversi";
 import { gameDefinitions } from "../../../rooms/gameDefinitions";
 import type { ReversiAiWork } from "./reversiAi";
 import type { PlayingFor } from "../../../rooms/gameProgress";
-import { matchStartKey, type MatchStart } from "../../../rooms/reversiMatchStore";
+import { matchStartKey, type MatchStart } from "../../record/reversiMatchStore";
 import { externalCpuJobKey } from "../../../rooms/reversiProgressStore";
 import { isClockExpired } from "../../../rooms/reversiClock";
 import { reversiCpuProfile } from "../../matchmaking/reversiCpuProfiles";

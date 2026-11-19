@@ -20,9 +20,9 @@ import {
 import { readAccountStats } from "../src/adapters/record/stats";
 import { readFormationStats } from "../src/adapters/record/formationStats";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
-import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
+import { type ShogiSaveProgress } from "../src/adapters/record/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
-import { emptyFormationUsage } from "../src/rooms/shogiFormationUsage";
+import { emptyFormationUsage } from "../src/adapters/record/shogiFormationUsage";
 import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { accountFixture } from "./accountFixtures";
 import { humanFixtureRecord, fixtureRecord, matchRequest } from "./matchFixtures";

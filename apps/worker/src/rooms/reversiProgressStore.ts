@@ -15,7 +15,7 @@ import {
   pendingMatchPrefix,
   type MatchStart,
   type PendingMatch,
-} from "./reversiMatchStore";
+} from "../adapters/record/reversiMatchStore";
 import {
   roomStorageKey,
   replayKey,
@@ -25,7 +25,7 @@ import {
   shuffledAssignments,
 } from "./progressHelpers";
 import { createClock } from "./reversiClock";
-import type { EloRatingSource } from "./eloRating";
+import type { EloRatingSource } from "../adapters/rating/eloRating";
 
 type Playing = PlayingFor<"reversi">;
 export const externalCpuJobKey = "reversi-external-cpu-job";

@@ -8,7 +8,7 @@ import {
   readShogiMatchRecord,
   shogiMatchStartKey,
   type ActiveShogiMatch,
-} from "../src/rooms/shogiMatchStore";
+} from "../src/adapters/record/shogiMatchStore";
 import {
   registerFourShogiRoomFixtures,
   start,
