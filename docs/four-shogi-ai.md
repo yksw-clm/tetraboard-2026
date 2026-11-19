@@ -25,7 +25,7 @@
 | 1      | [AGENTS.md](../AGENTS.md)、[README](../README.md)、[四人将棋ルール正本](rules/four-shogi.md)                                                                           | 作業ルール・確定仕様    |
 | 2      | [開発文書](development.md)、[テスト方針](testing.md)                                                                                                                   | 時計・保存・検証の制約  |
 | 3      | `packages/four-shogi/src/` のCPU、評価、合法手生成、状態遷移                                                                                                           | 既存実装の再利用        |
-| 4      | `packages/four-shogi/test/`、`apps/worker/test/fourShogiRoom.test.ts`、`test-fixtures/matches/`                                                                        | 回帰・互換性確認        |
+| 4      | `packages/four-shogi/test/`、`apps/worker/test/fourShogiRoom*.test.ts`、`test-fixtures/matches/`                                                                        | 回帰・互換性確認        |
 | 5      | 比較対象コミット、Git履歴、[導入PR #16](https://github.com/yksw-clm/tetraboard-2026/pull/16)                                                                           | 旧Lv2との比較・採用経緯 |
 | 6      | 公開棋譜、[将棋ったーの大会棋譜](https://shogitter.com/champ/yoninshogi-2026-summer)、[マジックの説明](https://bodoge.hoobby.net/games/4-players-shogi/strategies/684) | 手筋候補・序盤の参考    |
 
