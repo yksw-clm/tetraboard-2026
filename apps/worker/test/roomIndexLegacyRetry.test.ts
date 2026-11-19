@@ -5,7 +5,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { indexRevisionKey, pendingIndexKey } from "../src/adapters/room/indexJob";
 import type { RoomRuntime } from "../src/durableObjects/gameRoom/runtime";
 import { writeRoomIndex, type PendingRoomIndex } from "../src/adapters/room/roomIndexWrite";
-import { waitingRoomFactories } from "../src/rooms/waitingRoomFactories";
+import { waitingRoomFactories } from "../src/adapters/room/waitingRoomFactories";
 import { fixTestTime } from "./fixedTimeFixture";
 import { boundaryRequest } from "./roomBoundaryFixtures";
 import { unusedRoomId } from "./unusedRoomId";

@@ -9,7 +9,7 @@ import {
   roomSchema,
 } from "@tetraboard/protocol";
 import legacy from "../../../test-fixtures/matches/shogi-legacy.json";
-import { waitingRoomFactories } from "../src/rooms/waitingRoomFactories";
+import { waitingRoomFactories } from "../src/adapters/room/waitingRoomFactories";
 import { type ShogiMatchRecord } from "../src/adapters/record/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { standardShogiRecord } from "./standardShogiFixtures";
