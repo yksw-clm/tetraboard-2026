@@ -163,7 +163,7 @@ test("公開20件・管理50件のカーソル境界と同日の同時刻の順�
   await env.APP_DB.batch(
     Array.from({ length: 55 }, (_, index) =>
       env.APP_DB.prepare(
-        "INSERT INTO announcements (id,title,body,date,kind,published,created_at_ms,updated_at_ms) VALUES (?, '題', '本文', '2026-10-08', 'other', ?, ?, 1)",
+        "INSERT INTO announcements (id,title,body,published_on,kind,published,created_at_ms,updated_at_ms) VALUES (?, '題', '本文', '2026-10-08', 'other', ?, ?, 1)",
       ).bind(`paged-${String(index).padStart(3, "0")}`, index < 25 ? 1 : 0, index < 5 ? 2 : 1),
     ),
   );

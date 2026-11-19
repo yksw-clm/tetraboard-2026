@@ -606,8 +606,8 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 - `apps/worker/src/adapters/community/`: ポートの D1 と R2 の実装。
 - `apps/worker/src/flows/`: 文脈をまたぐもの。`feedbackSubmission.ts` は退会の確認（privacy）、`roomReports.ts` はルームの DO での発言の確認（room）と結びます。
 - `apps/worker/src/routes/`: `announcementRoutes.ts`、`notificationRoutes.ts`、`feedbackRoutes.ts`、`feedbackAdminRoutes.ts`、`roomReportRoutes.ts` などの HTTP の入口。本文の大きさの上限つきの読み取りは `readLimitedBody.ts` です。
-- 通知のイベントは、書き込みと同じ D1 の batch で作ります（TB-145）。お知らせは `adapters/community/announcements.ts`、バッジは `adapters/community/badgeEvents.ts` の文を、対局の保存と引き継ぎの flow（`flows/matchSave/badges.ts`、`claims.ts`）が record のバッジの通知の INSERT の直後に足します。同じ働きの古いトリガー（`notification_badge`、`notification_announcement_*`、チャットの `lobby_chat_accept`）は、TB-146 で消すまで残ります。書き込みの場所と、イベントの文を伴うことは `test-bun/communityWriteBoundaries.test.ts` が確かめます。
-- お知らせの日付は、`date` から `published_on` の列へ移しています（TB-145、migration 0053）。今は両方の列に同じ値を書き、`COALESCE(published_on, date)` で読みます。API の項目名は `date` のままです。
+- 通知のイベントは、書き込みと同じ D1 の batch で作ります（TB-145）。お知らせは `adapters/community/announcements.ts`、バッジは `adapters/community/badgeEvents.ts` の文を、対局の保存と引き継ぎの flow（`flows/matchSave/badges.ts`、`claims.ts`）が record のバッジの通知の INSERT の直後に足します。同じ働きの古いトリガー（`notification_badge`、`notification_announcement_*`、チャットの `lobby_chat_accept`）は、TB-146（migration 0055）で消しました。書き込みの場所と、イベントの文を伴うことは `test-bun/communityWriteBoundaries.test.ts` が確かめます。
+- お知らせの日付は、`date` から `published_on` の列へ移しています（TB-145、migration 0053）。TB-146（migration 0055）で表を作り直し、`published_on` を NOT NULL にしました。アプリは `published_on` だけを読み書きします。`date` の列は、どのコードも参照しなくなったので、NULL を許す形で残っています（列そのものは migration の整理（TB-75）などで消します）。API の項目名は `date` のままです。
 
 ## マッチングの入口
 
@@ -694,7 +694,7 @@ ContextProvidersは開発者の承認、AGENTS、README、構成・開発・テ�
 
 `LobbyChatGuestDialog.tsx` は公開チャットの名前確定時に既存の `ensureGuestAccount` で作成とCookie読戻しを行います。名前確定後に本人を更新し、チャットの認証世代を切り替えて停止・送信間隔を再取得してから投稿欄を使います。本文を自動送信せず、取得・作成失敗では入力を保持します。
 
-`/lobby/chat`・`/lobby/chat/reports`・`/admin/lobby-chat` は `routes/lobbyChatRoutes.ts` が受け、送信と取得の判定は community の文脈の `domain/chat.ts`・`use-cases/chat.ts`、D1 の実装は `adapters/community/chatStore.ts`（通報は `chatReports.ts`、運営の操作は `chatModeration.ts`、期限の削除は `chatCleanup.ts`）にあります（TB-144）。取得は、メッセージ、受付の設定、本人の停止状態、大会の状態を 1 回の D1 の batch で読みます。D1の条件付きINSERTが本人・プロフィール・停止・10秒制限・退会・再送IDを検証し、同じbatchの後続の文が、投稿が入ったときだけ送信時刻・再送台帳・最新500件を更新します（TB-145。同じ働きのAFTER INSERTトリガーはTB-146で消すまで残り、両方動いても結果は同じです）。再送台帳は本文のハッシュと投稿IDを持ち、運営削除後の同一再送も本文を復活させません。通常投稿と再送台帳は7日、通報証拠は通報から7日です。期限と退会受付の時点で取得から除外し、毎時削除・削除失敗の再試行へ接続します。退会の完了前に通常投稿と再送台帳を削除し、証拠内の本人識別を除去します。
+`/lobby/chat`・`/lobby/chat/reports`・`/admin/lobby-chat` は `routes/lobbyChatRoutes.ts` が受け、送信と取得の判定は community の文脈の `domain/chat.ts`・`use-cases/chat.ts`、D1 の実装は `adapters/community/chatStore.ts`（通報は `chatReports.ts`、運営の操作は `chatModeration.ts`、期限の削除は `chatCleanup.ts`）にあります（TB-144）。取得は、メッセージ、受付の設定、本人の停止状態、大会の状態を 1 回の D1 の batch で読みます。D1の条件付きINSERTが本人・プロフィール・停止・10秒制限・退会・再送IDを検証し、同じbatchの後続の文が、投稿が入ったときだけ送信時刻・再送台帳・最新500件を更新します（TB-145。同じ働きのAFTER INSERTトリガーはTB-146で消しました）。再送台帳は本文のハッシュと投稿IDを持ち、運営削除後の同一再送も本文を復活させません。通常投稿と再送台帳は7日、通報証拠は通報から7日です。期限と退会受付の時点で取得から除外し、毎時削除・削除失敗の再試行へ接続します。退会の完了前に通常投稿と再送台帳を削除し、証拠内の本人識別を除去します。
 
 通報は開発者の明示承認に従い、直近1時間で1アカウント5件までです。同じ発言への再通報は重複登録せず、件数を消費しません。件数の照合と登録を単一の条件付きINSERTで行い、同時要求でも上限を守ります。
 
@@ -1527,7 +1527,7 @@ Worker統合テストで保存・公開・掲載先・並び順・カーソル�
 
 `0029_notifications.sql` は単調増加番号の `notification_events`、初回全体基準とまとめて既読上限の `account_notification_state`、個別既読の `account_notification_reads` を追加します。全体イベントは記事ID、バッジは本人と対局ID、大会は本人とエントリーIDを一意にします。全体通知は現在の記事を参照し、個別通知は獲得・表彰時のpayloadを保持します。公開状態を全体の一覧・詳細・未読判定へ毎回適用します。
 
-記事のINSERT／公開UPDATEと、バッジtoast台帳のINSERTと同じbatchで通知のイベントを作り、既存の保存batchと一緒に確定します（TB-145。同じ働きのD1 triggerはTB-146で消すまで残ります）。大会は `finalizeTournament` の同じ競合ガードを使い、最終順位・表彰イベント・結果確定を同じbatchで保存します。triggerによる副次変更を含むため、記事の更新成功は変更件数ではなく `UPDATE ... RETURNING id` の結果で判定します。移行は既存公開記事をlegacyとして登録し、旧バッジイベントを補完しません。導入時刻より前のtoast台帳を統合しても新たな通知を作りません。
+記事のINSERT／公開UPDATEと、バッジtoast台帳のINSERTと同じbatchで通知のイベントを作り、既存の保存batchと一緒に確定します（TB-145。同じ働きのD1 triggerはTB-146で消しました）。大会は `finalizeTournament` の同じ競合ガードを使い、最終順位・表彰イベント・結果確定を同じbatchで保存します。triggerによる副次変更を含むため、記事の更新成功は変更件数ではなく `UPDATE ... RETURNING id` の結果で判定します。移行は既存公開記事をlegacyとして登録し、旧バッジイベントを補完しません。導入時刻より前のtoast台帳を統合しても新たな通知を作りません。
 
 APIはすべてno-storeです。
 

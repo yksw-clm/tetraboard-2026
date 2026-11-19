@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6facfab6-a837-4154-8bfe-9a9aacd2892e",
+  "id": "73549262-9a4b-4a04-b560-668f18510109",
   "prevId": "f18bf644-8988-4ba3-8ea3-ad4484e7fbbd",
   "tables": {
     "account": {
@@ -643,7 +643,7 @@
           "name": "date",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "kind": {
@@ -687,34 +687,15 @@
           "name": "published_on",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         }
       },
       "indexes": {
-        "announcements_order": {
-          "name": "announcements_order",
-          "columns": [
-            "\"date\" desc",
-            "\"created_at_ms\" desc",
-            "\"id\" desc"
-          ],
-          "isUnique": false
-        },
-        "announcements_public_order": {
-          "name": "announcements_public_order",
-          "columns": [
-            "published",
-            "\"date\" desc",
-            "\"created_at_ms\" desc",
-            "\"id\" desc"
-          ],
-          "isUnique": false
-        },
         "announcements_published_on_order": {
           "name": "announcements_published_on_order",
           "columns": [
-            "coalesce(\"published_on\", \"date\") desc",
+            "\"published_on\" desc",
             "\"created_at_ms\" desc",
             "\"id\" desc"
           ],
@@ -724,7 +705,7 @@
           "name": "announcements_public_published_on_order",
           "columns": [
             "published",
-            "coalesce(\"published_on\", \"date\") desc",
+            "\"published_on\" desc",
             "\"created_at_ms\" desc",
             "\"id\" desc"
           ],
@@ -3064,17 +3045,7 @@
           "autoincrement": false
         }
       },
-      "indexes": {
-        "privacy_room_players_by_room_player": {
-          "name": "privacy_room_players_by_room_player",
-          "columns": [
-            "room_id",
-            "instance_id",
-            "player_id"
-          ],
-          "isUnique": false
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "privacy_room_players_account_id_room_id_instance_id_player_id_pk": {
@@ -5145,35 +5116,9 @@
           }
         }
       },
-      "announcements_order": {
-        "columns": {
-          "\"date\" desc": {
-            "isExpression": true
-          },
-          "\"created_at_ms\" desc": {
-            "isExpression": true
-          },
-          "\"id\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "announcements_public_order": {
-        "columns": {
-          "\"date\" desc": {
-            "isExpression": true
-          },
-          "\"created_at_ms\" desc": {
-            "isExpression": true
-          },
-          "\"id\" desc": {
-            "isExpression": true
-          }
-        }
-      },
       "announcements_published_on_order": {
         "columns": {
-          "coalesce(\"published_on\", \"date\") desc": {
+          "\"published_on\" desc": {
             "isExpression": true
           },
           "\"created_at_ms\" desc": {
@@ -5186,7 +5131,7 @@
       },
       "announcements_public_published_on_order": {
         "columns": {
-          "coalesce(\"published_on\", \"date\") desc": {
+          "\"published_on\" desc": {
             "isExpression": true
           },
           "\"created_at_ms\" desc": {

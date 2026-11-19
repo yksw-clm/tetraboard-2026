@@ -39,8 +39,6 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
           r2Buckets: ["OBJECT_STORAGE"],
           d1Databases: {
             APP_DB: "app-tests",
-            ADMIN_USERS_TEST_DB: "admin-users-tests",
-            MATCH_LIFECYCLE_TEST_DB: "match-lifecycle-tests",
             ANALYTICS_REGISTRATION_TEST_DB: "analytics-registration-tests",
             ANALYTICS_FOUNDATION_TEST_DB: "analytics-foundation-tests",
             LOBBY_TEST_DB: "lobby-tests",
@@ -54,12 +52,10 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
             LOBBY_ROOM_CARDS_TEST_DB: "lobby-room-cards-tests",
             TOURNAMENT_MIGRATION_TEST_DB: "tournament-migration-tests",
             TOURNAMENT_PRIVACY_TEST_DB: "tournament-privacy-tests",
-            ANALYTICS_ACQUISITION_TEST_DB: "analytics-acquisition-tests",
             SCHEDULED_MAINTENANCE_TEST_DB: "scheduled-maintenance-tests",
             PRIVACY_CONCURRENCY_TEST_DB: "privacy-concurrency-tests",
             GUEST_FENCES_TEST_DB: "guest-fences-tests",
             GUEST_MERGES_TEST_DB: "guest-merges-tests",
-            COMMUNITY_WRITES_TEST_DB: "community-writes-tests",
             COMMUNITY_BATCHES_TEST_DB: "community-batches-tests",
           },
           bindings: {

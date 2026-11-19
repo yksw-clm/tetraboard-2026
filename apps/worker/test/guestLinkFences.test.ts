@@ -16,8 +16,11 @@ const conflictMessage =
 async function transitionFixture(promote: boolean) {
   const fixture = await guestFenceFixture(db, promote);
   const held = await heldGuestLink(db, fixture);
-  await seedGuestTransfers(db, fixture, { ...held.registration, playerId: held.playerId });
-  return { ...fixture, ...held };
+  const chat = await seedGuestTransfers(db, fixture, {
+    ...held.registration,
+    playerId: held.playerId,
+  });
+  return { ...fixture, ...held, chat };
 }
 
 async function addMatchmakingWait(accountId: string) {
@@ -82,6 +85,20 @@ for (const { name, promote, code, block } of cases) {
     const f = await transitionFixture(promote);
     await block(f);
     const before = await readGuestLinkState(db);
+    expect(before.lobby_chat_requests).toContainEqual({
+      account_id: f.guest.id,
+      request_id: f.chat.requestId,
+      message_id: f.chat.messageId,
+      body_hash: "hash",
+      sent_at_ms: 1,
+      tournament_id: null,
+    });
+    expect(before.lobby_chat_senders).toContainEqual({
+      account_id: f.guest.id,
+      public_id: f.guest.id,
+      last_sent_at_ms: 1,
+      stopped: 0,
+    });
     const transition = promote
       ? promoteGuestLink(f.request(), f.env, f.flow)
       : mergeGuestAccounts(f.env, f.flow);
@@ -140,12 +157,13 @@ for (const promote of [false, true]) {
     const f = await transitionFixture(promote);
     if (promote) await promoteGuestLink(f.request(), f.env, f.flow);
     else await mergeGuestAccounts(f.env, f.flow);
+    const accountId = promote ? f.guest.id : f.target.id;
     const registration = await db
       .prepare("SELECT account_id,record_accepted_at_ms FROM registration_flows WHERE id=?")
       .bind(f.registration.registrationId)
       .first();
     expect(registration).toMatchObject({
-      account_id: promote ? f.guest.id : f.target.id,
+      account_id: accountId,
       record_accepted_at_ms: promote ? null : expect.any(Number),
     });
     expect(
@@ -154,5 +172,16 @@ for (const promote of [false, true]) {
         .bind(f.registration.registrationId)
         .first(),
     ).toBeNull();
+    const { results: requests } = await db
+      .prepare("SELECT account_id,message_id FROM lobby_chat_requests WHERE request_id=?")
+      .bind(f.chat.requestId)
+      .all();
+    expect(requests).toEqual([{ account_id: accountId, message_id: f.chat.messageId }]);
+    expect(
+      await db
+        .prepare("SELECT last_sent_at_ms FROM lobby_chat_senders WHERE account_id=?")
+        .bind(accountId)
+        .first(),
+    ).toEqual({ last_sent_at_ms: 1 });
   });
 }
