@@ -14,6 +14,7 @@ export class RoomAlarmEvents {
   private dirty = false;
   private synchronousRoom: Room | null | undefined;
   private syncing: Promise<void> | null = null;
+  private activeWork = 0;
   // 外部応答待ちに届いた別イベントを、入れ子の呼び出しと区別します。
   private readonly event = new AsyncLocalStorage<{ active: boolean }>();
 
@@ -70,17 +71,32 @@ export class RoomAlarmEvents {
     else await this.storage.setAlarm(next);
   }
 
+  get hasActiveWork(): boolean {
+    return this.activeWork > 0 || this.syncing !== null;
+  }
+
+  async trackWork<T>(action: () => Promise<T>): Promise<T> {
+    this.activeWork++;
+    try {
+      return await action();
+    } finally {
+      this.activeWork--;
+    }
+  }
+
   async run<T>(action: () => Promise<T>): Promise<T> {
     if (this.event.getStore()?.active) return action();
     const event = { active: true };
-    return this.event.run(event, async () => {
-      try {
-        return await action();
-      } finally {
-        event.active = false;
-        await this.sync();
-      }
-    });
+    return this.trackWork(() =>
+      this.event.run(event, async () => {
+        try {
+          return await action();
+        } finally {
+          event.active = false;
+          await this.sync();
+        }
+      }),
+    );
   }
 }
 

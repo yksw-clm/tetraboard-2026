@@ -34,7 +34,10 @@ export type RoomCpuCapacity = {
 };
 
 export type RoomRuntime = {
-  alarms: Pick<RoomAlarmEvents, "sync" | "afterFlush" | "mark" | "withRoom">;
+  alarms: Pick<
+    RoomAlarmEvents,
+    "sync" | "afterFlush" | "mark" | "withRoom" | "hasActiveWork" | "trackWork"
+  >;
   jobs: RoomJobs;
   usageEvents: TransactionUsageEvents;
   cpuCapacity: Env["CPU_CAPACITY"];

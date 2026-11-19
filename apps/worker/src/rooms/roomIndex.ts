@@ -25,6 +25,7 @@ export type IndexedRoomParticipant = z.infer<typeof indexedParticipantsSchema>[n
 export type PendingRoomIndex = {
   revision: number;
   closed: boolean;
+  closedAtMs?: number;
   metadata: RoomPublicMetadata & {
     matchKind?: MatchKind;
     matchSequence?: number;
@@ -78,15 +79,17 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
       `WITH incoming (
         room_id, game, mode, main_time_ms, byoyomi_ms, status, host_name, host_avatar_url,
         human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed,
-        instance_id, host_player_id, tournament_id, matchmaking, participants_json, match_kind, match_sequence
-      ) AS (VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)),
+        instance_id, host_player_id, tournament_id, matchmaking, participants_json, match_kind, match_sequence,
+        closed_at_ms
+      ) AS (VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)),
       scrub_input AS MATERIALIZED (
         SELECT incoming.*, ${retiredHost} AS retired_host FROM incoming
       )
       INSERT INTO room_index (
         room_id, game, mode, main_time_ms, byoyomi_ms, status, host_name, host_avatar_url,
         human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed,
-        instance_id, host_player_id, tournament_id, matchmaking, participants_json, match_kind, match_sequence
+        instance_id, host_player_id, tournament_id, matchmaking, participants_json, match_kind, match_sequence,
+        closed_at_ms
       )
       SELECT room_id, game, mode, main_time_ms, byoyomi_ms, status,
         CASE WHEN retired_host THEN ? ELSE host_name END,
@@ -95,8 +98,13 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
         CASE WHEN retired_host THEN NULL ELSE host_player_id END,
         tournament_id, matchmaking,
         CASE WHEN ${participants.needed} THEN ${participants.scrubbed} ELSE participants_json END,
-        match_kind, match_sequence
-      FROM scrub_input WHERE true
+        match_kind, match_sequence, closed_at_ms
+      FROM scrub_input
+      WHERE NOT EXISTS (
+        SELECT 1 FROM room_index_deleted_revisions AS deleted
+        WHERE deleted.room_id = scrub_input.room_id
+          AND deleted.deleted_through_revision >= scrub_input.revision
+      )
       ON CONFLICT(room_id) DO UPDATE SET
         game = excluded.game,
         mode = excluded.mode,
@@ -118,7 +126,9 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
         matchmaking = excluded.matchmaking,
         participants_json = excluded.participants_json,
         match_kind = excluded.match_kind,
-        match_sequence = excluded.match_sequence
+        match_sequence = excluded.match_sequence,
+        closed_at_ms = excluded.closed_at_ms,
+        closed_observed_at_ms = NULL
       WHERE excluded.revision > room_index.revision`,
     )
     .bind(
@@ -146,6 +156,7 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
         : JSON.stringify(indexedParticipantsSchema.parse(room.participantPreviews)),
       room.matchKind ?? null,
       room.matchSequence ?? null,
+      pending.closed ? (pending.closedAtMs ?? null) : null,
       retiredName,
     )
     .run();
