@@ -4,7 +4,7 @@ import { lobbyRoomCardsSchema } from "@tetraboard/protocol/general-lobby";
 import { beforeEach, expect, test, vi } from "vitest";
 import { indexRevisionKey, pendingIndexKey } from "../src/adapters/room/indexJob";
 import type { RoomRuntime } from "../src/durableObjects/gameRoom/runtime";
-import { writeRoomIndex, type PendingRoomIndex } from "../src/rooms/roomIndex";
+import { writeRoomIndex, type PendingRoomIndex } from "../src/adapters/room/roomIndexWrite";
 import { waitingRoomFactories } from "../src/rooms/waitingRoomFactories";
 import { fixTestTime } from "./fixedTimeFixture";
 import { boundaryRequest } from "./roomBoundaryFixtures";

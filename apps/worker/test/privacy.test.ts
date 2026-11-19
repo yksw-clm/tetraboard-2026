@@ -19,7 +19,7 @@ import {
 } from "../src/adapters/record/publication";
 import { reversiMatchData } from "../src/adapters/record/reversiMatchData";
 import type { RoomRuntime } from "../src/durableObjects/gameRoom/runtime";
-import { writeRoomIndex, type PendingRoomIndex } from "../src/rooms/roomIndex";
+import { writeRoomIndex, type PendingRoomIndex } from "../src/adapters/room/roomIndexWrite";
 import { challengeCookie, flowCookie } from "../src/adapters/privacy/deletionCookies";
 import { completeReauthentication } from "../src/adapters/privacy/deletionAuthentication";
 import { digest } from "../src/crypto";

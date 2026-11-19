@@ -44,8 +44,6 @@
     {
       "files": [
         "apps/worker/src/rooms/aiService.ts",
-        "apps/worker/src/rooms/roomIndex.ts",
-        "apps/worker/src/rooms/roomRoutes.ts",
         "apps/worker/test/accountRooms.test.ts",
         "apps/worker/test/feedback.test.ts",
         "apps/worker/test/fourShogiRoom.test.ts",
@@ -66,13 +64,7 @@
       }
     },
     {
-      "files": [
-        "apps/worker/src/rooms/aiService.ts",
-        "apps/worker/src/rooms/applyRoomSettings.ts",
-        "apps/worker/src/rooms/rankingRoutes.ts",
-        "apps/worker/src/rooms/roomIndex.ts",
-        "apps/worker/src/rooms/roomRoutes.ts"
-      ],
+      "files": ["apps/worker/src/rooms/aiService.ts"],
       "rules": {
         "max-lines-per-function": "off"
       }

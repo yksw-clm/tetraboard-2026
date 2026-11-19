@@ -9,7 +9,7 @@ import {
 } from "@tetraboard/protocol";
 import { participantProfiles } from "../adapters/record/matchProfiles";
 import { readStoredMatch } from "../adapters/record/matchDataContracts";
-import { readShogiMatchReplayPage } from "./shogiMatchStore";
+import { readShogiMatchReplayPage } from "../rooms/shogiMatchStore";
 
 export const publicMatchRoutes = new Hono<{ Bindings: Env }>();
 publicMatchRoutes.get(listPublicMatchesContract.path, async (c) => {

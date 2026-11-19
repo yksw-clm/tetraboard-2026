@@ -8,7 +8,7 @@ import { deleteUnusedAvatars } from "./routes/accountAvatars";
 import { recoverTournaments } from "./adapters/tournament/recovery";
 import { matchmakingQueueKeys } from "@tetraboard/protocol";
 import { savePreviousMonthKpi } from "./kpi/monthly";
-import { runRoomIndexRetention } from "./rooms/roomIndexRetention";
+import { runRoomIndexRetention } from "./adapters/room/roomIndexRetention";
 
 const roomIndexRetentionEnabled = false;
 const roomIndexRetentionInspectionEnabled = true;
