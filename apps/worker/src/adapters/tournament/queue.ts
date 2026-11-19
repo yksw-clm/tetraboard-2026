@@ -64,10 +64,16 @@ export class D1TournamentQueueStore implements TournamentQueueStore {
       prepareTournamentWaitFence(this.db, player.accountId),
       prepareTournamentWaitMergedAbort(this.db, player.accountId),
     ]);
-    if (!results[0].meta.changes) {
-      const reason = results[1].results[0]?.code;
-      if (reason) throw new Error(reason);
-    }
+    if (results[0].meta.changes) return true;
+    const reason = results[1].results[0]?.code;
+    if (
+      reason === "matchmaking_waiting" ||
+      reason === "account_seated" ||
+      reason === "account_deleted"
+    )
+      return false;
+    if (reason) throw new Error(reason);
+    return true;
   }
   preparePlayer(player: Player, profile: WaitingProfile, key: string) {
     return prepareTournamentPlayer(this.db, player, profile, key);

@@ -12,6 +12,7 @@ export async function ensureTournamentGroup(db: D1Database, state: State, group:
           "INSERT OR IGNORE INTO tournament_match_players(match_id,entry_id,account_id,player_id,operation_id) VALUES(?,?,?,?,?)",
         )
         .bind(group.id, p.entryId, p.accountId, p.admission.playerId, p.admission.operationId),
+      // 席を移譲するまで、D1 の予約をルームの準備期限で確保します。
       db
         .prepare(
           "UPDATE tournament_wait_reservations SET lease_until_ms=? WHERE account_id=? AND operation_id=?",

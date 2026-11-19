@@ -43,6 +43,13 @@
       "when": 1794997806088,
       "tag": "0005_announcements_published_on",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1795048544429,
+      "tag": "0006_room_index_retention",
+      "breakpoints": true
     }
   ]
 }

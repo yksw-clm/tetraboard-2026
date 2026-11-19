@@ -66,6 +66,7 @@ class MemoryQueue implements TournamentQueueStore {
   }
   async restore(player: Player, _key: string) {
     this.leases.set(player.accountId, { ...player });
+    return true;
   }
   preparePlayer(player: Player, _profile: WaitingProfile, _key: string) {
     return [{ value: () => this.seats.set(player.accountId, { ...player.admission }) }];

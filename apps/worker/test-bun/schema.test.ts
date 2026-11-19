@@ -48,8 +48,8 @@ const uniqueNames = new Set(
     .filter((name) => name !== undefined),
 );
 
-test("既存migrationの全65テーブルと42トリガーを適用します", () => {
-  expect(tableNames(migrated)).toHaveLength(65);
+test("既存migrationの全67テーブルと42トリガーを適用します", () => {
+  expect(tableNames(migrated)).toHaveLength(67);
   expect(tableNames(defined)).toEqual(tableNames(migrated));
   expect(
     migrated.query("SELECT name FROM sqlite_master WHERE type = 'trigger'").all(),
@@ -63,6 +63,20 @@ test("既存のお知らせの日付を published_on に引き継ぎます", () 
   expect(
     migrated.query("SELECT id FROM announcements WHERE published_on IS NOT date").all(),
   ).toEqual([]);
+});
+
+test("閉鎖・観測時刻は NULL を許容し、閉鎖行だけに期限走査用の索引を持つ", () => {
+  const columns = migrated
+    .query<{ name: string; notnull: number; dflt_value: null }, []>("PRAGMA table_info(room_index)")
+    .all();
+  for (const name of ["closed_at_ms", "closed_observed_at_ms"])
+    expect(columns.find((column) => column.name === name)).toMatchObject({
+      notnull: 0,
+      dflt_value: null,
+    });
+  expect(migrated.query("PRAGMA index_list(room_index)").all()).toContainEqual(
+    expect.objectContaining({ name: "room_index_closed_retention", partial: 1 }),
+  );
 });
 
 test.each([

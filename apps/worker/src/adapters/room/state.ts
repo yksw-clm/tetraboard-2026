@@ -24,7 +24,7 @@ export function migrateStoredRoom(runtime: RoomRuntime, saved: unknown, version:
 }
 
 export function readRoom(runtime: RoomRuntime): Room | null {
-  const saved = runtime.ctx.storage.kv.get<Room>(roomStorageKey);
+  const saved = runtime.ctx.storage.kv.get(roomStorageKey);
   if (saved === undefined) return null;
   const version = runtime.ctx.storage.kv.get<number>(roomStateVersionKey) ?? 0;
   if (version >= currentRoomStateVersion) return roomSchema.parse(saved);

@@ -50,7 +50,11 @@ export function startMatchmakingAiWarmup(
     atMs: now,
   });
   runtime.alarms.mark();
-  runtime.ctx.waitUntil(finishMatchmakingAiWarmup(runtime, key, game, attempt, deadline));
+  runtime.ctx.waitUntil(
+    runtime.alarms.trackWork(() =>
+      finishMatchmakingAiWarmup(runtime, key, game, attempt, deadline),
+    ),
+  );
 }
 
 async function finishMatchmakingAiWarmup(

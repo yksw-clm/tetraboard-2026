@@ -18,10 +18,16 @@ export function queueDeletionStatements(
   { accountId, batchReceipt }: DeletionBatch,
 ) {
   return [
-    // 旧実装の席・保存待ちも確認するため、既存の部屋を対象に含めます。
+    // 旧実装の席・保存待ちも確認するため、索引の現存行と削除済みの番号を対象に含めます。
     db
       .prepare(
         `INSERT OR IGNORE INTO deletion_rooms SELECT ?1,room_id FROM room_index WHERE ${acceptedDeletionSql}`,
+      )
+      .bind(accountId, batchReceipt),
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO deletion_rooms SELECT ?1,room_id FROM room_index_deleted_revisions
+      WHERE ${acceptedDeletionSql}`,
       )
       .bind(accountId, batchReceipt),
     db

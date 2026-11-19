@@ -1,8 +1,9 @@
 import { expectVersionedRoom } from "./roomStateVersionAssertions";
 import { env } from "cloudflare:workers";
-import { runInDurableObject } from "cloudflare:test";
+import { evictDurableObject, runInDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
-import { gameIds, type Room } from "@tetraboard/protocol";
+import { fourReversiRoomSchema, gameIds, roundReplaySchema, type Room } from "@tetraboard/protocol";
+import { getLegalMoves } from "@tetraboard/four-reversi";
 import { RoomBoundaryFixtures, boundaryRequest } from "./roomBoundaryFixtures";
 import { FourShogiProgress } from "../src/rooms/fourShogiProgress";
 import { currentRoomStateVersion, roomStateVersionKey } from "../src/rooms/roomStateVersion";
@@ -36,6 +37,100 @@ async function legacyRoom() {
   });
   return { room, stub };
 }
+
+test.each(["waiting", "playing"] as const)(
+  "四人リバーシ %s: 保存版2の局IDと局面の版をGET・WebSocketで配信し、対局を継続できる",
+  async (status) => {
+    const host = await fixtures.create({
+      game: "four-reversi",
+      name: "ホスト",
+      quickPlay: false,
+      mode: "singles",
+    });
+    const { id, instanceId } = host.room;
+    const stub = env.GAME_ROOM.getByName(id);
+    const entries = [host];
+    if (status === "playing") {
+      for (const name of ["参加者1", "参加者2", "参加者3"])
+        entries.push(await fixtures.join(id, name));
+      const sockets = await Promise.all(entries.map((entry) => fixtures.connect(entry)));
+      const [hostSocket] = sockets;
+      for (const [index, socket] of sockets.entries()) {
+        const playerId = entries[index].membership.playerId;
+        socket.send({ type: "room.ready.set", ready: true });
+        await hostSocket.waitFor("room.snapshot", (m) =>
+          m.room.players.some((player) => player.id === playerId && player.ready),
+        );
+      }
+      hostSocket.send({ type: "room.game.start" });
+      await hostSocket.waitFor("room.snapshot", (m) => m.room.status === "playing");
+    }
+
+    const readV2 = () =>
+      runInDurableObject(stub, (_, ctx) => {
+        expect(ctx.storage.kv.get(roomStateVersionKey)).toBe(2);
+        return {
+          room: fourReversiRoomSchema.parse(ctx.storage.kv.get("room")),
+          replay: roundReplaySchema.optional().parse(ctx.storage.kv.get("round-replay")),
+        };
+      });
+    const before = await readV2();
+    expect(before.room.status).toBe(status);
+    await evictDurableObject(stub, { webSockets: "hibernate" });
+
+    expect(await stub.getShareMetadata(instanceId)).toEqual({
+      id,
+      instanceId,
+      settings: { game: "four-reversi" },
+    });
+    expect(await readV2()).toEqual(before);
+    expect((await fixtures.snapshot(id)).room).toEqual(before.room);
+
+    const { room } = before;
+    const mover = entries.find((entry) =>
+      room.players.some(
+        (player) =>
+          player.id === entry.membership.playerId && player.color === (room.game?.turn ?? null),
+      ),
+    );
+    if (!mover) throw new Error("Expected a player for the current turn");
+    const socket = await fixtures.open(id);
+    socket.send({ type: "room.auth", token: mover.membership.token });
+    expect((await socket.waitFor("room.authenticated")).membership.playerId).toBe(
+      mover.membership.playerId,
+    );
+    const connectedRoom = {
+      ...room,
+      players: room.players.map((player) =>
+        player.id === mover.membership.playerId ? { ...player, reconnectDeadline: null } : player,
+      ),
+    };
+    expect((await socket.waitFor("room.snapshot")).room).toEqual(connectedRoom);
+    expect(await readV2()).toEqual({ ...before, room: connectedRoom });
+
+    if (room.status !== "playing") return;
+    const [position] = getLegalMoves(room.game);
+    socket.send({
+      type: "room.game.action",
+      roundId: room.roundId,
+      positionRevision: room.positionRevision,
+      action: { type: "placeStone", position },
+    });
+    const { room: moved } = await socket.waitFor(
+      "room.snapshot",
+      (m) => m.room.game?.moveNumber === 1,
+    );
+    expect(moved).toMatchObject({
+      roundId: room.roundId,
+      positionRevision: room.positionRevision + 1,
+      game: { lastMove: position },
+    });
+    const after = await readV2();
+    expect(after.room).toEqual(moved);
+    expect(after.replay?.id).toBe(before.replay?.id);
+    expect(after.replay?.steps).toHaveLength(1);
+  },
+);
 
 test.each(["waiting", "playing"] as const)(
   "通常リバーシ %s: 脱落配列の欠落は移行で補わず、失敗した状態も保存しない",

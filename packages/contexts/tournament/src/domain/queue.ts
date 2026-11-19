@@ -10,7 +10,11 @@ export type Waiting = {
   credentialDerived?: boolean;
   credentialPending?: boolean;
 };
-export type Player = Waiting & { entryId: string; admission: TournamentAdmission };
+export type Player = Waiting & {
+  entryId: string;
+  admission: TournamentAdmission;
+  waitingExpiresAtMs?: number;
+};
 export type Group = {
   assignSequence?: true;
   id: string;
@@ -20,6 +24,8 @@ export type Group = {
   phase: "confirming" | "preparing" | "matched" | "playing" | "cancelling";
   players: Player[];
   remove?: string[];
+  rollbackAfterPublication?: boolean;
+  waitingReleasePending?: true;
 };
 export type State = { key: string; waiting: Waiting[]; groups: Group[] };
 export type Result = { ok: true } | { ok: false; status: 400 | 403 | 409; message: string };
