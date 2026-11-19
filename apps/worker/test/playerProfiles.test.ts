@@ -1,6 +1,5 @@
 import { seedStoredMatches } from "./storedMatchFixtures";
 import { encodeSnapshotMatch } from "../src/rooms/snapshotMatchEvents";
-import { writeOutcomeFixture } from "./matchFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
