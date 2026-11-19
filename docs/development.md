@@ -607,7 +607,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 - `apps/worker/src/flows/`: 文脈をまたぐもの。`feedbackSubmission.ts` は退会の確認（privacy）、`roomReports.ts` はルームの DO での発言の確認（room）と結びます。
 - `apps/worker/src/routes/`: `announcementRoutes.ts`、`notificationRoutes.ts`、`feedbackRoutes.ts`、`feedbackAdminRoutes.ts`、`roomReportRoutes.ts` などの HTTP の入口。本文の大きさの上限つきの読み取りは `readLimitedBody.ts` です。
 - 通知のイベントは、書き込みと同じ D1 の batch で作ります（TB-145）。お知らせは `adapters/community/announcements.ts`、バッジは `adapters/community/badgeEvents.ts` の文を、対局の保存と引き継ぎの flow（`flows/matchSave/badges.ts`、`claims.ts`）が record のバッジの通知の INSERT の直後に足します。同じ働きの古いトリガー（`notification_badge`、`notification_announcement_*`、チャットの `lobby_chat_accept`）は、TB-146（migration 0055）で消しました。書き込みの場所と、イベントの文を伴うことは `test-bun/communityWriteBoundaries.test.ts` が確かめます。
-- お知らせの日付は、`date` から `published_on` の列へ移しています（TB-145、migration 0053）。TB-146（migration 0055）で表を作り直し、`published_on` を NOT NULL にしました。アプリは `published_on` だけを読み書きします。`date` の列は、どのコードも参照しなくなったので、NULL を許す形で残っています（列そのものは migration の整理（TB-75）などで消します）。API の項目名は `date` のままです。
+- お知らせの日付は、`date` から `published_on` の列へ移しています（TB-145、migration 0053）。TB-146（migration 0055）で表を作り直し、`published_on` を NOT NULL にしました。アプリは `published_on` だけを読み書きします。`date` の列は TB-162（migration 0057）で消しました。API の項目名は `date` のままです。
 
 ## マッチングの入口
 
