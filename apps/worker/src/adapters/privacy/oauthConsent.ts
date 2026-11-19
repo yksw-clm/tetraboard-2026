@@ -1,7 +1,7 @@
 import { completeOAuthLegalConsent } from "@tetraboard/context-privacy";
 import { legalVersion } from "@tetraboard/protocol/privacy";
-import { accountIdentity, type AuthEnv } from "../../accounts/auth";
-import { responseCookies } from "../../accounts/authCookies";
+import { accountIdentity, type AuthEnv } from "../../adapters/account/auth";
+import { responseCookies } from "../../adapters/account/authCookies";
 import { D1LegalConsent } from "./consent";
 
 export async function completeLegalAuthentication(

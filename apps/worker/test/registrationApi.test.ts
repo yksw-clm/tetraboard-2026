@@ -10,7 +10,7 @@ import {
 import { registrationRoutes } from "../src/routes/registrationRoutes";
 import { accountRoutes } from "../src/routes/accountRoutes";
 import { readRegistrationFlow } from "../src/flows/guestRegistration/account";
-import { accountSessionIdentity } from "../src/accounts/auth";
+import { accountSessionIdentity } from "../src/adapters/account/auth";
 import { digest } from "../src/crypto";
 import { acceptMatchClaim, applyMatchClaims } from "../src/flows/matchSave/claims";
 import { accountFixture, origin } from "./accountFixtures";

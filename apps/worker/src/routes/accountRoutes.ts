@@ -10,7 +10,12 @@ import {
   RegistrationError,
   type RegistrationFlow,
 } from "../flows/guestRegistration/account";
-import { accountIdentity, publicProfile, type AuthEnv, type StoredProfile } from "../accounts/auth";
+import {
+  accountIdentity,
+  publicProfile,
+  type AuthEnv,
+  type StoredProfile,
+} from "../adapters/account/auth";
 import { D1ProfileWriter } from "../adapters/account/profileWrites";
 import { avatarRoutes, deleteUnusedAvatars } from "./accountAvatars";
 import { accountAuthRoutes } from "./accountAuthRoutes";

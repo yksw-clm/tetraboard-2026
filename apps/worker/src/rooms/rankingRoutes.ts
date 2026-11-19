@@ -9,7 +9,7 @@ import {
   type PreviewRankings,
   previewRankingsSchema,
 } from "@tetraboard/protocol";
-import { accountAvatarUrl } from "../accounts/auth";
+import { accountAvatarUrl } from "../adapters/account/auth";
 import { matchDataContracts } from "../adapters/record/matchDataContracts";
 import { matchOutcomesCte } from "../adapters/record/matchOutcomes";
 import {

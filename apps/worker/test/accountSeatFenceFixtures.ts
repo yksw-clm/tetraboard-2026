@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { afterEach } from "vitest";
 import { accountFixture, origin } from "./accountFixtures";
 import { reserveAccountSeat } from "../src/flows/accountSeats/reserve";
-import type { StoredProfile } from "../src/accounts/auth";
+import type { StoredProfile } from "../src/adapters/account/auth";
 import { D1MatchmakingStore } from "../src/adapters/matchmaking/store";
 import { D1TournamentQueueStore } from "../src/adapters/tournament/queue";
 

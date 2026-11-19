@@ -14,7 +14,7 @@ import {
   fourReversiRoomSchema as roomSchema,
 } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
-import { accountIdentity, publicProfile } from "../src/accounts/auth";
+import { accountIdentity, publicProfile } from "../src/adapters/account/auth";
 import { reserveAccountSeat, recoverAccountReservations } from "../src/flows/accountSeats/reserve";
 import { deleteUnusedAvatars } from "../src/routes/accountAvatars";
 import { prepareLegacyAccounts } from "../scripts/legacyAccountPlan";

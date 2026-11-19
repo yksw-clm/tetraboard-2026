@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { hasIdentityCookie } from "../accounts/auth";
+import { hasIdentityCookie } from "../adapters/account/auth";
 
 export const chatPageQuery = z.object({
   before: z

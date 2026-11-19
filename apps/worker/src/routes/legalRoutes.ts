@@ -1,7 +1,7 @@
 import { acceptLegalConsent, readLegalConsent } from "@tetraboard/context-privacy";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { Hono } from "hono";
-import { accountIdentity } from "../accounts/auth";
+import { accountIdentity } from "../adapters/account/auth";
 import { D1LegalConsent } from "../adapters/privacy/consent";
 import { privacyInput } from "./privacyInput";
 

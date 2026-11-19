@@ -5,7 +5,7 @@ import {
   validDeletionReceipt,
 } from "@tetraboard/context-privacy";
 import { Hono } from "hono";
-import { accountIdentity, createAuth, type AuthEnv } from "../accounts/auth";
+import { accountIdentity, createAuth, type AuthEnv } from "../adapters/account/auth";
 import { startDeletionAuthentication } from "../adapters/privacy/deletionAuthentication";
 import { D1DeletionConfirmation } from "../adapters/privacy/deletionConfirmation";
 import { challengeCookie, cookieValue, flowCookie } from "../adapters/privacy/deletionCookies";

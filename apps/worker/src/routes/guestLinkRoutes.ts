@@ -1,6 +1,6 @@
 import { GuestLinkError } from "@tetraboard/context-account";
 import { Hono } from "hono";
-import type { AuthEnv } from "../accounts/auth";
+import type { AuthEnv } from "../adapters/account/auth";
 import {
   cancelGuestRoomLink,
   mergeGuestAccounts,

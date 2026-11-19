@@ -19,7 +19,7 @@ import {
   viewerContract,
   type RoomError,
 } from "@tetraboard/protocol";
-import { profileAvatarUrl } from "../accounts/auth";
+import { profileAvatarUrl } from "../adapters/account/auth";
 import { roomEntryProfile, RoomAccountError } from "../flows/accountSeats/entryProfile";
 import { reserveAccountSeat, cancelReservation } from "../flows/accountSeats/reserve";
 import { type AccountAdmission } from "../flows/accountSeats/types";

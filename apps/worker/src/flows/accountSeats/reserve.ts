@@ -1,5 +1,5 @@
 import { accountAvatarPresetId } from "@tetraboard/protocol";
-import { avatarKeyPattern, type StoredProfile } from "../../accounts/auth";
+import { avatarKeyPattern, type StoredProfile } from "../../adapters/account/auth";
 import {
   existingReservation,
   insertReservation,

@@ -8,7 +8,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import fourGomoku from "../../../test-fixtures/matches/four-gomoku-singles-ranked.json";
 import gomoku from "../../../test-fixtures/matches/gomoku-on-five.json";
 import reversi from "../../../test-fixtures/matches/reversi-standard-draw.json";
-import { accountIdentity } from "../src/accounts/auth";
+import { accountIdentity } from "../src/adapters/account/auth";
 import { fourGomokuMatchData } from "../src/adapters/record/fourGomokuMatchData";
 import { guestReplayTransferStatements } from "../src/adapters/record/guestMergeWrites";
 import { gomokuMatchData } from "../src/adapters/record/gomokuMatchData";
@@ -25,7 +25,7 @@ import { completeReauthentication } from "../src/adapters/privacy/deletionAuthen
 import { digest } from "../src/crypto";
 import { processDeletions } from "../src/flows/accountPurge/processDeletions";
 import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
-import { responseCookies } from "../src/accounts/authCookies";
+import { responseCookies } from "../src/adapters/account/authCookies";
 import { authSecret, unsealToken } from "../src/adapters/account/authTokens";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";

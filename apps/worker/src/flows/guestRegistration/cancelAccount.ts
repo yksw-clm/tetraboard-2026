@@ -1,5 +1,5 @@
 import { cancelGuestRegistration } from "@tetraboard/context-account";
-import { accountSessionIdentity } from "../../accounts/auth";
+import { accountSessionIdentity } from "../../adapters/account/auth";
 import { D1RegistrationWrites } from "../../adapters/account/registrationWrites";
 import {
   RegistrationError,

@@ -33,7 +33,7 @@ import { matchmakingCredential } from "../src/adapters/matchmaking/credential";
 import { D1TournamentQueueStore } from "../src/adapters/tournament/queue";
 import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { requireGuestIdle } from "../src/flows/guestRegistration/guestLink";
-import { accountIdentity } from "../src/accounts/auth";
+import { accountIdentity } from "../src/adapters/account/auth";
 import { matchmakingRoutes } from "../src/routes/matchmaking";
 import { standardShogiRecord, saveStandardShogiFixture } from "./standardShogiFixtures";
 import { reversiMatchData } from "../src/adapters/record/reversiMatchData";

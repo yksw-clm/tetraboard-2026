@@ -1,7 +1,11 @@
 import { env, exports } from "cloudflare:workers";
 import { afterEach, expect, test } from "vitest";
 import { legalVersion } from "@tetraboard/protocol/privacy";
-import { createAuth, withAccountSessionCookies, type StoredProfile } from "../src/accounts/auth";
+import {
+  createAuth,
+  withAccountSessionCookies,
+  type StoredProfile,
+} from "../src/adapters/account/auth";
 import { createGuestAccount } from "../src/routes/guestSession";
 import { rememberGuestLink } from "../src/flows/guestRegistration/guestLink";
 import { completeGuestLink } from "../src/routes/guestLinkOAuth";

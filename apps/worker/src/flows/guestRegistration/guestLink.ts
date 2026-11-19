@@ -13,7 +13,7 @@ import {
   type RegistrationFlow,
   type StoredProfile,
 } from "@tetraboard/context-account";
-import { accountSessionIdentity, type AuthEnv } from "../../accounts/auth";
+import { accountSessionIdentity, type AuthEnv } from "../../adapters/account/auth";
 import { D1GuestLinks } from "../../adapters/account/guestLinks";
 import { D1GuestLinkWrites, type GuestLinkWrite } from "../../adapters/account/guestLinkWrites";
 import { D1Registrations } from "../../adapters/account/registrations";

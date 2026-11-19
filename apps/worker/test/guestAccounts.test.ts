@@ -18,7 +18,7 @@ import { gameIds, gameCatalog } from "@tetraboard/protocol/games";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
-import { accountIdentity, withAccountSessionCookies } from "../src/accounts/auth";
+import { accountIdentity, withAccountSessionCookies } from "../src/adapters/account/auth";
 import { createGuestAccount, guestTokenHash, guestLifetimeMs } from "../src/routes/guestSession";
 import { rememberGuestLink } from "../src/flows/guestRegistration/guestLink";
 import { completeGuestLink } from "../src/routes/guestLinkOAuth";

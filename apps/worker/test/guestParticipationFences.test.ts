@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { expect, test } from "vitest";
-import type { StoredProfile } from "../src/accounts/auth";
+import type { StoredProfile } from "../src/adapters/account/auth";
 import { preparePlayerWrites } from "../src/adapters/matchmaking/seatWrites";
 import type { Group } from "@tetraboard/context-matchmaking";
 import { D1TournamentEntries } from "../src/adapters/tournament/entries";
