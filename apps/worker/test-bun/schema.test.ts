@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { generateSQLiteDrizzleJson, generateSQLiteMigration } from "drizzle-kit/api";
 import { sql } from "drizzle-orm";
 import { getTableConfig, SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
+import { roomParticipantScrubSql } from "../src/adapters/room/indexScrub";
 import * as schema from "../src/db/schema";
 import { inspectTable, tableNames } from "./schemaInspection";
 
@@ -48,12 +49,9 @@ const uniqueNames = new Set(
     .filter((name) => name !== undefined),
 );
 
-test("既存migrationの全67テーブルと42トリガーを適用します", () => {
+test("既存migrationの全67テーブルを適用します", () => {
   expect(tableNames(migrated)).toHaveLength(67);
   expect(tableNames(defined)).toEqual(tableNames(migrated));
-  expect(
-    migrated.query("SELECT name FROM sqlite_master WHERE type = 'trigger'").all(),
-  ).toHaveLength(42);
 });
 
 test("既存のお知らせの日付を published_on に引き継ぎます", () => {
@@ -99,10 +97,74 @@ test.each([
   "guest_merged_match_insert",
   "guest_merged_upload_insert",
   "guest_merged_history_insert",
+  "notification_privacy_insert",
+  "notification_privacy_update",
+  "notification_reads_privacy",
+  "notification_state_privacy",
+  "privacy_challenge_limit",
+  "privacy_fence_account_badge_awards",
+  "privacy_fence_account_badge_notifications",
+  "privacy_fence_account_match_history",
+  "privacy_fence_account_room_seats",
+  "privacy_fence_feedback",
+  "privacy_fence_match_claim_insert",
+  "privacy_fence_match_claim_update",
+  "privacy_fence_privacy_room_accounts",
+  "privacy_fence_room_players",
+  "privacy_hide_feedback",
+  "privacy_hide_room_index",
+  "privacy_hide_room_participants",
+  "privacy_pending_images",
+  "privacy_retire_match_claims",
+  "privacy_scrub_claimed_match_insert",
+  "privacy_scrub_claimed_match_update",
+  "privacy_scrub_claimed_upload_insert",
+  "privacy_scrub_claimed_upload_update",
+  "privacy_scrub_existing",
+  "privacy_scrub_matches_insert",
+  "privacy_scrub_matches_update",
+  "privacy_scrub_retired_match_claim",
+  "privacy_scrub_room_index_insert",
+  "privacy_scrub_room_index_update",
+  "privacy_scrub_room_participants_insert",
+  "privacy_scrub_room_participants_update",
+  "privacy_scrub_shogi_match_uploads_insert",
+  "privacy_scrub_shogi_match_uploads_update",
+  "tournament_entry_deleted_fence",
 ])("アプリへ移したトリガー %s は残りません", (name) => {
   expect(
     migrated.query("SELECT name FROM sqlite_master WHERE type='trigger' AND name=?").all(name),
   ).toEqual([]);
+});
+
+test.each([
+  ["privacy_fence_account", "account"],
+  ["privacy_fence_account_update", "account"],
+  ["privacy_fence_session", "session"],
+  ["privacy_fence_user_update", "user"],
+])("better-auth の退会フェンス %s を残します", (name, table) => {
+  expect(
+    migrated.query("SELECT tbl_name FROM sqlite_master WHERE type='trigger' AND name=?").get(name),
+  ).toEqual({ tbl_name: table });
+});
+
+test("参加者の伏せ字はルーム・世代・プレイヤーの索引を使います", () => {
+  const { needed } = roomParticipantScrubSql(
+    "room_index.room_id",
+    "room_index.instance_id",
+    "room_index.participants_json",
+  );
+  const plan = migrated
+    .query<{ detail: string }, []>(
+      `EXPLAIN QUERY PLAN SELECT room_id FROM room_index WHERE ${needed}`,
+    )
+    .all()
+    .map(({ detail }) => detail);
+  expect(plan).toContainEqual(
+    expect.stringMatching(
+      /\bprivacy_room_players_by_room_player\b \(room_id=\? AND instance_id=\? AND player_id=\?\)/,
+    ),
+  );
 });
 
 for (const table of tableNames(migrated)) {

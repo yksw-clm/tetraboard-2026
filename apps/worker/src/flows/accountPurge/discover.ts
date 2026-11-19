@@ -1,3 +1,4 @@
+import { queuePendingDeletionImage } from "../../adapters/privacy/deletionJobs";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import type { PurgeTargets } from "./types";
 import { identityScope } from "./identityScope";
@@ -27,12 +28,7 @@ async function prepareSeatPurge(
     const seat = value as StoredAccountSeat;
     if (seat.occupying) throw new Error("Account still seated");
     ids.add(seat.playerId);
-    if (seat.avatarKey) {
-      await runtime.db
-        .prepare("INSERT OR IGNORE INTO deletion_images VALUES (?,?)")
-        .bind(accountId, seat.avatarKey)
-        .run();
-    }
+    if (seat.avatarKey) await queuePendingDeletionImage(runtime.db, accountId, seat.avatarKey);
     await runtime.db
       .prepare("DELETE FROM room_avatar_refs WHERE operation_id=? AND instance_id=?")
       .bind(seat.operationId, seat.instanceId)
@@ -66,10 +62,7 @@ async function discover(
       if (typeof row.name === "string") names.add(row.name);
       if (typeof row.hostName === "string") names.add(row.hostName);
       if (typeof row.avatarKey === "string")
-        await runtime.db
-          .prepare("INSERT OR IGNORE INTO deletion_images VALUES (?,?)")
-          .bind(accountId, row.avatarKey)
-          .run();
+        await queuePendingDeletionImage(runtime.db, accountId, row.avatarKey);
       if (typeof row.operationId === "string")
         await runtime.db
           .prepare("DELETE FROM room_avatar_refs WHERE operation_id=?")

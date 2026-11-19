@@ -59,28 +59,6 @@ async function retireClaim(matchId: string, playerId: string) {
     .run();
 }
 
-test("棋譜と履歴の退会トリガーは残ります", async () => {
-  const { results } = await db
-    .prepare("SELECT name FROM sqlite_master WHERE type='trigger'")
-    .all<{ name: string }>();
-  expect(results.map(({ name }) => name)).toEqual(
-    expect.arrayContaining([
-      "privacy_fence_account_match_history",
-      "privacy_scrub_matches_insert",
-      "privacy_scrub_matches_update",
-      "privacy_scrub_shogi_match_uploads_insert",
-      "privacy_scrub_shogi_match_uploads_update",
-      "privacy_scrub_claimed_match_insert",
-      "privacy_scrub_claimed_match_update",
-      "privacy_scrub_claimed_upload_insert",
-      "privacy_scrub_claimed_upload_update",
-      "privacy_scrub_existing",
-      "privacy_retire_match_claims",
-      "privacy_scrub_retired_match_claim",
-    ]),
-  );
-});
-
 for (const [name, deletedAccount, retiredPlayer] of [
   ["退会なし", null, null],
   ["統合先が退会済み", "target", null],

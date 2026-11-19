@@ -1,5 +1,5 @@
 import { retiredName } from "@tetraboard/context-privacy";
-import { acceptedDeletionSql, type DeletionBatch } from "../../db/deletionGuard";
+import { deletionGuard, type DeletionScope } from "../../db/deletionGuard";
 
 export function scrubbedRecordJsonSql(
   recordJson: string,
@@ -49,7 +49,7 @@ function scrubRecordStatements(
 // 席を指定する場合は、引き継ぎを retired にする文の直後に実行します。
 export function scrubRetiredMatchClaimStatements(
   db: D1Database,
-  ...target: [matchId: string, playerId: string] | [deletion: DeletionBatch]
+  ...target: [matchId: string, playerId: string] | [deletion: DeletionScope]
 ) {
   if (target.length === 2)
     return scrubRecordStatements(
@@ -62,30 +62,27 @@ export function scrubRetiredMatchClaimStatements(
     );
 
   // 退会のときは、同じ batch で引き継ぎを失効させる直前の account_id で席を絞ります。
-  const [{ accountId, batchReceipt }] = target;
+  const guard = deletionGuard(target[0]);
   return scrubRecordStatements(
     db,
-    `${acceptedDeletionSql} AND record.id IN (
+    `${guard.sql} AND record.id IN (
       SELECT match_id FROM match_participant_accounts WHERE account_id = ?1
     )`,
-    [accountId, batchReceipt],
+    guard.params(),
     "c.state = 'retired' OR c.account_id = ?1",
   );
 }
 
-export function scrubDeletedAccountRecordsStatements(db: D1Database, deletion: DeletionBatch) {
-  const { accountId, batchReceipt } = deletion;
+export function scrubDeletedAccountRecordsStatements(db: D1Database, deletion: DeletionScope) {
+  const guard = deletionGuard(deletion);
   const directParticipant = `EXISTS (
     SELECT 1 FROM json_each(CASE WHEN json_valid(record.record_json) THEN record.record_json ELSE '{}' END, '$.participants') p
     WHERE json_extract(p.value, '$.accountId') = ?1
   )`;
   return [
-    ...scrubRecordStatements(db, `${acceptedDeletionSql} AND ${directParticipant}`, [
-      accountId,
-      batchReceipt,
-    ]),
+    ...scrubRecordStatements(db, `${guard.sql} AND ${directParticipant}`, guard.params()),
     db
-      .prepare(`DELETE FROM account_match_history WHERE account_id=?1 AND ${acceptedDeletionSql}`)
-      .bind(accountId, batchReceipt),
+      .prepare(`DELETE FROM account_match_history WHERE account_id=?1 AND ${guard.sql}`)
+      .bind(...guard.params()),
   ];
 }
