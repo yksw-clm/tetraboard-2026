@@ -78,9 +78,11 @@ const standardLayout = [
 const fourPlayerLayout = [
   "[--player-height:60px] [@media(max-width:767px)]:[--player-height:48px]",
   "[--shogi-side-width:clamp(140px,21cqw,220px)] [--seat-width:var(--shogi-side-width)] [@media(max-width:767px)]:[--seat-width:100%]",
-  "[--shogi-board-width:max(var(--board-min-size,180px),min(458px,calc(100cqw_-_2_*_var(--shogi-side-width)_-_16px),calc(100cqh_-_2_*_var(--player-height)_-_32px_-_var(--board-status-space,0px))))]",
+  // 上下の各段では、カードと持ち駒のうち高い方が盤に使える高さを決めます。
+  "[--shogi-available-height:calc(100cqh_-_32px_-_var(--board-status-space,0px))]",
+  "[--shogi-board-width:max(0px,min(calc(100cqw_-_2_*_var(--shogi-side-width)_-_16px),calc(var(--shogi-available-height)_-_2_*_var(--player-height)),calc((var(--shogi-available-height)_-_2_*_14px)_/_var(--shogi-board-with-hands-ratio))))]",
   "[@media(max-width:767px)]:[--shogi-board-width:max(0px,min(100cqw,calc((100cqh_-_2_*_var(--player-height)_-_2_*_6px_-_4_*_2px_-_var(--board-status-space,0px))_/_var(--shogi-board-with-hands-ratio))))]",
-  "grid-cols-[var(--shogi-side-width)_var(--shogi-board-width)_var(--shogi-side-width)] grid-rows-[var(--player-height)_var(--shogi-board-width)_var(--player-height)]",
+  "grid-cols-[var(--shogi-side-width)_var(--shogi-board-width)_var(--shogi-side-width)] grid-rows-[auto_var(--shogi-board-width)_auto]",
   "[grid-template-areas:'top_top_top'_'left_board_right'_'bottom_bottom_bottom']",
   "[@media(max-width:767px)]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] [@media(max-width:767px)]:grid-rows-[auto_auto_auto]",
   "[@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[2px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:py-0",
