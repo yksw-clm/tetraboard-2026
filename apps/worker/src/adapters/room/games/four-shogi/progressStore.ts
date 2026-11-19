@@ -1,3 +1,4 @@
+import type { GameProgressStore } from "@tetraboard/context-room";
 import { savedProfileRatings } from "../../../rating/profileRatings";
 import { fourReversiRatingMethod } from "@tetraboard/context-rating";
 import type { FourShogiRatingSource } from "@tetraboard/context-matchmaking";
@@ -14,7 +15,10 @@ import {
   type Side,
   type FourShogiState,
 } from "@tetraboard/four-shogi";
-import { fourShogiDefinition as definition } from "@tetraboard/four-shogi/definition";
+import {
+  fourShogiDefinition as definition,
+  type FourShogiTypes,
+} from "@tetraboard/four-shogi/definition";
 import type { ShogiStore } from "./store";
 import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 import {
@@ -39,11 +43,31 @@ import type {
   PlayingFor,
   WaitingFor,
   FinishedProgress,
-  RematchFor,
 } from "../gameProgress";
 import { fourShogiAiJobKey } from "./cpu";
-import { shogiEliminatedHandsKey } from "./progressRecords";
+import { saveFourShogiTransition, shogiEliminatedHandsKey } from "./progressRecords";
 type Playing = PlayingFor<"four-shogi">;
+export function fourShogiProgressStore(
+  storage: DurableObjectStorage,
+  store: () => ShogiStore,
+): GameProgressStore<
+  "four-shogi",
+  FourShogiTypes,
+  [tournament?: TournamentRoomContext, rating?: FourShogiRatingSource]
+> {
+  return {
+    start: (room, accountId, tournament, rating) =>
+      startFourShogiRound(storage, store(), accountId, room, tournament, rating),
+    loadTransition: (room) => {
+      const { state, repetitionLookup } = store().loadTransition(room.roundId, room.game);
+      return { state, history: repetitionLookup };
+    },
+    recordTransition: (room, { state, event }) =>
+      saveFourShogiTransition(storage, store(), room, state, event),
+    finalize: (result) => finalizeFourShogiRound(storage, store(), result),
+  };
+}
+
 export function startFourShogiRound(
   storage: DurableObjectStorage,
   store: ShogiStore,
@@ -215,28 +239,4 @@ export function finalizeFourShogiRound(
     eventCount: store.eventCount(room.roundId),
   };
   return lastRound;
-}
-
-export function waitingFourShogiRoom(
-  data: RematchFor<"four-shogi">,
-  players: FourShogiRoom["players"],
-): WaitingFor<"four-shogi"> {
-  const room = fourShogiRoomSchema.parse({
-    ...data.room,
-    status: "waiting",
-    eliminations: [],
-    publicUpdatedAtMs: nextPublicUpdateAt(data.room),
-    lastActivityAtMs: data.at,
-    players: players.map((p) => ({ ...p, side: null })),
-    game: null,
-    clock: null,
-    lastRound: data.lastRound,
-    roundId: null,
-    positionRevision: 0,
-    legalActions: [],
-    threePlayerAttackForbiddenActions: [],
-    checkState: { south: false, west: false, north: false, east: false },
-  });
-  if (room.status !== "waiting") throw new Error("Expected waiting room");
-  return room;
 }

@@ -7,7 +7,7 @@ import {
   type Side,
   type ShogiState,
 } from "@tetraboard/shogi";
-import { shogiDefinition as definition } from "@tetraboard/shogi/definition";
+import { shogiDefinition as definition, type ShogiTypes } from "@tetraboard/shogi/definition";
 import { StandardShogiStore } from "./store";
 import {
   standardShogiMatchStartKey as shogiMatchStartKey,
@@ -15,7 +15,7 @@ import {
   type StandardShogiMatchRecord,
   type PendingStandardShogiMatch,
 } from "../../../record/shogiMatchStore";
-import { initializeClock } from "@tetraboard/context-room";
+import { initializeClock, type GameProgressStore } from "@tetraboard/context-room";
 import { ratedTimeControls } from "../../../rating/ratedTimeControls";
 import {
   roomStorageKey,
@@ -36,6 +36,24 @@ type Playing = PlayingFor<"shogi">;
 export type ActiveShogiMatch = {
   start: Omit<StandardShogiMatchRecord, "endedAtMs" | "game" | "replay">;
 };
+
+export function shogiProgressStore(
+  storage: DurableObjectStorage,
+  store: () => StandardShogiStore,
+): GameProgressStore<"shogi", ShogiTypes, [rating?: ShogiRatingSource]> {
+  return {
+    start: (room, accountId, rating) => startShogiRound(storage, store(), accountId, room, rating),
+    loadTransition: (room, operation) => {
+      const { state, repetitionLookup } = store().loadTransition(room.roundId, room.game);
+      return { state, history: operation === "play" ? repetitionLookup : undefined };
+    },
+    recordTransition: (room, { state, event }) => {
+      store().appendEvent(room.roundId, event);
+      return store().saveState(room.roundId, state);
+    },
+    finalize: (result) => finalizeShogiRound(storage, store(), result),
+  };
+}
 
 export function startShogiRound(
   storage: DurableObjectStorage,
