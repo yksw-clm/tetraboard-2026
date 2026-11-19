@@ -1,5 +1,5 @@
 import { isReversiRoom, isShogiRoom } from "@tetraboard/protocol";
-import { gameProgress } from "../src/rooms/gameProgress";
+import { gameProgress } from "../src/adapters/room/games/gameProgress";
 import { pendingMatchPrefix } from "../src/adapters/record/matchStore";
 import { pendingShogiMatchPrefix } from "../src/adapters/record/shogiMatchStore";
 import type { AccountAdmission } from "../src/flows/accountSeats/types";

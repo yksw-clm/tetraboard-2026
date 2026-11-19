@@ -3,7 +3,7 @@ import { runInDurableObject } from "cloudflare:test";
 import { expect, test } from "vitest";
 import { setDrawProposal } from "@tetraboard/four-shogi";
 import { getFourShogiAnalysisReplayContract, fourShogiRoomSchema } from "@tetraboard/protocol";
-import { ShogiStore } from "../src/rooms/shogiStore";
+import { ShogiStore } from "../src/adapters/room/games/four-shogi/store";
 import {
   registerFourShogiRoomFixtures,
   start,

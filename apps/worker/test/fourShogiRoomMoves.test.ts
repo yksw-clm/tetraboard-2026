@@ -3,7 +3,7 @@ import { runInDurableObject } from "cloudflare:test";
 import { expect, test, vi } from "vitest";
 import { getLegalActions, getActionAvailability, type Side } from "@tetraboard/four-shogi";
 import { roomSocketContract, fourShogiRoomSchema } from "@tetraboard/protocol";
-import { ShogiStore } from "../src/rooms/shogiStore";
+import { ShogiStore } from "../src/adapters/room/games/four-shogi/store";
 import {
   readShogiMatchRecord,
   shogiMatchStartKey,

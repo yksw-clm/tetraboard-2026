@@ -1,7 +1,10 @@
 import { runInDurableObject } from "cloudflare:test";
 import { expect, test, vi } from "vitest";
 import { getLegalMoves } from "@tetraboard/four-reversi";
-import { fourReversiCpuJobKey, type FourReversiCpuJob } from "../src/rooms/fourReversiProgress";
+import {
+  fourReversiCpuJobKey,
+  type FourReversiCpuJob,
+} from "../src/adapters/room/games/four-reversi/progress";
 import { FourReversiAiFixture } from "./fourReversiAiFixture";
 
 const fixture = new FourReversiAiFixture();

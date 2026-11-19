@@ -7,7 +7,7 @@ import {
   getLegalActions,
   chooseCpuAction,
 } from "@tetraboard/shogi";
-import { StandardShogiStore } from "../src/rooms/standardShogiStore";
+import { StandardShogiStore } from "../src/adapters/room/games/shogi/store";
 test("通常将棋の履歴が増えても着手・CPUが必要な局面だけを読み、探索では保存しない", async () => {
   const measurements = [];
   for (const size of [1000, 10000])

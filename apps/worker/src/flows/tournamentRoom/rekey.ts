@@ -11,7 +11,7 @@ import {
   playerTokenKey,
   reconnectGraceMs,
 } from "../../durableObjects/gameRoom/storageKeys";
-import { nextPublicUpdateAt, roomStorageKey } from "../../rooms/progressHelpers";
+import { nextPublicUpdateAt, roomStorageKey } from "../../adapters/room/games/progressHelpers";
 import {
   isTournamentGameRoom,
   tournamentCredentialVersionKey,

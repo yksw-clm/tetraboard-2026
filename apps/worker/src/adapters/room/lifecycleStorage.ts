@@ -6,12 +6,12 @@ import {
   mutedKey,
   viewerSecretKey,
 } from "../../durableObjects/gameRoom/storageKeys";
-import { fourGomokuCpuJobKey } from "../../rooms/fourGomokuProgress";
-import { fourReversiAiJobKey, fourReversiCpuJobKey } from "../../rooms/fourReversiProgress";
-import { fourShogiAiJobKey, shogiEliminatedHandsKey } from "../../rooms/fourShogiProgress";
-import { gomokuCpuJobKey } from "../../rooms/gomokuProgress";
+import { fourGomokuCpuJobKey } from "./games/four-gomoku/progress";
+import { fourReversiAiJobKey, fourReversiCpuJobKey } from "./games/four-reversi/progress";
+import { fourShogiAiJobKey, shogiEliminatedHandsKey } from "./games/four-shogi/progress";
+import { gomokuCpuJobKey } from "./games/gomoku/progress";
 import { matchStartKey } from "../record/matchStore";
-import { replayKey, roomStorageKey, shogiCpuJobKey } from "../../rooms/progressHelpers";
+import { replayKey, roomStorageKey, shogiCpuJobKey } from "./games/progressHelpers";
 import { currentRoomStateVersion, roomStateVersionKey } from "./roomStateVersion";
 import { shogiMatchStartKey, standardShogiMatchStartKey } from "../record/shogiMatchStore";
 import { tournamentCredentialVersionKey } from "@tetraboard/context-tournament";

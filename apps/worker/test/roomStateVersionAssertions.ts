@@ -1,9 +1,9 @@
 import { runInDurableObject } from "cloudflare:test";
 import { expect, vi } from "vitest";
 import type { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
-import { FourShogiProgress } from "../src/rooms/fourShogiProgress";
-import { FourReversiProgress } from "../src/rooms/fourReversiProgress";
-import { FourGomokuProgress } from "../src/rooms/fourGomokuProgress";
+import { FourShogiProgress } from "../src/adapters/room/games/four-shogi/progress";
+import { FourReversiProgress } from "../src/adapters/room/games/four-reversi/progress";
+import { FourGomokuProgress } from "../src/adapters/room/games/four-gomoku/progress";
 import {
   currentRoomStateVersion,
   roomStateVersionKey,

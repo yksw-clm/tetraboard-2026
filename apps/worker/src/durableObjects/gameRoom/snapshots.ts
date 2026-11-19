@@ -9,7 +9,7 @@ import {
   formationAnalysisTag,
   roomFormationAnalysis,
 } from "../../adapters/record/fourShogiFormationAnalysis";
-import { eliminatedHandsTag } from "../../rooms/fourShogiProgress";
+import { eliminatedHandsTag } from "../../adapters/room/games/four-shogi/progress";
 import { broadcastChat } from "./chat";
 import type { RoomRuntime, RoomSocketError } from "./runtime";
 import { hasOpenConnection, sendCurrentMembership } from "./socket/membership";

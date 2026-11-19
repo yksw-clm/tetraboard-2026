@@ -3,7 +3,7 @@ import { createInitialState, eliminateColor } from "@tetraboard/four-reversi";
 import { fourReversiStateSchema } from "@tetraboard/protocol";
 import { namedCpuProfile } from "../src/adapters/matchmaking/cpuProfiles";
 import { requestAiMove } from "../src/adapters/room/ai/fourReversiAi";
-import type { ExternalCpuWork } from "../src/rooms/fourReversiProgress";
+import type { ExternalCpuWork } from "../src/adapters/room/games/four-reversi/progress";
 
 for (const profile of [undefined, "lv1-v1", "lv3-v1"] as const)
   for (const extendedRules of [false, true])

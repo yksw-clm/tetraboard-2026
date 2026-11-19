@@ -9,7 +9,7 @@ import {
   disconnectedAtKey,
   reconnectGraceMs,
 } from "../../durableObjects/gameRoom/storageKeys";
-import { roomStorageKey, nextPublicUpdateAt } from "../../rooms/progressHelpers";
+import { roomStorageKey, nextPublicUpdateAt } from "../../adapters/room/games/progressHelpers";
 import { analyticsPlayerKey, type AnalyticsIdentity } from "../../usageEvents/matches";
 import {
   activeRegistrationKey,

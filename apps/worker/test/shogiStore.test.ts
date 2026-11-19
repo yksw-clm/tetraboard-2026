@@ -7,7 +7,7 @@ import {
   createInitialState,
   getLegalActions,
 } from "@tetraboard/four-shogi";
-import { ShogiStore } from "../src/rooms/shogiStore";
+import { ShogiStore } from "../src/adapters/room/games/four-shogi/store";
 
 test("履歴が増えても一手のSQLite読み取り行数は増えない", async () => {
   const measurements: { moveReads: number; cpuReads: number; cpuWrites: number }[] = [];

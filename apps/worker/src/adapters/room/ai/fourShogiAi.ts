@@ -2,7 +2,7 @@ import { fourShogiDefinition } from "@tetraboard/four-shogi/definition";
 import { fourShogiActionSchema } from "@tetraboard/protocol";
 import { z } from "zod";
 import { logFourShogiDiagnostic } from "../../../fourShogiDiagnostics";
-import type { FourShogiAiWork } from "../../../rooms/fourShogiProgress";
+import type { FourShogiAiWork } from "../games/four-shogi/progress";
 import {
   configuredUrl,
   fetchAiGateway,

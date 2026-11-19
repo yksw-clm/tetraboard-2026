@@ -16,7 +16,7 @@ import {
   releaseRegistration,
   endRegistration,
 } from "../../flows/guestRegistration/records";
-import { playerLabel, roomStorageKey } from "../../rooms/progressHelpers";
+import { playerLabel, roomStorageKey } from "./games/progressHelpers";
 import type { AnalyticsIdentity } from "../../usageEvents/matches";
 import { analyticsPlayerKey } from "../../usageEvents/matches";
 import { matchEndFacts } from "../../usageEvents/matchLifecycle";

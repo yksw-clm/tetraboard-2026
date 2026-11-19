@@ -14,7 +14,7 @@ import {
   FourGomokuProgress,
   fourGomokuCpuJobKey,
   type FourGomokuCpuJob,
-} from "../src/rooms/fourGomokuProgress";
+} from "../src/adapters/room/games/four-gomoku/progress";
 import {
   RoomBoundaryFixtures,
   boundaryRequest,

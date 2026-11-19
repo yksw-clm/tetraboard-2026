@@ -1,6 +1,6 @@
 import type { Position } from "@tetraboard/four-reversi";
 import { z } from "zod";
-import type { ExternalCpuWork } from "../../../rooms/fourReversiProgress";
+import type { ExternalCpuWork } from "../games/four-reversi/progress";
 import {
   configuredUrl,
   fetchAiGateway,

@@ -1,5 +1,5 @@
 import type { GameId } from "@tetraboard/protocol";
-import { gameDefinitions, type GameDefinitions } from "../src/rooms/gameDefinitions";
+import { gameDefinitions, type GameDefinitions } from "../src/adapters/room/games/gameDefinitions";
 
 declare const missingOne: {
   [G in GameId]: Omit<typeof gameDefinitions, G>;

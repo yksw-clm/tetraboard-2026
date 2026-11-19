@@ -9,7 +9,7 @@ import {
   gomokuAccountStatsSchema,
   reversiRankingsSchema,
 } from "@tetraboard/protocol";
-import { gomokuCpuJobKey, type GomokuCpuJob } from "../src/rooms/gomokuProgress";
+import { gomokuCpuJobKey, type GomokuCpuJob } from "../src/adapters/room/games/gomoku/progress";
 import { getLegalMoves, applyAction } from "@tetraboard/gomoku";
 import { RoomBoundaryFixtures, boundaryRequest, boundaryJson } from "./roomBoundaryFixtures";
 let fixtures: RoomBoundaryFixtures;

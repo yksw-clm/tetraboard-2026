@@ -4,7 +4,7 @@ import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { expect, test, vi } from "vitest";
 import { getLegalActions } from "@tetraboard/four-shogi";
 import { createRoomContract, listRoomsContract, fourShogiRoomSchema } from "@tetraboard/protocol";
-import { ShogiStore } from "../src/rooms/shogiStore";
+import { ShogiStore } from "../src/adapters/room/games/four-shogi/store";
 import { readShogiMatchRecord } from "../src/adapters/record/shogiMatchStore";
 import { accountFixture, origin } from "./accountFixtures";
 import {

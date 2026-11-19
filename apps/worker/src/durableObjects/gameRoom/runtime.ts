@@ -8,7 +8,7 @@ import type { TransactionRoomEffects } from "../../adapters/room/effects";
 import type { RoomJobs } from "../../adapters/room/jobs";
 import type { AiServiceBindings } from "../../adapters/room/ai/aiService";
 import type { CpuCapacityGame } from "../cpuCapacity";
-import type { GameAdapter } from "../../rooms/gameAdapters/types";
+import type { GameAdapter } from "../../adapters/room/games/types";
 import type { RoomAlarmEvents } from "../../adapters/room/roomAlarmEvents";
 import type { TransactionUsageEvents } from "../../usageEvents/transactionEvents";
 

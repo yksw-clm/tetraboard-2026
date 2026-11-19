@@ -7,7 +7,7 @@ import { closeSockets } from "../../durableObjects/gameRoom/connections";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { broadcastRoom } from "../../durableObjects/gameRoom/snapshots";
 import { hasOpenConnection } from "../../durableObjects/gameRoom/socket/membership";
-import { nextPublicUpdateAt, roomStorageKey } from "../../rooms/progressHelpers";
+import { nextPublicUpdateAt, roomStorageKey } from "../../adapters/room/games/progressHelpers";
 import {
   isTournamentGameRoom,
   tournamentReservationKey,

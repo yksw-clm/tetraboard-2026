@@ -15,7 +15,7 @@ import {
   reversiCpuProfile,
 } from "../src/adapters/matchmaking/reversiCpuProfiles";
 import { matchmakingCredential } from "../src/adapters/matchmaking/credential";
-import type { ShogiCpuJob } from "../src/rooms/standardShogiProgress";
+import type { ShogiCpuJob } from "../src/adapters/room/games/shogi/progress";
 import {
   useMatchmakingFixtures,
   shogiQueue,
