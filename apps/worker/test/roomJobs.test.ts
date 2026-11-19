@@ -6,7 +6,7 @@ import { env } from "cloudflare:workers";
 import { expect, test, vi } from "vitest";
 import * as seats from "../src/adapters/room/seatReservations";
 import { publicMetadata } from "../src/adapters/room/metadata";
-import * as indexes from "../src/rooms/roomIndex";
+import * as indexes from "../src/adapters/room/roomIndexWrite";
 import { pendingTournamentStatePrefix } from "@tetraboard/context-tournament";
 import * as tournaments from "../src/adapters/tournament/state";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";

@@ -6,7 +6,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { invokeRoomTransaction } from "../src/adapters/room/useCaseTransaction";
 import { withIndexTransaction } from "../src/adapters/room/transaction";
 import { TransactionRoomEffects } from "../src/adapters/room/effects";
-import type { PendingRoomIndex } from "../src/rooms/roomIndex";
+import type { PendingRoomIndex } from "../src/adapters/room/roomIndexWrite";
 import type { RoomRuntime } from "../src/durableObjects/gameRoom/runtime";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 

@@ -16,11 +16,11 @@ import { guestClaimsKey } from "../src/flows/guestRegistration/claims";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { pendingMatchPrefix } from "../src/rooms/matchStore";
 import { roomStorageKey } from "../src/rooms/progressHelpers";
-import { writeRoomIndex, type PendingRoomIndex } from "../src/rooms/roomIndex";
+import { writeRoomIndex, type PendingRoomIndex } from "../src/adapters/room/roomIndexWrite";
 import {
   roomIndexRetentionCandidatesSql,
   runRoomIndexRetention,
-} from "../src/rooms/roomIndexRetention";
+} from "../src/adapters/room/roomIndexRetention";
 import {
   pendingShogiMatchPrefix,
   pendingStandardShogiMatchPrefix,

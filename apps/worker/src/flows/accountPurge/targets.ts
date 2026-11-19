@@ -1,6 +1,6 @@
 import { readRoom } from "../../adapters/room/state";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import type { PendingRoomIndex } from "../../rooms/roomIndex";
+import type { PendingRoomIndex } from "../../adapters/room/roomIndexWrite";
 import { collectMatchPlayers, rememberMatchPlayer } from "./identityScope";
 import type { PurgeTargets } from "./types";
 const pendingIndexKey = "room-index-pending";

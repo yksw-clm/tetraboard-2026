@@ -4,7 +4,7 @@ import { expect, test, vi } from "vitest";
 import * as seats from "../src/adapters/room/seatReservations";
 import { reversiRoomSchema } from "@tetraboard/protocol";
 import { publicMetadata } from "../src/adapters/room/metadata";
-import * as indexes from "../src/rooms/roomIndex";
+import * as indexes from "../src/adapters/room/roomIndexWrite";
 import type { RoomJob } from "../src/rooms/roomJobs";
 import {
   pendingTournamentStatePrefix,

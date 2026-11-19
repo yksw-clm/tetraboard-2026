@@ -1,4 +1,4 @@
-import type { RoomIndexRetentionStatus } from "../adapters/room/indexJob";
+import type { RoomIndexRetentionStatus } from "./indexJob";
 
 const retentionMs = 30 * 24 * 60 * 60 * 1000;
 const batchSize = 25;
