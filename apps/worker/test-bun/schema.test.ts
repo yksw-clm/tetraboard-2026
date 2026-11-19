@@ -15,10 +15,11 @@ afterAll(() => {
 });
 
 const migrations = new URL("../migrations/", import.meta.url);
-for (const file of readdirSync(migrations)
+const migrationFiles = readdirSync(migrations)
   .filter((file) => file.endsWith(".sql"))
-  .sort())
-  migrated.exec(readFileSync(new URL(file, migrations), "utf8"));
+  .sort();
+const migrationSql = (file: string) => readFileSync(new URL(file, migrations), "utf8");
+for (const file of migrationFiles) migrated.exec(migrationSql(file));
 
 const current = await generateSQLiteDrizzleJson(schema);
 const empty = await generateSQLiteDrizzleJson({});
@@ -48,12 +49,9 @@ const uniqueNames = new Set(
     .filter((name) => name !== undefined),
 );
 
-test("既存migrationの全67テーブルと42トリガーを適用します", () => {
+test("既存migrationの全67テーブルを適用します", () => {
   expect(tableNames(migrated)).toHaveLength(67);
   expect(tableNames(defined)).toEqual(tableNames(migrated));
-  expect(
-    migrated.query("SELECT name FROM sqlite_master WHERE type = 'trigger'").all(),
-  ).toHaveLength(42);
 });
 
 test("既存のお知らせの日付を published_on に引き継ぎます", () => {
@@ -63,6 +61,45 @@ test("既存のお知らせの日付を published_on に引き継ぎます", () 
   expect(
     migrated.query("SELECT id FROM announcements WHERE published_on IS NOT date").all(),
   ).toEqual([]);
+});
+
+test("日付だけ更新された記事を移行し、掲載先と既存の通知を保持します", () => {
+  const migration = "0055_drop_community_triggers.sql";
+  const db = new Database(":memory:");
+  try {
+    for (const file of migrationFiles.filter((file) => file < migration))
+      db.exec(migrationSql(file));
+    db.exec("PRAGMA foreign_keys = ON");
+    db.exec(`
+      UPDATE announcements SET date = '2026-11-19', version = 2 WHERE id = 'feedback';
+      INSERT INTO announcement_lobby_targets VALUES ('feedback', 'four-reversi'), ('feedback', 'four-shogi');
+    `);
+    const events = db.query("SELECT * FROM notification_events WHERE source_id = 'feedback'").all();
+    expect(events).toHaveLength(1);
+
+    db.transaction(() => db.exec(migrationSql(migration)))();
+
+    expect(
+      db
+        .query(
+          "SELECT date, published_on, published, version FROM announcements WHERE id = 'feedback'",
+        )
+        .get(),
+    ).toEqual({ date: "2026-11-19", published_on: "2026-11-19", published: 1, version: 2 });
+    const targets = db.query(
+      "SELECT game FROM announcement_lobby_targets WHERE announcement_id = 'feedback' ORDER BY game",
+    );
+    expect(targets.all()).toEqual([{ game: "four-reversi" }, { game: "four-shogi" }]);
+    expect(
+      db.query("SELECT * FROM notification_events WHERE source_id = 'feedback'").all(),
+    ).toEqual(events);
+    expect(db.query("PRAGMA foreign_key_check(announcement_lobby_targets)").all()).toEqual([]);
+
+    db.exec("DELETE FROM announcements WHERE id = 'feedback'");
+    expect(targets.all()).toEqual([]);
+  } finally {
+    db.close();
+  }
 });
 
 test("閉鎖・観測時刻は NULL を許容し、閉鎖行だけに期限走査用の索引を持つ", () => {
@@ -99,6 +136,10 @@ test.each([
   "guest_merged_match_insert",
   "guest_merged_upload_insert",
   "guest_merged_history_insert",
+  "lobby_chat_accept",
+  "notification_announcement_insert",
+  "notification_announcement_publish",
+  "notification_badge",
 ])("アプリへ移したトリガー %s は残りません", (name) => {
   expect(
     migrated.query("SELECT name FROM sqlite_master WHERE type='trigger' AND name=?").all(name),

@@ -232,7 +232,8 @@ async function seedMessages(
 }
 test("初回50件と過去取得、501件で最新500件だけを保持する", async () => {
   const user = await fixture();
-  await seedMessages(user, 501);
+  await seedMessages(user, 500);
+  expect((await post(user, "500")).status).toBe(200);
   const page = await read();
   expect(page.messages).toHaveLength(50);
   expect(page.nextCursor).not.toBeNull();
@@ -252,7 +253,18 @@ test("初回50件と過去取得、501件で最新500件だけを保持する", 
 });
 test("7日の期限で直ちに取得対象外になり、定期処理で通常履歴と再送記録を削除する", async () => {
   const user = await fixture();
-  await seedMessages(user, 1, Date.now() - lobbyRetentionMs);
+  const requestId = crypto.randomUUID();
+  expect((await post(user, "期限のある投稿", requestId)).status).toBe(200);
+  const now = Date.now();
+  fixTestTime(now);
+  const aged = await db.batch(
+    ["lobby_chat_messages", "lobby_chat_requests"].map((table) =>
+      db
+        .prepare(`UPDATE ${table} SET sent_at_ms=? WHERE request_id=?`)
+        .bind(now - lobbyRetentionMs, requestId),
+    ),
+  );
+  expect(aged.map(({ meta }) => meta.changes)).toEqual([1, 1]);
   expect((await read()).messages).toHaveLength(0);
   await cleanupLobbyChat(db);
   expect(

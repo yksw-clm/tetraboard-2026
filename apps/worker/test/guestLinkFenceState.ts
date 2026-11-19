@@ -28,6 +28,7 @@ export async function seedGuestTransfers(
     participants: [{ id: playerId, kind: "human", accountId: guest.id }],
   });
   const message = crypto.randomUUID();
+  const requestId = crypto.randomUUID();
   const now = new Date().toISOString();
   await db.batch([
     db
@@ -55,12 +56,16 @@ export async function seedGuestTransfers(
       .prepare(`INSERT INTO match_participant_accounts VALUES(?,?,?,?,?,'applied',1,1)`)
       .bind(matchId, playerId, guest.id, roomId, instanceId),
     db
-      .prepare("INSERT INTO lobby_chat_senders(account_id,public_id) VALUES(?,?)")
+      .prepare("INSERT INTO lobby_chat_senders(account_id,public_id,last_sent_at_ms) VALUES(?,?,1)")
       .bind(guest.id, guest.id),
     db
       .prepare(`INSERT INTO lobby_chat_messages(id,account_id,body,sent_at_ms,request_id,body_hash)
       VALUES(?,?,'本文',1,?,'hash')`)
-      .bind(message, guest.id, message),
+      .bind(message, guest.id, requestId),
+    db
+      .prepare(`INSERT INTO lobby_chat_requests(account_id,request_id,message_id,body_hash,sent_at_ms)
+      VALUES(?,?,?,'hash',1)`)
+      .bind(guest.id, requestId, message),
     db
       .prepare(`INSERT INTO lobby_chat_reports(id,message_id,sender_account_id,sender_name,
       body,sent_at_ms,reporter_account_id,reported_at_ms) VALUES(?,?,?,'ゲスト','本文',1,?,1)`)
@@ -93,4 +98,5 @@ export async function seedGuestTransfers(
       )
       .bind(guest.id, matchId),
   ]);
+  return { messageId: message, requestId };
 }

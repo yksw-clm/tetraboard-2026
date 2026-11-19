@@ -66,7 +66,7 @@ export async function readNotifications(
     values.push(announcementId);
   }
   const rows = await db
-    .prepare(`SELECT e.*,${readSql} AS is_read,a.title,a.body,COALESCE(a.published_on,a.date) AS date
+    .prepare(`SELECT e.*,${readSql} AS is_read,a.title,a.body,a.published_on AS date
     FROM notification_events e LEFT JOIN account_notification_state s ON s.account_id=?
     LEFT JOIN announcements a ON e.kind='announcement' AND a.id=e.source_id
     WHERE ${conditions.join(" AND ")} ORDER BY e.seq DESC LIMIT ${notificationPageSize + 1}`)
