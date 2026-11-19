@@ -34,7 +34,7 @@ export class D1MatchRecordStore implements MatchRecordStore<D1PreparedStatement>
       WHERE id=? AND record_json=? RETURNING id`)
       .bind(json, matchId, previous)
       .first<{ id: string }>();
-    // 呼び出し元との照合には、AFTER トリガー時の RETURNING と同じ更新入力を返します。
+    // 呼び出し元との照合には、伏せ字を適用する前の更新入力を返します。
     return row ? json : null;
   }
   async insertChunk(matchId: string, row: ChunkRow) {

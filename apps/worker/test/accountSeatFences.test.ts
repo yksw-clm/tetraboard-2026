@@ -20,7 +20,7 @@ import {
 const db = env.APP_DB;
 const reserve = (f: FenceFixture) => f.seat();
 
-test("アプリへ移した参加フェンスは削除済みで、退会トリガーは残ります", async () => {
+test("アプリへ移した参加フェンスのトリガーは削除済みです", async () => {
   const names = (
     await db.prepare("SELECT name FROM sqlite_master WHERE type='trigger'").all<{ name: string }>()
   ).results.map((r) => r.name);
@@ -33,8 +33,6 @@ test("アプリへ移した参加フェンスは削除済みで、退会トリ�
     "guest_merged_entry_fence",
   ];
   expect(removedTriggers.filter((t) => names.includes(t))).toEqual([]);
-  expect(names).toContain("privacy_fence_account_room_seats");
-  expect(names).toContain("tournament_entry_deleted_fence");
 });
 for (const kind of ["matchmaking", "tournament"] as const) {
   test(`通常ルームは${kind}待機をaccount_busyで拒否します`, async () => {

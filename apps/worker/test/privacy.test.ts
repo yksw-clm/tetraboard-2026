@@ -10,11 +10,16 @@ import gomoku from "../../../test-fixtures/matches/gomoku-on-five.json";
 import reversi from "../../../test-fixtures/matches/reversi-standard-draw.json";
 import { accountIdentity } from "../src/accounts/auth";
 import { fourGomokuMatchData } from "../src/adapters/record/fourGomokuMatchData";
+import { guestReplayTransferStatements } from "../src/adapters/record/guestMergeWrites";
 import { gomokuMatchData } from "../src/adapters/record/gomokuMatchData";
 import { publicMatchDetail } from "../src/adapters/record/matchDataContracts";
+import {
+  shogiHistoryStatement,
+  snapshotHistoryStatement,
+} from "../src/adapters/record/publication";
 import { reversiMatchData } from "../src/adapters/record/reversiMatchData";
 import type { RoomRuntime } from "../src/durableObjects/gameRoom/runtime";
-import type { PendingRoomIndex } from "../src/rooms/roomIndex";
+import { writeRoomIndex, type PendingRoomIndex } from "../src/rooms/roomIndex";
 import { challengeCookie, flowCookie } from "../src/adapters/privacy/deletionCookies";
 import { completeReauthentication } from "../src/adapters/privacy/deletionAuthentication";
 import { digest } from "../src/crypto";
@@ -201,6 +206,10 @@ async function saved(id: string) {
 test("全6ゲームの退会は本人だけを除去し、ゲスト名・盤面・相手履歴を保ち、古い再送も拒否する", async () => {
   const user = await accountFixture(),
     opponent = await accountFixture();
+  const guestId = crypto.randomUUID();
+  await env.APP_DB.prepare("INSERT INTO guest_account_merges VALUES (?,?,?)")
+    .bind(guestId, user.id, Date.now())
+    .run();
   const records = [
     humanFixtureRecord(user.id, 881),
     humanShogiRecord(user.id).record,
@@ -283,19 +292,30 @@ test("全6ゲームの退会は本人だけを除去し、ゲスト名・盤面�
       name: "退会したプレイヤー",
       retired: true,
     });
+    // 統合前の参照が残る旧データから、遅延した履歴保存と棋譜の付け替えを再現します。
+    const stale = {
+      ...parsed,
+      participants: record.participants.map((p) =>
+        p.kind === "human" && p.accountId === user.id ? { ...p, accountId: guestId } : p,
+      ),
+    };
     await env.APP_DB.prepare("UPDATE matches SET record_json=? WHERE id=?")
-      .bind(JSON.stringify({ ...record, replay: parsed.replay }), record.id)
+      .bind(JSON.stringify(stale), record.id)
       .run();
-    expect(await saved(record.id)).not.toContain(user.id);
-    await env.APP_DB.prepare(
-      "INSERT INTO account_match_history(account_id,match_id,game,mode,started_at_ms) VALUES (?,?,?,?,?)",
-    )
-      .bind(user.id, record.id, record.settings.game, "singles", record.startedAtMs)
-      .run();
+    const game = record.settings.game;
+    const history =
+      game === "shogi" || game === "four-shogi" ? shogiHistoryStatement : snapshotHistoryStatement;
+    await env.APP_DB.batch([
+      history(env.APP_DB, record.id),
+      ...guestReplayTransferStatements(env.APP_DB, guestId, user.id),
+    ]);
+    expect(JSON.parse(await saved(record.id))).toEqual(parsed);
   }
   expect(
-    await env.APP_DB.prepare("SELECT COUNT(*) count FROM account_match_history WHERE account_id=?")
-      .bind(user.id)
+    await env.APP_DB.prepare(
+      "SELECT COUNT(*) count FROM account_match_history WHERE account_id IN (?,?)",
+    )
+      .bind(user.id, guestId)
       .first(),
   ).toEqual({ count: 0 });
   expect(
@@ -842,7 +862,7 @@ test("受付後はセッション・編集・画像の再作成を拒否し、�
     instance = crypto.randomUUID(),
     key = `avatars/${crypto.randomUUID()}.webp`,
     roomId = `privacy-fixture:${crypto.randomUUID()}`;
-  // DBトリガーだけの識別子を使い、他テストの実ルームと衝突させません。
+  // 索引だけのルーム番号を使い、他テストの実ルームと衝突させません。
   try {
     await env.OBJECT_STORAGE.put(key, "private");
     await env.APP_DB.prepare("UPDATE user SET avatarKey=? WHERE id=?").bind(key, user.id).run();
@@ -876,11 +896,27 @@ test("受付後はセッション・編集・画像の再作成を拒否し、�
     ).toBeNull();
     await env.APP_DB.prepare("DELETE FROM deletion_rooms WHERE account_id=?").bind(user.id).run();
     await processFixtureDeletion(user.id);
-    await env.APP_DB.prepare(
-      "INSERT INTO room_index(room_id,game,mode,main_time_ms,byoyomi_ms,status,host_name,human_count,cpu_count,capacity,open_seats,updated_at_ms,revision,closed,instance_id,host_player_id,host_avatar_url) VALUES (?,'four-reversi','singles',300000,30000,'waiting','復活する旧名',1,0,4,3,?,1,0,?,?,?)",
-    )
-      .bind(roomId, Date.now(), instance, player, `/api/avatars/${key.slice(8, -5)}`)
-      .run();
+    await writeRoomIndex(env.APP_DB, {
+      revision: 1,
+      closed: false,
+      retryAtMs: 0,
+      metadata: {
+        id: roomId,
+        game: "four-reversi",
+        mode: "singles",
+        timeControl: { mainTimeMs: 300_000, byoyomiMs: 30_000 },
+        status: "waiting",
+        hostName: "復活する旧名",
+        humanCount: 1,
+        cpuCount: 0,
+        capacity: 4,
+        openSeats: 3,
+        updatedAtMs: Date.now(),
+        instanceId: instance,
+        hostPlayerId: player,
+        hostAvatarUrl: `/api/avatars/${key.slice(8, -5)}`,
+      },
+    });
     expect(
       await env.APP_DB.prepare(
         "SELECT host_name,host_avatar_url,host_player_id FROM room_index WHERE room_id=?",

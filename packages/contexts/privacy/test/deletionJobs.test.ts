@@ -44,6 +44,9 @@ test("退会ジョブを順に進め、アップロード中、部屋の残件�
     },
   };
   const effects: DeletionJobEffects = {
+    async reapplyDeletion(id) {
+      events.push(`reapply:${id}`);
+    },
     async purgeRoom(id, room) {
       events.push(`purge-room:${id}:${room}`);
       if (id === "purge-failure") throw new Error("Room unavailable");
@@ -76,18 +79,22 @@ test("退会ジョブを順に進め、アップロード中、部屋の残件�
   expect(events).toEqual([
     "read-jobs:10",
     "attempt:uploading:1000000",
+    "reapply:uploading",
     "check-upload:400000",
     "attempt:more-rooms:1000000",
+    "reapply:more-rooms",
     "check-upload:400000",
     "read-rooms:100",
     "purge-room:more-rooms:more-rooms-room",
     "finish-room:more-rooms:more-rooms-room",
     "attempt:purge-failure:1000000",
+    "reapply:purge-failure",
     "check-upload:400000",
     "read-rooms:100",
     "purge-room:purge-failure:purge-failure-room",
     "retry",
     "attempt:ready:1000000",
+    "reapply:ready",
     "check-upload:400000",
     "read-rooms:100",
     "purge-room:ready:ready-room",

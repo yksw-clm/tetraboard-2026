@@ -1,4 +1,9 @@
-import { acceptedDeletionSql, type DeletionBatch } from "../../db/deletionGuard";
+import {
+  acceptedDeletionSql,
+  deletionGuard,
+  type DeletionBatch,
+  type DeletionScope,
+} from "../../db/deletionGuard";
 
 export function insertDeletionStatement(
   db: D1Database,
@@ -37,24 +42,38 @@ export function queueDeletionStatements(
       )
       .bind(accountId, batchReceipt),
     db
-      .prepare(
-        `INSERT OR IGNORE INTO deletion_images SELECT account_id,avatar_key FROM privacy_room_players
-      WHERE account_id=?1 AND avatar_key IS NOT NULL AND ${acceptedDeletionSql}`,
-      )
-      .bind(accountId, batchReceipt),
-    db
-      .prepare(
-        `INSERT OR IGNORE INTO deletion_images SELECT account_id,key FROM privacy_avatar_uploads
-      WHERE account_id=?1 AND ${acceptedDeletionSql}`,
-      )
-      .bind(accountId, batchReceipt),
-    db
       .prepare(`DELETE FROM deletion_flows WHERE account_id=?1 AND ${acceptedDeletionSql}`)
       .bind(accountId, batchReceipt),
     db
       .prepare(`DELETE FROM deletion_challenges WHERE account_id=?1 AND ${acceptedDeletionSql}`)
       .bind(accountId, batchReceipt),
   ];
+}
+
+export function queueDeletionImagesStatements(db: D1Database, deletion: DeletionScope) {
+  const guard = deletionGuard(deletion);
+  return [
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO deletion_images SELECT account_id,avatar_key FROM privacy_room_players
+      WHERE account_id=?1 AND avatar_key IS NOT NULL AND ${guard.sql}`,
+      )
+      .bind(...guard.params()),
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO deletion_images SELECT account_id,key FROM privacy_avatar_uploads
+      WHERE account_id=?1 AND ${guard.sql}`,
+      )
+      .bind(...guard.params()),
+  ];
+}
+
+export function queueRestoredAvatarStatement(db: D1Database, accountId: string, avatarKey: string) {
+  const guard = deletionGuard({ accountId });
+  return db
+    .prepare(`INSERT OR IGNORE INTO deletion_images SELECT id,avatarKey FROM user
+    WHERE id=?1 AND avatarKey=?2 AND ${guard.sql}`)
+    .bind(...guard.params(avatarKey));
 }
 
 export function saveDeletionReceiptStatement(

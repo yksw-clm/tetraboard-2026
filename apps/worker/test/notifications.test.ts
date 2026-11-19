@@ -8,7 +8,8 @@ import { notificationListSchema, notificationSchema } from "@tetraboard/protocol
 import worker from "../src/worker";
 import { accountFixture as baseAccountFixture, origin } from "./accountFixtures";
 import { create, update } from "../src/adapters/community/announcements";
-import { finalizeTournament } from "../src/adapters/tournament/store";
+import { D1TournamentFinalization } from "../src/adapters/tournament/finalization";
+import { allStandings, finalizeTournament, readTournament } from "../src/adapters/tournament/store";
 import {
   initializeNotifications,
   mergeNotificationStatements,
@@ -280,7 +281,13 @@ test("統合前の個別既読とまとめて既読を保持し、未読を維�
 });
 
 test("退会受付直後は取得できず、削除と遅延保存のフェンスを維持する", async () => {
-  const user = await accountFixture();
+  const {
+    key,
+    users: [user],
+  } = await tournament([10]);
+  const row = (await readTournament(db, key))!;
+  const [standing] = await allStandings(db, row);
+  expect(standing.accountId).toBe(user.id);
   await page(user);
   const id = await personal(user);
   await fetchApi("account/notifications/read", user, { id });
@@ -288,8 +295,16 @@ test("退会受付直後は取得できず、削除と遅延保存のフェン�
   // 認証後に退会受付が競合した取得でも、DBの読み取り時点で本人宛を除外します。
   expect(await readNotifications(db, user.id, { id })).toEqual([]);
   expect((await fetchApi(`notifications/${id}`, user)).status).toBe(404);
-  const ignored = await personal(user);
-  expect(ignored).toBeUndefined();
+  // 大会側の参加者数の条件が通る状態で、遅れて届いた退会者宛ての通知を試します。
+  const ignored = await new D1TournamentFinalization(db)
+    .notification(
+      standing,
+      { id: row.public_id, name: row.name, rank: standing.rank, tied: false },
+      Date.now(),
+      { key, entries: 0 },
+    )
+    .run();
+  expect(ignored.meta.changes).toBe(0);
   await processDeletions(bindings);
   expect(
     await db.prepare("SELECT 1 FROM notification_events WHERE account_id=?").bind(user.id).first(),

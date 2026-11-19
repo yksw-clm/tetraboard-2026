@@ -1,12 +1,13 @@
-import { acceptedDeletionSql, type DeletionBatch } from "../../db/deletionGuard";
+import { deletionGuard, type DeletionScope } from "../../db/deletionGuard";
 
 export function hideDeletedFeedbackStatement(
   db: D1Database,
-  { accountId, batchReceipt }: DeletionBatch,
+  deletion: DeletionScope,
   reporterHash: string,
 ) {
+  const guard = deletionGuard(deletion);
   return db
     .prepare(`UPDATE feedback SET deleted=1
-    WHERE (account_id=?1 OR reporter_hash=?3) AND deleted<>1 AND ${acceptedDeletionSql}`)
-    .bind(accountId, batchReceipt, reporterHash);
+    WHERE (account_id=?1 OR reporter_hash=?2) AND deleted<>1 AND ${guard.sql}`)
+    .bind(...guard.params(reporterHash));
 }

@@ -1,4 +1,5 @@
 import type { DeletionJob, DeletionJobStore } from "@tetraboard/context-privacy";
+import { deletionGuard } from "../../db/deletionGuard";
 import { roomDeletionQuery } from "./roomDeletionQuery";
 
 export async function readRoomDeletionAccounts(db: D1Database, roomId: string) {
@@ -85,13 +86,22 @@ export class D1DeletionJobs implements DeletionJobStore {
   }
 
   async completeJob(accountId: string, now: number) {
+    // 画像を削除した後に別の処理が予約を追加した場合は、次回の処理対象に残します。
     await this.db
-      .prepare(
-        "UPDATE deleted_accounts SET completed_at_ms=?,avatar_key=NULL,provider=NULL,revocation_token=NULL WHERE id=?",
-      )
-      .bind(now, accountId)
+      .prepare(`UPDATE deleted_accounts SET completed_at_ms=?2,avatar_key=NULL,provider=NULL,revocation_token=NULL
+        WHERE id=?1 AND completed_at_ms IS NULL
+          AND NOT EXISTS(SELECT 1 FROM deletion_images WHERE account_id=?1)`)
+      .bind(accountId, now)
       .run();
   }
+}
+
+export async function queuePendingDeletionImage(db: D1Database, accountId: string, key: string) {
+  const guard = deletionGuard({ accountId });
+  await db
+    .prepare(`INSERT OR IGNORE INTO deletion_images SELECT ?1,?2 WHERE ${guard.sql}`)
+    .bind(...guard.params(key))
+    .run();
 }
 
 export async function deletePrivacyImages(db: D1Database, bucket: R2Bucket, accountId: string) {

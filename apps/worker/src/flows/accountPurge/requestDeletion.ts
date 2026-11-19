@@ -1,16 +1,11 @@
-import { retiredName } from "@tetraboard/context-privacy";
 import type { AuthEnv } from "../../accounts/auth";
-import { deactivateDeletedAccountStatements } from "../../adapters/account/deletionWrites";
-import { hideDeletedFeedbackStatement } from "../../adapters/community/feedbackDeletion";
 import {
   insertDeletionStatement,
   queueDeletionStatements,
   saveDeletionReceiptStatement,
 } from "../../adapters/privacy/deletionRequest";
-import { retireDeletedAccountClaimStatements } from "../../adapters/record/matchClaimStore";
-import { scrubDeletedAccountRecordsStatements } from "../../adapters/record/privacyScrub";
-import { hideDeletedRoomPlayersStatements } from "../../adapters/room/indexDeletion";
 import { digest } from "../../crypto";
+import { deletionCascadeStatements } from "./deletionCascade";
 import { feedbackAccountHash } from "./feedbackAccountHash";
 
 export async function requestDeletion(env: AuthEnv, id: string, receipt: string) {
@@ -21,12 +16,8 @@ export async function requestDeletion(env: AuthEnv, id: string, receipt: string)
   const deletion = { accountId: id, batchReceipt: `batch:${crypto.randomUUID()}` };
   const results = await db.batch([
     insertDeletionStatement(db, deletion, Date.now()),
-    hideDeletedFeedbackStatement(db, deletion, reporterHash),
-    ...hideDeletedRoomPlayersStatements(db, deletion, retiredName),
+    ...deletionCascadeStatements(db, deletion, reporterHash),
     ...queueDeletionStatements(db, deletion),
-    ...retireDeletedAccountClaimStatements(db, deletion),
-    ...scrubDeletedAccountRecordsStatements(db, deletion),
-    ...deactivateDeletedAccountStatements(db, deletion, retiredName),
     ...[
       "tournament_wait_reservations",
       "matchmaking_wait_reservations",

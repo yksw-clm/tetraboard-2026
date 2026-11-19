@@ -1,42 +1,13 @@
-import { applyD1Migrations, env } from "cloudflare:test";
-import { beforeAll, expect, test, vi } from "vitest";
+import { env } from "cloudflare:test";
+import { expect, onTestFinished, test, vi } from "vitest";
 import { digest } from "../src/crypto";
 import { feedbackAccountHash } from "../src/flows/accountPurge/feedbackAccountHash";
+import { processDeletions } from "../src/flows/accountPurge/processDeletions";
 import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { accountFixture } from "./accountFixtures";
-import { testMigrations } from "./guestMergeRecordFixtures";
+import { privacyConcurrencyFixture } from "./privacyConcurrencyFixture";
 
-const bindings = env as typeof env & {
-  DELETION_CASCADE_TEST_DB: D1Database;
-  DELETION_WITH_TRIGGERS_TEST_DB: D1Database;
-};
-const withoutTriggers = bindings.DELETION_CASCADE_TEST_DB;
-const withTriggers = bindings.DELETION_WITH_TRIGGERS_TEST_DB;
-const movedTriggers = [
-  "privacy_hide_feedback",
-  "privacy_hide_room_index",
-  "privacy_hide_room_participants",
-  "privacy_pending_images",
-  "privacy_retire_match_claims",
-  "privacy_scrub_existing",
-  "privacy_scrub_retired_match_claim",
-  "privacy_scrub_matches_update",
-  "privacy_scrub_claimed_match_update",
-  "privacy_scrub_shogi_match_uploads_update",
-  "privacy_scrub_claimed_upload_update",
-  "privacy_scrub_room_index_update",
-  "privacy_scrub_room_participants_update",
-];
-
-beforeAll(async () => {
-  await Promise.all(
-    [withoutTriggers, withTriggers].map((db) => applyD1Migrations(db, testMigrations)),
-  );
-  await withoutTriggers.batch(
-    movedTriggers.map((name) => withoutTriggers.prepare(`DROP TRIGGER ${name}`)),
-  );
-});
-
+const db = env.APP_DB;
 const owner = "deletion-owner";
 const other = "deletion-opponent";
 const guest = "deletion-merged-guest";
@@ -139,30 +110,51 @@ async function seed(db: D1Database) {
   ]);
 }
 
-const stateQueries = {
-  feedback: "SELECT id,deleted FROM feedback ORDER BY id",
-  rooms:
-    "SELECT room_id,host_name,host_avatar_url,host_player_id,participants_json,revision FROM room_index ORDER BY room_id",
-  images: "SELECT account_id,key FROM deletion_images ORDER BY key",
-  queuedRooms: "SELECT room_id FROM deletion_rooms ORDER BY room_id",
-  claims:
-    "SELECT match_id,player_id,account_id,state FROM match_participant_accounts ORDER BY match_id,player_id",
-  matches: "SELECT id,record_json FROM matches ORDER BY id",
-  uploads: "SELECT id,record_json FROM match_uploads ORDER BY id",
-  history: "SELECT account_id,match_id FROM account_match_history ORDER BY account_id",
-  sessions: "SELECT userId FROM session ORDER BY userId",
-  profiles:
-    "SELECT id,name,username,avatarKey,image,publicProfileId IS NOT NULL AS has_public_id,profileCompleted FROM user ORDER BY id",
-  receipt: "SELECT id,receipt_hash,avatar_key FROM deleted_accounts",
-};
-
-type StateKey = keyof typeof stateQueries;
-async function state(db: D1Database) {
-  const entries = Object.entries(stateQueries);
-  const result = await db.batch(entries.map(([, sql]) => db.prepare(sql)));
+async function state(accountId = owner, database = db) {
+  const db = database;
+  const statements = {
+    feedback: db.prepare(
+      "SELECT id,deleted FROM feedback WHERE id IN ('direct','hashed','other','seated') ORDER BY id",
+    ),
+    rooms: db.prepare(
+      "SELECT room_id,host_name,host_avatar_url,host_player_id,participants_json,revision FROM room_index WHERE room_id IN ('host-room','other-room') ORDER BY room_id",
+    ),
+    images: db
+      .prepare("SELECT account_id,key FROM deletion_images WHERE account_id=? ORDER BY key")
+      .bind(accountId),
+    queuedRooms: db
+      .prepare("SELECT room_id FROM deletion_rooms WHERE account_id=? ORDER BY room_id")
+      .bind(accountId),
+    claims: db.prepare(
+      "SELECT match_id,player_id,account_id,state FROM match_participant_accounts WHERE match_id IN ('claim','pending') ORDER BY match_id,player_id",
+    ),
+    matches: db
+      .prepare("SELECT id,record_json FROM matches WHERE id IN (?,?,?) ORDER BY id")
+      .bind(...Object.keys(playerCases)),
+    uploads: db
+      .prepare("SELECT id,record_json FROM match_uploads WHERE id IN (?,?,?) ORDER BY id")
+      .bind(...Object.keys(playerCases)),
+    history: db
+      .prepare(
+        "SELECT account_id,match_id FROM account_match_history WHERE account_id IN (?,?) ORDER BY account_id",
+      )
+      .bind(accountId, other),
+    sessions: db
+      .prepare("SELECT userId FROM session WHERE userId IN (?,?) ORDER BY userId")
+      .bind(accountId, other),
+    profiles: db
+      .prepare(
+        "SELECT id,name,username,avatarKey,image,publicProfileId IS NOT NULL AS has_public_id,profileCompleted FROM user WHERE id IN (?,?) ORDER BY id",
+      )
+      .bind(accountId, other),
+    receipt: db
+      .prepare("SELECT id,receipt_hash,avatar_key FROM deleted_accounts WHERE id=?")
+      .bind(accountId),
+  };
+  const result = await db.batch(Object.values(statements));
   return Object.fromEntries(
-    entries.map(([name], index) => [name, result[index].results]),
-  ) as Record<StateKey, Record<string, unknown>[]>;
+    Object.keys(statements).map((name, index) => [name, result[index].results]),
+  ) as Record<keyof typeof statements, Record<string, unknown>[]>;
 }
 
 function expectRetiredRecords(rows: Awaited<ReturnType<typeof state>>["matches"]) {
@@ -183,14 +175,21 @@ function expectRetiredRecords(rows: Awaited<ReturnType<typeof state>>["matches"]
   );
 }
 
-test("退会受付の batch でトリガーの有無によらず同じ情報を削除・伏せ字にする", async () => {
-  await Promise.all([withoutTriggers, withTriggers].map(seed));
+test("退会受付の batch で本人情報を削除・伏せ字にし、再送しても削除予約を復活させない", async () => {
+  await seed(db);
+  const before = await state();
+  await db
+    .prepare("UPDATE privacy_avatar_uploads SET started_at_ms=? WHERE account_id=?")
+    .bind(Date.now(), owner)
+    .run();
+  const { results: indexedRooms } = await db
+    .prepare(
+      "SELECT room_id FROM room_index UNION SELECT room_id FROM room_index_deleted_revisions ORDER BY room_id",
+    )
+    .all();
+  expect(await requestDeletion(env, owner, receipt)).toBe(true);
 
-  for (const db of [withTriggers, withoutTriggers])
-    expect(await requestDeletion({ ...env, APP_DB: db }, owner, receipt)).toBe(true);
-
-  const actual = await state(withoutTriggers);
-  expect(actual).toEqual(await state(withTriggers));
+  const actual = await state();
   expect(actual.feedback).toEqual([
     { id: "direct", deleted: 1 },
     { id: "hashed", deleted: 1 },
@@ -223,6 +222,7 @@ test("退会受付の batch でトリガーの有無によらず同じ情報を�
     { account_id: owner, key: "avatars/seat.webp" },
     { account_id: owner, key: "avatars/upload.webp" },
   ]);
+  expect(actual.queuedRooms).toEqual(indexedRooms);
   expect(actual.claims).toEqual([
     { match_id: "claim", player_id: "claimed", account_id: null, state: "retired" },
     { match_id: "claim", player_id: "visitor", account_id: other, state: "applied" },
@@ -241,26 +241,133 @@ test("退会受付の batch でトリガーの有無によらず同じ情報を�
     has_public_id: 0,
     profileCompleted: 0,
   });
+  expect(actual.profiles.find(({ id }) => id === other)).toEqual(
+    before.profiles.find(({ id }) => id === other),
+  );
   expect(actual.receipt).toEqual([
     { id: owner, receipt_hash: await digest(receipt), avatar_key: "avatars/profile.webp" },
   ]);
 
-  for (const db of [withTriggers, withoutTriggers]) {
-    // ジョブ消化後の再送で、削除済みの予約が復活するかを確認します。
-    await db.batch([
-      db.prepare("DELETE FROM deletion_rooms"),
-      db.prepare("DELETE FROM deletion_images"),
-    ]);
-    const before = await state(db);
-    expect(await requestDeletion({ ...env, APP_DB: db }, owner, receipt)).toBe(false);
-    expect(await state(db)).toEqual(before);
-  }
+  // 画像の書き込み待ちの間に定期処理を起動しても、受付時の状態を保ちます。
+  await processDeletions(env);
+  expect(await state()).toEqual(actual);
+
+  // ジョブ消化後の再送で、削除済みの予約が復活しないことを確認します。
+  await db.batch([
+    db.prepare("DELETE FROM deletion_rooms WHERE account_id=?").bind(owner),
+    db.prepare("DELETE FROM deletion_images WHERE account_id=?").bind(owner),
+  ]);
+  expect(await requestDeletion(env, owner, receipt)).toBe(false);
+  expect(await state()).toEqual({ ...actual, queuedRooms: [], images: [] });
+});
+
+test("復元した退会台帳を未完了に戻すと、定期処理が旧データを再度伏せ字にする", async () => {
+  const { db } = await privacyConcurrencyFixture();
+  const bindings = { ...env, APP_DB: db };
+  await accountFixture(true, owner, db);
+  expect(await requestDeletion(bindings, owner, receipt)).toBe(true);
+  await processDeletions(bindings);
+  const ledger = (await db
+    .prepare(
+      "SELECT requested_at_ms,completed_at_ms,receipt_hash,last_attempted_at_ms FROM deleted_accounts WHERE id=?",
+    )
+    .bind(owner)
+    .first<{
+      requested_at_ms: number;
+      completed_at_ms: number | null;
+      receipt_hash: string;
+      last_attempted_at_ms: number;
+    }>())!;
+  expect(ledger.completed_at_ms).toEqual(expect.any(Number));
+
+  // バックアップ時点のデータを戻してから、完了済みの台帳を未完了にして入れ直します。
+  await db.prepare("DELETE FROM deleted_accounts WHERE id=?").bind(owner).run();
+  await seed(db);
+  const restoredAvatar = `avatars/${crypto.randomUUID()}.webp`;
+  await env.OBJECT_STORAGE.put(restoredAvatar, "復元された画像");
+  onTestFinished(async () => {
+    await env.OBJECT_STORAGE.delete(restoredAvatar);
+  });
+  await db.batch([
+    db.prepare("UPDATE user SET avatarKey=? WHERE id=?").bind(restoredAvatar, owner),
+    db
+      .prepare("UPDATE privacy_avatar_uploads SET started_at_ms=? WHERE account_id=?")
+      .bind(Date.now(), owner),
+    db
+      .prepare(`INSERT INTO deleted_accounts
+      (id,requested_at_ms,completed_at_ms,receipt_hash,last_attempted_at_ms)
+      VALUES (?,?,NULL,?,?)`)
+      .bind(owner, ledger.requested_at_ms, ledger.receipt_hash, ledger.last_attempted_at_ms),
+  ]);
+  const restored = await state(owner, db);
+  expect(restored.rooms[0]).toMatchObject({ host_name: "ホスト名" });
+
+  await processDeletions(bindings);
+
+  const pending = await state(owner, db);
+  expect(pending.rooms[0]).toMatchObject({
+    host_name: retiredName,
+    host_player_id: null,
+    host_avatar_url: null,
+    participants_json: JSON.stringify([
+      { ...host, appearance: { kind: "human", avatarUrl: null, retired: true } },
+      { ...merged, appearance: { kind: "human", avatarUrl: null, retired: true } },
+      visitor,
+      cpu,
+    ]),
+  });
+  expect(pending.rooms[1]).toEqual(restored.rooms[1]);
+  expectRetiredRecords(pending.matches);
+  expectRetiredRecords(pending.uploads);
+  expect(pending.claims).toEqual([
+    { match_id: "claim", player_id: "claimed", account_id: null, state: "retired" },
+    { match_id: "claim", player_id: "visitor", account_id: other, state: "applied" },
+    { match_id: "pending", player_id: "claimed", account_id: null, state: "retired" },
+  ]);
+  expect(pending.feedback).toEqual([
+    { id: "direct", deleted: 1 },
+    { id: "hashed", deleted: 1 },
+    { id: "other", deleted: 0 },
+  ]);
+  expect(pending.history).toEqual([{ account_id: other, match_id: "direct" }]);
+  expect(pending.sessions).toEqual([{ userId: other }]);
+  expect(pending.profiles.find(({ id }) => id === owner)).toMatchObject({
+    name: retiredName,
+    username: null,
+    avatarKey: null,
+    image: null,
+    has_public_id: 0,
+    profileCompleted: 0,
+  });
+  expect(pending.images.map(({ key }) => key)).toEqual(
+    [restoredAvatar, "avatars/seat.webp", "avatars/upload.webp"].sort(),
+  );
+  expect(pending.receipt).toEqual(restored.receipt);
+
+  await db
+    .prepare("UPDATE privacy_avatar_uploads SET started_at_ms=1 WHERE account_id=?")
+    .bind(owner)
+    .run();
+  await processDeletions(bindings);
+  expect(await env.OBJECT_STORAGE.get(restoredAvatar)).toBeNull();
+  const done = await state(owner, db);
+  expect(done).toEqual({
+    ...pending,
+    feedback: [{ id: "other", deleted: 0 }],
+    images: [],
+    profiles: restored.profiles.filter(({ id }) => id === other),
+  });
+  expect(
+    await db.prepare("SELECT completed_at_ms FROM deleted_accounts WHERE id=?").bind(owner).first(),
+  ).toEqual({ completed_at_ms: expect.any(Number) });
 });
 
 test("在室中で退会を受け付けない場合は連鎖の書き込みを実行しない", async () => {
-  const db = withoutTriggers;
   const id = "deletion-while-seated";
   await accountFixture(true, id, db);
+  onTestFinished(async () => {
+    await db.prepare("DELETE FROM account_room_seats WHERE account_id=?").bind(id).run();
+  });
   await db.batch([
     feedback(db, "seated", id, "seated-hash"),
     db
@@ -270,15 +377,14 @@ test("在室中で退会を受け付けない場合は連鎖の書き込みを�
       .bind(id),
     db.prepare("INSERT INTO privacy_avatar_uploads VALUES ('avatars/seated.webp',?,1)").bind(id),
   ]);
-  const before = await state(db);
+  const before = await state(id);
 
-  expect(await requestDeletion({ ...env, APP_DB: db }, id, "seated-receipt")).toBe(false);
+  expect(await requestDeletion(env, id, "seated-receipt")).toBe(false);
 
-  expect(await state(db)).toEqual(before);
+  expect(await state(id)).toEqual(before);
 });
 
 test("退会行の INSERT と連鎖の書き込みを同じ batch に入れる", async () => {
-  const db = withTriggers;
   const id = "deletion-single-batch";
   await accountFixture(true, id, db);
   const captured = new WeakMap<D1PreparedStatement, string>();
@@ -296,7 +402,7 @@ test("退会行の INSERT と連鎖の書き込みを同じ batch に入れる",
   });
   const spyBatch = vi.spyOn(db, "batch");
   try {
-    expect(await requestDeletion({ ...env, APP_DB: db }, id, "batch-receipt")).toBe(true);
+    expect(await requestDeletion(env, id, "batch-receipt")).toBe(true);
     expect(spyBatch).toHaveBeenCalledTimes(1);
     const sql = spyBatch.mock.calls[0][0].map((stmt) => captured.get(stmt)?.replace(/\s+/g, " "));
     expect(sql[0]).toMatch(/^INSERT INTO deleted_accounts\b/i);
