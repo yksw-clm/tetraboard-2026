@@ -36,7 +36,26 @@ export function prepareRoomSettings(
   const humanCount = room.players.filter((player) => player.kind === "human").length;
   if (humanCount + command.cpus.length > gameCatalog[room.settings.game].capacity)
     return { status: "room_full" };
-  const settings = {
+  const settings = roomSettingsFromCommand(room, command);
+  const settingsChanged = JSON.stringify(settings) !== JSON.stringify(room.settings);
+  const players = prepareRoomPlayers(room, command, retained, settingsChanged);
+  if (players === null) return { status: "room_full" };
+  if (!settingsChanged && JSON.stringify(players) === JSON.stringify(room.players))
+    return { status: "unchanged" };
+  const updated = roomSchema.safeParse({
+    ...room,
+    settings,
+    players,
+    lastActivityAtMs: now,
+    publicUpdatedAtMs: Math.max(now, room.publicUpdatedAtMs + 1),
+  });
+  return updated.success
+    ? { status: "updated", room: updated.data }
+    : { status: "invalid_request" };
+}
+
+function roomSettingsFromCommand(room: Room, command: RoomSettingsApplyCommand) {
+  return {
     ...room.settings,
     timeControl: command.timeControl,
     ...(command.mode === undefined ? {} : { mode: command.mode }),
@@ -45,7 +64,14 @@ export function prepareRoomSettings(
       : { threePlayerAttackProhibited: command.threePlayerAttackProhibited }),
     ...(command.forbiddenRules === undefined ? {} : { forbiddenRules: command.forbiddenRules }),
   };
-  const settingsChanged = JSON.stringify(settings) !== JSON.stringify(room.settings);
+}
+
+function prepareRoomPlayers(
+  room: Room,
+  command: RoomSettingsApplyCommand,
+  retained: ReadonlyMap<string, RoomSettingsApplyCommand["cpus"][number]["level"]>,
+  settingsChanged: boolean,
+) {
   const players: Room["players"][number][] = [];
   for (const player of room.players) {
     if (player.kind === "human")
@@ -60,7 +86,7 @@ export function prepareRoomSettings(
   );
   for (const cpu of command.cpus.filter((cpu) => cpu.playerId === null)) {
     const number = [1, 2, 3].find((number) => !usedNames.has(`CPU ${number}`));
-    if (number === undefined) return { status: "room_full" };
+    if (number === undefined) return null;
     const name = `CPU ${number}`;
     usedNames.add(name);
     players.push({
@@ -75,16 +101,5 @@ export function prepareRoomSettings(
         : { color: null }),
     });
   }
-  if (!settingsChanged && JSON.stringify(players) === JSON.stringify(room.players))
-    return { status: "unchanged" };
-  const updated = roomSchema.safeParse({
-    ...room,
-    settings,
-    players,
-    lastActivityAtMs: now,
-    publicUpdatedAtMs: Math.max(now, room.publicUpdatedAtMs + 1),
-  });
-  return updated.success
-    ? { status: "updated", room: updated.data }
-    : { status: "invalid_request" };
+  return players;
 }

@@ -6,7 +6,7 @@ import { humanShogiRecord } from "./shogiMatchFixtures";
 import { pendingMatchPrefix, type PendingMatch } from "../src/rooms/matchStore";
 import { pendingShogiMatchPrefix, type PendingShogiMatch } from "../src/rooms/shogiMatchStore";
 import { analyticsActiveKey, type AnalyticsMatch } from "../src/usageEvents/matches";
-import type { PendingRoomIndex } from "../src/rooms/roomIndex";
+import type { PendingRoomIndex } from "../src/adapters/room/roomIndexWrite";
 import type { AccountAdmission } from "../src/flows/accountSeats/types";
 import { env } from "cloudflare:workers";
 import { evictDurableObject, runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";

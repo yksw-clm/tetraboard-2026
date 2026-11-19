@@ -1,40 +1,7 @@
-import { gameCatalog } from "@tetraboard/protocol/games";
-import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
-import {
-  playerAppearanceSchema,
-  matchKindSchema,
-  type MatchKind,
-  roomPublicMetadataSchema,
-  type RoomPublicMetadata,
-} from "@tetraboard/protocol";
+import { defaultGameId, gameCatalog, type GameId } from "@tetraboard/protocol/games";
+import { matchKindSchema, roomPublicMetadataSchema } from "@tetraboard/protocol";
 import { lobbyRoomCardSchema, type LobbyRoomsQuery } from "@tetraboard/protocol/general-lobby";
-import { retiredName } from "@tetraboard/context-privacy";
-import { z } from "zod";
-import { roomHostAccountExistsSql, roomParticipantScrubSql } from "../adapters/room/indexScrub";
-
-const indexedParticipantsSchema = z
-  .array(
-    z.strictObject({
-      playerId: z.uuid(),
-      appearance: playerAppearanceSchema,
-    }),
-  )
-  .max(4);
-export type IndexedRoomParticipant = z.infer<typeof indexedParticipantsSchema>[number];
-
-export type PendingRoomIndex = {
-  revision: number;
-  closed: boolean;
-  closedAtMs?: number;
-  metadata: RoomPublicMetadata & {
-    matchKind?: MatchKind;
-    matchSequence?: number;
-    instanceId?: string;
-    hostPlayerId?: string | null;
-    participantPreviews?: IndexedRoomParticipant[];
-  };
-  retryAtMs: number;
-};
+import { indexedParticipantsSchema } from "./roomIndexParticipants";
 
 type IndexRow = {
   room_id: string;
@@ -59,108 +26,6 @@ type IndexRow = {
   revision: number;
   participants_json: string | null;
 };
-
-export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex): Promise<void> {
-  const room = pending.metadata;
-  // ホストは直接の退会だけを照合し、参加者はゲストの統合先も照合します。
-  const retiredHost = roomHostAccountExistsSql(
-    "incoming.room_id",
-    "incoming.instance_id",
-    "incoming.host_player_id",
-    "r.account_id IN (SELECT id FROM deleted_accounts)",
-  );
-  const participants = roomParticipantScrubSql(
-    "scrub_input.room_id",
-    "scrub_input.instance_id",
-    "scrub_input.participants_json",
-  );
-  await db
-    .prepare(
-      `WITH incoming (
-        room_id, game, mode, main_time_ms, byoyomi_ms, status, host_name, host_avatar_url,
-        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed,
-        instance_id, host_player_id, tournament_id, matchmaking, participants_json, match_kind, match_sequence,
-        closed_at_ms
-      ) AS (VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)),
-      scrub_input AS MATERIALIZED (
-        SELECT incoming.*, ${retiredHost} AS retired_host FROM incoming
-      )
-      INSERT INTO room_index (
-        room_id, game, mode, main_time_ms, byoyomi_ms, status, host_name, host_avatar_url,
-        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed,
-        instance_id, host_player_id, tournament_id, matchmaking, participants_json, match_kind, match_sequence,
-        closed_at_ms
-      )
-      SELECT room_id, game, mode, main_time_ms, byoyomi_ms, status,
-        CASE WHEN retired_host THEN ? ELSE host_name END,
-        CASE WHEN retired_host THEN NULL ELSE host_avatar_url END,
-        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed, instance_id,
-        CASE WHEN retired_host THEN NULL ELSE host_player_id END,
-        tournament_id, matchmaking,
-        CASE WHEN ${participants.needed} THEN ${participants.scrubbed} ELSE participants_json END,
-        match_kind, match_sequence, closed_at_ms
-      FROM scrub_input
-      WHERE NOT EXISTS (
-        SELECT 1 FROM room_index_deleted_revisions AS deleted
-        WHERE deleted.room_id = scrub_input.room_id
-          AND deleted.deleted_through_revision >= scrub_input.revision
-      )
-      ON CONFLICT(room_id) DO UPDATE SET
-        game = excluded.game,
-        mode = excluded.mode,
-        main_time_ms = excluded.main_time_ms,
-        byoyomi_ms = excluded.byoyomi_ms,
-        status = excluded.status,
-        host_name = excluded.host_name,
-        host_avatar_url = excluded.host_avatar_url,
-        human_count = excluded.human_count,
-        cpu_count = excluded.cpu_count,
-        capacity = excluded.capacity,
-        open_seats = excluded.open_seats,
-        updated_at_ms = excluded.updated_at_ms,
-        revision = excluded.revision,
-        closed = excluded.closed,
-        instance_id = excluded.instance_id,
-        host_player_id = excluded.host_player_id,
-        tournament_id = excluded.tournament_id,
-        matchmaking = excluded.matchmaking,
-        participants_json = excluded.participants_json,
-        match_kind = excluded.match_kind,
-        match_sequence = excluded.match_sequence,
-        closed_at_ms = excluded.closed_at_ms,
-        closed_observed_at_ms = NULL
-      WHERE excluded.revision > room_index.revision`,
-    )
-    .bind(
-      room.id,
-      room.game,
-      room.mode ?? "standard",
-      room.timeControl.mainTimeMs,
-      room.timeControl.byoyomiMs,
-      room.status,
-      room.hostName,
-      room.hostAvatarUrl ?? null,
-      room.humanCount,
-      room.cpuCount,
-      room.capacity,
-      room.openSeats,
-      room.updatedAtMs,
-      pending.revision,
-      pending.closed ? 1 : 0,
-      room.instanceId ?? null,
-      room.hostPlayerId ?? null,
-      room.tournamentId ?? null,
-      room.matchmaking ? 1 : 0,
-      room.participantPreviews === undefined
-        ? null
-        : JSON.stringify(indexedParticipantsSchema.parse(room.participantPreviews)),
-      room.matchKind ?? null,
-      room.matchSequence ?? null,
-      pending.closed ? (pending.closedAtMs ?? null) : null,
-      retiredName,
-    )
-    .run();
-}
 
 const lobbyRoomPriority =
   "CASE WHEN status='waiting' AND open_seats>0 THEN 0 WHEN status='waiting' THEN 1 ELSE 2 END";
@@ -227,37 +92,7 @@ export async function listLobbyRoomCards(
     if (incomplete.length === 0) {
       const last = rows.at(-1);
       return {
-        rooms: rows.map((row) =>
-          lobbyRoomCardSchema.parse({
-            ...parseRow(row, true),
-            ...(query.includeMatchKind === "1"
-              ? { matchKind: matchKindSchema.parse(row.match_kind ?? "unknown") }
-              : {}),
-            ...(query.includeMatchSequence === "1" &&
-            row.match_sequence !== null &&
-            (row.match_kind === "rated" || row.match_kind === "tournament")
-              ? { matchSequence: row.match_sequence }
-              : {}),
-            instanceId: row.instance_id,
-            participants: indexedParticipantsSchema
-              .parse(JSON.parse(row.participants_json!))
-              .map(({ playerId, appearance }) =>
-                appearance.kind === "cpu"
-                  ? appearance
-                  : {
-                      ...appearance,
-                      profileTarget: appearance.retired
-                        ? null
-                        : {
-                            source: "room" as const,
-                            roomId: row.room_id,
-                            instanceId: row.instance_id,
-                            playerId,
-                          },
-                    },
-              ),
-          }),
-        ),
+        rooms: rows.map((row) => lobbyRoomCard(row, query)),
         totalCount: page.totalCount,
         nextCursor:
           page.rows.length > 20 && last
@@ -275,7 +110,39 @@ export async function listLobbyRoomCards(
   throw new Error("Participant previews could not be refreshed");
 }
 
-export function parseRow(row: IndexRow, preview: boolean) {
+function lobbyRoomCard(row: IndexRow, query: LobbyRoomsQuery) {
+  return lobbyRoomCardSchema.parse({
+    ...parseRow(row, true),
+    ...(query.includeMatchKind === "1"
+      ? { matchKind: matchKindSchema.parse(row.match_kind ?? "unknown") }
+      : {}),
+    ...(query.includeMatchSequence === "1" &&
+    row.match_sequence !== null &&
+    (row.match_kind === "rated" || row.match_kind === "tournament")
+      ? { matchSequence: row.match_sequence }
+      : {}),
+    instanceId: row.instance_id,
+    participants: indexedParticipantsSchema
+      .parse(JSON.parse(row.participants_json!))
+      .map(({ playerId, appearance }) =>
+        appearance.kind === "cpu"
+          ? appearance
+          : {
+              ...appearance,
+              profileTarget: appearance.retired
+                ? null
+                : {
+                    source: "room" as const,
+                    roomId: row.room_id,
+                    instanceId: row.instance_id,
+                    playerId,
+                  },
+            },
+      ),
+  });
+}
+
+function parseRow(row: IndexRow, preview: boolean) {
   return {
     ...(preview && row.instance_id
       ? {
@@ -361,4 +228,24 @@ export async function listGeneralRooms(db: D1Database, capacity?: string, cursor
         ? `${last.priority}:${last.updated_at_ms}:${last.room_id}`
         : null,
   };
+}
+
+export function completeRoomIndexPreviews(
+  gameRoom: Env["GAME_ROOM"],
+  rooms: ReturnType<typeof parseRow>[],
+) {
+  return Promise.all(
+    rooms.map(async (room) => {
+      if (room.profileTarget !== undefined) return room;
+      const current = await gameRoom.getByName(room.id).getPublicMetadata(true);
+      if (!current || current.game !== room.game || !current.instanceId) return null;
+      const { instanceId, hostPlayerId, ...metadata } = current;
+      return {
+        ...metadata,
+        profileTarget: hostPlayerId
+          ? { source: "room" as const, roomId: room.id, instanceId, playerId: hostPlayerId }
+          : null,
+      };
+    }),
+  );
 }
