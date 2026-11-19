@@ -11,7 +11,7 @@ import { savePreviousMonthKpi } from "./kpi/monthly";
 import { runRoomIndexRetention } from "./rooms/roomIndexRetention";
 
 const roomIndexRetentionEnabled = false;
-const roomIndexRetentionInspectionEnabled = false;
+const roomIndexRetentionInspectionEnabled = true;
 
 export type MaintenanceTask = { name: string; run: () => Promise<unknown> };
 
