@@ -15,7 +15,7 @@ import * as monthlyKpi from "../src/kpi/monthly";
 import { guestClaimsKey } from "../src/flows/guestRegistration/claims";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { pendingMatchPrefix } from "../src/adapters/record/matchStore";
-import { roomStorageKey } from "../src/rooms/progressHelpers";
+import { roomStorageKey } from "../src/adapters/room/games/progressHelpers";
 import { writeRoomIndex, type PendingRoomIndex } from "../src/adapters/room/roomIndexWrite";
 import {
   roomIndexRetentionCandidatesSql,

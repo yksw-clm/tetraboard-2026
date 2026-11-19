@@ -4,7 +4,7 @@ import {
   type FinishedProgress,
   type RematchFor,
   type ProgressFor,
-} from "../src/rooms/gameProgress";
+} from "../src/adapters/room/games/gameProgress";
 // @ts-expect-error 各GameIdの進行登録が必須
 export const missingRegistration: Record<GameId | "unregistered-game", unknown> = gameProgress;
 // @ts-expect-error 別ゲームのfactoryを登録できない
@@ -15,7 +15,7 @@ declare const reversiFinished: FinishedProgress<"four-reversi">;
 declare const shogiFinished: FinishedProgress<"four-shogi">;
 declare const reversiRematch: RematchFor<"four-reversi">;
 declare const shogiRematch: RematchFor<"four-shogi">;
-declare const dependencies: import("../src/rooms/gameProgress").ProgressDependencies;
+declare const dependencies: import("../src/adapters/room/games/gameProgress").ProgressDependencies;
 const r = gameProgress["four-reversi"].create(dependencies);
 const s = gameProgress["four-shogi"].create(dependencies);
 declare const move: GameActionCommandFor<"four-shogi">;
@@ -77,9 +77,10 @@ export const wrongProgress: ProgressFor<"four-reversi"> = {
 };
 
 // @ts-expect-error 既存ゲームの登録を省略できない
-export const omittedShogi: import("../src/rooms/gameProgress").GameProgressRegistration = {
-  "four-reversi": gameProgress["four-reversi"],
-};
+export const omittedShogi: import("../src/adapters/room/games/gameProgress").GameProgressRegistration =
+  {
+    "four-reversi": gameProgress["four-reversi"],
+  };
 declare const waiting: Extract<RoomFor<"four-reversi">, { status: "waiting" }>;
 export const wrongPlayingStatus: ProgressFor<"four-reversi"> = {
   kind: "playing",

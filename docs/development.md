@@ -78,7 +78,7 @@ mise exec -- bun run --cwd apps/worker db:generate -- <名前>
 | 大会・大会管理                   | [確定仕様](specs/tournament.md#四人将棋大会の確定仕様)、[大会対局の例外](rules/four-shogi.md#大会対局の例外)                                                             | [実装計画](specs/tournament.md#維持する契約)、[承認済みモック](#四人将棋大会のuiモック)、[構成方針](architecture.md#四人将棋大会の構成方針)、既存の認証・GameRoom・終局保存・Admin                                                                                                                     | [受入検証](testing.md#大会の確認)                                                                                                                                                              |
 | 画面・ロビー・共通部品                   | READMEの対象画面、[共通UI](../README.md#共通uiとスタイル)                                                                                                         | [Webの編集先](#webの編集先)、[共通ロビー](#共通ロビーと四人将棋ui)、[LobbyView.tsx](../apps/web/src/features/lobby/LobbyView.tsx)、[RoomLayout.tsx](../apps/web/src/features/room/RoomLayout.tsx)、[shared/ui](../apps/web/src/shared/ui/)                                                    | [lobbyComponents.test.tsx](../apps/web/test-dom/lobbyComponents.test.tsx)、[presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)                                                         |
 | ルーム共有                               | [確定した共有仕様](../README.md#ルーム共有の確定仕様)                                                                                                             | [Goal・ContextProviders・Constraints・Done When](#ルーム共有の実装計画)、[useRoomEntry.ts](../apps/web/src/features/lobby/useRoomEntry.ts)、[useRoomInvitation.ts](../apps/web/src/features/room/useRoomInvitation.ts)、[publicAssets.ts](../apps/worker/src/publicAssets.ts)                 | [ルーム共有の確認](testing.md#ルーム共有の確認)                                                                                                                                                        |
-| ゲーム・CPU                              | [四人リバーシ](rules/four-reversi.md)、[四人将棋](rules/four-shogi.md)、[リバーシ](rules/reversi.md)、[将棋](rules/shogi.md)、[五目並べ](rules/gomoku.md)         | [ゲームの必須登録](#ゲームの必須登録と型の対応)、[四人将棋エンジン](#四人将棋エンジン)、[四人将棋CPU](#四人将棋cpu)、[通常リバーシ](#通常リバーシの実装)、[通常将棋](#通常将棋の実装)、[packages](../packages/)、[gameProgress.ts](../apps/worker/src/rooms/gameProgress.ts)                  | 各ゲームの `test/`、[cpuSearch.test.ts](../packages/four-shogi/test/cpuSearch.test.ts)、[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)                                   |
+| ゲーム・CPU                              | [四人リバーシ](rules/four-reversi.md)、[四人将棋](rules/four-shogi.md)、[リバーシ](rules/reversi.md)、[将棋](rules/shogi.md)、[五目並べ](rules/gomoku.md)         | [ゲームの必須登録](#ゲームの必須登録と型の対応)、[四人将棋エンジン](#四人将棋エンジン)、[四人将棋CPU](#四人将棋cpu)、[通常リバーシ](#通常リバーシの実装)、[通常将棋](#通常将棋の実装)、[packages](../packages/)、[gameProgress.ts](../apps/worker/src/adapters/room/games/gameProgress.ts)                  | 各ゲームの `test/`、[cpuSearch.test.ts](../packages/four-shogi/test/cpuSearch.test.ts)、[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)                                   |
 | 表示・サウンド設定                       | [設定](specs/room.md#表示サウンド設定)、[効果音](specs/room.md#効果音)、[時計通知](specs/room.md#時間切れ5秒前の通知)                                                | [表示・サウンド設定](#表示サウンド設定)、[共通効果音](#ルームの共通効果音)、[browserSettings.ts](../apps/web/src/shared/browserSettings.ts)、[soundPlayer.ts](../apps/web/src/shared/soundPlayer.ts)                                                                                          | [設定の確認](testing.md#表示サウンド設定の確認)、[browserSettings.test.tsx](../apps/web/test-dom/browserSettings.test.tsx)                                                                             |
 | チャット・スタンプ                       | [チャット](specs/room.md#チャット)、[保存とモデレーション](specs/room.md#チャットの保存期間とモデレーション)、[スタンプ](specs/room.md#ルームのスタンプ)             | [スタンプ](#ルームのスタンプ)、[chat.ts](../apps/worker/src/durableObjects/gameRoom/chat.ts)、[stamps.ts](../apps/worker/src/durableObjects/gameRoom/stamps.ts)、[useSessionChat.ts](../apps/web/src/features/room/useSessionChat.ts)、[useRoomStamps.ts](../apps/web/src/features/room/useRoomStamps.ts)                                                                  | [スタンプの確認](testing.md#ルームのスタンプの確認)、[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)                                                                      |
 | 戦績・ランキング・戦型・バッジ           | [戦績](../README.md#戦績の表示)、[ランキング](../README.md#ランキングの表示)、[バッジ](../README.md#バッジ)、[四人将棋の戦型](rules/four-shogi.md#戦型の成立判定) | [戦績集計](#本人の戦績集計)、[ランキング](#ゲーム別のランキング)、[戦型解析](#四人将棋の戦型解析と通知)、[バッジ](#バッジ判定と画像)、[record の adapter](../apps/worker/src/adapters/record/)                                                                                                                | [accountStats.test.ts](../apps/worker/test/accountStats.test.ts)、[badgeNotifications.test.ts](../apps/worker/test/badgeNotifications.test.ts)、[バッジ通知の確認](testing.md#バッジ獲得通知issue-122) |
@@ -170,7 +170,7 @@ Rust CPUの名前・判断方法・Engine版は`packages/ai/configs/characters-v
 
 2026-10-11に強化仕様と [Goal・ContextProviders・Constraints・Done When・コミット計画](four-reversi-ai.md) を確定しました。仕様PR取り込み後のdevelopから実装し、多人数探索・配置とチーム評価・終盤全読み・終局予測・Worker接続を追加し、採用測定の結果を同文書へ記録しています。
 
-実装の入口は [公開API](../packages/four-reversi/src/index.ts)、[エンジン](../packages/four-reversi/src/engine.ts)、[CPU](../packages/four-reversi/src/cpu.ts)、[探索](../packages/four-reversi/src/cpuSearch.ts)、[評価](../packages/four-reversi/src/cpuEvaluation.ts)、[終局予測](../packages/four-reversi/src/cpuForecast.ts)、[Worker進行](../apps/worker/src/rooms/fourReversiProgress.ts)、[GameRoomのAlarmと期限処理](../apps/worker/src/durableObjects/gameRoom/gameRoom.ts) です。生成済みの合法候補を使う内部経路を通常着手の確定処理と共有します。公開エンジン状態と通信契約は維持します。
+実装の入口は [公開API](../packages/four-reversi/src/index.ts)、[エンジン](../packages/four-reversi/src/engine.ts)、[CPU](../packages/four-reversi/src/cpu.ts)、[探索](../packages/four-reversi/src/cpuSearch.ts)、[評価](../packages/four-reversi/src/cpuEvaluation.ts)、[終局予測](../packages/four-reversi/src/cpuForecast.ts)、[Worker進行](../apps/worker/src/adapters/room/games/four-reversi/progress.ts)、[GameRoomのAlarmと期限処理](../apps/worker/src/durableObjects/gameRoom/gameRoom.ts) です。生成済みの合法候補を使う内部経路を通常着手の確定処理と共有します。公開エンジン状態と通信契約は維持します。
 
 Workerは四人リバーシのLv1／Lv2をAlarm限定で選択保存し、次Alarmで適用します。内部対局ID・部屋世代・CPU本人とレベル・ゲーム局面キー・手番開始時刻で照合し、通常GETでは選択も適用も起動しません。記録導入前の対局IDなしのDOも進行できます。手番外の脱落でもジョブを破棄し、チャット・スタンプだけで再探索しません。詳細な検証の分担は [四人リバーシAI強化の確認](testing.md#四人リバーシai強化の確認) を参照します。
 
@@ -250,7 +250,7 @@ Done Whenは全駒・禁止手・詰み・千日手・持将棋・入玉・500�
 ## 五目並べの実装
 
 - [packages/gomoku](../packages/gomoku/src/index.ts) が15路・手番・勝敗・外部敗北・全空点の合法手を扱います。[forbidden.ts](../packages/gomoku/src/forbidden.ts) は三三の発展先を再帰的に検証します。CPU専用の [cpu.ts](../packages/gomoku/src/cpu.ts) は `@tetraboard/gomoku/cpu` からWorkerだけが読み込みます。採用した探索上限・評価係数は[ルール正本](rules/gomoku.md#cpu)を参照します。
-- [gomokuProgress.ts](../apps/worker/src/rooms/gomokuProgress.ts) が配席・開始・着手・時計・終局・CPUを担当し、GameRoomの共通ライフサイクルへ接続します。CPUは候補をDOへ保存して次Alarmで期限を再確認し、同期計算時間を時計へ反映します。更新・終局・閉鎖時は候補を破棄します。時計の計算は既存の2色用モジュールを共用します。
+- [gomokuProgress.ts](../apps/worker/src/adapters/room/games/gomoku/progress.ts) が配席・開始・着手・時計・終局・CPUを担当し、GameRoomの共通ライフサイクルへ接続します。CPUは候補をDOへ保存して次Alarmで期限を再確認し、同期計算時間を時計へ反映します。更新・終局・閉鎖時は候補を破棄します。時計の計算は既存の2色用モジュールを共用します。
 - 着手通信は `placeGomokuStone` と0〜14の座標、必須の `roundId`・`positionRevision` を使います。既存リバーシの `placeStone` と0〜7の契約を維持します。禁手設定は待機中のホストだけが変更でき、対局開始時の設定はゲーム状態・対局記録・直前局に保持します。
 - [gomokuMatchStore.ts](../apps/worker/src/adapters/record/gomokuMatchStore.ts) と [gomokuMatchData.ts](../apps/worker/src/adapters/record/gomokuMatchData.ts) が保存・読取り・公開／本人棋譜・集計を接続します。D1の既存テーブルと再送処理を使い、新しいマイグレーションはありません。規則版1の局面列は [replay.ts](../packages/gomoku/src/replay.ts) で全着手を再実行し、途中・最終局面を照合します。
 - [GomokuLobbyPage](../apps/web/src/features/lobby/GomokuLobbyPage.tsx)、[GomokuRoomDetail](../apps/web/src/features/room/GomokuRoomDetail.tsx)、[GomokuMatchReplayView](../apps/web/src/features/room/GomokuMatchReplayView.tsx) を登録します。SVGの15路盤・上下カード・紫テーマ・座標表記を専用の画面で扱い、接続・設定・チャット・スタンプ・棋譜操作を共用します。禁手はクライアントとサーバーで検査し、本人の3秒toastへ接続します。
@@ -321,7 +321,7 @@ GameIdを追加すると型付きの必須登録が一斉に必要になるた�
 ## 四人五目並べの実装
 
 - [packages/four-gomoku](../packages/four-gomoku/src/index.ts) が15路・4色・両モード・順位を扱います。`completedColors` と `eliminatedColors` を分け、`standings` と `winningLines` は継続中も保持します。[CPU](../packages/four-gomoku/src/cpu.ts) は専用入口だけから読み込みます。探索方式・値は[ルール正本](rules/four-gomoku.md#cpu)を参照します。
-- [fourGomokuProgress.ts](../apps/worker/src/rooms/fourGomokuProgress.ts) が配席・着手・期限・CPU・全体終局を共通ライフサイクルへ接続します。通信は専用の `placeFourGomokuStone` に `roundId` と `positionRevision` を要求します。途中順位ではplayingを維持し、最後の確定で保存・結果・再戦へ進みます。
+- [fourGomokuProgress.ts](../apps/worker/src/adapters/room/games/four-gomoku/progress.ts) が配席・着手・期限・CPU・全体終局を共通ライフサイクルへ接続します。通信は専用の `placeFourGomokuStone` に `roundId` と `positionRevision` を要求します。途中順位ではplayingを維持し、最後の確定で保存・結果・再戦へ進みます。
 - [fourGomokuMatchData.ts](../apps/worker/src/adapters/record/fourGomokuMatchData.ts) が規則版1の全局面再生と保存理由を照合します。共通D1保存とモード別SQLを利用し、既存ゲームの契約は維持します。
 - [FourGomokuRoomView](../apps/web/src/features/room/FourGomokuRoomView.tsx) と [FourGomokuMatchReplayView](../apps/web/src/features/room/FourGomokuMatchReplayView.tsx) は4カード・途中順位・90度回転を扱います。木の盤面の描画は通常版と共用し、エンジンは別の遅延チャンクです。待機カードは現在の準備状態、保存棋譜カードは選択したフレームの順位を表示します。
 - 各色の最終手は表示用の省略可能な `lastMoves` として確定着手時に更新し、脱落・勝ち抜けでも保持します。旧進行局は `FourGomokuProgress.normalize` が永続棋譜から復元します。旧保存棋譜は `replayV1` の再実行で得た局面をWebのフレームへ使い、未来の最終手を持ち込みません。規則版1の勝敗照合には表示用情報を含めません。通常版と共用の `GomokuBoard` はSVGと操作領域に同じ寸法定数を使います。
@@ -396,7 +396,7 @@ GameIdを登録すると各層の型付き登録が必要になるため、5番�
 
 ## ゲーム契約
 
-6 ゲームは、`packages/game-contract` の `GameDefinition` を通して扱います（[ADR 0011](adr/0011-game-contract.md)）。各ゲームのパッケージが `./definition` で実装を書き出し、Worker の `apps/worker/src/rooms/gameDefinitions.ts` に登録します。6 ゲームとも移し終え、登録表は `Record<GameId, ...>` を満たすので、登録が欠けると型検査が失敗します。千日手のように過去の局面が要るゲームは、`applyAction` と `chooseAction` の任意の `history` で履歴の検索を受け取ります。引分提案のように手番に関係ない操作は、`rules.requiresTurn` と `rules.endsTurn` で表します。外部 AI を使うゲームは、契約の `cpu.external`（局面のキー、要求の本文、応答の手の読み方、予備の操作）を実装し、ジョブの保存と期限の扱いは Worker の `apps/worker/src/adapters/room/ai/externalCpu.ts` が受け持ちます。通常リバーシの CPU は、他のゲームと同じく Alarm の処理の中だけで動きます。
+6 ゲームは、`packages/game-contract` の `GameDefinition` を通して扱います（[ADR 0011](adr/0011-game-contract.md)）。各ゲームのパッケージが `./definition` で実装を書き出し、Worker の `apps/worker/src/adapters/room/games/gameDefinitions.ts` に登録します。6 ゲームとも移し終え、登録表は `Record<GameId, ...>` を満たすので、登録が欠けると型検査が失敗します。千日手のように過去の局面が要るゲームは、`applyAction` と `chooseAction` の任意の `history` で履歴の検索を受け取ります。引分提案のように手番に関係ない操作は、`rules.requiresTurn` と `rules.endsTurn` で表します。外部 AI を使うゲームは、契約の `cpu.external`（局面のキー、要求の本文、応答の手の読み方、予備の操作）を実装し、ジョブの保存と期限の扱いは Worker の `apps/worker/src/adapters/room/ai/externalCpu.ts` が受け持ちます。通常リバーシの CPU は、他のゲームと同じく Alarm の処理の中だけで動きます。
 
 着手と投了の前の確認は、room の文脈の `checkGameCommand` が全ゲーム共通の順序（状態 → 本人 → 古い局面 → 時計 → 脱落 → 手番）で行います。投了では古い局面の照合を飛ばします。
 
@@ -568,7 +568,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
   - `apps/worker/src/durableObjects/gameRoom/`: `GameRoom` のクラス（RPC の入口だけ）と、入口の処理（`socket/` の WebSocket のメッセージ、`fetch.ts`、`admissions.ts`、`queries.ts`、`profiles.ts`）、配信、チャット、スタンプ、通報、期限の処理の外部への await（`deadlines.ts`）、`RoomRuntime` の組み立て（`createRuntime.ts`）。
   - `apps/worker/src/adapters/room/`: ポートの実装と保存。状態の読み書き（版の移行を含む）、`withIndexTransaction`、効果を transaction の確定後に実行する口、外部への反映のジョブ 7 種類、外部 AI の枠、利用イベント、Alarm の入力。
   - `apps/worker/src/flows/`: 他の文脈にまたがる処理（大会とレート戦のルーム、退会したアカウントの消去、ゲストの登録、席の台帳）。それぞれの文脈のパッケージへは、TB-71〜74 で移します。
-  - ゲームの違いは `apps/worker/src/rooms/gameAdapters/` のアダプター（ゲームのポートの実装）に閉じ込め、殻と use-case ではゲームの種類で分岐しません。
+  - ゲームの違いは `apps/worker/src/adapters/room/games/` のアダプター（ゲームのポートの実装）に閉じ込め、殻と use-case ではゲームの種類で分岐しません。
 - ゲームごとの進行は `*Progress.ts` にあり、ゲーム契約（`gameDefinitions.ts`）と room の文脈の `checkGameCommand` を使います。外部 AI のジョブは `externalCpu.ts` です。
 - 時計は `clockCore.ts`（席 ID を型パラメータとする純粋な計算）と、ゲームごとの wrapper（`clock.ts`、`shogiClock.ts`、`reversiClock.ts`）です。期限の選択は `roomDeadlines.ts` の純粋関数です。
 - 1 アカウント 1 席（通常ルームの席、レート戦の待機、大会の待機を合わせて 1 つ）は、`flows/accountSeats/fences.ts` の条件で守ります（TB-118）。統合済みのゲストの席、大会の待機、大会のエントリーを止める条件も同じファイルにあります（TB-136）。席の予約は `flows/accountSeats/reserve.ts`、`entryProfile.ts` と `adapters/room/seatReservations.ts` です（旧 `accounts/roomAccounts.ts`）。3 つの表（`account_room_seats`、`matchmaking_wait_reservations`、`tournament_wait_reservations`）への挿入は、すべてこの条件をつけた `INSERT ... SELECT ... WHERE` です。挿入されなかったときは、同じファイルの関数で理由を読み直します。挿入する場所が決めたファイルの外に増えていないことは、`test-bun/accountSeatFenceBoundaries.test.ts` が確かめます。以前は D1 のトリガー 5 つが同じことを守っていましたが、TB-130 で消しました。トリガーがないので、この条件とテストが唯一の守りです。
@@ -656,7 +656,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 
 ## 棋譜の保存と読み取りの入口
 
-棋譜の保存（TB-108）と読み取り（TB-109）、戦績、戦法別の戦績、バッジ、本人の棋譜の一覧、対局の引き継ぎ（TB-139）は、ADR 0010 の形に分かれています。使用戦型は、まだ `apps/worker/src/rooms/` にあります。
+棋譜の保存（TB-108）と読み取り（TB-109）、戦績、戦法別の戦績、バッジ、本人の棋譜の一覧、対局の引き継ぎ（TB-139）は、ADR 0010 の形に分かれています。使用戦型の保存は `apps/worker/src/adapters/record/shogiFormationUsage.ts` にあります（TB-173）。
 
 - `packages/contexts/record/src/domain/`: イベント形式の本体の作り方、チャンクへの分け方と件数と連続の検査、チャンクからの再生と照合、棋譜を API の形（詳細、公開の詳細、要約）に整える関数。純粋な関数で、依存は `@tetraboard/protocol` だけです。ゲームの契約での再生は、worker から関数として渡します。
 - `packages/contexts/record/src/use-cases/`: 読み取り（詳細、本人の履歴の絞り込みとページング、公開の一覧とロビーの最近の対局、将棋の再生のページ、ゲストの棋譜の引き継ぎの判定。`readPorts.ts` の `MatchReadStore` と `MatchClaimReadStore`）と、保存の進め方（アップロード → チャンク → 公開）、再送、内容の違う再送の拒否、保存済みの判定、将棋の 1 回のイベントの上限。D1 は `ports.ts` の `MatchRecordStore` で読み書きし、公開の書き込みは実行せずに返します。Cloudflare と zod に依存しません。テストは同じパッケージの `test/`（Bun、メモリの上のポート）です。
@@ -881,7 +881,7 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 | 探索と処理量の計上、履歴・キャッシュの分離 | [cpuSearch.ts](../packages/four-shogi/src/cpuSearch.ts)               |
 | 局面の静的評価                             | [cpuEvaluation.ts](../packages/four-shogi/src/cpuEvaluation.ts)       |
 | 序盤候補の構成と照合                       | [cpuOpenings.ts](../packages/four-shogi/src/cpuOpenings.ts)           |
-| ルームでの選択保存とAlarmによる適用        | [fourShogiProgress.ts](../apps/worker/src/rooms/fourShogiProgress.ts) |
+| ルームでの選択保存とAlarmによる適用        | [fourShogiProgress.ts](../apps/worker/src/adapters/room/games/four-shogi/progress.ts) |
 
 ルーム連携の変更では [ルームの実装の入口](#ルームの実装の入口)と[ルームの仕様](specs/room.md#維持する契約) を確認します。ルール状態・通信・保存形式との境界を維持し、思考中の履歴を永続化しない注意点は正本と実装の両方で照合します。
 

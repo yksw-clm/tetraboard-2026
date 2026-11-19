@@ -1,7 +1,7 @@
 import type { GameId, RoomFor } from "@tetraboard/protocol";
-import { gameAdapters, type GameAdapterRegistration } from "../src/rooms/gameAdapters";
-import type { AdapterDependencies, GameAdapter } from "../src/rooms/gameAdapters/types";
-import type { FinishedProgress } from "../src/rooms/gameProgress";
+import { gameAdapters, type GameAdapterRegistration } from "../src/adapters/room/games";
+import type { AdapterDependencies, GameAdapter } from "../src/adapters/room/games/types";
+import type { FinishedProgress } from "../src/adapters/room/games/gameProgress";
 
 declare const missingOne: {
   [G in GameId]: Omit<typeof gameAdapters, G>;

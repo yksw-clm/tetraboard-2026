@@ -1,5 +1,5 @@
 import { fourReversiDefinition } from "@tetraboard/four-reversi/definition";
-import type { ExternalCpuWork } from "../../../rooms/fourReversiCpu";
+import type { ExternalCpuWork } from "../games/four-reversi/cpu";
 import { profileMetadata } from "./aiServiceProfiles";
 
 export function createFourReversiAiRequest(work: ExternalCpuWork, revision: string) {

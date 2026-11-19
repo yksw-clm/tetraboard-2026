@@ -9,7 +9,10 @@ import {
   type GameMode,
 } from "@tetraboard/four-reversi";
 import { RoomBoundaryFixtures } from "../test/roomBoundaryFixtures";
-import { fourReversiCpuJobKey, type FourReversiCpuJob } from "../src/rooms/fourReversiProgress";
+import {
+  fourReversiCpuJobKey,
+  type FourReversiCpuJob,
+} from "../src/adapters/room/games/four-reversi/progress";
 
 export class FourReversiAiFixture {
   fixtures = new RoomBoundaryFixtures();

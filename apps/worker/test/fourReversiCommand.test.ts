@@ -14,7 +14,7 @@ import {
 import { getLegalMoves } from "@tetraboard/four-reversi";
 import { readRoomDeletionAccounts } from "../src/adapters/privacy/deletionJobs";
 import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
-import { FourReversiProgress } from "../src/rooms/fourReversiProgress";
+import { FourReversiProgress } from "../src/adapters/room/games/four-reversi/progress";
 import {
   currentRoomStateVersion,
   roomStateVersionKey,

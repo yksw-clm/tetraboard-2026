@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { shogiRoomSchema } from "@tetraboard/protocol";
-import { ShogiProgress, type ShogiCpuJob } from "../src/rooms/standardShogiProgress";
+import { ShogiProgress, type ShogiCpuJob } from "../src/adapters/room/games/shogi/progress";
 import {
   pendingStandardShogiMatchPrefix,
   type PendingStandardShogiMatch,

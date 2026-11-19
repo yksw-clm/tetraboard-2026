@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
 import { shogiRoomSchema } from "@tetraboard/protocol";
-import type { ShogiCpuJob } from "../src/rooms/standardShogiProgress";
+import type { ShogiCpuJob } from "../src/adapters/room/games/shogi/progress";
 import { RoomBoundaryFixtures } from "../test/roomBoundaryFixtures";
 
 let fixtures = new RoomBoundaryFixtures();

@@ -9,7 +9,7 @@ import {
   membershipStorageKey,
   playerTokenKey,
 } from "../../durableObjects/gameRoom/storageKeys";
-import { nextPublicUpdateAt, roomStorageKey } from "../../rooms/progressHelpers";
+import { nextPublicUpdateAt, roomStorageKey } from "../../adapters/room/games/progressHelpers";
 import { accountCleanupKey, type AccountCleanup } from "../accountSeats/types";
 import { discoverPurgeTargets } from "./discover";
 import { strip } from "./strip";

@@ -15,7 +15,7 @@ import {
   matchmakingCpuAppearance,
   matchmakingRoomConfiguration,
   matchmakingRoomMetadata,
-} from "../../rooms/gameAdapters/matchmaking";
+} from "../../adapters/room/games/matchmaking";
 import { waitingRoomFactories } from "../../adapters/room/waitingRoomFactories";
 import { persistMatchmakingRoom } from "./prepareStorage";
 

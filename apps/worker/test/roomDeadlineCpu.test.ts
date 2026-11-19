@@ -3,7 +3,7 @@ import { evictDurableObject, runInDurableObject, runDurableObjectAlarm } from "c
 import { expect, test } from "vitest";
 import { isFourShogiRoom, fourShogiRoomSchema, type GameId } from "@tetraboard/protocol";
 import { getLegalActions } from "@tetraboard/four-shogi";
-import { ShogiStore } from "../src/rooms/shogiStore";
+import { ShogiStore } from "../src/adapters/room/games/four-shogi/store";
 import {
   registerRoomDeadlineBoundaryFixtures,
   start,

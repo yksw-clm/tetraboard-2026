@@ -5,7 +5,7 @@ import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 import { startCpuRoom } from "./cpuAdapterFixtures";
 import { externalCpuEnvironment, prepareExternalCpuRoom } from "./cpuExternalFixtures";
 import { cpuAiReply } from "./cpuAiReplies";
-import type { PlayingFor } from "../src/rooms/gameProgress";
+import type { PlayingFor } from "../src/adapters/room/games/gameProgress";
 import type { GameId } from "@tetraboard/protocol";
 
 let fixtures = new RoomBoundaryFixtures();

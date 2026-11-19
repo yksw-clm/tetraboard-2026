@@ -11,7 +11,10 @@ import { accountFixture, origin } from "../test/accountFixtures";
 import { AcceptedGameRequest } from "../test/acceptedGameRequest";
 import { readFourReversiMatchRecord } from "../src/adapters/record/matchDataContracts";
 import { readMatchDetailRecord } from "../src/adapters/record/snapshotMatchStore";
-import { fourReversiCpuJobKey, type FourReversiCpuJob } from "../src/rooms/fourReversiProgress";
+import {
+  fourReversiCpuJobKey,
+  type FourReversiCpuJob,
+} from "../src/adapters/room/games/four-reversi/progress";
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
 

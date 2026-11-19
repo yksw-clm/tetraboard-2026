@@ -18,7 +18,7 @@ import {
   fourShogiRoomSchema,
 } from "@tetraboard/protocol";
 import { getLegalActions } from "@tetraboard/four-shogi";
-import { ShogiStore } from "../src/rooms/shogiStore";
+import { ShogiStore } from "../src/adapters/room/games/four-shogi/store";
 import { boundaryRequest } from "./roomBoundaryFixtures";
 import { origin } from "./accountFixtures";
 import {

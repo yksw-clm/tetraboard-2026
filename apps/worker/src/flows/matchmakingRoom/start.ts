@@ -9,7 +9,7 @@ import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { broadcastRoom } from "../../durableObjects/gameRoom/snapshots";
 import { hasOpenConnection } from "../../durableObjects/gameRoom/socket/membership";
 import type { MatchmakingRoomReservation } from "@tetraboard/context-matchmaking";
-import { nextPublicUpdateAt, roomStorageKey } from "../../rooms/progressHelpers";
+import { nextPublicUpdateAt, roomStorageKey } from "../../adapters/room/games/progressHelpers";
 import { startMatchmakingAiWarmup } from "./warmup";
 
 export async function advanceMatchmakingStart(runtime: RoomRuntime) {

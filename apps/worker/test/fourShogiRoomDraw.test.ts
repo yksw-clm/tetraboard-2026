@@ -15,7 +15,7 @@ import {
   fourShogiRoomSchema,
   type FourShogiRoom,
 } from "@tetraboard/protocol";
-import { ShogiStore } from "../src/rooms/shogiStore";
+import { ShogiStore } from "../src/adapters/room/games/four-shogi/store";
 import { readShogiMatchRecord } from "../src/adapters/record/shogiMatchStore";
 import {
   registerFourShogiRoomFixtures,

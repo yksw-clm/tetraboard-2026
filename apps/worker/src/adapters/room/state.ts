@@ -7,7 +7,7 @@ import {
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { membershipStorageKey, playerTokenKey } from "../../durableObjects/gameRoom/storageKeys";
 import { storedAccount } from "../../flows/accountSeats/seats";
-import { replayKey, roomStorageKey } from "../../rooms/progressHelpers";
+import { replayKey, roomStorageKey } from "./games/progressHelpers";
 import { currentRoomStateVersion, migrateRoomState, roomStateVersionKey } from "./roomStateVersion";
 export const departedKey = (playerId: string) => `departed:${playerId}`;
 

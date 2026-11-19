@@ -8,12 +8,15 @@ import {
   isFourShogiRoom,
   type RoomSocketMessage,
 } from "@tetraboard/protocol";
-import { FourShogiProgress, shogiEliminatedHandsKey } from "../src/rooms/fourShogiProgress";
+import {
+  FourShogiProgress,
+  shogiEliminatedHandsKey,
+} from "../src/adapters/room/games/four-shogi/progress";
 import {
   fixture as engineFixture,
   move as engineMove,
 } from "../../../packages/four-shogi/bench/positionFixture";
-import { ShogiStore } from "../src/rooms/shogiStore";
+import { ShogiStore } from "../src/adapters/room/games/four-shogi/store";
 import { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
 import { shogiMatchStartKey } from "../src/adapters/record/shogiMatchStore";
 import {

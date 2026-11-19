@@ -7,10 +7,10 @@ import {
   FourShogiProgress,
   fourShogiAiJobKey,
   type ShogiCpuJob,
-} from "../src/rooms/fourShogiProgress";
-import type { FourShogiCpuResponse } from "../src/rooms/fourShogiCpu";
+} from "../src/adapters/room/games/four-shogi/progress";
+import type { FourShogiCpuResponse } from "../src/adapters/room/games/four-shogi/cpu";
 import { selectFourShogi } from "../src/adapters/matchmaking/fourShogiSelection";
-import { shogiCpuJobKey } from "../src/rooms/progressHelpers";
+import { shogiCpuJobKey } from "../src/adapters/room/games/progressHelpers";
 import { shogiMatchStartKey, type ActiveShogiMatch } from "../src/adapters/record/shogiMatchStore";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 
