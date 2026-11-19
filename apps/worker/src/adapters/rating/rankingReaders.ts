@@ -1,24 +1,18 @@
-import { previewReversiRankingsSchema, type PreviewReversiRankings } from "@tetraboard/protocol";
-import { defaultGameId, gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
-import { Hono } from "hono";
 import {
-  gameRankingContracts,
-  type RankingsFor,
-  type MatchGame,
-  type RoomMode,
-  type PreviewRankings,
-  previewRankingsSchema,
-} from "@tetraboard/protocol";
-import { accountAvatarUrl } from "../accounts/auth";
-import { matchDataContracts } from "../adapters/record/matchDataContracts";
-import { matchOutcomesCte } from "../adapters/record/matchOutcomes";
-import {
-  ratedMatchmakingGameIds,
   ratingRankingContracts,
+  type MatchGame,
+  type PreviewRankings,
+  type PreviewReversiRankings,
+  type RankingsFor,
   type RatedMatchmakingGame,
+  type RoomMode,
 } from "@tetraboard/protocol";
+import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { readRatingRankings as readContextRatingRankings } from "@tetraboard/context-rating";
-import { D1RatingReader } from "../adapters/rating/reader";
+import { accountAvatarUrl } from "../../accounts/auth";
+import { matchDataContracts } from "../record/matchDataContracts";
+import { matchOutcomesCte } from "../record/matchOutcomes";
+import { D1RatingReader } from "./reader";
 
 export async function readRatingRankings(db: D1Database, game: RatedMatchmakingGame) {
   const rows = await readContextRatingRankings(new D1RatingReader(db), game);
@@ -38,7 +32,21 @@ export async function readRatingRankings(db: D1Database, game: RatedMatchmakingG
   });
 }
 
-async function queryGameRankings(
+type GameRankingRow = {
+  accountId: string;
+  publicProfileId: string | null;
+  mode: RoomMode;
+  metric: "first" | "wins" | "total" | "knockouts";
+  value: number;
+  username: string | null;
+  isAnonymous: number | null;
+  name: string;
+  avatarKey: string | null;
+  avatarPresetId: string | null;
+  rank: number;
+};
+
+export async function queryGameRankings(
   db: D1Database,
   game: MatchGame = defaultGameId,
   preview = false,
@@ -72,24 +80,20 @@ async function queryGameRankings(
   SELECT accountId, publicProfileId, mode, metric, value, username, name, avatarKey, avatarPresetId, isAnonymous, rank
   FROM ranked WHERE position <= 10 ORDER BY mode, metric, position`)
     .bind(game)
-    .all<{
-      accountId: string;
-      publicProfileId: string | null;
-      mode: RoomMode;
-      metric: "first" | "wins" | "total" | "knockouts";
-      value: number;
-      username: string | null;
-      isAnonymous: number | null;
-      name: string;
-      avatarKey: string | null;
-      avatarPresetId: string | null;
-      rank: number;
-    }>();
+    .all<GameRankingRow>();
+  return formatGameRankings(rows.results, preview, includeKnockouts);
+}
+
+function formatGameRankings(
+  rows: GameRankingRow[],
+  preview: boolean,
+  includeKnockouts: boolean,
+): PreviewRankings {
   const rankings: PreviewRankings = {
     singles: { first: [], total: [], ...(includeKnockouts ? { knockouts: [] } : {}) },
     doubles: { wins: [], total: [] },
   };
-  for (const row of rows.results) {
+  for (const row of rows) {
     if (preview && !row.publicProfileId) throw new Error("Public profile ID is missing");
     const entry = {
       ...(preview ? { profileId: row.publicProfileId! } : {}),
@@ -113,7 +117,7 @@ async function queryGameRankings(
   return rankings;
 }
 
-async function queryTwoPlayerRankings(
+export async function queryTwoPlayerRankings(
   db: D1Database,
   preview = false,
   game: "reversi" | "shogi" | "gomoku" = "reversi",
@@ -160,21 +164,7 @@ async function queryTwoPlayerRankings(
   }
   return result;
 }
-export const rankingRoutes = new Hono<{ Bindings: Env }>();
-for (const game of ratedMatchmakingGameIds) {
-  rankingRoutes.get(ratingRankingContracts[game].path, async (c) => {
-    c.header("Cache-Control", "no-store");
-    try {
-      return c.json(await readRatingRankings(c.env.APP_DB, game));
-    } catch {
-      console.error("Rating rankings request failed", game);
-      return c.json(
-        { message: "レートランキングを取得できませんでした。もう一度お試しください。" },
-        503,
-      );
-    }
-  });
-}
+
 export const rankingReaders = {
   gomoku: async (db: D1Database) =>
     matchDataContracts.gomoku.rankings(await queryTwoPlayerRankings(db, false, "gomoku")),
@@ -215,46 +205,4 @@ export async function readGameRankings(
       throw new Error(`Unsupported ranking game: ${exhaustive}`);
     }
   }
-}
-
-for (const game of gameIds) {
-  const contract = gameRankingContracts[game];
-  rankingRoutes.get(contract.path, async (c) => {
-    c.header("Cache-Control", "no-store");
-    try {
-      const preview = c.req.query("profilePreview");
-      const knockoutQuery = c.req.query("includeKnockouts");
-      if (knockoutQuery !== undefined && (knockoutQuery !== "1" || game !== "four-shogi"))
-        return c.json({ message: "取得条件が正しくありません。" }, 400);
-      const includeKnockouts = knockoutQuery === "1";
-      if (preview !== undefined && preview !== "1")
-        return c.json({ message: "取得条件が正しくありません。" }, 400);
-      if (preview && !gameCatalog[game].hasModes)
-        return c.json(
-          previewReversiRankingsSchema.parse(
-            await queryTwoPlayerRankings(
-              c.env.APP_DB,
-              true,
-              game as "reversi" | "shogi" | "gomoku",
-            ),
-          ),
-        );
-      if (preview)
-        return c.json(
-          previewRankingsSchema.parse(
-            await queryGameRankings(c.env.APP_DB, game, true, includeKnockouts),
-          ),
-        );
-      if (includeKnockouts)
-        return c.json(
-          gameRankingContracts["four-shogi"].response.parse(
-            await queryGameRankings(c.env.APP_DB, "four-shogi", false, true),
-          ),
-        );
-      return c.json(await rankingReaders[game](c.env.APP_DB));
-    } catch {
-      console.error("Game rankings request failed", game);
-      return c.json({ message: "ランキングを取得できませんでした。もう一度お試しください。" }, 503);
-    }
-  });
 }

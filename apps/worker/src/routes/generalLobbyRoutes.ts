@@ -12,7 +12,7 @@ import {
 import { ratedMatchmakingGameIds } from "@tetraboard/protocol";
 import { accountIdentity } from "../accounts/auth";
 import { ratedMatchmakingPolicy } from "../adapters/matchmaking/ratedMatchmaking";
-import { listGeneralRooms, listLobbyRoomCards } from "../rooms/roomIndex";
+import { listGeneralRooms, listLobbyRoomCards } from "../adapters/room/roomIndexRead";
 import { participantProfiles } from "../adapters/record/matchProfiles";
 import { readStoredMatch } from "../adapters/record/matchDataContracts";
 export const generalLobbyRoutes = new Hono<{ Bindings: Env }>();

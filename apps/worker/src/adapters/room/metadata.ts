@@ -10,7 +10,7 @@ import { gameCapacity } from "@tetraboard/protocol/games";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { tournamentReservation } from "../../flows/tournamentRoom/reservations";
 import type { MatchmakingRoomReservation } from "@tetraboard/context-matchmaking";
-import { type IndexedRoomParticipant } from "../../rooms/roomIndex";
+import { type IndexedRoomParticipant } from "./roomIndexParticipants";
 import { isTournamentGameRoom } from "@tetraboard/context-tournament";
 import { playerTokenHash, readMembership } from "./state";
 

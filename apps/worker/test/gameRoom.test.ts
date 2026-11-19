@@ -34,7 +34,7 @@ import {
 import { applyAction, createInitialState, getLegalMoves } from "@tetraboard/four-reversi";
 import { afterEach, expect, test, vi } from "vitest";
 import * as monthlyKpi from "../src/kpi/monthly";
-import { writeRoomIndex } from "../src/rooms/roomIndex";
+import { writeRoomIndex } from "../src/adapters/room/roomIndexWrite";
 import worker from "../src/worker";
 import { recordUsageEvents } from "./usageEventsRecorder";
 
