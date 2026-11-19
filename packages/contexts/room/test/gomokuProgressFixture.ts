@@ -96,7 +96,7 @@ export function gomokuProgressFixture() {
       };
     },
     seat: (player) => player.color,
-    eliminatedSeats: (state) => state.eliminatedColors,
+    inactiveSeats: (state) => state.eliminatedColors,
     waitingSeat: { color: null },
     unknownPlayerMessage: "Unknown Gomoku player",
     toAction: (command) => ({ type: "placeStone", position: command.action.position }),
