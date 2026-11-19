@@ -21,6 +21,7 @@ import { writeRoomIndex, type PendingRoomIndex } from "../src/rooms/roomIndex";
 import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { mergeGuestAccounts } from "../src/flows/guestRegistration/guestLink";
 import { accountFixture, origin } from "./accountFixtures";
+import { markDeleted } from "./guestFenceFixtures";
 import { boundaryRequest, RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 
 const db = (env as typeof env & { LOBBY_ROOM_CARDS_TEST_DB: D1Database }).LOBBY_ROOM_CARDS_TEST_DB;
@@ -399,18 +400,14 @@ test("補完では再利用された番号の現在世代をD1から読み直し
   ).toBeUndefined();
 });
 
-test("NULL補完はDOの応答をそのまま返さず、退会trigger適用後のD1画像を返す", async () => {
+test("NULL補完はDOに旧画像が残っていてもD1で伏せ字にした公開情報を返す", async () => {
   const { user, avatarId, entry, stub } = await accountRoom();
   await waitForIndex(entry.room.id, (row) => row.participants_json !== null);
   await env.APP_DB.prepare("UPDATE room_index SET participants_json=NULL WHERE room_id=?")
     .bind(entry.room.id)
     .run();
-  // DOの削除処理より先に、D1側で退会が確定した状態を再現します。
-  await env.APP_DB.prepare(
-    "INSERT INTO deleted_accounts(id,requested_at_ms,receipt_hash) VALUES(?,?,?)",
-  )
-    .bind(user.id, Date.now(), crypto.randomUUID())
-    .run();
+  // 旧情報が残る DO から索引を補完するときの書き込みを検証します。
+  await markDeleted(env.APP_DB, user.id);
   expect((await stub.getPublicMetadata())?.hostAvatarUrl).toBe(`/api/avatars/${avatarId}`);
   const listed = (await cards("", env.APP_DB)).rooms.find((room) => room.id === entry.room.id)!;
   expect(listed.participants).toEqual([

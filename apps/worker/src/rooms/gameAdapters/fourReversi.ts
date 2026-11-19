@@ -10,6 +10,7 @@ export function createFourReversiAdapter(dependencies: AdapterDependencies) {
       waitingSeat: { color: null },
       supportsMode: true,
     }),
+    snapshotOnMalformedAction: true,
     cpu: fourReversiCpu(progress, dependencies),
     start: (room, context) =>
       progress.start(
@@ -21,9 +22,14 @@ export function createFourReversiAdapter(dependencies: AdapterDependencies) {
       ),
     play: (room, hash, command) => {
       if (command.action.type !== "placeStone") return rejected("invalid_move");
-      if (command.roundId !== undefined || command.positionRevision !== undefined)
+      if (command.roundId === undefined || command.positionRevision === undefined)
         return rejected();
-      return progress.play(room, hash, { type: "room.game.action", action: command.action });
+      return progress.play(room, hash, {
+        type: "room.game.action",
+        action: command.action,
+        roundId: command.roundId,
+        positionRevision: command.positionRevision,
+      });
     },
     resign: (room, hash) => progress.resign(room, hash),
     prepareLeave: (room, playerId) => {

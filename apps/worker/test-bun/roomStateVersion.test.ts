@@ -8,14 +8,15 @@ import {
   type Room,
 } from "@tetraboard/protocol";
 import { getActionAvailability } from "@tetraboard/four-shogi";
-import { migrateRoomStateV0ToV1 } from "../src/rooms/roomStateVersion";
+import { migrateRoomState } from "../src/rooms/roomStateVersion";
 import { migrationDependencies, roomFixture } from "./roomStateFixtures";
 import legacy from "../../../test-fixtures/matches/shogi-legacy.json";
 import { eliminateSide } from "@tetraboard/shogi";
 
 function migrate(saved: unknown, replay?: unknown): Room {
-  const result = migrateRoomStateV0ToV1(
+  const result = migrateRoomState(
     saved,
+    0,
     migrationDependencies(() => replay),
   );
   if (!result.success) throw result.error;
@@ -35,7 +36,7 @@ for (const game of gameIds)
       const read = mock(() => {
         throw Error("現在の状態では棋譜を読みません");
       });
-      const result = migrateRoomStateV0ToV1(room, migrationDependencies(read));
+      const result = migrateRoomState(room, 0, migrationDependencies(read));
       expect(result.success && result.data).toEqual(room);
       expect(read).not.toHaveBeenCalled();
       expectMigration(room, room);
@@ -150,7 +151,7 @@ for (const status of ["waiting", "playing"] as const)
     });
     const deps = migrationDependencies(read);
     const migrateLegacy = mock(deps.migrateLegacy);
-    const result = migrateRoomStateV0ToV1(saved, { ...deps, migrateLegacy });
+    const result = migrateRoomState(saved, 0, { ...deps, migrateLegacy });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.message).toContain("eliminations");
     expect(saved).not.toHaveProperty("eliminations");
@@ -178,9 +179,9 @@ test("four-gomoku: 各色の最終手を棋譜から補う", () => {
 
 test("壊れた状態のschema失敗は移行の結果として返す", () => {
   const deps = migrationDependencies(() => undefined);
-  expect(migrateRoomStateV0ToV1(null, deps).success).toBe(false);
+  expect(migrateRoomState(null, 0, deps).success).toBe(false);
   expect(
-    migrateRoomStateV0ToV1({ settings: { game: "shogi" }, game: { drawProposals: null } }, deps)
+    migrateRoomState({ settings: { game: "shogi" }, game: { drawProposals: null } }, 0, deps)
       .success,
   ).toBe(false);
 });
@@ -189,8 +190,9 @@ test("通常リバーシのnullの脱落配列は補わず拒否する", () => {
   const room = roomFixture("reversi");
   const saved = { ...room, eliminations: null };
   expect(
-    migrateRoomStateV0ToV1(
+    migrateRoomState(
       saved,
+      0,
       migrationDependencies(() => undefined),
     ).success,
   ).toBe(false);

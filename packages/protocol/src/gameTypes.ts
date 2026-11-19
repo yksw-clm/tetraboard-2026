@@ -74,14 +74,12 @@ export type PublicMatchFor<G extends GameId> = GameTypeMap[G]["publicMatch"];
 export type ReplayMatchFor<G extends GameId> = PublicMatchFor<G> & { selfPlayerId?: string };
 export type ActionFor<G extends GameId> = GameTypeMap[G]["action"];
 export type RankingsFor<G extends GameId> = GameTypeMap[G]["rankings"];
-export type GameActionCommandFor<G extends GameId> = G extends
-  | "four-shogi"
-  | "shogi"
-  | "gomoku"
-  | "four-gomoku"
-  | "reversi"
-  ? { type: "room.game.action"; action: ActionFor<G>; roundId: string; positionRevision: number }
-  : { type: "room.game.action"; action: ActionFor<G>; roundId?: never; positionRevision?: never };
+export type GameActionCommandFor<G extends GameId> = {
+  type: "room.game.action";
+  action: ActionFor<G>;
+  roundId: string;
+  positionRevision: number;
+};
 export type GameCommandFor<G extends GameId> =
   | GameActionCommandFor<G>
   | Extract<RoomSocketClientMessage, { type: "room.game.start" | "room.game.resign" }>

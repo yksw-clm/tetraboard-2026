@@ -14,31 +14,18 @@ import { humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
 import { guestFenceFixture, markDeleted } from "./guestFenceFixtures";
 
 const bindings = env as typeof env & {
-  COMMUNITY_WRITES_TEST_DB: D1Database;
+  COMMUNITY_BATCHES_TEST_DB: D1Database;
   TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1];
 };
-const db = bindings.COMMUNITY_WRITES_TEST_DB;
+const db = bindings.COMMUNITY_BATCHES_TEST_DB;
 const fixture = () => accountFixture(true, crypto.randomUUID(), db);
-const now = 1_800_000_000_000;
-let badgeTriggerSql: string;
+let now: number;
 
 beforeAll(async () => {
   await applyD1Migrations(db, bindings.TEST_MIGRATIONS);
-  badgeTriggerSql = (await db
-    .prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='notification_badge'")
-    .first<{ sql: string }>())!.sql;
-  await db.batch(
-    [
-      "lobby_chat_accept",
-      "notification_announcement_insert",
-      "notification_announcement_publish",
-      "notification_badge",
-    ].map((name) => db.prepare(`DROP TRIGGER ${name}`)),
-  );
-  await db
-    .prepare("UPDATE notification_metadata SET value=? WHERE key='started_at_ms'")
-    .bind(now)
-    .run();
+  now = (await db
+    .prepare("SELECT value FROM notification_metadata WHERE key='started_at_ms'")
+    .first<number>("value"))!;
 });
 
 const chat = new D1ChatStore(db);
@@ -55,7 +42,7 @@ const post = (
     async (text) => `hash:${text}`,
   );
 
-test("トリガーなしでチャットの送信時刻と再送記録を保存し、同時送信にも10秒制限を適用する", async () => {
+test("チャットの送信時刻と再送記録を保存し、同時送信にも10秒制限を適用する", async () => {
   const { id } = await fixture();
   const firstId = crypto.randomUUID();
   const accepted = await post(id, firstId, now);
@@ -97,7 +84,7 @@ test("トリガーなしでチャットの送信時刻と再送記録を保存�
   ]);
 });
 
-test("トリガーなしで投稿先の大会だけを最新500件にする", async () => {
+test("投稿先の大会だけを最新500件にする", async () => {
   const { id } = await fixture();
   const key = crypto.randomUUID();
   const tournamentId = 1;
@@ -157,7 +144,7 @@ const announcementEvents = async (id: string) =>
       .all()
   ).results;
 
-test("トリガーなしで記事の作成時と公開時に通知し、公開中の更新と非公開では通知を増やさない", async () => {
+test("記事の作成時と公開時に通知し、公開中の更新と非公開では通知を増やさない", async () => {
   const clock = fixTestTime(now);
   const published = await create(db, announcement);
   expect(await announcementEvents(published)).toEqual([
@@ -178,9 +165,9 @@ test("トリガーなしで記事の作成時と公開時に通知し、公開�
   expect(await announcementEvents(draft)).toEqual(events);
 });
 
-test("旧 Worker が書いた日付と新しい列を混在させても記事の取得順とカーソルを保つ", async () => {
+test("公開日列で記事を表示・整列し、編集で旧日付列を書き換えない", async () => {
   const store = announcementStore(db);
-  const legacy = crypto.randomUUID();
+  const migrated = crypto.randomUUID();
   const newest = await create(db, {
     ...announcement,
     date: "2091-01-01",
@@ -193,23 +180,23 @@ test("旧 Worker が書いた日付と新しい列を混在させても記事の
   });
   expect(
     await db.prepare("SELECT date,published_on FROM announcements WHERE id=?").bind(newest).first(),
-  ).toEqual({ date: "2091-01-01", published_on: "2091-01-01" });
+  ).toEqual({ date: null, published_on: "2091-01-01" });
   await db.batch([
     db
-      .prepare(`INSERT INTO announcements(id,title,body,date,kind,published,created_at_ms,updated_at_ms)
-      VALUES(?, '旧Worker', '本文', '2090-01-01', 'other', 1, ?, ?)`)
-      .bind(legacy, now, now),
+      .prepare(`INSERT INTO announcements(id,title,body,date,published_on,kind,published,created_at_ms,updated_at_ms)
+      VALUES(?, '移行済みの記事', '本文', '2090-01-01', '2090-01-01', 'other', 1, ?, ?)`)
+      .bind(migrated, now, now),
     db
       .prepare(
         "INSERT INTO announcement_lobby_targets(announcement_id, game) VALUES(?, 'four-reversi')",
       )
-      .bind(legacy),
+      .bind(migrated),
     db.prepare("UPDATE announcements SET date='2080-01-01' WHERE id=?").bind(newest),
   ]);
 
   for (const onlyPublished of [true, false]) {
     const first = await store.list(onlyPublished, undefined, 2);
-    expect(first.map((row) => store.record(row).id)).toEqual([newest, legacy]);
+    expect(first.map((row) => store.record(row).id)).toEqual([newest, migrated]);
     const next = await store.list(onlyPublished, store.position(first[1]!), 1);
     expect(next.map((row) => store.record(row).id)).toEqual([oldest]);
   }
@@ -217,18 +204,22 @@ test("旧 Worker が書いた日付と新しい列を混在させても記事の
     id: newest,
     date: "2091-01-01",
   });
-  expect(store.record((await store.read(legacy, true))!).date).toBe("2090-01-01");
+  expect(store.record((await store.read(migrated, true))!).date).toBe("2090-01-01");
   expect((await readNotifications(db, "", { announcementId: newest }))[0]).toMatchObject({
     announcement: { date: "2091-01-01" },
   });
 
-  // 旧 Worker 由来の公開行に対する競合更新では通知を生成しません。
-  expect(await update(db, legacy, announcement, 0)).toBe(false);
-  expect(await announcementEvents(legacy)).toEqual([]);
-  expect(await update(db, legacy, { ...announcement, date: "2092-01-01" }, 1)).toBe(true);
+  // 通知がない既存の公開行に対する競合更新でも、通知を生成しません。
+  expect(await update(db, migrated, announcement, 0)).toBe(false);
+  expect(await announcementEvents(migrated)).toEqual([]);
+  expect(await update(db, migrated, { ...announcement, date: "2092-01-01" }, 1)).toBe(true);
   expect(
-    await db.prepare("SELECT date,published_on FROM announcements WHERE id=?").bind(legacy).first(),
-  ).toEqual({ date: "2092-01-01", published_on: "2092-01-01" });
+    await db
+      .prepare("SELECT date,published_on FROM announcements WHERE id=?")
+      .bind(migrated)
+      .first(),
+  ).toEqual({ date: "2090-01-01", published_on: "2092-01-01" });
+  expect(store.record((await store.read(migrated, true))!).date).toBe("2092-01-01");
 });
 
 type BadgeEvent = { seq: number; account_id: string; created_at_ms: number; payload_json: string };
@@ -243,7 +234,7 @@ const badgeEvents = async (matchId: string) =>
   ).results;
 
 test.each(["four-reversi", "four-shogi"] as const)(
-  "トリガーなしで %s のバッジ獲得を保存し、再送は同じ通知を維持する",
+  "%s のバッジ獲得を保存し、再送は同じ通知を維持する",
   async (game) => {
     const clock = fixTestTime(now);
     const { id } = await fixture();
@@ -310,7 +301,7 @@ test("退会受付後に届いた対局保存は閾値に達してもトース�
   expect(await badgeEvents(last.id)).toEqual([]);
 });
 
-test("トリガーなしで保存済みの対局を引き継ぎ、獲得したバッジの通知を作る", async () => {
+test("保存済みの対局を引き継ぎ、獲得したバッジの通知を作る", async () => {
   fixTestTime(now);
   const { id } = await fixture();
   for (let i = 0; i < 4; i++) await writeMatch(db, humanFixtureRecord(id, i));
@@ -339,33 +330,25 @@ test("トリガーなしで保存済みの対局を引き継ぎ、獲得した�
   ]);
 });
 
-test.each([false, true])(
-  "ゲスト統合は通知と既読を付け替え、新規通知を作らない（トリガーあり: %s）",
-  async (withTrigger) => {
-    fixTestTime(now);
-    const { guest, target, flow } = await guestFenceFixture(db);
-    const matches = Array.from({ length: 5 }, (_, i) => humanFixtureRecord(guest.id, i));
-    for (const match of matches) await writeMatch(db, match);
-    const { id } = matches[4]!;
-    const events = await badgeEvents(id);
-    expect(events).toHaveLength(1);
-    await db
-      .prepare("INSERT INTO account_notification_reads(account_id,notification_seq) VALUES(?,?)")
-      .bind(guest.id, events[0]!.seq)
-      .run();
+test("ゲスト統合は通知と既読を付け替え、新規通知を作らない", async () => {
+  fixTestTime(now);
+  const { guest, target, flow } = await guestFenceFixture(db);
+  const matches = Array.from({ length: 5 }, (_, i) => humanFixtureRecord(guest.id, i));
+  for (const match of matches) await writeMatch(db, match);
+  const { id } = matches[4]!;
+  const events = await badgeEvents(id);
+  expect(events).toHaveLength(1);
+  await db
+    .prepare("INSERT INTO account_notification_reads(account_id,notification_seq) VALUES(?,?)")
+    .bind(guest.id, events[0]!.seq)
+    .run();
 
-    if (withTrigger) await db.prepare(badgeTriggerSql).run();
-    try {
-      await mergeGuestAccounts({ ...env, APP_DB: db }, flow);
-    } finally {
-      if (withTrigger) await db.prepare("DROP TRIGGER notification_badge").run();
-    }
+  await mergeGuestAccounts({ ...env, APP_DB: db }, flow);
 
-    expect(await badgeEvents(id)).toEqual([{ ...events[0], account_id: target.id }]);
-    expect(await toastFor(guest.id, id)).toBeNull();
-    expect(await toastFor(target.id, id)).toEqual({ created_at_ms: now });
-    expect((await readNotifications(db, target.id, { id: events[0]!.seq }))[0]).toMatchObject({
-      read: true,
-    });
-  },
-);
+  expect(await badgeEvents(id)).toEqual([{ ...events[0], account_id: target.id }]);
+  expect(await toastFor(guest.id, id)).toBeNull();
+  expect(await toastFor(target.id, id)).toEqual({ created_at_ms: now });
+  expect((await readNotifications(db, target.id, { id: events[0]!.seq }))[0]).toMatchObject({
+    read: true,
+  });
+});

@@ -57,6 +57,7 @@ export interface GameAdapter<G extends GameId> extends Omit<
   close(): void;
   waitingSeat: { side: null } | { color: null };
   allowsCompetitiveDraw: boolean;
+  snapshotOnMalformedAction: boolean;
   lastRoundId(room: RoomFor<G>): string | undefined;
   displayHands(
     room: RoomFor<G>,

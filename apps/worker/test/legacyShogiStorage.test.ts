@@ -115,7 +115,7 @@ for (const game of ["four-shogi", "shogi"] as const)
       expect(snapshot.room).toEqual(current);
       await runInDurableObject(stub, (_, state) => {
         expect(state.storage.kv.get("room")).toEqual(current);
-        expect(state.storage.kv.get("room-state-version")).toBe(1);
+        expect(state.storage.kv.get("room-state-version")).toBe(2);
       });
     });
   }

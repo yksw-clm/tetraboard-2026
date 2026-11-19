@@ -23,6 +23,7 @@ export interface DeletionJobStore {
 }
 
 export interface DeletionJobEffects {
+  reapplyDeletion(accountId: string): Promise<void>;
   purgeRoom(accountId: string, roomId: string): Promise<void>;
   purgeMatchmaking(accountId: string): Promise<void>;
   purgeTournaments(accountId: string): Promise<void>;
@@ -42,6 +43,7 @@ export async function runDeletionJobs(
   for (const job of jobs) {
     try {
       await store.recordAttempt(job.id, now());
+      await effects.reapplyDeletion(job.id);
       if (await store.hasRecentAvatarUpload(job.id, now() - deletionAvatarUploadWindowMs)) continue;
       for (const roomId of await store.readRooms(job.id, deletionRoomLimit)) {
         await effects.purgeRoom(job.id, roomId);

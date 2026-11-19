@@ -923,7 +923,7 @@ test("将棋着手には局IDとrevisionを必須とし、リバーシ着手形�
       type: "room.game.action",
       action: { type: "placeStone", position: { x: 4, y: 2 } },
     }).success,
-  ).toBe(true);
+  ).toBe(false);
   expect(
     roomSocketContract.clientMessage.safeParse({
       type: "room.game.action",

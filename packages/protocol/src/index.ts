@@ -116,6 +116,8 @@ export {
   roundReplaySchema,
   roomSettingsSchema,
   roomSocketContract,
+  legacyReversiActionMessageSchema,
+  roomForEntryResponse,
   roomTimeControl,
   roomMainTimePresets,
   roomByoyomiPresets,
@@ -145,6 +147,7 @@ export type {
 } from "./rooms";
 
 export {
+  fourReversiEntryRoomSchema,
   fourReversiRoomSchema,
   fourReversiRoomSettingsSchema,
   fourShogiRoomSchema,

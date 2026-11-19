@@ -7,7 +7,7 @@ export const announcements = sqliteTable(
     id: text("id"),
     title: text("title").notNull(),
     body: text("body").notNull(),
-    date: text("date").notNull(),
+    date: text("date"),
     kind: text("kind").notNull(),
     published: integer("published")
       .notNull()
@@ -17,29 +17,18 @@ export const announcements = sqliteTable(
     version: integer("version")
       .notNull()
       .default(sql`1`),
-    publishedOn: text("published_on"),
+    publishedOn: text("published_on").notNull(),
   },
   (t) => [
     primaryKey({ columns: [t.id] }),
-    index("announcements_order").on(
-      sql`${t.date} desc`,
-      sql`${t.createdAtMs} desc`,
-      sql`${t.id} desc`,
-    ),
-    index("announcements_public_order").on(
-      t.published,
-      sql`${t.date} desc`,
-      sql`${t.createdAtMs} desc`,
-      sql`${t.id} desc`,
-    ),
     index("announcements_published_on_order").on(
-      sql`coalesce(${t.publishedOn}, ${t.date}) desc`,
+      sql`${t.publishedOn} desc`,
       sql`${t.createdAtMs} desc`,
       sql`${t.id} desc`,
     ),
     index("announcements_public_published_on_order").on(
       t.published,
-      sql`coalesce(${t.publishedOn}, ${t.date}) desc`,
+      sql`${t.publishedOn} desc`,
       sql`${t.createdAtMs} desc`,
       sql`${t.id} desc`,
     ),

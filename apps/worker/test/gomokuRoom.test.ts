@@ -4,6 +4,7 @@ import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   isGomokuRoom,
+  gomokuRoomSchema,
   publicGomokuMatchDetailSchema,
   gomokuAccountStatsSchema,
   reversiRankingsSchema,
@@ -31,7 +32,7 @@ test("禁手設定は初期ON、ホストだけが待機中に変更でき、人
     cpuLevel: 2,
   });
   const host = await fixtures.connect(entry);
-  const waiting = standard(entry.room);
+  const waiting = gomokuRoomSchema.parse(entry.room);
   expect(waiting.settings.forbiddenRules).toBe(true);
   expect(waiting.players[1]).toMatchObject({ kind: "cpu", level: 2, ready: true });
   host.send({ type: "room.gomoku-forbidden.set", enabled: false });
@@ -300,7 +301,7 @@ test.each([
   async ({ level, expired }) => {
     const entry = await fixtures.create({ game: "gomoku", name: "ホスト", quickPlay: true });
     const host = await fixtures.connect(entry);
-    const waiting = standard(entry.room);
+    const waiting = gomokuRoomSchema.parse(entry.room);
     expect(waiting.players).toHaveLength(2);
     expect(waiting.players[1]).toMatchObject({ kind: "cpu", level: 1 });
     const cpu = waiting.players.find((p) => p.kind === "cpu")!;

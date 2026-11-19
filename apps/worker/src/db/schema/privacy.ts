@@ -122,5 +122,8 @@ export const privacyRoomPlayers = sqliteTable(
     playerId: text("player_id").notNull(),
     avatarKey: text("avatar_key"),
   },
-  (t) => [primaryKey({ columns: [t.accountId, t.roomId, t.instanceId, t.playerId] })],
+  (t) => [
+    primaryKey({ columns: [t.accountId, t.roomId, t.instanceId, t.playerId] }),
+    index("privacy_room_players_by_room_player").on(t.roomId, t.instanceId, t.playerId),
+  ],
 );

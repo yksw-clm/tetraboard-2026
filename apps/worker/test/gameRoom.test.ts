@@ -417,7 +417,10 @@ async function createRoom(
   );
   expect(response.status).toBe(201);
   const result = createRoomContract.response.parse(await response.json());
-  return { ...result, room: roomSchema.parse(result.room) };
+  return {
+    ...result,
+    room: roomSchema.parse({ ...result.room, roundId: null, positionRevision: 0 }),
+  };
 }
 
 test("招待先と同じ世代に参加し、既存の番号参加も引き続き利用できる", async () => {
@@ -529,7 +532,10 @@ async function joinRoom(id: string, name: string) {
   );
   expect(response.status).toBe(200);
   const result = joinRoomContract.response.parse(await response.json());
-  return { ...result, room: roomSchema.parse(result.room) };
+  return {
+    ...result,
+    room: roomSchema.parse({ ...result.room, roundId: null, positionRevision: 0 }),
+  };
 }
 
 async function getRoom(id: string): Promise<Room> {
@@ -848,6 +854,8 @@ test("手番外と不正な着手は状態を変えず、合法手は保存・�
   expect(started.players[blackIndex].id).toBe(participants[blackIndex].playerId);
   const validMove = {
     type: "room.game.action",
+    roundId: started.roundId,
+    positionRevision: started.positionRevision,
     action: { type: "placeStone", position: { x: 2, y: 3 } },
   } as const;
 
@@ -857,6 +865,8 @@ test("手番外と不正な着手は状態を変えず、合法手は保存・�
 
   connections[blackIndex].send({
     type: "room.game.action",
+    roundId: started.roundId,
+    positionRevision: started.positionRevision,
     action: { type: "placeStone", position: { x: 3, y: 4 } },
   });
   expect((await connections[blackIndex].nextType("room.error")).error).toBe("invalid_move");
@@ -879,13 +889,13 @@ test("手番外と不正な着手は状態を変えず、合法手は保存・�
   }
 });
 
-test("終局したルームを保存・配信し、以後の着手を拒否する", async () => {
+test("自動パスを含む着手は版を一つ進め、終局したルームを保存・配信する", async () => {
   const { id, connections } = await fourPlayers();
   await readyPlayers(id, connections);
   connections[0].send({ type: "room.game.start" });
   let room = await connections[0].nextSnapshotWhere((snapshot) => snapshot.status === "playing");
 
-  room = await seedFourReversiEnd(env.GAME_ROOM.getByName(id), room);
+  room = await seedFourReversiEnd(env.GAME_ROOM.getByName(id), room, true);
 
   for (let move = 0; move < 64 && room.status === "playing"; move++) {
     const turn = room.game.turn;
@@ -894,8 +904,11 @@ test("終局したルームを保存・配信し、以後の着手を拒否す�
     expect(playerIndex).toBeGreaterThanOrEqual(0);
     expect(position).toBeDefined();
     const previousMoveNumber = room.game.moveNumber;
+    const previousRevision = room.positionRevision;
     connections[playerIndex].send({
       type: "room.game.action",
+      roundId: room.roundId,
+      positionRevision: room.positionRevision,
       action: { type: "placeStone", position },
     });
     room = await connections[0].nextSnapshotWhere((snapshot) =>
@@ -903,10 +916,16 @@ test("終局したルームを保存・配信し、以後の着手を拒否す�
         ? snapshot.game.moveNumber > previousMoveNumber
         : (snapshot.lastRound?.game.moveNumber ?? 0) > previousMoveNumber,
     );
+    if (room.status === "playing") {
+      expect(room.positionRevision).toBe(previousRevision + 1);
+      if (move === 0) expect(room.game.consecutivePasses).toEqual(["black"]);
+    }
   }
 
   expect(room.status).toBe("waiting");
   if (room.status !== "waiting") return;
+  expect(room.roundId).toBeNull();
+  expect(room.positionRevision).toBe(0);
   expect(room.lastRound?.game.status).toBe("finished");
   expect(room.lastRound?.game.result.mode).toBe("singles");
   const replay = room.lastRound?.replay;
@@ -936,6 +955,8 @@ test("終局したルームを保存・配信し、以後の着手を拒否す�
 
   connections[0].send({
     type: "room.game.action",
+    roundId: replay.id,
+    positionRevision: replay.steps.length,
     action: { type: "placeStone", position: { x: 0, y: 0 } },
   });
   expect((await connections[0].nextType("room.error")).error).toBe("game_finished");
@@ -1095,7 +1116,12 @@ test("対局中の退室は脱落させ、資格を失効する", async () => {
   expect((await leaveRoom(id, participants[other].token)).status).toBe(204);
   const updated = await getRoom(id);
   expect(updated.status).toBe("playing");
-  if (updated.status === "playing") expect(updated.game.eliminatedColors).toContain(color);
+  if (updated.status === "playing") {
+    expect(updated.positionRevision).toBe(started.positionRevision + 1);
+    expect(updated.game.moveNumber).toBe(started.game.moveNumber);
+    expect(updated.game.turn).toBe(started.game.turn);
+    expect(updated.game.eliminatedColors).toContain(color);
+  }
   expect((await getMembership(id, participants[other].token)).status).toBe(401);
 });
 
@@ -1161,6 +1187,8 @@ test("開始・着手・再取得で時計の基準時刻と期限を維持す�
   const black = room.players.findIndex((player) => player.color === "black");
   connections[black].send({
     type: "room.game.action",
+    roundId: room.roundId,
+    positionRevision: room.positionRevision,
     action: { type: "placeStone", position: { x: 2, y: 3 } },
   });
   const moved = await connections[0].nextSnapshotWhere(
@@ -1192,6 +1220,8 @@ test("期限到達後の着手を拒否し、時間切れを全接続へ配信�
   }));
   connections[black].send({
     type: "room.game.action",
+    roundId: room.roundId,
+    positionRevision: room.positionRevision,
     action: { type: "placeStone", position: { x: 2, y: 3 } },
   });
   const updated = await connections[0].nextSnapshotWhere(
@@ -1212,7 +1242,7 @@ test("期限到達後の着手を拒否し、時間切れを全接続へ配信�
   }
   expect(await getRoom(id)).toEqual(updated);
   expect((await getMembership(id, participants[black].token)).status).toBe(200);
-  expect((await connections[black].nextType("room.error")).error).toBe("already_eliminated");
+  expect((await connections[black].nextType("room.error")).error).toBe("stale_position");
 });
 
 test("同時刻の時計切れを復帰期限より先に処理する", async () => {
@@ -1345,6 +1375,8 @@ test.each([
   if (room.players.find((player) => player.color === openingTurn)?.kind === "human") {
     host.send({
       type: "room.game.action",
+      roundId: room.roundId,
+      positionRevision: room.positionRevision,
       action: { type: "placeStone", position: getLegalMoves(room.game)[0] },
     });
     room = await host.nextSnapshotWhere(
@@ -1555,6 +1587,8 @@ test("ダブルス開始と終局は公開情報を更新し、通常の着手�
   const black = started.players.findIndex((player) => player.color === "black");
   setup.connections[black].send({
     type: "room.game.action",
+    roundId: started.roundId,
+    positionRevision: started.positionRevision,
     action: { type: "placeStone", position: getLegalMoves(started.game)[0] },
   });
   await setup.connections[0].nextSnapshotWhere(
@@ -1636,6 +1670,8 @@ test("CPU席・モード・開始・終了は索引を更新し、通常の着�
   if (black?.kind === "human") {
     host.send({
       type: "room.game.action",
+      roundId: playing.roundId,
+      positionRevision: playing.positionRevision,
       action: { type: "placeStone", position: getLegalMoves(playing.game)[0] },
     });
     await host.nextSnapshotWhere((room) => room.status === "playing" && room.game.moveNumber === 1);
@@ -2124,6 +2160,8 @@ test.each([
   const black = room.players.findIndex((p) => p.color === "black");
   setup.connections[black].send({
     type: "room.game.action",
+    roundId: room.roundId,
+    positionRevision: room.positionRevision,
     action: { type: "placeStone", position: { x: 2, y: 3 } },
   });
   room = await setup.connections[0].nextSnapshotWhere(
@@ -2141,11 +2179,11 @@ test.each([
   }));
   setup.connections[turnIndex].send({
     type: "room.game.action",
+    roundId: room.roundId,
+    positionRevision: room.positionRevision,
     action: { type: "placeStone", position: getLegalMoves(room.game)[0] },
   });
-  expect((await setup.connections[turnIndex].nextType("room.error")).error).toBe(
-    "already_eliminated",
-  );
+  expect((await setup.connections[turnIndex].nextType("room.error")).error).toBe("stale_position");
   const expired = await setup.connections[0].nextSnapshotWhere(
     (room) => room.status === "playing" && room.game.eliminatedColors.includes(turn),
   );
@@ -2182,5 +2220,7 @@ test.each([
   setup.connections[0].send({ type: "room.game.start" });
   const rematch = await setup.connections[0].nextSnapshotWhere((room) => room.status === "playing");
   if (rematch.status !== "playing") throw new Error("Not playing");
+  expect(rematch.roundId).not.toBe(matchId);
+  expect(rematch.positionRevision).toBe(0);
   expect(rematch.clock.turnExpiresAt - rematch.clock.turnStartedAt).toBe(330_000);
 });

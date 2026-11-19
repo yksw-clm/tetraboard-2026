@@ -129,6 +129,7 @@ async function playing(user: Awaited<ReturnType<typeof accountFixture>>) {
       roomSchema.parse({
         ...room,
         status: "playing",
+        roundId: crypto.randomUUID(),
         players: room.players.map((p, index) => ({ ...p, color: colors[index], ready: true })),
         game: createInitialState("singles"),
         clock: {

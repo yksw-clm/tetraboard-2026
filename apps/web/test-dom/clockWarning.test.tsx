@@ -24,7 +24,6 @@ import { installSocket, Socket } from "./socket";
 function standardReversiRoom() {
   const base = waitingRoom();
   return reversiRoomSchema.parse({
-    positionRevision: 0,
     ...base,
     status: "playing",
     roundId: "11111111-1111-4111-8111-111111111111",
@@ -239,8 +238,13 @@ test("着手/投了送信成功で停止・消費し、送信失敗では継続�
             { type: "resign", participant: "black" },
           )
         : h.current.sendGameMessage(
-            { type: "room.game.action", action: { type: "placeStone", position: { x: 2, y: 3 } } },
-            { type: "move", moveNumber: 0 },
+            {
+              type: "room.game.action",
+              action: { type: "placeStone", position: { x: 2, y: 3 } },
+              roundId: room.roundId,
+              positionRevision: room.positionRevision,
+            },
+            { type: "move", roundId: room.roundId, positionRevision: room.positionRevision },
           );
       expect(sent).toBe(true);
     });

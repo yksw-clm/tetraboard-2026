@@ -11,6 +11,7 @@ const boundAccount = '${accountNotDeletedSql("?1")}';
 const currentClaimAccount = '${accountNotDeletedSql("match_participant_accounts.account_id")}';
 const replayAccount =
   "${accountNotDeletedSql(mergedAccountIdSql(\"json_extract(p.value, '$.accountId')\"))}";
+const deletionGuard = "${guard.sql}";
 
 const boundaries: Record<string, [file: string, ...terms: string[]][]> = {
   "INSERT feedback": [["adapters/community/feedbackSubmission.ts", boundAccount]],
@@ -46,7 +47,7 @@ const boundaries: Record<string, [file: string, ...terms: string[]][]> = {
   "UPDATE match_participant_accounts": [
     [matchClaims, currentClaimAccount],
     [matchClaims, currentClaimAccount],
-    [matchClaims, "${acceptedDeletionSql}"],
+    [matchClaims, "account_id = ? 1", deletionGuard],
     [guestMerge, boundAccount],
   ],
 };
@@ -87,7 +88,7 @@ test("全体通知は空の宛先で保存し、退会処理で引き継ぎを�
       write.file === matchClaims &&
       write.table === "match_participant_accounts" &&
       write.operation === "UPDATE" &&
-      hasRequiredWhereTerms(write, "${acceptedDeletionSql}"),
+      hasRequiredWhereTerms(write, "account_id = ? 1", deletionGuard),
   );
   expect(retirement?.sql).toMatch(/\bSET state='retired',account_id=NULL WHERE\b/);
 });

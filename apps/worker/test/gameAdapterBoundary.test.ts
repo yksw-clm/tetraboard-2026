@@ -40,7 +40,7 @@ test.each(gameIds)("%s: 未対応の操作の拒否と開始前のエラーを�
     host.send({
       type: "room.game.action",
       action,
-      ...(game === "four-reversi" && action.type === "placeStone" ? {} : position),
+      ...position,
     });
     expect((await host.waitFor("room.error")).error).toBe(
       action.type === supported[game] ? "game_not_started" : "invalid_move",
@@ -76,7 +76,6 @@ test.each(gameIds)("%s: 未対応の操作の拒否と開始前のエラーを�
       command: {
         type: "room.game.action",
         action: actions[0],
-        ...(game === "four-reversi" ? position : {}),
       },
       error: "invalid_request",
     });

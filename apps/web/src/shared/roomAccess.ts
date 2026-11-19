@@ -80,7 +80,14 @@ export async function joinRoom(
   name: string | undefined,
   instanceId?: string,
   beforeJoin?: () => Promise<void>,
-): Promise<{ joined: false } | { joined: true; room: Room; membership: RoomMembership }> {
+): Promise<
+  | { joined: false }
+  | {
+      joined: true;
+      room: ReturnType<typeof joinRoomContract.response.parse>["room"];
+      membership: RoomMembership;
+    }
+> {
   if (!canStoreRoomMembership()) {
     throw new RoomEntryError(
       "このタブでは参加情報を保存できません。ブラウザの設定を確認してください。",

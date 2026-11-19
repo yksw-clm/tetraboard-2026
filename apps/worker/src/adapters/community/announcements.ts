@@ -17,10 +17,9 @@ type Row = {
   version: number;
   lobby_games: string;
 };
-const date = "COALESCE(a.published_on, a.date)";
-const columns = `a.id, a.title, a.body, ${date} AS date, a.kind, a.published, a.created_at_ms, a.updated_at_ms, a.version,
+const columns = `a.id, a.title, a.body, a.published_on AS date, a.kind, a.published, a.created_at_ms, a.updated_at_ms, a.version,
  (SELECT json_group_array(game) FROM announcement_lobby_targets WHERE announcement_id = a.id) AS lobby_games`;
-const order = `${date} DESC, a.created_at_ms DESC, a.id DESC`;
+const order = "a.published_on DESC, a.created_at_ms DESC, a.id DESC";
 function record(row: Row): AnnouncementRecord {
   return announcementRecordSchema.parse({
     id: row.id,
@@ -58,19 +57,9 @@ export async function create(db: D1Database, input: AnnouncementInput) {
   await db.batch([
     db
       .prepare(
-        "INSERT INTO announcements (id, title, body, date, published_on, kind, published, created_at_ms, updated_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO announcements (id, title, body, published_on, kind, published, created_at_ms, updated_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       )
-      .bind(
-        id,
-        input.title,
-        input.body,
-        input.date,
-        input.date,
-        input.kind,
-        Number(input.published),
-        now,
-        now,
-      ),
+      .bind(id, input.title, input.body, input.date, input.kind, Number(input.published), now, now),
     publishAnnouncementEvent(db, id),
     ...input.lobbyGames.map((game) =>
       db
@@ -103,12 +92,11 @@ export async function update(
     ),
     db
       .prepare(
-        "UPDATE announcements SET title = ?, body = ?, date = ?, published_on = ?, kind = ?, published = ?, updated_at_ms = ?, version = version + 1 WHERE id = ? AND version = ? RETURNING id",
+        "UPDATE announcements SET title = ?, body = ?, published_on = ?, kind = ?, published = ?, updated_at_ms = ?, version = version + 1 WHERE id = ? AND version = ? RETURNING id",
       )
       .bind(
         input.title,
         input.body,
-        input.date,
         input.date,
         input.kind,
         Number(input.published),
@@ -129,7 +117,10 @@ export function announcementStore(db: D1Database): AnnouncementQueries<Row> & An
     async list(publishedOnly, after, take) {
       const conditions = [publishedOnly ? "a.published = 1" : "1 = 1"];
       // 日付の上限も指定して、カーソルの位置から索引を読み始めます。
-      if (after) conditions.push(`${date} <= ? AND (${date}, a.created_at_ms, a.id) < (?, ?, ?)`);
+      if (after)
+        conditions.push(
+          "a.published_on <= ? AND (a.published_on, a.created_at_ms, a.id) < (?, ?, ?)",
+        );
       const rows = await db
         .prepare(
           `SELECT ${columns} FROM announcements a WHERE ${conditions.join(" AND ")} ORDER BY ${order} LIMIT ?`,

@@ -1,11 +1,12 @@
-import { acceptedDeletionSql, type DeletionBatch } from "../../db/deletionGuard";
+import { deletionGuard, type DeletionScope } from "../../db/deletionGuard";
 import { roomHostAccountExistsSql, roomParticipantScrubSql } from "./indexScrub";
 
 export function hideDeletedRoomPlayersStatements(
   db: D1Database,
-  { accountId, batchReceipt }: DeletionBatch,
+  deletion: DeletionScope,
   retiredName: string,
 ) {
+  const guard = deletionGuard(deletion);
   const retiredHost = roomHostAccountExistsSql(
     "room_index.room_id",
     "room_index.instance_id",
@@ -19,12 +20,12 @@ export function hideDeletedRoomPlayersStatements(
   );
   return [
     db
-      .prepare(`UPDATE room_index SET host_name=?3,host_avatar_url=NULL,host_player_id=NULL
-      WHERE ${acceptedDeletionSql} AND ${retiredHost}`)
-      .bind(accountId, batchReceipt, retiredName),
+      .prepare(`UPDATE room_index SET host_name=?2,host_avatar_url=NULL,host_player_id=NULL
+      WHERE ${retiredHost} AND ${guard.sql}`)
+      .bind(...guard.params(retiredName)),
     db
       .prepare(`UPDATE room_index SET participants_json=${participants.scrubbed}
-      WHERE ${acceptedDeletionSql} AND ${participants.needed}`)
-      .bind(accountId, batchReceipt),
+      WHERE ${participants.needed} AND ${guard.sql}`)
+      .bind(...guard.params()),
   ];
 }

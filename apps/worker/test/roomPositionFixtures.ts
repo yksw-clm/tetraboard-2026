@@ -10,8 +10,12 @@ import {
   type FourGomokuReplay,
 } from "@tetraboard/protocol";
 
-// 通常着手の記録と終局・保存を実行できるよう、残り2手の棋譜を用意します。
-export async function seedFourReversiEnd(stub: DurableObjectStub, initial: FourReversiRoom) {
+// 自動パスの直前、または終局2手前までの棋譜を用意します。
+export async function seedFourReversiEnd(
+  stub: DurableObjectStub,
+  initial: FourReversiRoom,
+  stopBeforePass = false,
+) {
   if (initial.status !== "playing") throw Error("Not playing");
   return runInDurableObject(stub, (_, state) => {
     const room = structuredClone(initial);
@@ -32,6 +36,11 @@ export async function seedFourReversiEnd(stub: DurableObjectStub, initial: FourR
       }
       const game = fourReversiStateSchema.parse(result.state);
       if (game.status !== "playing") throw Error("Expected playing fixture");
+      if (stopBeforePass && result.passedColors.length > 0) {
+        state.storage.kv.put("room", room);
+        state.storage.kv.put("round-replay", replay);
+        return room;
+      }
       replay.steps.push({
         action: { type: "place", color, position },
         game,
@@ -39,6 +48,7 @@ export async function seedFourReversiEnd(stub: DurableObjectStub, initial: FourR
       });
       previous = { ...room };
       room.game = game;
+      room.positionRevision++;
     }
     throw Error("Fixture never finished");
   });

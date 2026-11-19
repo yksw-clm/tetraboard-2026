@@ -4,12 +4,14 @@ import type { AuthEnv } from "../../accounts/auth";
 import { avatarKeyPattern } from "../../adapters/account/profilePolicy";
 import { D1DeletionJobs, deletePrivacyImages } from "../../adapters/privacy/deletionJobs";
 import { revokeProviderToken } from "../../adapters/privacy/revokeProviderToken";
+import { reapplyDeletionCascade } from "./deletionCascade";
 import { deleteAccountData, deleteFeedback, purgeTournaments } from "./deletionCleanup";
 
 export function processDeletions(env: AuthEnv) {
   return runDeletionJobs(
     new D1DeletionJobs(env.APP_DB),
     {
+      reapplyDeletion: (accountId) => reapplyDeletionCascade(env, accountId),
       async purgeRoom(accountId, roomId) {
         await env.GAME_ROOM.getByName(roomId).purgeAccount(accountId);
       },

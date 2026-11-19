@@ -100,7 +100,7 @@ export class Bot {
             joinRoomContract.response,
             { method: "POST", body: { instanceId: room!.instanceId }, consent: true },
           );
-      if (!supported(entry.room) || entry.room.settings.game !== this.config.game)
+      if (entry.room.settings.game !== this.config.game || entry.room.settings.mode !== "singles")
         throw Error("対象外のルームです");
       this.state.seat = {
         roomId: entry.room.id,

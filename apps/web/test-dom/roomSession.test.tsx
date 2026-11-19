@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { applyAction, eliminateSide } from "@tetraboard/four-shogi";
+import {
+  applyAction as placeStone,
+  eliminateColor,
+  getLegalMoves,
+  type Position,
+} from "@tetraboard/four-reversi";
+import { fourReversiRoomSchema } from "@tetraboard/protocol";
 import { useRoomSession } from "../src/features/room/useRoomSession";
+import FourReversiRoomDetail from "../src/features/room/FourReversiRoomDetail";
 import { useFourShogiRoomSession } from "../src/features/room/useFourShogiRoomSession";
 import {
   membership,
@@ -16,7 +24,8 @@ import {
   waitingShogiRoom,
 } from "../test/fixtures/fourShogiFixtures";
 import { saveRoomMembershipToken } from "../src/shared/roomMembership";
-import { act, clock, flush, renderHook, requests, wrap } from "./harness";
+import { browserSettings } from "../src/shared/browserSettings";
+import { act, clock, flush, render, renderHook, requests, wrap } from "./harness";
 import { installSocket, Socket } from "./socket";
 import type { Room } from "@tetraboard/protocol";
 
@@ -89,6 +98,47 @@ test("開始・準備・設定は認証とhost権限が必要で、同期的な�
   socket.receive({ type: "room.authenticated", membership: { ...membership, role: "player" } });
   act(() => h.current.addCpu(2));
   expect(socket.sent.filter((m) => m.type === "room.cpu.add")).toHaveLength(0);
+});
+
+test("四人リバーシは表示中の局面で着手し、手番外の脱落による更新と拒否を表示に反映する", async () => {
+  act(() => browserSettings.update({ boardAnimationsEnabled: false }));
+  const room = { ...playingRoom(), positionRevision: 4 };
+  const view = render(wrap()(<FourReversiRoomDetail {...options(room)} invited={false} />));
+  const socket = connected(room);
+  const board = view.querySelector('[aria-label="四人リバーシの盤面"]')!;
+  const square = ({ x, y }: Position) =>
+    board.querySelector<HTMLButtonElement>(`button[aria-label^="${"ABCDEFGH"[x]}${y + 1}："]`)!;
+  const position = getLegalMoves(room.game)[0]!;
+  expect(square(position).disabled).toBe(false);
+  act(() => square(position).click());
+  expect(socket.sent.at(-1)).toEqual({
+    type: "room.game.action",
+    roundId: room.roundId,
+    positionRevision: 4,
+    action: { type: "placeStone", position },
+  });
+  expect(square(position).disabled).toBe(true);
+  socket.snapshot(room);
+  expect(square(position).disabled).toBe(true);
+  const result = eliminateColor(room.game, "white");
+  if (!result.ok || result.state.status !== "playing") throw new Error("Expected elimination");
+  const eliminated = fourReversiRoomSchema.parse({
+    ...room,
+    game: result.state,
+    positionRevision: 5,
+  });
+  socket.snapshot(eliminated);
+  const nextPosition = getLegalMoves(result.state)[0]!;
+  expect(square(nextPosition).disabled).toBe(false);
+  act(() => square(nextPosition).click());
+  expect(socket.sent.at(-1)).toMatchObject({ positionRevision: 5 });
+  const moved = placeStone(result.state, { type: "placeStone", position: nextPosition });
+  if (!moved.ok) throw new Error("Expected move");
+  socket.receive({ type: "room.error", error: "stale_position" });
+  socket.snapshot(fourReversiRoomSchema.parse({ ...room, game: moved.state, positionRevision: 6 }));
+  await flush();
+  expect(square(nextPosition).getAttribute("aria-label")).toContain("：黒、直前の手");
+  expect(view.textContent).toContain("局面が更新されました。最新の局面で選び直してください。");
 });
 
 test("将棋の合法手・局ID・revision、未確定盤、3000ms境界、同局面保持と拒否を検証", () => {
