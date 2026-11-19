@@ -7,7 +7,6 @@ export const announcements = sqliteTable(
     id: text("id"),
     title: text("title").notNull(),
     body: text("body").notNull(),
-    date: text("date"),
     kind: text("kind").notNull(),
     published: integer("published")
       .notNull()

@@ -55,13 +55,10 @@ test("既存migrationの全67テーブルを適用します", () => {
   expect(tableNames(defined)).toEqual(tableNames(migrated));
 });
 
-test("既存のお知らせの日付を published_on に引き継ぎます", () => {
+test("初期のお知らせの公開日を全 migration 適用後も保持します", () => {
   expect(
-    migrated.query("SELECT published_on, date FROM announcements WHERE id='feedback'").get(),
-  ).toEqual({ published_on: expect.any(String), date: expect.any(String) });
-  expect(
-    migrated.query("SELECT id FROM announcements WHERE published_on IS NOT date").all(),
-  ).toEqual([]);
+    migrated.query("SELECT published_on FROM announcements WHERE id='feedback'").get(),
+  ).toEqual({ published_on: "2026-10-04" });
 });
 
 test("日付だけ更新された記事を移行し、掲載先と既存の通知を保持します", () => {
@@ -98,6 +95,45 @@ test("日付だけ更新された記事を移行し、掲載先と既存の通�
 
     db.exec("DELETE FROM announcements WHERE id = 'feedback'");
     expect(targets.all()).toEqual([]);
+  } finally {
+    db.close();
+  }
+});
+
+test("0057 はお知らせの date を削除し、残りの列とロビー掲載先を保持します", () => {
+  const migration = "0057_drop_announcements_date.sql";
+  const db = new Database(":memory:");
+  try {
+    db.exec("PRAGMA foreign_keys = ON");
+    for (const file of migrationFiles.filter((file) => file < migration))
+      db.exec(migrationSql(file));
+    db.exec(`
+      UPDATE announcements SET version = 2, published_on = '2026-11-19' WHERE id = 'feedback';
+      INSERT INTO announcements (id, title, body, kind, published, created_at_ms, updated_at_ms, version, published_on)
+      VALUES ('draft', '下書き', '本文', 'tournament', 0, 100, 200, 3, '2026-11-20');
+      INSERT INTO announcement_lobby_targets (announcement_id, game)
+      VALUES ('feedback', 'four-reversi'), ('feedback', 'four-shogi'), ('draft', 'four-shogi');
+    `);
+    const announcementsBefore = db
+      .query(
+        "SELECT id, title, body, kind, published, created_at_ms, updated_at_ms, version, published_on FROM announcements ORDER BY id",
+      )
+      .all();
+    const lobbyTargetsSql =
+      "SELECT * FROM announcement_lobby_targets ORDER BY announcement_id, game";
+    const lobbyTargetsBefore = db.query(lobbyTargetsSql).all();
+    expect(announcementsBefore).toHaveLength(2);
+    expect(lobbyTargetsBefore).toHaveLength(3);
+
+    db.transaction(() => db.exec(migrationSql(migration)))();
+
+    expect(db.query("SELECT * FROM announcements ORDER BY id").all()).toEqual(announcementsBefore);
+    expect(db.query(lobbyTargetsSql).all()).toEqual(lobbyTargetsBefore);
+    expect(db.query("PRAGMA foreign_key_check(announcement_lobby_targets)").all()).toEqual([]);
+    db.exec("DELETE FROM announcements WHERE id = 'feedback'");
+    expect(db.query(lobbyTargetsSql).all()).toEqual([
+      { announcement_id: "draft", game: "four-shogi" },
+    ]);
   } finally {
     db.close();
   }
