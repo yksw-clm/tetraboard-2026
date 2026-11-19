@@ -74,9 +74,9 @@ Workerの`fourShogiRoom*.test.ts`は進行中棋譜のHTTP取得、revision競�
 
 ## ランダムマッチの確認
 
-前局の観戦案内はWorkerの `matchmaking.test.ts` とWebの `test-dom/matchmaking.test.tsx` で確認します。実D1・DOでは四人将棋・四人リバーシの開始・脱落退室・全4ゲームの検索拒否・終局保存後の解除、2人ゲームの保存待ち、古い待機者の除外、DO再起動、旧予約の参照復旧、別人への非公開、部屋世代の不一致、`previousMatch=1` の有無を検証します。Webでは各ダイアログのカード・観戦リンク・保存待ち・照会失敗と再試行・3秒更新・自動再検索しないことを確認します。実ブラウザとスマートフォン実機の見え方は手動確認です。Worker・protocol・D1の変更のため、PRではCIを確認します。
+前局の観戦案内はWorkerの `matchmaking*.test.ts` とWebの `test-dom/matchmaking.test.tsx` で確認します。実D1・DOでは四人将棋・四人リバーシの開始・脱落退室・全4ゲームの検索拒否・終局保存後の解除、2人ゲームの保存待ち、古い待機者の除外、DO再起動、旧予約の参照復旧、別人への非公開、部屋世代の不一致、`previousMatch=1` の有無を検証します。Webでは各ダイアログのカード・観戦リンク・保存待ち・照会失敗と再試行・3秒更新・自動再検索しないことを確認します。実ブラウザとスマートフォン実機の見え方は手動確認です。Worker・protocol・D1の変更のため、PRではCIを確認します。
 
-採用仕様と公開条件は[四人リバーシのレート戦](specs/matchmaking.md#四人リバーシのレート戦の詳細)です。`apps/worker/test/matchmaking.test.ts`は実D1・DOで、人間1〜4人、FIFO・CPU補充、取消・重複・lease期限・操作元世代、5秒開始、再起動、部分接続の期限切れと再割当、D1転送失敗の回復、通常席／大会待機との排他、ログアウト・退会・連携制約を検証します。状態GETで割当を実行しないことも確認します。時間は固定時計または保存期限で制御し、実時間のsleepに依存しません。
+採用仕様と公開条件は[四人リバーシのレート戦](specs/matchmaking.md#四人リバーシのレート戦の詳細)です。`apps/worker/test/matchmaking*.test.ts`は実D1・DOで、人間1〜4人、FIFO・CPU補充、取消・重複・lease期限・操作元世代、5秒開始、再起動、部分接続の期限切れと再割当、D1転送失敗の回復、通常席／大会待機との排他、ログアウト・退会・連携制約を検証します。状態GETで割当を実行しないことも確認します。時間は固定時計または保存期限で制御し、実時間のsleepに依存しません。
 
 `packages/ai/fixtures/elimination-v1.json`の固定6ケースをRustとTypeScriptで読み、脱落後の合法手・全滅保護・残存石・パス・順位を比較します。`test-ai-service/matchmaking.test.ts`ではローカルの実Rust Serviceで人間1人＋ヨミ3席のレート戦を進め、人間の投了後もprofileを維持して終局・棋譜再生・D1の名前と版の保存・認定局数の更新まで確認します。このテストはAI workspaceの`check:ai`とCIの`ai`ジョブに含まれます。
 
@@ -84,9 +84,9 @@ Workerの`fourShogiRoom*.test.ts`は進行中棋譜のHTTP取得、revision競�
 
 再検索では、前局の待機情報が残っていても新しい操作IDで1回だけ検索すること、ロビーから開くだけでは検索や終了案内が出ないこと、確認済みの待機が失効したときは案内が出ることを確認します。退室応答より先にルーム閉鎖を検知しても再検索の指定を保ち、退室失敗時や新しい待機の情報を誤って削除しないことも確認します。
 
-将棋の回帰確認では、既存のD1テーブルに保存した認定済みレートを本人向けAPIで読み出し、単独待機が14,999msでは継続し、15,000msでレートに近いCPU戦になることを確認します。対人戦・CPU戦のレート更新、保存待ち中の再参加制限、保存再試行での二重更新防止は `matchmaking.test.ts` と `shogiRating.test.ts` で検証します。
+将棋の回帰確認では、既存のD1テーブルに保存した認定済みレートを本人向けAPIで読み出し、単独待機が14,999msでは継続し、15,000msでレートに近いCPU戦になることを確認します。対人戦・CPU戦のレート更新、保存待ち中の再参加制限、保存再試行での二重更新防止は `matchmaking*.test.ts` と `shogiRating.test.ts` で検証します。
 
-部分実行は`bun run --cwd apps/worker test test/matchmaking.test.ts`と`bun run --cwd packages/ai check`を使います。WebのDOMテストは`apps/web`で`bun test --preload ../../test-support/dom.ts ./test-dom/matchmaking.test.tsx ./test-dom/playerProfiles.test.tsx`を実行します。Wrangler dry-runは、開発Serviceを`ai`ジョブで毎回、本番をmainへのpushの`ai`ジョブで行います。`aiRatedOnly.test.ts` は本番相当設定で通常4ゲームのCPUが、外部枠が満杯でも外部要求なしに着手することと、二人・四人のレート戦を区別することを確認します。`packages/ai` の公開確認テストは不正な要求対応・版・profile・非法手・HTTP失敗を拒否し、実Rust Serviceとも照合します。CIの `ai` ジョブは3種類のlinux/amd64イメージで4コンテナを起動し、採用CPU設定・定跡・合法手とゲームごとの4並列を照合します。Cloudflare上の冷起動と実機確認は[公開前手順](runbooks/deploy.md#本番aiと4ゲーム同時公開)で別途確認します。
+部分実行は`bun run --cwd apps/worker test test/matchmaking`と`bun run --cwd packages/ai check`を使います。WebのDOMテストは`apps/web`で`bun test --preload ../../test-support/dom.ts ./test-dom/matchmaking.test.tsx ./test-dom/playerProfiles.test.tsx`を実行します。Wrangler dry-runは、開発Serviceを`ai`ジョブで毎回、本番をmainへのpushの`ai`ジョブで行います。`aiRatedOnly.test.ts` は本番相当設定で通常4ゲームのCPUが、外部枠が満杯でも外部要求なしに着手することと、二人・四人のレート戦を区別することを確認します。`packages/ai` の公開確認テストは不正な要求対応・版・profile・非法手・HTTP失敗を拒否し、実Rust Serviceとも照合します。CIの `ai` ジョブは3種類のlinux/amd64イメージで4コンテナを起動し、採用CPU設定・定跡・合法手とゲームごとの4並列を照合します。Cloudflare上の冷起動と実機確認は[公開前手順](runbooks/deploy.md#本番aiと4ゲーム同時公開)で別途確認します。
 
 四人リバーシのレート保存は `bun run --cwd apps/worker test test/fourReversiRating.test.ts` で確認します。同順位、CPU混在と5局目の認定、代替手使用局の除外、同じ対局の再試行、別々の対局の同時保存、棋譜APIの内部レート非公開を実D1で検証します。CPU較正の再現手順は[較正仕様](../packages/ai/docs/calibration.md#2026-11-09の予備測定と本測定の手順)にあります。
 
@@ -102,7 +102,7 @@ ChromeでPC・スマートフォン幅の4ゲームを開き、見出しの折�
 
 ## 通常リバーシのレート戦の確認
 
-`apps/worker/test/matchmaking.test.ts` では、対人戦の優先、15秒のCPU補充、3分の時計、弱体化設定のランダム手と探索手、障害時の代替手、レート・棋譜の確定を実D1とDurable Objectで確認します。開発確認ではレート戦から対人とCPUの両方を開始し、結果・再参加・認定進捗を確認します。
+`apps/worker/test/matchmaking*.test.ts` では、対人戦の優先、15秒のCPU補充、3分の時計、弱体化設定のランダム手と探索手、障害時の代替手、レート・棋譜の確定を実D1とDurable Objectで確認します。開発確認ではレート戦から対人とCPUの両方を開始し、結果・再参加・認定進捗を確認します。
 
 ## 通常リバーシの外部AI確認
 
@@ -120,17 +120,17 @@ ChromeでPC・スマートフォン幅の4ゲームを開き、見出しの折�
 
 ## レート戦の時計の確認
 
-`matchmaking.test.ts` で4ゲームの新規成立・全員接続後の開始・DO復元・期限直前と期限到達を実DOで検証します。四人ゲームの毎手30秒のリセットと未使用分の非持越し、自動パス・脱落時の期限保持は既存の `clock.test.ts` と時計境界テストで確認します。`fourReversiRating.test.ts`・`fourShogiRating.test.ts`・`shogiRating.test.ts`・`reversiRecords.test.ts` で、新旧の時計で保存したレート戦の認定・更新・重複防止と、対象外の時計の除外も確認します。`ratedMatchStartCountdown.test.tsx` は新しい4ゲームの時間表示と、旧設定の成立済み対局で保存済みの時計を表示することを検証します。通常ルーム・大会・旧ランダムマッチの既存テストも維持します。
+`matchmaking*.test.ts` で4ゲームの新規成立・全員接続後の開始・DO復元・期限直前と期限到達を実DOで検証します。四人ゲームの毎手30秒のリセットと未使用分の非持越し、自動パス・脱落時の期限保持は既存の `clock.test.ts` と時計境界テストで確認します。`fourReversiRating.test.ts`・`fourShogiRating.test.ts`・`shogiRating.test.ts`・`reversiRecords.test.ts` で、新旧の時計で保存したレート戦の認定・更新・重複防止と、対象外の時計の除外も確認します。`ratedMatchStartCountdown.test.tsx` は新しい4ゲームの時間表示と、旧設定の成立済み対局で保存済みの時計を表示することを検証します。通常ルーム・大会・旧ランダムマッチの既存テストも維持します。
 
 開発環境では各ゲームの実際の時間切れと再参加、四人ゲームの対局時間分布、時計変更後の補充CPUの期待成績と実績を確認します。既存のCPU較正結果を新時計で測定したものとして扱いません。
 
 ## レート戦の待機人数の確認
 
-Workerの `cpuCapacity.test.ts` と `matchmaking.test.ts` は4ゲームの未使用枠、1席だけのCPU対局を含む部分使用、満枠、解放、重複予約・古い解放、ゲーム間の独立性、照会で状態が変わらないことを確認します。待機人数は人間2人＋未使用の12席＝14人、満枠で人間3人＝3人、期限切れと成立済みの除外、人間のみの対局で枠を消費しないことを検証します。受付確認だけのGETでCPU枠を照会せず、枠取得失敗でも状態応答と検索・取消が成功し、次の取得で回復することも確認します。Webの `matchmaking.test.tsx` は4ゲームの合計人数だけの表示、項目省略時の非表示と3秒更新後の回復をBun＋happy-domで確認します。Workerを変更するためCIを実行し、開発環境での予約・解放に応じた表示更新はマージ後に確認します。
+Workerの `cpuCapacity.test.ts` と `matchmaking*.test.ts` は4ゲームの未使用枠、1席だけのCPU対局を含む部分使用、満枠、解放、重複予約・古い解放、ゲーム間の独立性、照会で状態が変わらないことを確認します。待機人数は人間2人＋未使用の12席＝14人、満枠で人間3人＝3人、期限切れと成立済みの除外、人間のみの対局で枠を消費しないことを検証します。受付確認だけのGETでCPU枠を照会せず、枠取得失敗でも状態応答と検索・取消が成功し、次の取得で回復することも確認します。Webの `matchmaking.test.tsx` は4ゲームの合計人数だけの表示、項目省略時の非表示と3秒更新後の回復をBun＋happy-domで確認します。Workerを変更するためCIを実行し、開発環境での予約・解放に応じた表示更新はマージ後に確認します。
 
 ## レート戦のマッチング時間の目安の確認
 
-Workerの `matchmaking.test.ts` は4ゲームの補充時刻と固定された目安、四人ゲームの先頭待機者を基準にすること、先行する組によるCPU対局枠の使用、満枠・期限切れ・再試行・照会失敗での省略、照会による保存状態の不変、操作元の照合を確認します。GET・heartbeatで `estimate=1` の有無を検査し、従来のAPI応答へ新項目を追加しないことも検証します。
+Workerの `matchmaking*.test.ts` は4ゲームの補充時刻と固定された目安、四人ゲームの先頭待機者を基準にすること、先行する組によるCPU対局枠の使用、満枠・期限切れ・再試行・照会失敗での省略、照会による保存状態の不変、操作元の照合を確認します。GET・heartbeatで `estimate=1` の有無を検査し、従来のAPI応答へ新項目を追加しないことも検証します。
 
 Webの `matchmakingWaitTime.test.tsx` はサーバーと端末の時刻ずれ、1秒更新、目安超過と省略時の経過時間、後続応答での延長防止・期限前だけの復帰、再検索でのリセット、背景復帰と毎秒の読み上げ抑止を確認します。`matchmaking.test.tsx` で4ゲームの検索前・検索中・成立後の表示を確認し、取消・再読込・別端末・入室は既存シナリオも継続します。Worker・protocolを変更するためCIを実行します。画面の収まりはPC・スマートフォン幅で手動確認し、実OAuth・開発環境の実レート戦待機は未実施ならPRへ記録します。
 
@@ -248,7 +248,7 @@ Fastの全3パターンと、別Miniflare間の同一D1主キー・DO ID・R2キ
 
 ## 大会の確認
 
-3ゲームへの拡張は、protocolの大会設定・対象外条件・版2の設定欠落とゲーム別順位比較、Adminのゲーム変更時の時計保持・固有設定除去・プレビューを検証します。Workerの `tournamentMigration.test.ts` は移行前の大会・参照・確定得点を入れた専用DBへ0030を適用し、外部キー・版1の読取りと旧下書きの版2移行を確認します。`tournaments.test.ts` は3ゲームの作成・公開・ゲーム別／全ゲーム掲載・公開後の設定変更拒否、`tournamentQueue.test.ts` は追加2ゲームの待機→ルーム作成とDO再起動を確認します。`tournamentRooms.test.ts` は3ゲームの設定・開始境界・固定対局ID・終局保存・失敗注入・再試行・二重加点防止を実WebSocketで確認します。四人五目並べの満盤・途中順位の裁定は既存エンジン・Workerテストも実行します。
+3ゲームへの拡張は、protocolの大会設定・対象外条件・版2の設定欠落とゲーム別順位比較、Adminのゲーム変更時の時計保持・固有設定除去・プレビューを検証します。Workerの `tournamentMigration.test.ts` は移行前の大会・参照・確定得点を入れた専用DBへ0030を適用し、外部キー・版1の読取りと旧下書きの版2移行を確認します。`tournament{Admin,Lobby,Public}.test.ts` は3ゲームの作成・公開・ゲーム別／全ゲーム掲載・公開後の設定変更拒否、`tournamentQueue*.test.ts` は追加2ゲームの待機→ルーム作成とDO再起動を確認します。`tournamentRoom{Results,Settings,Start}.test.ts` は3ゲームの設定・開始境界・固定対局ID・終局保存・失敗注入・再試行・二重加点防止を実WebSocketで確認します。四人五目並べの満盤・途中順位の裁定は既存エンジン・Workerテストも実行します。
 
 Webは版2の大会ルール・成績から対象外の三人攻撃禁止・撃破数を除き、対象ゲームのロビーへ戻ること、全ゲームの開催中案内を一度の公開取得で表示することを確認します。実際の4人操作、画面寸法とネイティブ入力、開発環境へのmigrationと配信は手動確認し、未実施ならPRへ明記します。
 
@@ -293,7 +293,7 @@ WebのBun＋happy-domでは「大会」「次回の大会」の同時表示・�
 
 進行中の部屋はWeb DOMの `tournamentRooms.test.tsx` で対象大会かつ対局中だけの表示、21件目以降の取得、世代付き観戦リンクのみ、初回失敗と再試行、10秒更新・終了時の除外、更新途中失敗時の保持、非表示中止と復帰を確認します。`tournaments.test.tsx` は開催前・開催中・結果待機・結果の区分ごとの配置と人数表記も検証します。PC2列・スマホ1列の寸法と実際の対局から観戦への表示は手動確認対象です。
 
-検証の入口は、protocolの `test/tournaments.test.ts`（整数配点・同順位・比較・文字数／契約）、Workerの `tournaments.test.ts`（公開と管理・エントリー・名簿）、`tournamentQueue.test.ts`（期限・再作成・取消・4席の原子的移譲・接続失敗後の再配信）、`tournamentRooms.test.ts`（実4人接続・専用認可・保存失敗と再送・席解放・退会）、`tournamentResults.test.ts`（集計・確定前競合・最終順位・匿名表示）、`tournamentLogout.test.ts`（認証失効前の解除）です。WebとAdminの `test-dom/tournaments.test.tsx`、Webの `tournamentRoom.test.tsx`、Workerの `publicAssets.test.ts` で画面・操作・配信を確認します。
+検証の入口は、protocolの `test/tournaments.test.ts`（整数配点・同順位・比較・文字数／契約）、Workerの `tournament{Admin,Lobby,Public}.test.ts`（公開と管理・エントリー・名簿）、`tournamentQueue*.test.ts`（期限・再作成・取消・4席の原子的移譲・接続失敗後の再配信）、`tournamentRoom{Results,Settings,Start}.test.ts`（実4人接続・専用認可・保存失敗と再送・席解放・退会）、`tournamentResults.test.ts`（集計・確定前競合・最終順位・匿名表示）、`tournamentLogout.test.ts`（認証失効前の解除）です。WebとAdminの `test-dom/tournaments.test.tsx`、Webの `tournamentRoom.test.tsx`、Workerの `publicAssets.test.ts` で画面・操作・配信を確認します。
 
 D1の失敗はtriggerや対象DBで注入し、棋譜本体・本人索引・大会得点が同じbatchでロールバックすることを確認します。確定前の退会・新しい保存待ち・別の確定処理はD1の読取りとbatchの間へ差し込み、何も半確定せず再試行できることを検証します。実WebSocketによる4人の認証と全員接続後5秒の開始、DOのeviction後の待機復元、開始予定時刻とAlarmの永続化、接続できた参加者の同一資格による再配信も含めます。大会のfixtureは予約・席・Alarm・D1を後処理し、退会処理の全体ジョブは専用DBに分離して既存の失敗注入テストと干渉させません。
 
@@ -425,7 +425,7 @@ Web DOMの `ratedLaunch.test.tsx` は対象5ロビーへの実際の組込みと
 
 ## ルーム名と通し番号の確認
 
-Workerの `matchSequences.test.ts` は大会・4ゲームの採番範囲、連番、同時要求、同一対局の再送と範囲の誤用拒否を確認します。`tournamentQueue.test.ts` と `matchmaking.test.ts` は実際のCoordinatorからGameRoom・公開索引への番号伝達、CPU補充、採番障害の503とAlarm復旧、DO再起動での維持を確認します。`lobbyRoomCards.test.ts` は要求時だけの追加、未採番・通常・不明種別での省略、不正指定400、古いrevisionの拒否と別世代への番号持越し防止を確認します。
+Workerの `matchSequences.test.ts` は大会・4ゲームの採番範囲、連番、同時要求、同一対局の再送と範囲の誤用拒否を確認します。`tournamentQueue*.test.ts` と `matchmaking*.test.ts` は実際のCoordinatorからGameRoom・公開索引への番号伝達、CPU補充、採番障害の503とAlarm復旧、DO再起動での維持を確認します。`lobbyRoomCards.test.ts` は要求時だけの追加、未採番・通常・不明種別での省略、不正指定400、古いrevisionの拒否と別世代への番号持越し防止を確認します。
 
 Webの `roomNames.test.tsx` は大会・レート・通常の名称、番号なし表示、名前と参加者アイコンの操作、総合・ゲーム別の要求と更新後の維持をBun＋happy-domで確認します。`tournamentRooms.test.tsx` でも共通カードの名前を確認します。PCと幅320pxで長い番号の折返し、部屋番号・ラベル・操作の収まりを手動確認し、ブラウザ自動テストは追加しません。
 
