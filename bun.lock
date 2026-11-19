@@ -222,6 +222,7 @@
         "@tetraboard/protocol": "workspace:*",
       },
       "devDependencies": {
+        "@tetraboard/gomoku": "workspace:*",
         "@types/bun": "^1.4.2",
         "typescript": "^5.5.2",
       },

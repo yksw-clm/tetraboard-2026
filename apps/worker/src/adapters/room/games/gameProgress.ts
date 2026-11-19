@@ -10,7 +10,7 @@ import type { GameId, RoomFor, RoomMembership } from "@tetraboard/protocol";
 import { FourGomokuProgress } from "./four-gomoku/progress";
 import { FourReversiProgress } from "./four-reversi/progress";
 import { FourShogiProgress } from "./four-shogi/progress";
-import { GomokuProgress } from "./gomoku/progress";
+import { createGomokuProgress } from "./gomoku/progress";
 import { ReversiProgress } from "./reversi/progress";
 import { ShogiProgress } from "./shogi/progress";
 export type {
@@ -49,7 +49,7 @@ export const gameProgress = {
   "four-gomoku": {
     create: (dependencies: ProgressDependencies) => new FourGomokuProgress(dependencies),
   },
-  gomoku: { create: (dependencies: ProgressDependencies) => new GomokuProgress(dependencies) },
+  gomoku: { create: createGomokuProgress },
   shogi: { create: (dependencies: ProgressDependencies) => new ShogiProgress(dependencies) },
   reversi: { create: (dependencies: ProgressDependencies) => new ReversiProgress(dependencies) },
   "four-reversi": {

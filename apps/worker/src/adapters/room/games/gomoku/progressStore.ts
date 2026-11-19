@@ -1,6 +1,7 @@
+import type { GameProgressStore } from "@tetraboard/context-room";
 import type { GameTransition } from "@tetraboard/game-contract";
-import type { GomokuState } from "@tetraboard/gomoku";
-import type { GomokuEvent } from "@tetraboard/gomoku/definition";
+import type { Color, GomokuState, Position } from "@tetraboard/gomoku";
+import type { GomokuEvent, GomokuTypes } from "@tetraboard/gomoku/definition";
 import {
   gomokuRoomSchema,
   gomokuReplaySchema as roundReplaySchema,
@@ -26,6 +27,48 @@ import {
 import { createClock } from "../../reversiClock";
 
 type Playing = PlayingFor<"gomoku">;
+
+export const gomokuCpuJobKey = "gomoku-cpu-job";
+export type GomokuCpuJob = {
+  roundId: string;
+  positionRevision: number;
+  color: Color;
+  move: Position;
+  applyAt: number;
+};
+
+export function gomokuProgressStore(
+  storage: DurableObjectStorage,
+): GameProgressStore<"gomoku", GomokuTypes> {
+  return {
+    start: (room, accountId) => startGomokuRound(storage, room, accountId),
+    recordTransition: (room, transition) => recordGomokuTransition(storage, room, transition),
+    finalize: ({ room, game, at }) => finalizeGomokuRound(storage, room, game, at),
+    readCpuJob: () => {
+      const job = storage.kv.get<GomokuCpuJob>(gomokuCpuJobKey);
+      if (!job) return undefined;
+      return {
+        roundId: job.roundId,
+        positionRevision: job.positionRevision,
+        seat: job.color,
+        action: { type: "placeStone", position: job.move },
+        applyAt: job.applyAt,
+      };
+    },
+    writeCpuJob: (job) => {
+      storage.kv.put(gomokuCpuJobKey, {
+        roundId: job.roundId,
+        positionRevision: job.positionRevision,
+        color: job.seat,
+        move: job.action.position,
+        applyAt: job.applyAt,
+      } satisfies GomokuCpuJob);
+    },
+    deleteCpuJob: () => {
+      storage.kv.delete(gomokuCpuJobKey);
+    },
+  };
+}
 
 export function startGomokuRound(
   storage: DurableObjectStorage,

@@ -12,6 +12,8 @@ export type * from "./use-cases/effects";
 export * from "./use-cases/game";
 export type * from "./use-cases/gamePort";
 export type * from "./use-cases/gameProgress";
+export { createGameProgress } from "./use-cases/gameProgressFlow";
+export type { GameProgressSpec, GameProgressStore } from "./use-cases/gameProgressSpec";
 export * from "./use-cases/join";
 export * from "./use-cases/leave";
 export * from "./use-cases/participants";
