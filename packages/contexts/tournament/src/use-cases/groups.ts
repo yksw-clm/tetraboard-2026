@@ -49,6 +49,7 @@ export async function groupPlayers(
     if (!profile || !validWait(r, wait)) return null;
     players.push({
       ...wait,
+      waitingExpiresAtMs: wait.expiresAtMs,
       expiresAtMs: connectionDeadline(r.now(), r.rules.connectionGraceMs, row.ends_at_ms!),
       entryId: profile.entryId,
       admission: {
