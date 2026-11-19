@@ -1,6 +1,6 @@
 import type { RoomCpuCapacity, RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { cpuCapacityKey } from "../../durableObjects/gameRoom/storageKeys";
-import { RoomJob } from "../../rooms/roomJobs";
+import { RoomJob } from "./roomJobs";
 
 export function createCpuCapacityJob(runtime: RoomRuntime) {
   return new RoomJob(runtime.alarms, {

@@ -7,7 +7,7 @@ import {
   type GameActionCommandFor,
 } from "@tetraboard/protocol";
 import type { ApplyActionResult, GomokuState, Color, Position } from "@tetraboard/gomoku";
-import { advanceClock, isClockExpired } from "./reversiClock";
+import { advanceClock, isClockExpired } from "../adapters/room/reversiClock";
 import { gameDefinitions } from "./gameDefinitions";
 import { gomokuMoveError } from "./gomokuProgressErrors";
 import {

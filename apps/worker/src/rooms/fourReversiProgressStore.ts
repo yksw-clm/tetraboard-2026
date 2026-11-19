@@ -17,7 +17,7 @@ import {
   type FourReversiEvent,
 } from "@tetraboard/four-reversi/definition";
 import type { FourReversiState } from "@tetraboard/four-reversi";
-import { createClock } from "./clock";
+import { createClock } from "../adapters/room/clock";
 import {
   matchStartKey,
   pendingMatchPrefix,

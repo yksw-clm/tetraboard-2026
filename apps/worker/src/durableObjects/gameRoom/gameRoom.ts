@@ -35,7 +35,7 @@ import {
   type GuestRegistrationInput,
   type GuestRegistrationState,
 } from "../../adapters/account/registrationTypes";
-import { wrapRoomAlarmEvents } from "../../rooms/roomAlarmEvents";
+import { wrapRoomAlarmEvents } from "../../adapters/room/roomAlarmEvents";
 import {
   type PrepareTournamentRoomInput,
   type RekeyTournamentPlayerInput,

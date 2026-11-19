@@ -1,5 +1,5 @@
 import { roomSchema, type Room } from "@tetraboard/protocol";
-import { normalizeLegacyShogiState } from "./normalizeLegacyShogiState";
+import { normalizeLegacyShogiState } from "@tetraboard/context-room";
 import { normalizeLegacyReversiState } from "./normalizeLegacyReversiState";
 
 export const roomStateVersionKey = "room-state-version";

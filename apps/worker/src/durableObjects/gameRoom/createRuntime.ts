@@ -9,7 +9,7 @@ import { logFourShogiDiagnostic } from "../../fourShogiDiagnostics";
 import { createGameAdapters } from "../../rooms/gameAdapters";
 import type { GameAdapter } from "../../rooms/gameAdapters/types";
 import { unreachable } from "../../rooms/gameProgress";
-import { RoomAlarmEvents } from "../../rooms/roomAlarmEvents";
+import { RoomAlarmEvents } from "../../adapters/room/roomAlarmEvents";
 import { TransactionUsageEvents } from "../../usageEvents/transactionEvents";
 import { reconcileDeadlines } from "./deadlines";
 import type { RoomRuntime } from "./runtime";

@@ -8,7 +8,7 @@ import {
   type Room,
 } from "@tetraboard/protocol";
 import { getActionAvailability } from "@tetraboard/four-shogi";
-import { migrateRoomState } from "../src/rooms/roomStateVersion";
+import { migrateRoomState } from "../src/adapters/room/roomStateVersion";
 import { migrationDependencies, roomFixture } from "./roomStateFixtures";
 import legacy from "../../../test-fixtures/matches/shogi-legacy.json";
 import { eliminateSide } from "@tetraboard/shogi";

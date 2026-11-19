@@ -24,7 +24,7 @@ import {
   type ActiveShogiMatch,
   type PendingShogiMatch,
 } from "../adapters/record/shogiMatchStore";
-import { createShogiClock } from "./shogiClock";
+import { createShogiClock } from "../adapters/room/shogiClock";
 import {
   emptyFormationUsage,
   isFormationMatchEligible,

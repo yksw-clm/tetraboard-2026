@@ -27,7 +27,7 @@ import {
   roomStorageKey,
   shuffledAssignments,
 } from "./progressHelpers";
-import { createClock } from "./clock";
+import { createClock } from "../adapters/room/clock";
 
 type Playing = PlayingFor<"four-gomoku">;
 

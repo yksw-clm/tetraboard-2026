@@ -11,7 +11,7 @@ import {
 } from "../../durableObjects/gameRoom/storageKeys";
 import { bytesToHex } from "../../durableObjects/gameRoom/tokenCrypto";
 import { roomStorageKey } from "../../rooms/progressHelpers";
-import { currentRoomStateVersion, roomStateVersionKey } from "../../rooms/roomStateVersion";
+import { currentRoomStateVersion, roomStateVersionKey } from "../../adapters/room/roomStateVersion";
 import {
   tournamentCredentialVersionKey,
   tournamentReservationKey,

@@ -2,7 +2,7 @@ import type { Room } from "@tetraboard/protocol";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { roomStorageKey } from "../../rooms/progressHelpers";
 import { writeRoomIndex, type PendingRoomIndex } from "./roomIndexWrite";
-import { RoomJob } from "../../rooms/roomJobs";
+import { RoomJob } from "./roomJobs";
 import { publicMetadata } from "./metadata";
 import type { RoomJobs } from "./jobs";
 import { readRoom } from "./state";

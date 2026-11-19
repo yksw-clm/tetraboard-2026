@@ -24,7 +24,7 @@ import {
   nextPublicUpdateAt,
   shuffledAssignments,
 } from "./progressHelpers";
-import { createClock } from "./reversiClock";
+import { createClock } from "../adapters/room/reversiClock";
 import type { EloRatingSource } from "../adapters/rating/eloRating";
 
 type Playing = PlayingFor<"reversi">;

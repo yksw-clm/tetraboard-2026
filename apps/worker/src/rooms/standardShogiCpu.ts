@@ -11,7 +11,7 @@ import type { ActiveShogiMatch } from "./standardShogiProgressStore";
 import { standardShogiMatchStartKey } from "../adapters/record/shogiMatchStore";
 import { shogiCpuProfile } from "@tetraboard/context-matchmaking";
 import type { ShogiAiWork } from "../adapters/room/ai/shogiAi";
-import { isClockExpired } from "./clock";
+import { isClockExpired } from "../adapters/room/clock";
 import {
   currentExternalCpuJob,
   prepareExternalCpu,

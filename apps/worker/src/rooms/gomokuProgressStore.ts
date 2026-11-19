@@ -23,7 +23,7 @@ import {
   roomStorageKey,
   shuffledAssignments,
 } from "./progressHelpers";
-import { createClock } from "./reversiClock";
+import { createClock } from "../adapters/room/reversiClock";
 
 type Playing = PlayingFor<"gomoku">;
 

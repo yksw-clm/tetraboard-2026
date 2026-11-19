@@ -4,7 +4,7 @@ import type { ReversiAiWork } from "./reversiAi";
 import type { PlayingFor } from "../../../rooms/gameProgress";
 import { matchStartKey, type MatchStart } from "../../record/reversiMatchStore";
 import { externalCpuJobKey } from "../../../rooms/reversiProgressStore";
-import { isClockExpired } from "../../../rooms/reversiClock";
+import { isClockExpired } from "../reversiClock";
 import { reversiCpuProfile } from "../../matchmaking/reversiCpuProfiles";
 
 type Playing = PlayingFor<"reversi">;

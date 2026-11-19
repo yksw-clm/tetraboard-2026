@@ -1,4 +1,4 @@
-import { initializeClock, advanceTurnClock } from "./clockCore";
+import { initializeClock, advanceTurnClock } from "@tetraboard/context-room";
 import {
   roomTimeControl,
   type RoomTimeControl,

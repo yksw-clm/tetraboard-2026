@@ -1,4 +1,4 @@
-import { migrateLegacyFourGomokuRoom } from "./legacyRoomMigrations";
+import { migrateLegacyFourGomokuRoom } from "../adapters/room/legacyRoomMigrations";
 import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 import { checkGameCommand } from "@tetraboard/context-room";
 import { gameDefinitions } from "./gameDefinitions";
@@ -21,7 +21,7 @@ import {
   type Color,
   type Position,
 } from "@tetraboard/four-gomoku";
-import { advanceClock, isClockExpired } from "./clock";
+import { advanceClock, isClockExpired } from "../adapters/room/clock";
 import { nextPublicUpdateAt, cpuMoveDelayMs } from "./progressHelpers";
 import type {
   ProgressDependencies,

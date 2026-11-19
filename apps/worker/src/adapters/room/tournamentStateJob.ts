@@ -1,7 +1,7 @@
 import { writeTournamentState } from "../tournament/state";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { updatePendingTournamentState } from "../../flows/tournamentRoom/reservations";
-import { RoomJob } from "../../rooms/roomJobs";
+import { RoomJob } from "./roomJobs";
 import {
   pendingTournamentStatePrefix,
   type PendingTournamentState,

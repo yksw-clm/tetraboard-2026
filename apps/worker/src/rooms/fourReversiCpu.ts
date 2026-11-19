@@ -4,7 +4,7 @@ import {
   fourReversiDefinition as definition,
   type FourReversiTypes,
 } from "@tetraboard/four-reversi/definition";
-import { isClockExpired } from "./clock";
+import { isClockExpired } from "../adapters/room/clock";
 import { cpuMoveDelayMs } from "./progressHelpers";
 import { matchStartKey, type MatchStart } from "../adapters/record/matchStore";
 import type { PlayingFor } from "./gameProgress";

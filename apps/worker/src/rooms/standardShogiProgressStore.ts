@@ -15,7 +15,7 @@ import {
   type StandardShogiMatchRecord,
   type PendingStandardShogiMatch,
 } from "../adapters/record/shogiMatchStore";
-import { initializeClock } from "./clockCore";
+import { initializeClock } from "@tetraboard/context-room";
 import { ratedTimeControls } from "../adapters/rating/ratedTimeControls";
 import {
   roomStorageKey,
