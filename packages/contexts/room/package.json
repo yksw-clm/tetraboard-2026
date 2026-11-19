@@ -15,6 +15,7 @@
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test"
   },
   "devDependencies": {
+    "@tetraboard/gomoku": "workspace:*",
     "@types/bun": "^1.4.2",
     "typescript": "^5.5.2"
   },
