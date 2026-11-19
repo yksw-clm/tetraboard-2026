@@ -1,6 +1,7 @@
 import type { TournamentQueueRuntime, TournamentCoordinatorWrite } from "./ports";
 import { connectionDeadline } from "../domain/queue";
 import type { State, Group } from "../domain/queue";
+import type { PrepareTournamentRoomInput } from "../domain/room";
 import type { TournamentRow } from "../domain/types";
 import { rollback } from "./rollback";
 import { syncCredential } from "./control";
@@ -32,19 +33,45 @@ export async function transfer(
     await rollback(r, state, group, []);
     return;
   }
+  await finishPreparedMatch(r, state, group, row, prepared.preparedAtMs);
+}
+export async function finishPreparedMatch(
+  r: TournamentQueueRuntime,
+  state: State,
+  group: Group,
+  row: TournamentRow,
+  preparedAtMs?: number,
+) {
   for (const player of group.players)
     if (player.credentialPending) await syncCredential(r, state, group, player);
   group.phase = "matched";
-  group.expiresAtMs = connectionDeadline(r.now(), r.rules.connectionGraceMs, row.ends_at_ms!);
-  // Retain the queue fence until preparation is known to have succeeded. The account seat now owns exclusion.
-  await r.store.releaseWaiting(group.players);
+  group.expiresAtMs = connectionDeadline(
+    preparedAtMs ?? r.now(),
+    r.rules.connectionGraceMs,
+    row.ends_at_ms!,
+  );
+  group.waitingReleasePending = true;
   r.storage.save(state);
+  await releaseMatchWaiting(r, state, group);
+}
+export async function releaseMatchWaiting(r: TournamentQueueRuntime, state: State, group: Group) {
+  await r.store.releaseWaiting(group.players);
+  delete group.waitingReleasePending;
+  r.storage.save(state);
+}
+export async function preparedRoomTime(r: TournamentQueueRuntime, group: Group) {
+  const room = await r.room(group.roomId).getTournamentReservationState(group.id);
+  if (
+    room.instanceId === group.instanceId &&
+    (room.status === "waiting" || room.startedAtMs !== undefined)
+  )
+    return room.preparedAtMs;
 }
 export async function prepareRoom(r: TournamentQueueRuntime, group: Group, row: TournamentRow) {
   const matchSequence = group.assignSequence
     ? await r.reserveMatchSequence(group.id, `tournament:${row.key}`)
     : undefined;
-  return r.room(group.roomId).prepareTournamentRoom({
+  const input: PrepareTournamentRoomInput = {
     context: {
       tournamentId: row.public_id!,
       ...(matchSequence === undefined ? {} : { matchSequence }),
@@ -62,5 +89,19 @@ export async function prepareRoom(r: TournamentQueueRuntime, group: Group, row: 
       tokenHash: p.tokenHash,
       credentialVersion: p.credentialDerived ? (p.controllerVersion ?? 0) : 0,
     })),
-  });
+  };
+  const room = r.room(group.roomId);
+  let prepared;
+  try {
+    prepared = await room.prepareTournamentRoom(input);
+  } catch (error) {
+    const preparedAtMs = await preparedRoomTime(r, group);
+    if (preparedAtMs === undefined) throw error;
+    return { status: "already_prepared", preparedAtMs };
+  }
+  return {
+    ...prepared,
+    preparedAtMs:
+      prepared.status === "already_prepared" ? await preparedRoomTime(r, group) : undefined,
+  };
 }

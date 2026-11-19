@@ -4,7 +4,7 @@ import type { TournamentRow } from "../domain/types";
 import { stage } from "../domain/stage";
 import { forget, validWait, leaseValid } from "./waiting";
 import { rollback } from "./rollback";
-import { transfer } from "./transfer";
+import { finishPreparedMatch, preparedRoomTime, releaseMatchWaiting, transfer } from "./transfer";
 import { formGroup } from "./groups";
 import { syncCredential } from "./control";
 export async function tick(r: TournamentQueueRuntime, state: State) {
@@ -46,14 +46,16 @@ export async function advanceGroup(
   }
   // 旧版で保存された参加確認待ちも、確認操作なしでルーム準備へ移します。
   if (group.phase === "confirming" || group.phase === "preparing") {
+    if (active && group.phase === "preparing") {
+      const preparedAtMs = await preparedRoomTime(r, group);
+      if (preparedAtMs !== undefined) {
+        await finishPreparedMatch(r, state, group, row, preparedAtMs);
+        return;
+      }
+    }
     await r.store.ensureGroup(state, group);
     if (!active || group.expiresAtMs <= r.now()) {
-      await rollback(
-        r,
-        state,
-        group,
-        group.players.map((p) => p.accountId),
-      );
+      await rollback(r, state, group, []);
       return;
     }
     const invalid: string[] = [];
@@ -65,6 +67,7 @@ export async function advanceGroup(
     }
     await transfer(r, state, group, row);
   } else {
+    if (group.waitingReleasePending) await releaseMatchWaiting(r, state, group);
     await inspectRoom(r, state, group, active);
   }
 }
@@ -85,18 +88,12 @@ export async function inspectRoom(
     r.storage.save(state);
     await r.store.markPlaying(group, room.startedAtMs);
   } else if (room && (room.status === "closed" || !active || group.expiresAtMs <= r.now())) {
-    const connected = room.connectedPlayerIds;
-    // Recreate a lease only for clients that actually reached the room.
-    for (const p of group.players)
-      if (connected.includes(p.admission.playerId) && (await r.eligible(p.accountId, state.key))) {
-        p.expiresAtMs = r.now() + r.rules.leaseMs;
-      }
     await rollback(
       r,
       state,
       group,
       group.players
-        .filter((p) => !connected.includes(p.admission.playerId))
+        .filter((p) => !room.connectedPlayerIds.includes(p.admission.playerId))
         .map((p) => p.accountId),
     );
     return;
