@@ -50,6 +50,13 @@
       "when": 1795048544429,
       "tag": "0006_room_index_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1795057623494,
+      "tag": "0007_drop_community_triggers",
+      "breakpoints": true
     }
   ]
 }

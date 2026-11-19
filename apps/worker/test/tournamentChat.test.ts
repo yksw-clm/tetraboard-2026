@@ -293,16 +293,17 @@ test("大会別に最新500件を保持し、50件ずつの取得と7日期限�
   const t = await tournament(),
     other = await tournament(2),
     u = await user(),
-    v = await user();
+    v = await user(),
+    lobbyUser = await user();
   await enroll(t, u);
   await enroll(other, v);
-  await post(other.id, v, "別大会に残す");
-  await post(null, u, "ロビーに残す");
+  expect((await post(other.id, v, "別大会に残す")).status).toBe(200);
+  expect((await post(null, lobbyUser, "ロビーに残す")).status).toBe(200);
   const now = Date.now();
   vi.spyOn(Date, "now").mockReturnValue(now);
-  for (let start = 0; start < 501; start += 80)
+  for (let start = 0; start < 500; start += 80)
     await db.batch(
-      Array.from({ length: Math.min(80, 501 - start) }, (_, i) =>
+      Array.from({ length: Math.min(80, 500 - start) }, (_, i) =>
         db
           .prepare(
             "INSERT INTO lobby_chat_messages(id,account_id,body,sent_at_ms,request_id,body_hash,tournament_id) VALUES(?,?,?,?,?,?,?)",
@@ -311,13 +312,14 @@ test("大会別に最新500件を保持し、50件ずつの取得と7日期限�
             crypto.randomUUID(),
             u.id,
             String(start + i),
-            now - 501 + start + i,
+            now - 500 + start + i,
             crypto.randomUUID(),
             "hash",
             t.id,
           ),
       ),
     );
+  expect((await post(t.id, u, "500")).status).toBe(200);
   const first = await read(t.id),
     all = await read(t.id, undefined, "?limit=500");
   expect(first.messages).toHaveLength(50);

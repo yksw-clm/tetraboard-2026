@@ -28,6 +28,7 @@ import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import worker from "../src/worker";
 import { lobbyChatSchema, lobbyPostResultSchema } from "@tetraboard/protocol/general-lobby";
 import { cleanupLobbyChat } from "../src/adapters/community/chatCleanup";
+import { badgeEventStatement } from "../src/adapters/community/badgeEvents";
 
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
@@ -1080,6 +1081,7 @@ test("ゲスト統合で獲得済みバッジが重なっても通知のIDとバ
         .prepare(`INSERT INTO account_badge_notifications (account_id,match_id,game,created_at_ms)
           SELECT ?,?,'four-reversi',value FROM notification_metadata WHERE key='started_at_ms'`)
         .bind(accountId, matchId),
+      badgeEventStatement(db, matchId),
     ]);
   const badgeNotices = async (headers: HeadersInit) => {
     const response = await request("/notifications", { headers });
