@@ -2,7 +2,8 @@ import { expectVersionedRoom } from "./roomStateVersionAssertions";
 import { env } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
-import { gameIds, type Room } from "@tetraboard/protocol";
+import { gameIds, isFourReversiRoom, type Room } from "@tetraboard/protocol";
+import { getLegalMoves } from "@tetraboard/four-reversi";
 import { RoomBoundaryFixtures, boundaryRequest } from "./roomBoundaryFixtures";
 import { FourShogiProgress } from "../src/rooms/fourShogiProgress";
 import { currentRoomStateVersion, roomStateVersionKey } from "../src/rooms/roomStateVersion";
@@ -36,6 +37,90 @@ async function legacyRoom() {
   });
   return { room, stub };
 }
+
+test.each(["waiting", "playing"] as const)(
+  "四人リバーシ %s: 保存版2からGET・WebSocket接続と従来形式の対局を継続できる",
+  async (status) => {
+    const host = await fixtures.create({
+      game: "four-reversi",
+      name: "ホスト",
+      quickPlay: false,
+      mode: "singles",
+    });
+    const { id, instanceId } = host.room;
+    const stub = env.GAME_ROOM.getByName(id);
+    const entries = [host];
+    if (status === "playing") {
+      for (const name of ["参加者1", "参加者2", "参加者3"])
+        entries.push(await fixtures.join(id, name));
+      const sockets = await Promise.all(entries.map((entry) => fixtures.connect(entry)));
+      const [hostSocket] = sockets;
+      for (const [index, socket] of sockets.entries()) {
+        const playerId = entries[index].membership.playerId;
+        socket.send({ type: "room.ready.set", ready: true });
+        await hostSocket.waitFor("room.snapshot", (m) =>
+          m.room.players.some((player) => player.id === playerId && player.ready),
+        );
+      }
+      hostSocket.send({ type: "room.game.start" });
+      await hostSocket.waitFor("room.snapshot", (m) => m.room.status === "playing");
+    }
+
+    const saveV2 = () =>
+      runInDurableObject(stub, (_, ctx) => {
+        const room = ctx.storage.kv.get<Room>("room")!;
+        const replay = ctx.storage.kv.get<{ id: string; steps: unknown[] }>("round-replay");
+        const saved = { ...room, roundId: replay?.id ?? null, positionRevision: 0 };
+        ctx.storage.kv.put("room", saved);
+        ctx.storage.kv.put(roomStateVersionKey, 2);
+        return { room, replay, saved };
+      });
+    const before = await saveV2();
+
+    const share = await stub.getShareMetadata(instanceId);
+    await runInDurableObject(stub, (_, ctx) => {
+      expect(ctx.storage.kv.get("room")).toEqual(before.saved);
+      expect(ctx.storage.kv.get(roomStateVersionKey)).toBe(2);
+    });
+    const { room } = await fixtures.snapshot(id);
+    expect(room).toEqual(before.room);
+    expect(share).toEqual({ id, instanceId, settings: { game: "four-reversi" } });
+    if (!isFourReversiRoom(room)) throw new Error("Expected four-reversi room");
+
+    const mover = entries.find((entry) =>
+      room.players.some(
+        (player) =>
+          player.id === entry.membership.playerId && player.color === (room.game?.turn ?? null),
+      ),
+    );
+    if (!mover) throw new Error("Expected a player for the current turn");
+    await saveV2();
+    const socket = await fixtures.connect(mover);
+    if (room.game !== null) {
+      await saveV2();
+      const [position] = getLegalMoves(room.game);
+      socket.send({ type: "room.game.action", action: { type: "placeStone", position } });
+      const { room: moved } = await socket.waitFor(
+        "room.snapshot",
+        (m) => m.room.game?.moveNumber === 1,
+      );
+      expect(moved.game).toMatchObject({ lastMove: position });
+      expect(moved).not.toHaveProperty("roundId");
+      expect(moved).not.toHaveProperty("positionRevision");
+    }
+    await runInDurableObject(stub, (_, ctx) => {
+      const saved = ctx.storage.kv.get("room");
+      expect(saved).not.toHaveProperty("roundId");
+      expect(saved).not.toHaveProperty("positionRevision");
+      expect(ctx.storage.kv.get(roomStateVersionKey)).toBe(1);
+      if (before.replay) {
+        const replay = ctx.storage.kv.get<typeof before.replay>("round-replay");
+        expect(replay).toMatchObject({ id: before.replay.id });
+        expect(replay!.steps).toHaveLength(1);
+      }
+    });
+  },
+);
 
 test.each(["waiting", "playing"] as const)(
   "通常リバーシ %s: 脱落配列の欠落は移行で補わず、失敗した状態も保存しない",

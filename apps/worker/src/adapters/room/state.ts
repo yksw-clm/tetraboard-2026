@@ -1,6 +1,6 @@
 import {
+  isFourReversiRoom,
   roomMembershipSchema,
-  roomSchema,
   type Room,
   type RoomMembership,
 } from "@tetraboard/protocol";
@@ -10,15 +10,27 @@ import { storedAccount } from "../../flows/accountSeats/seats";
 import { replayKey, roomStorageKey } from "../../rooms/progressHelpers";
 import {
   currentRoomStateVersion,
+  fourReversiPositionRoomStateVersion,
   migrateRoomStateV0ToV1,
   roomStateVersionKey,
+  roomStateSchemaForVersion,
 } from "../../rooms/roomStateVersion";
 export const departedKey = (playerId: string) => `departed:${playerId}`;
 export function readRoom(runtime: RoomRuntime): Room | null {
-  const saved = runtime.ctx.storage.kv.get<Room>(roomStorageKey);
+  const saved = runtime.ctx.storage.kv.get(roomStorageKey);
   if (saved === undefined) return null;
   const version = runtime.ctx.storage.kv.get<number>(roomStateVersionKey) ?? 0;
-  if (version >= currentRoomStateVersion) return roomSchema.parse(saved);
+  if (version >= currentRoomStateVersion) {
+    const room = roomStateSchemaForVersion(version).parse(saved);
+    if (version === fourReversiPositionRoomStateVersion && isFourReversiRoom(room)) {
+      // 旧形式で更新した後も TB-77 の再適用で移行できるよう、状態と版を一緒に戻します。
+      runtime.ctx.storage.transactionSync(() => {
+        runtime.ctx.storage.kv.put(roomStorageKey, room);
+        runtime.ctx.storage.kv.put(roomStateVersionKey, currentRoomStateVersion);
+      });
+    }
+    return room;
+  }
   return runtime.ctx.storage.transactionSync(() => {
     const parsed = migrateRoomStateV0ToV1(saved, {
       readReplay: () => runtime.ctx.storage.kv.get(replayKey),
