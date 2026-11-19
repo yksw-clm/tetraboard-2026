@@ -1,5 +1,5 @@
 import type { RoomMembership } from "@tetraboard/protocol";
-import type { AccountAdmission } from "../flows/accountSeats/types";
+import type { AccountAdmission } from "../../flows/accountSeats/types";
 
 export const registrationHoldMs = 10 * 60_000;
 export const registrationClaimMs = 60 * 60_000;

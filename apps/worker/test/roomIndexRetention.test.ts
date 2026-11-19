@@ -25,7 +25,7 @@ import {
   pendingShogiMatchPrefix,
   pendingStandardShogiMatchPrefix,
 } from "../src/rooms/shogiMatchStore";
-import { waitingRoomFactories } from "../src/rooms/waitingRoomFactories";
+import { waitingRoomFactories } from "../src/adapters/room/waitingRoomFactories";
 import { runScheduledMaintenance } from "../src/scheduledMaintenance";
 import { pendingTournamentStatePrefix } from "@tetraboard/context-tournament";
 import { accountFixture } from "./accountFixtures";

@@ -1,5 +1,8 @@
 import type { GameId, RoomFor } from "@tetraboard/protocol";
-import { waitingRoomFactories, type WaitingRoomFactories } from "../src/rooms/waitingRoomFactories";
+import {
+  waitingRoomFactories,
+  type WaitingRoomFactories,
+} from "../src/adapters/room/waitingRoomFactories";
 import { rankingReaders } from "../src/adapters/rating/rankingReaders";
 // @ts-expect-error 初期Roomのゲームを取り違えられない
 export const wrongFactory: WaitingRoomFactories["four-shogi"] =

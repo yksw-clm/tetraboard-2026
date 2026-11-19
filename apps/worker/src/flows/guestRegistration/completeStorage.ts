@@ -15,7 +15,7 @@ import {
   activeRegistrationKey,
   registrationKey,
   type StoredGuestRegistration,
-} from "../../rooms/registrationTypes";
+} from "../../adapters/account/registrationTypes";
 
 export function persistRegistrationCredentials(
   runtime: RoomRuntime,

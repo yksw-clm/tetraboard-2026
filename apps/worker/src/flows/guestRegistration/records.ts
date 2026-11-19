@@ -8,7 +8,7 @@ import {
   registrationKey,
   type GuestRegistrationState,
   type StoredGuestRegistration,
-} from "../../rooms/registrationTypes";
+} from "../../adapters/account/registrationTypes";
 import { storedAccount } from "../accountSeats/seats";
 
 export function registrationForPlayer(
