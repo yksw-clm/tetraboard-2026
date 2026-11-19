@@ -116,6 +116,8 @@ export {
   roundReplaySchema,
   roomSettingsSchema,
   roomSocketContract,
+  legacyReversiActionMessageSchema,
+  roomForEntryResponse,
   roomTimeControl,
   roomMainTimePresets,
   roomByoyomiPresets,

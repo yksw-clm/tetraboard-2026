@@ -1,3 +1,4 @@
+import { roomForEntryResponse } from "@tetraboard/protocol";
 import { completeGuestAccount } from "./guestAccountFixtures";
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { applyAction as placeStone, getLegalMoves } from "@tetraboard/four-reversi";
@@ -101,7 +102,7 @@ test("観戦中も参加・CPU追加・開始を受信順に鳴らし、初回�
     })) as typeof playing.players;
     if (
       playing.settings.game === "four-shogi" &&
-      "roundId" in playing &&
+      "legalActions" in playing &&
       playing.status === "playing"
     ) {
       for (const p of playing.players) if ("side" in p) playing.game.players[p.side] = p.id;
@@ -240,7 +241,9 @@ test("両ゲームのすぐ遊ぶ成功はjoinだけ、作成失敗・既存席�
     await flush();
     const room = game === "four-reversi" ? waitingRoom() : waitingShogiRoom();
     await completeGuestAccount("参加者", requests.length - 1);
-    requests.at(-1)!.respond({ room, membership: { ...membership, token } }, 201);
+    requests
+      .at(-1)!
+      .respond({ room: roomForEntryResponse(room), membership: { ...membership, token } }, 201);
     await flush();
     expect(join).toHaveBeenLastCalledWith(room.instanceId, membership.playerId);
     expect(play).not.toHaveBeenCalled();
@@ -285,7 +288,10 @@ test("観戦からの参加成功もjoinを要求し、招待の自動表示だ�
     .respond({ room, presence: options(room, true).initialPresence, serverNowMs: now });
   await flush();
   await completeGuestAccount("参加者", requests.length - 1);
-  requests.at(-1)!.respond({ room, membership: { ...membership, role: "player", token } });
+  requests.at(-1)!.respond({
+    room: roomForEntryResponse(room),
+    membership: { ...membership, role: "player", token },
+  });
   await flush();
   expect(join).toHaveBeenCalledTimes(1);
   expect(join).toHaveBeenCalledWith(room.instanceId, membership.playerId);

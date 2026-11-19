@@ -5,6 +5,7 @@ import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { beforeEach, afterEach, expect, test, vi } from "vitest";
 import {
   isFourGomokuRoom,
+  fourGomokuRoomSchema,
   publicFourGomokuMatchDetailSchema,
   type FourGomokuRoom,
   type RoomMode,
@@ -427,7 +428,7 @@ test("共通の確認順序で拒否し、投了は局面照合を要求せず�
     };
     const stale = { ...command, positionRevision: room.positionRevision - 1 };
     const expired = { ...room, clock: { ...room.clock, turnExpiresAt: Date.now() - 1 } };
-    expect(progress.play(gameRoom(entry.room), "unknown", stale)).toEqual({
+    expect(progress.play(fourGomokuRoomSchema.parse(entry.room), "unknown", stale)).toEqual({
       kind: "rejected",
       error: "game_not_started",
     });

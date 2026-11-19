@@ -164,7 +164,7 @@ test("transactionSyncを入れ子にしても、外側の例外で状態と版�
 });
 
 for (const game of gameIds) {
-  test(`${game}: 新規作成は版1、版の欠落でも状態は変わらず、閉鎖は版も削除する`, async () => {
+  test(`${game}: 新規作成は現行版、版の欠落でも状態は変わらず、閉鎖は版も削除する`, async () => {
     const entry = await create(game);
     const stub = env.GAME_ROOM.getByName(entry.room.id);
     await expectVersionedRoom(stub);

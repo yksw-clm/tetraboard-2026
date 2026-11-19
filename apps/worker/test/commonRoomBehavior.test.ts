@@ -41,7 +41,9 @@ for (const game of gameIds) {
       return { entry, joined, host, player, observer };
     }
 
-    function settingsCommand(room: Room): RoomSettingsApplyCommand {
+    function settingsCommand(
+      room: Pick<Room, "publicUpdatedAtMs" | "settings" | "players">,
+    ): RoomSettingsApplyCommand {
       return {
         type: "room.settings.apply",
         expectedPublicUpdatedAtMs: room.publicUpdatedAtMs,

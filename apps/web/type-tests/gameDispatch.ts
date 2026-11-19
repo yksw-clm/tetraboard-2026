@@ -46,13 +46,10 @@ export const missingPosition: GameActionCommandFor<"four-shogi"> = {
   type: "room.game.action",
   action: shogiAction,
 };
-export const unexpectedPosition: GameActionCommandFor<"four-reversi"> = {
+// @ts-expect-error 四人リバーシの着手にも局IDと更新番号が必須
+export const missingFourReversiPosition: GameActionCommandFor<"four-reversi"> = {
   type: "room.game.action",
   action: reversiAction,
-  // @ts-expect-error リバーシの着手に局IDは混ぜられない
-  roundId: "id",
-  // @ts-expect-error リバーシの着手にrevisionは混ぜられない
-  positionRevision: 0,
 };
 // @ts-expect-error 将棋の棋譜フレームは必須
 export const missingFrames: MatchReplayDataFor<"four-shogi"> = {

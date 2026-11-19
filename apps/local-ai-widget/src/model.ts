@@ -35,6 +35,8 @@ const observationBase = z.object({
   players: z.array(z.object({ id: z.uuid(), color: color.nullable() })).max(4),
   connectedPlayerIds: z.array(z.uuid()).max(4),
   turnStartedAt: z.number().nullable(),
+  roundId: z.uuid().nullable(),
+  positionRevision: z.int().nonnegative(),
 });
 export const reversiObservationSchema = observationBase.extend({
   gameId: z.literal("four-reversi"),
@@ -46,8 +48,6 @@ export const shogiObservationSchema = observationBase.omit({ players: true }).ex
     .array(z.object({ id: z.uuid(), side: z.enum(["south", "west", "north", "east"]).nullable() }))
     .max(4),
   game: fourShogiPublicStateSchema.nullable(),
-  roundId: z.uuid().nullable(),
-  positionRevision: z.int().nonnegative(),
   legalActions: z.array(fourShogiActionSchema),
 });
 export const observationSchema = z.discriminatedUnion("gameId", [
@@ -168,7 +168,7 @@ export function positionIdentity(o: Observation, origin: string, epoch: number):
     o.status,
     o.game,
     o.turnStartedAt,
-    o.gameId === "four-shogi" ? [o.roundId, o.positionRevision] : null,
+    [o.roundId, o.positionRevision],
   ]);
 }
 export async function revision(identity: string): Promise<string> {

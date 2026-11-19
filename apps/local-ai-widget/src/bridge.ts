@@ -51,13 +51,9 @@ function snapshot(body: unknown, id: string, expectedGeneration: number) {
     players: room.players.map((p) =>
       "side" in p ? { id: p.id, side: p.side } : { id: p.id, color: p.color },
     ),
-    ...("roundId" in room
-      ? {
-          roundId: room.roundId,
-          positionRevision: room.positionRevision,
-          legalActions: room.legalActions,
-        }
-      : {}),
+    roundId: room.roundId,
+    positionRevision: room.positionRevision,
+    ...("legalActions" in room ? { legalActions: room.legalActions } : {}),
     connectedPlayerIds,
     game: room.status === "playing" && room.game.mode === "singles" ? room.game : null,
     turnStartedAt: room.status === "playing" ? room.clock.turnStartedAt : null,

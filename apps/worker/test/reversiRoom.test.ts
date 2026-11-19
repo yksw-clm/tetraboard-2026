@@ -4,6 +4,7 @@ import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   isReversiRoom,
+  reversiRoomSchema,
   publicReversiMatchDetailSchema,
   reversiAccountStatsSchema,
   reversiRankingsSchema,
@@ -154,7 +155,7 @@ test("手番外の投了は拒否し、手番本人の投了で相手が勝つ",
 test.each([1, 2] as const)("CPUレベル%dは期限を保存境界で進めると合法手を指す", async (level) => {
   const entry = await fixtures.create({ game: "reversi", name: "ホスト", quickPlay: true });
   const host = await fixtures.connect(entry);
-  const waiting = standard(entry.room);
+  const waiting = reversiRoomSchema.parse(entry.room);
   expect(waiting.players).toHaveLength(2);
   expect(waiting.players[1]).toMatchObject({ kind: "cpu", level: 1 });
   const cpu = waiting.players.find((p) => p.kind === "cpu")!;

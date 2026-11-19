@@ -10,21 +10,26 @@ import { storedAccount } from "../../flows/accountSeats/seats";
 import { replayKey, roomStorageKey } from "../../rooms/progressHelpers";
 import {
   currentRoomStateVersion,
-  migrateRoomStateV0ToV1,
+  migrateRoomState,
   roomStateVersionKey,
 } from "../../rooms/roomStateVersion";
 export const departedKey = (playerId: string) => `departed:${playerId}`;
+
+export function migrateStoredRoom(runtime: RoomRuntime, saved: unknown, version: number) {
+  return migrateRoomState(saved, version, {
+    readReplay: () => runtime.ctx.storage.kv.get(replayKey),
+    migrateLegacy: (room, original, readReplay) =>
+      runtime.gameAdapter(room).migrateLegacy(room, original, readReplay),
+  });
+}
+
 export function readRoom(runtime: RoomRuntime): Room | null {
   const saved = runtime.ctx.storage.kv.get<Room>(roomStorageKey);
   if (saved === undefined) return null;
   const version = runtime.ctx.storage.kv.get<number>(roomStateVersionKey) ?? 0;
   if (version >= currentRoomStateVersion) return roomSchema.parse(saved);
   return runtime.ctx.storage.transactionSync(() => {
-    const parsed = migrateRoomStateV0ToV1(saved, {
-      readReplay: () => runtime.ctx.storage.kv.get(replayKey),
-      migrateLegacy: (room, original, readReplay) =>
-        runtime.gameAdapter(room).migrateLegacy(room, original, readReplay),
-    });
+    const parsed = migrateStoredRoom(runtime, saved, version);
     if (!parsed.success) throw parsed.error;
     runtime.ctx.storage.kv.put(roomStorageKey, parsed.data);
     runtime.ctx.storage.kv.put(roomStateVersionKey, currentRoomStateVersion);

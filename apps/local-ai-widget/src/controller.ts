@@ -145,8 +145,7 @@ export class WidgetController {
     )
       return;
     if (
-      previous?.gameId === "four-shogi" &&
-      next.gameId === "four-shogi" &&
+      previous?.gameId === next.gameId &&
       previous.instanceId === next.instanceId &&
       previous.generation === next.generation &&
       previous.roundId === next.roundId &&

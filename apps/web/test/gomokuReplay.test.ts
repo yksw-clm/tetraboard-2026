@@ -63,10 +63,10 @@ test("15路の通信は局IDと更新番号を必須とし、既存8路の通信
     expect(parse({ ...command, action: { ...command.action, position: { x, y: 0 } } })).toBe(false);
   expect(parse({ ...command, roundId: undefined })).toBe(false);
   expect(parse({ ...command, positionRevision: undefined })).toBe(false);
-  expect(
-    parse({ type: "room.game.action", action: { type: "placeStone", position: { x: 7, y: 7 } } }),
-  ).toBe(true);
-  expect(
-    parse({ type: "room.game.action", action: { type: "placeStone", position: { x: 8, y: 7 } } }),
-  ).toBe(false);
+  expect(parse({ ...command, action: { type: "placeStone", position: { x: 7, y: 7 } } })).toBe(
+    true,
+  );
+  expect(parse({ ...command, action: { type: "placeStone", position: { x: 8, y: 7 } } })).toBe(
+    false,
+  );
 });

@@ -89,7 +89,7 @@ for (const reader of readers) {
             expect(state.storage.kv.get("room-state-version")).toBeUndefined();
           } else {
             expect(state.storage.kv.get("room")).toEqual(original);
-            expect(state.storage.kv.get("room-state-version")).toBe(1);
+            expect(state.storage.kv.get("room-state-version")).toBe(2);
           }
         } finally {
           get.mockRestore();

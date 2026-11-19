@@ -22,10 +22,15 @@ afterEach(async () => {
 });
 
 test("本番の外部AIは二人・四人のレート戦だけに許可し、旧ランダムマッチを除外する", async () => {
-  const four = (
-    await fixtures.create({ game: "four-reversi", mode: "singles", name: "四人", quickPlay: false })
-  ).room;
-  const two = (await fixtures.create({ game: "shogi", name: "二人", quickPlay: false })).room;
+  const fourEntry = await fixtures.create({
+    game: "four-reversi",
+    mode: "singles",
+    name: "四人",
+    quickPlay: false,
+  });
+  const twoEntry = await fixtures.create({ game: "shogi", name: "二人", quickPlay: false });
+  const { room: four } = await fixtures.snapshot(fourEntry.room.id);
+  const { room: two } = await fixtures.snapshot(twoEntry.room.id);
   if (!isFourReversiRoom(four) || !isShogiRoom(two)) throw Error("Expected fixture games");
   const context = { id: crypto.randomUUID(), preparedAtMs: Date.now() };
   expect(roomAiAllowed({ AI_RATED_ONLY: "true" }, four)).toBe(false);
@@ -100,9 +105,8 @@ test.each(["four-reversi", "four-shogi", "shogi", "reversi"] as const)(
           host.send({
             type: "room.game.action",
             action: { type: "placeStone", position },
-            ...(isReversiRoom(room)
-              ? { roundId: room.roundId, positionRevision: room.positionRevision }
-              : {}),
+            roundId: room.roundId,
+            positionRevision: room.positionRevision,
           });
         }
         await host.waitFor("room.snapshot", (m) => (m.room.game?.moveNumber ?? 0) > 0);

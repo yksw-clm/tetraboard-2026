@@ -14,6 +14,7 @@ import {
   listRoomsContract,
   previewRoomListSchema,
   roomCodeSchema,
+  roomForEntryResponse,
   roomSocketContract,
   viewerContract,
   type RoomError,
@@ -135,7 +136,7 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
       context.header("Cache-Control", "no-store");
       return context.json(
         createRoomContract.response.parse({
-          room,
+          room: roomForEntryResponse(room),
           membership: { playerId: room.players[0].id, role: "host", token },
         }),
         201,
@@ -346,7 +347,7 @@ roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) =>
     context.header("Cache-Control", "no-store");
     return context.json(
       joinRoomContract.response.parse({
-        room: result.room,
+        room: roomForEntryResponse(result.room),
         membership: { ...result.membership, token },
       }),
     );

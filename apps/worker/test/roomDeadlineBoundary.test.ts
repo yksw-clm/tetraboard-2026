@@ -503,10 +503,12 @@ for (const game of ["four-reversi", "four-shogi"] satisfies GameId[]) {
       } else
         prepared.clients[index].send({
           type: "room.game.action",
+          roundId: playing.roundId,
+          positionRevision: playing.positionRevision,
           action: { type: "placeStone", position: { x: 0, y: 0 } },
         });
       expect((await prepared.clients[index].waitFor("room.error")).error).toBe(
-        game === "four-shogi" && operation === "着手" ? "stale_position" : "already_eliminated",
+        operation === "着手" ? "stale_position" : "already_eliminated",
       );
       const result = (await snapshot(playing.id)).room;
       if (result.status !== "playing") throw new Error("Ended early");

@@ -50,6 +50,8 @@ function snapshot() {
       id: "12345",
       instanceId: "00000000-0000-4000-8000-000000000010",
       status: "playing",
+      roundId: "00000000-0000-4000-8000-000000000020",
+      positionRevision: 3,
       settings: {
         game: "four-reversi",
         mode: "singles",
@@ -87,6 +89,9 @@ test("既存WebSocketの引数・型・例外を保ち、受信した本人と�
     if (!parsed.success) throw parsed.error;
     f.sockets[0].receive(snapshot());
     f.sockets[0].receive({ type: "room.authenticated", membership: { playerId, role: "host" } });
+    expect(f.observations.at(-1)).toMatchObject({
+      data: { roundId: parsed.data.roundId, positionRevision: 3 },
+    });
     const value = JSON.stringify(f.observations.at(-1));
     expect(value).toContain(playerId);
     expect(value).not.toContain("private");
