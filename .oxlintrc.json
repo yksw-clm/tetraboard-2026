@@ -43,7 +43,6 @@
     },
     {
       "files": [
-        "apps/worker/src/rooms/aiService.ts",
         "apps/worker/src/routes/tournaments.ts",
         "apps/worker/test/accountRooms.test.ts",
         "apps/worker/test/feedback.test.ts",
@@ -71,7 +70,6 @@
         "apps/worker/src/kpi/calculations.ts",
         "apps/worker/src/routes/matchmaking.ts",
         "apps/worker/src/publicAssets.ts",
-        "apps/worker/src/rooms/aiService.ts",
         "apps/worker/src/usageEvents/visit.ts"
       ],
       "rules": {

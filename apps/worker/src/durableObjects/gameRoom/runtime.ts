@@ -6,7 +6,7 @@ import type {
 } from "@tetraboard/protocol";
 import type { TransactionRoomEffects } from "../../adapters/room/effects";
 import type { RoomJobs } from "../../adapters/room/jobs";
-import type { AiServiceBindings } from "../../rooms/aiService";
+import type { AiServiceBindings } from "../../adapters/room/ai/aiService";
 import type { CpuCapacityGame } from "../../rooms/cpuCapacity";
 import type { GameAdapter } from "../../rooms/gameAdapters/types";
 import type { RoomAlarmEvents } from "../../rooms/roomAlarmEvents";

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import registry from "../../../../packages/ai/configs/profiles-v1.json";
+import registry from "../../../../../../packages/ai/configs/profiles-v1.json";
 
 export const profileIdSchema = z.enum(["lv1-v1", "lv2-v1", "lv3-v1", "lv4-v1", "lv5-v1"]);
 export const profileLimitsSchema = z.strictObject({
