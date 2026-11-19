@@ -5,7 +5,9 @@ import {
   reversiRatingSummarySchema,
   type MatchmakingGame,
 } from "@tetraboard/protocol";
-import { aiServiceConfigured, reversiAiEnabled, shogiAiEnabled } from "../../rooms/aiService";
+import { aiServiceConfigured } from "../room/ai/aiService";
+import { reversiAiEnabled } from "../room/ai/reversiAi";
+import { shogiAiEnabled } from "../room/ai/shogiAi";
 import {
   readShogiRatingResult,
   readShogiRatingSummary,

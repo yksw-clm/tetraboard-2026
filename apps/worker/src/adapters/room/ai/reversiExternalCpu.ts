@@ -1,11 +1,11 @@
 import { getLegalMoves, type Position } from "@tetraboard/reversi";
-import { gameDefinitions } from "./gameDefinitions";
-import type { ReversiAiWork } from "./aiService";
-import type { PlayingFor } from "./gameProgress";
-import { matchStartKey, type MatchStart } from "./reversiMatchStore";
-import { externalCpuJobKey } from "./reversiProgressStore";
-import { isClockExpired } from "./reversiClock";
-import { reversiCpuProfile } from "../adapters/matchmaking/reversiCpuProfiles";
+import { gameDefinitions } from "../../../rooms/gameDefinitions";
+import type { ReversiAiWork } from "./reversiAi";
+import type { PlayingFor } from "../../../rooms/gameProgress";
+import { matchStartKey, type MatchStart } from "../../../rooms/reversiMatchStore";
+import { externalCpuJobKey } from "../../../rooms/reversiProgressStore";
+import { isClockExpired } from "../../../rooms/reversiClock";
+import { reversiCpuProfile } from "../../matchmaking/reversiCpuProfiles";
 
 type Playing = PlayingFor<"reversi">;
 type ExternalCpuJob = ReversiAiWork["job"] & { position?: Position | null };

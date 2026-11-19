@@ -188,7 +188,7 @@ IDと `all` の境界・既定値は `bun run --cwd apps/worker test test/gameCa
 
 ## 通常リバーシの実装
 
-通常リバーシ・通常将棋のCPU補充レート戦は、`AI_WARMUP_ENABLED=true` で既存の開始前準備・再試行・待機列への復帰を共用します。`GameRoom` は部屋のゲームIDから準備先を決めます。`aiService.ts` の `requestRatedAiWarmup` はService Bindingへ送り、AI GatewayとRust Serviceの `/admin/warmup?game=...` がエンジンの初期化と実際の着手応答まで確認します。四人ゲームのヘルス確認も同じ開始待機処理を使います。準備のログは `rated_ai_warmup_*` です。AI側を先にデプロイし、新API対応後にアプリWorkerを更新します。
+通常リバーシ・通常将棋のCPU補充レート戦は、`AI_WARMUP_ENABLED=true` で既存の開始前準備・再試行・待機列への復帰を共用します。`GameRoom` は部屋のゲームIDから準備先を決めます。`adapters/room/ai/ratedAiWarmup.ts` の `requestRatedAiWarmup` はService Bindingへ送り、AI GatewayとRust Serviceの `/admin/warmup?game=...` がエンジンの初期化と実際の着手応答まで確認します。四人ゲームのヘルス確認も同じ開始待機処理を使います。準備のログは `rated_ai_warmup_*` です。AI側を先にデプロイし、新API対応後にアプリWorkerを更新します。
 
 [レート戦の仕様](reversi-rated-match.md)では共通待機列と将棋のElo計算を使用します。レート履歴は `elo_rating_changes`、保存待ちは `elo_rating_pending` に、`game` を `reversi` として保存します（将棋と共用）。補充CPUの版と基準レートは `reversiCpuProfiles.ts` に置き、棋譜確定と同じD1バッチでレートを反映します。
 
@@ -212,7 +212,7 @@ Webの通常リバーシロビー・ライブ・保存棋譜はゲーム別に�
 
 Webの `RatedMatchmakingDialog` とレート表示は対象ゲームを受け取ります。将棋の対局結果は既存APIの `opponent` を使い、名前の横のレート表示を `RatingResultLabel` に渡します。Workerの `matchmaking/ratingStore.ts` はレート保存待ちの予約・解除、適用済み対局の照合、確定時に使うSQL文を提供します。将棋のElo計算は rating の文脈（`packages/contexts/rating/src/domain/elo.ts`）が持ち、`rooms/shogiRating.ts` の設定で、棋譜確定と同じD1バッチで更新します。
 
-開発環境の外部AI接続は `standardShogiProgress.ts` が棋譜からUSI要求を準備し、GameRoomがストレージのトランザクションを抜けてから `aiService.ts` を呼びます。起動・探索はAI Serviceの `shogi.rs` が担当します。`apps/worker/test-ai-service/shogiAiService.test.ts` で応答とタイムアウトを確認できます。コンテナの実エンジンを使う場合は、既存のAI Service統合テストに `TETRABOARD_SHOGI_TEST_REAL=1` を指定します。
+開発環境の外部AI接続は `standardShogiProgress.ts` が棋譜からUSI要求を準備し、GameRoomがストレージのトランザクションを抜けてから `adapters/room/ai/shogiAi.ts` を呼びます。起動・探索はAI Serviceの `shogi.rs` が担当します。`apps/worker/test-ai-service/shogiAiService.test.ts` で応答とタイムアウトを確認できます。コンテナの実エンジンを使う場合は、既存のAI Service統合テストに `TETRABOARD_SHOGI_TEST_REAL=1` を指定します。
 
 通常将棋のルール正本は `docs/rules/shogi.md` です。独立した `packages/shogi` に純粋なルールエンジンとCPUを置き、初期化・合法手・王手・着手・外部敗北・千日手・持将棋・入玉宣言・500手を扱います。先手と後手、持ち駒7種類、8種類の盤上駒を専用のprotocol契約で検証します。`rulesVersion: 1` の棋譜は初期の配席と受理したイベントを再実行して復元し、最終状態の一致を検査します。互換を壊すルール変更では再生版を追加します。
 
@@ -396,7 +396,7 @@ GameIdを登録すると各層の型付き登録が必要になるため、5番�
 
 ## ゲーム契約
 
-6 ゲームは、`packages/game-contract` の `GameDefinition` を通して扱います（[ADR 0011](adr/0011-game-contract.md)）。各ゲームのパッケージが `./definition` で実装を書き出し、Worker の `apps/worker/src/rooms/gameDefinitions.ts` に登録します。6 ゲームとも移し終え、登録表は `Record<GameId, ...>` を満たすので、登録が欠けると型検査が失敗します。千日手のように過去の局面が要るゲームは、`applyAction` と `chooseAction` の任意の `history` で履歴の検索を受け取ります。引分提案のように手番に関係ない操作は、`rules.requiresTurn` と `rules.endsTurn` で表します。外部 AI を使うゲームは、契約の `cpu.external`（局面のキー、要求の本文、応答の手の読み方、予備の操作）を実装し、ジョブの保存と期限の扱いは Worker の `apps/worker/src/rooms/externalCpu.ts` が受け持ちます。通常リバーシの CPU は、他のゲームと同じく Alarm の処理の中だけで動きます。
+6 ゲームは、`packages/game-contract` の `GameDefinition` を通して扱います（[ADR 0011](adr/0011-game-contract.md)）。各ゲームのパッケージが `./definition` で実装を書き出し、Worker の `apps/worker/src/rooms/gameDefinitions.ts` に登録します。6 ゲームとも移し終え、登録表は `Record<GameId, ...>` を満たすので、登録が欠けると型検査が失敗します。千日手のように過去の局面が要るゲームは、`applyAction` と `chooseAction` の任意の `history` で履歴の検索を受け取ります。引分提案のように手番に関係ない操作は、`rules.requiresTurn` と `rules.endsTurn` で表します。外部 AI を使うゲームは、契約の `cpu.external`（局面のキー、要求の本文、応答の手の読み方、予備の操作）を実装し、ジョブの保存と期限の扱いは Worker の `apps/worker/src/adapters/room/ai/externalCpu.ts` が受け持ちます。通常リバーシの CPU は、他のゲームと同じく Alarm の処理の中だけで動きます。
 
 着手と投了の前の確認は、room の文脈の `checkGameCommand` が全ゲーム共通の順序（状態 → 本人 → 古い局面 → 時計 → 脱落 → 手番）で行います。投了では古い局面の照合を飛ばします。
 

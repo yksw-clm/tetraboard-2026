@@ -5,10 +5,10 @@ import {
   aiServiceConfigured,
   aiServiceEnabled,
   fourReversiAiServiceTimeout,
-  requestAiMove,
   roomAiAllowed,
-} from "../aiService";
-import { serviceProfile } from "../aiServiceProfiles";
+} from "../../adapters/room/ai/aiService";
+import { requestAiMove } from "../../adapters/room/ai/fourReversiAi";
+import { serviceProfile } from "../../adapters/room/ai/aiServiceProfiles";
 import { cpuMoveDelayMs } from "../progressHelpers";
 import type { ExternalCpuWork } from "../fourReversiProgress";
 import type { PlayingFor } from "../gameProgress";

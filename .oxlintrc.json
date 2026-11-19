@@ -43,7 +43,6 @@
     },
     {
       "files": [
-        "apps/worker/src/rooms/aiService.ts",
         "apps/worker/test/accountRooms.test.ts",
         "apps/worker/test/feedback.test.ts",
         "apps/worker/test/fourShogiRoom.test.ts",
@@ -61,12 +60,6 @@
       ],
       "rules": {
         "max-lines": "off"
-      }
-    },
-    {
-      "files": ["apps/worker/src/rooms/aiService.ts"],
-      "rules": {
-        "max-lines-per-function": "off"
       }
     }
   ]

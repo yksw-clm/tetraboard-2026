@@ -27,7 +27,7 @@ type Service = {
 test("実際のaiServiceが送る本文と契約の要求が3プロファイル・空/全棋譜で一致する", async () => {
   // Workerの型検査環境を持ち込まず、通信境界だけを実際のモジュールで照合します。
   const service = (await import(
-    new URL("../../../apps/worker/src/rooms/aiService.ts", import.meta.url).href
+    new URL("../../../apps/worker/src/adapters/room/ai/fourShogiAi.ts", import.meta.url).href
   )) as Service;
   const state = createInitialState(game.catalog.defaultSettings);
   const action = getLegalActions(state)[0];

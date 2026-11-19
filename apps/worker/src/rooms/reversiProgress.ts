@@ -15,7 +15,7 @@ import {
   finalizeReversiRound,
   externalCpuJobKey,
 } from "./reversiProgressStore";
-import { ReversiExternalCpu } from "./reversiExternalCpu";
+import { ReversiExternalCpu } from "../adapters/room/ai/reversiExternalCpu";
 import { nextPublicUpdateAt, cpuMoveDelayMs } from "./progressHelpers";
 import type {
   ProgressDependencies,
@@ -25,7 +25,7 @@ import type {
   FinishedProgress,
   RematchFor,
 } from "./gameProgress";
-import type { ReversiAiWork } from "./aiService";
+import type { ReversiAiWork } from "../adapters/room/ai/reversiAi";
 import type { EloRatingSource } from "./eloRating";
 type Playing = PlayingFor<"reversi">;
 type Result = ProgressFor<"reversi">;

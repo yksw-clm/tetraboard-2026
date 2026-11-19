@@ -9,13 +9,17 @@ import { cpuMoveDelayMs } from "./progressHelpers";
 import { matchStartKey, type MatchStart } from "./matchStore";
 import type { PlayingFor } from "./gameProgress";
 import { z } from "zod";
-import { sameServiceProfile, serviceProfileSchema, type ServiceProfile } from "./aiServiceProfiles";
+import {
+  sameServiceProfile,
+  serviceProfileSchema,
+  type ServiceProfile,
+} from "../adapters/room/ai/aiServiceProfiles";
 import {
   currentExternalCpuJob,
   prepareExternalCpu,
   completeExternalCpu,
   type ExternalCpuRuntime,
-} from "./externalCpu";
+} from "../adapters/room/ai/externalCpu";
 type Playing = PlayingFor<"four-reversi">;
 const external = definition.cpu.external!;
 export const fourReversiCpuJobKey = "four-reversi-cpu-job";
