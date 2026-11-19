@@ -2,9 +2,11 @@ import { expect, test } from "bun:test";
 import { Window } from "happy-dom";
 import { createInitialState } from "@tetraboard/four-reversi";
 import { fourReversiRoomSchema, fourShogiRoomSchema } from "@tetraboard/protocol";
-import { playerId, shogiObservation, settle } from "./fixtures";
+import { WidgetController } from "../src/controller";
+import { observationSchema, type ContinuousRequest } from "../src/model";
+import { playerId, progressFor, shogiObservation, settle } from "./fixtures";
 const script = await Bun.file(new URL("../dist/bridge.js", import.meta.url)).text();
-function fixture() {
+function fixture(response: unknown = snapshot()) {
   const w = new Window({ url: "https://tetraboard.net/rooms/12345" });
   const sent: unknown[] = [];
   const failure = Error("native failure");
@@ -33,7 +35,7 @@ function fixture() {
     }
   }
   const observations: unknown[] = [];
-  const promise = Promise.resolve(Response.json(snapshot()));
+  const promise = Promise.resolve(Response.json(response));
   const nativeFetch = () => promise;
   Object.assign(w, { WebSocket: FakeSocket, fetch: nativeFetch });
   w.postMessage = ((message: unknown) => observations.push(message)) as typeof w.postMessage;
@@ -124,6 +126,63 @@ test("fetchのPromiseをそのまま返し、応答本文を消費せず、古�
     await f.w.happyDOM.close();
   }
 });
+
+for (const source of ["GET", "WebSocket"] as const)
+  for (const versioned of [false, true])
+    test(`${source}で受け取った${versioned ? "新版" : "旧版"}の四人リバーシを解析できる`, async () => {
+      const frame = snapshot();
+      const { roundId, positionRevision, ...legacyRoom } = frame.room;
+      const received = { ...frame, room: versioned ? frame.room : legacyRoom };
+      const f = fixture(received);
+      const starts: ContinuousRequest[] = [];
+      const controller = new WidgetController(
+        async (message) => {
+          const command = message as { type: string; request: ContinuousRequest };
+          if (command.type === "start") starts.push(command.request);
+          if (command.type === "start" || command.type === "poll")
+            return { ok: true, data: progressFor(starts.at(-1)!) };
+          return { ok: true };
+        },
+        () => {},
+        f.w.location.href,
+        async () => "a".repeat(64),
+        undefined,
+        () => () => {},
+      );
+      try {
+        new f.w.WebSocket("wss://tetraboard.net/api/rooms/12345/ws");
+        const ws = f.sockets[0]!;
+        ws.open();
+        // 自分の手番でないGET局面は手動、WebSocket局面は本人手番の自動解析で確認します。
+        const selfId = source === "GET" ? frame.room.players[1]!.id : playerId;
+        ws.receive({ type: "room.authenticated", membership: { playerId: selfId } });
+        if (source === "GET") await f.w.fetch("/api/rooms/12345");
+        else ws.receive(received);
+        await settle();
+        const message = f.observations.at(-1) as { data?: unknown } | undefined;
+        const observation = observationSchema.safeParse(message?.data);
+        if (observation.success) controller.observe(observation.data);
+
+        await controller.toggle();
+        if (source === "GET") {
+          expect(starts).toHaveLength(0);
+          await controller.analyze();
+        }
+        await settle();
+        expect(starts).toHaveLength(1);
+        expect(starts[0]!.input).toMatchObject({
+          game: "four-reversi",
+          state: { board: frame.room.game.board, moveNumber: 0 },
+        });
+        expect(controller.observation).toMatchObject({
+          roundId: versioned ? roundId : null,
+          positionRevision: versioned ? positionRevision : null,
+        });
+      } finally {
+        controller.stop();
+        await f.w.happyDOM.close();
+      }
+    });
 
 test("四人将棋の局ID・revision・合法手・担当方向を受信し氏名やtokenを除外する", async () => {
   const f = fixture();

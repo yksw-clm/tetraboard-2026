@@ -147,6 +147,7 @@ export type {
 } from "./rooms";
 
 export {
+  fourReversiEntryRoomSchema,
   fourReversiRoomSchema,
   fourReversiRoomSettingsSchema,
   fourShogiRoomSchema,

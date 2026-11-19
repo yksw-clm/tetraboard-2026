@@ -149,6 +149,8 @@ export class WidgetController {
       previous.instanceId === next.instanceId &&
       previous.generation === next.generation &&
       previous.roundId === next.roundId &&
+      previous.positionRevision !== null &&
+      next.positionRevision !== null &&
       next.positionRevision < previous.positionRevision
     )
       return;

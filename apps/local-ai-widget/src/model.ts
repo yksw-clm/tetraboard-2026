@@ -41,6 +41,7 @@ const observationBase = z.object({
 export const reversiObservationSchema = observationBase.extend({
   gameId: z.literal("four-reversi"),
   game: gameSchema.nullable(),
+  positionRevision: observationBase.shape.positionRevision.nullable(),
 });
 export const shogiObservationSchema = observationBase.omit({ players: true }).extend({
   gameId: z.literal("four-shogi"),
@@ -168,7 +169,7 @@ export function positionIdentity(o: Observation, origin: string, epoch: number):
     o.status,
     o.game,
     o.turnStartedAt,
-    [o.roundId, o.positionRevision],
+    o.positionRevision === null ? null : [o.roundId, o.positionRevision],
   ]);
 }
 export async function revision(identity: string): Promise<string> {

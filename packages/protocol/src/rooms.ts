@@ -946,7 +946,7 @@ const roomMembershipIssuedSchema = z.strictObject({
 });
 
 // 作成・参加では旧クライアントもこの応答を検証してから参加資格を保存します。
-const fourReversiEntryRoomSchema = z
+export const fourReversiEntryRoomSchema = z
   .discriminatedUnion("status", [waitingRoomSchema, playingRoomSchema])
   .superRefine(checkFourReversiRoomMode);
 const roomEntryResponseSchema = z.strictObject({
