@@ -4,7 +4,10 @@ import { createUuid } from "../../shared/createUuid";
 // 作成成功から次の画面へ渡す意図だけを保持し、履歴・再読み込みから再演しません。
 const pending = new Set<string>();
 
-export function createRoomShareIntent(room: Room, membership: RoomMembership) {
+export function createRoomShareIntent(
+  room: Pick<Room, "id" | "instanceId">,
+  membership: RoomMembership,
+) {
   const roomShare = {
     roomId: room.id,
     instanceId: room.instanceId,

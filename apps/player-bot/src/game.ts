@@ -56,12 +56,7 @@ export function turnFor(snapshot: Snapshot, playerId: string, receivedAt: number
     )
       return null;
     return {
-      key: JSON.stringify([
-        room.instanceId,
-        room.clock.turnStartedAt,
-        room.game.moveNumber,
-        room.game.turn,
-      ]),
+      key: JSON.stringify([room.instanceId, room.roundId, room.positionRevision, room.game.turn]),
       room,
       actions: getLegalMoves(room.game).map((position) => ({ type: "placeStone", position })),
       serverNowMs: snapshot.serverNowMs,
@@ -77,12 +72,10 @@ export function deadline(turn: Turn): number {
   return turn.receivedAt + Math.max(0, turn.room.clock.turnExpiresAt - turn.serverNowMs - 1000);
 }
 export function actionMessage(turn: Turn, action: Action): RoomSocketClientMessage {
-  return isFourShogiRoom(turn.room)
-    ? {
-        type: "room.game.action",
-        action,
-        roundId: turn.room.roundId,
-        positionRevision: turn.room.positionRevision,
-      }
-    : { type: "room.game.action", action };
+  return {
+    type: "room.game.action",
+    action,
+    roundId: turn.room.roundId,
+    positionRevision: turn.room.positionRevision,
+  };
 }

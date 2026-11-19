@@ -1,3 +1,4 @@
+import { roomForEntryResponse } from "@tetraboard/protocol";
 import { afterEach, beforeEach, expect, mock, test } from "bun:test";
 import { roomSchema, roomTimeControl } from "@tetraboard/protocol";
 import type { LoaderFunctionArgs } from "react-router";
@@ -19,6 +20,8 @@ const room = roomSchema.parse({
   id: "12345",
   instanceId: crypto.randomUUID(),
   status: "waiting",
+  roundId: null,
+  positionRevision: 0,
   settings: { game: "four-reversi", mode: "singles", timeControl: roomTimeControl },
   publicUpdatedAtMs: 0,
   lastActivityAtMs: 0,
@@ -107,10 +110,12 @@ test("再接続のGETと受信スナップショットは同じ番号の別世�
 
 test("招待の参加は世代を送信し、検証した資格を保存する", async () => {
   const fetcher = stubFetch((_url, init) =>
-    init?.method === "POST" ? Response.json({ room, membership }) : Response.json(snapshot),
+    init?.method === "POST"
+      ? Response.json({ room: roomForEntryResponse(room), membership })
+      : Response.json(snapshot),
   );
   const joined = await joinRoom(room.id, "  招待された人  ", room.instanceId);
-  expect(joined).toMatchObject({ joined: true, room, membership });
+  expect(joined).toMatchObject({ joined: true, room: roomForEntryResponse(room), membership });
   expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body))).toEqual({
     name: "招待された人",
     instanceId: room.instanceId,
@@ -189,7 +194,10 @@ test("入力後の満室・開始・閉鎖・世代変更は日本語で案内�
 test("参加応答が別世代なら資格を保存しない", async () => {
   stubFetch((_url, init) =>
     init?.method === "POST"
-      ? Response.json({ room: { ...room, instanceId: crypto.randomUUID() }, membership })
+      ? Response.json({
+          room: roomForEntryResponse({ ...room, instanceId: crypto.randomUUID() }),
+          membership,
+        })
       : Response.json(snapshot),
   );
   await expect(joinRoom(room.id, "参加", room.instanceId)).rejects.toMatchObject({ status: 410 });

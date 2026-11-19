@@ -118,6 +118,8 @@ export const waitingRoomFactories = {
       ...common,
       status: "waiting",
       settings: { ...common.settings, game: "four-reversi" },
+      roundId: null,
+      positionRevision: 0,
       players: players(context).map((player) => ({ ...player, color: null })),
       eliminations: [],
       game: null,

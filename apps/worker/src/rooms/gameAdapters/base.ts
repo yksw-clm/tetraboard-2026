@@ -25,6 +25,7 @@ export function adapterDefaults<G extends GameId>(
   | "close"
   | "waitingSeat"
   | "allowsCompetitiveDraw"
+  | "snapshotOnMalformedAction"
   | "lastRoundId"
   | "displayHands"
   | "replay"
@@ -49,6 +50,7 @@ export function adapterDefaults<G extends GameId>(
     close: () => {},
     waitingSeat: policy.waitingSeat,
     allowsCompetitiveDraw: false,
+    snapshotOnMalformedAction: false,
     lastRoundId: () => undefined,
     displayHands: () => ({}),
     replay: () => ({ status: "not_found" }),

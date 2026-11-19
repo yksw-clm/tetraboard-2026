@@ -63,7 +63,8 @@ export function roomFixture(game: GameId, status: "waiting" | "playing" = "playi
     ...base,
     status,
     players,
-    ...(game === "four-reversi" ? {} : { roundId: crypto.randomUUID(), positionRevision: 0 }),
+    roundId: crypto.randomUUID(),
+    positionRevision: 0,
     game: publicState,
     clock: {
       remainingMainMs: Object.fromEntries(seats.map((seat) => [seat, 300000])),

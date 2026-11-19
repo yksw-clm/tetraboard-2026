@@ -79,6 +79,8 @@ test("通常終局の棋譜を初期盤面から再現でき、保存済み結�
     const position = getLegalMoves(room.game)[0];
     setup.clients[player].send({
       type: "room.game.action",
+      roundId: room.roundId,
+      positionRevision: room.positionRevision,
       action: { type: "placeStone", position },
     });
     const number = room.game.moveNumber;

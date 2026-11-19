@@ -86,8 +86,6 @@ function rounds() {
     },
   };
   const reversi = reversiRoomSchema.parse({
-    roundId: null,
-    positionRevision: 0,
     ...waitingRoom(),
     settings: { game: "reversi", timeControl: waitingRoom().settings.timeControl },
     players: waitingRoom().players.slice(0, 2),

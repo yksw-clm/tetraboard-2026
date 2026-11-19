@@ -24,6 +24,8 @@ function waitingRoom(): Room {
     id: "12345",
     instanceId: crypto.randomUUID(),
     status: "waiting",
+    roundId: null,
+    positionRevision: 0,
     settings: { game: "four-reversi", mode: "singles", timeControl: roomTimeControl },
     publicUpdatedAtMs: 0,
     lastActivityAtMs: 0,
@@ -45,6 +47,7 @@ function playingRoom() {
   return roomSchema.parse({
     ...room,
     status: "playing",
+    roundId: crypto.randomUUID(),
     players: room.players.map((player, index) => ({
       ...player,
       color: ["red", "blue", "white", "black"][index],

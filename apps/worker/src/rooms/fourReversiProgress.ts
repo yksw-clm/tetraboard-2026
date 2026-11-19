@@ -69,7 +69,12 @@ export class FourReversiProgress {
     tokenHash: string,
     command: GameActionCommandFor<"four-reversi">,
   ): Result {
-    const error = this.checkCommand(room, tokenHash, "play");
+    const error = this.checkCommand(
+      room,
+      tokenHash,
+      "play",
+      room.roundId === command.roundId && room.positionRevision === command.positionRevision,
+    );
     if (error) return { kind: "rejected", error };
     if (room.status !== "playing") throw new Error("Expected playing room");
     const result = definition.rules.applyAction(room.game, room.game.turn, command.action);
@@ -87,7 +92,12 @@ export class FourReversiProgress {
     return this.accept(room, result.state, Date.now(), true);
   }
 
-  private checkCommand(room: FourReversiRoom, tokenHash: string, operation: "play" | "resign") {
+  private checkCommand(
+    room: FourReversiRoom,
+    tokenHash: string,
+    operation: "play" | "resign",
+    positionMatches = true,
+  ) {
     const membership = this.membership(tokenHash);
     const seat = room.players.find((p) => p.id === membership?.playerId)?.color ?? null;
     return checkGameCommand({
@@ -97,7 +107,7 @@ export class FourReversiProgress {
       seat,
       eliminatedSeats: room.game?.eliminatedColors ?? [],
       turn: room.game === null ? null : definition.rules.getTurn(room.game),
-      positionMatches: true,
+      positionMatches,
       clockExpired: room.clock !== null && isClockExpired(room.clock, Date.now()),
     });
   }
@@ -107,23 +117,31 @@ export class FourReversiProgress {
     state: FourReversiState,
     at: number,
     turnEnded: boolean,
-    clockAt = at,
+    positionChanged = true,
   ): Result {
     this.storage.kv.delete(fourReversiCpuJobKey);
     this.storage.kv.delete(fourReversiAiJobKey);
+    const positionRevision = room.positionRevision + (positionChanged ? 1 : 0);
     if (state.status === "finished") {
       const game = fourReversiStateSchema.parse(state);
       if (game.status !== "finished") throw new Error("Expected finished state");
-      return { kind: "finished", gameId: "four-reversi", room, game, at };
+      return {
+        kind: "finished",
+        gameId: "four-reversi",
+        room: { ...room, positionRevision },
+        game,
+        at,
+      };
     }
     const updated = fourReversiRoomSchema.parse({
       ...room,
       game: state,
+      positionRevision,
       clock: advanceClock(
         room.clock,
         room.game.turn,
         state.turn,
-        clockAt,
+        at,
         turnEnded,
         room.settings.timeControl,
       ),
@@ -161,9 +179,10 @@ export class FourReversiProgress {
     if (input.status !== "playing") throw new Error("Expected playing room");
     return this.accept(
       input,
-      prepared?.state ?? room.game,
+      prepared?.state ?? input.game,
       at,
       !!prepared && prepared.state.turn !== room.game.turn,
+      prepared !== null,
     );
   }
 
@@ -250,6 +269,8 @@ export class FourReversiProgress {
     const room = fourReversiRoomSchema.parse({
       ...data.room,
       status: "waiting",
+      roundId: null,
+      positionRevision: 0,
       eliminations: [],
       publicUpdatedAtMs: nextPublicUpdateAt(data.room),
       lastActivityAtMs: data.at,

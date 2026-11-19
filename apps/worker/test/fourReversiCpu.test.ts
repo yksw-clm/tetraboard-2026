@@ -97,6 +97,7 @@ for (const mode of ["singles", "doubles"] as const)
           const moved = fourReversiRoomSchema.parse(ctx.storage.kv.get("room"));
           const expected = applyAction(before.game, { type: "placeStone", position: job.move });
           expect(expected.ok && moved.game).toEqual(expected.ok && expected.state);
+          expect(moved).toMatchObject({ positionRevision: 1 });
           expect(moved.clock?.turnStartedAt).toBe(at + 2001);
           expect(roundReplaySchema.parse(ctx.storage.kv.get("round-replay")).steps).toHaveLength(1);
           expect(ctx.storage.kv.get(fourReversiCpuJobKey)).toBeUndefined();
@@ -280,6 +281,7 @@ for (const mode of ["singles", "doubles"] as const) {
         await instance.alarm();
         const waiting = fourReversiRoomSchema.parse(ctx.storage.kv.get("room"));
         expect(waiting.status).toBe("waiting");
+        expect(waiting).toMatchObject({ roundId: null, positionRevision: 0 });
         expect(waiting.lastRound?.game.result.reason).toBe("all_passed");
         expect(waiting.lastRound?.game.board[7][7]).toBeNull();
         expect(ctx.storage.kv.get(fourReversiCpuJobKey)).toBeUndefined();
@@ -292,6 +294,7 @@ for (const mode of ["singles", "doubles"] as const) {
         ctx.storage.kv.put(fourReversiCpuJobKey, job);
         const started = progress.start(waiting);
         expect(started.roundId).not.toBe(job.roundId);
+        expect(started.room).toMatchObject({ roundId: started.roundId, positionRevision: 0 });
         expect(started.room.game.moveNumber).toBe(0);
         expect(ctx.storage.kv.get(fourReversiCpuJobKey)).toBeUndefined();
         await ctx.storage.setAlarm(at + 60_000);

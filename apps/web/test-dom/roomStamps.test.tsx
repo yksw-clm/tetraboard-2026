@@ -52,8 +52,6 @@ const empty: string[] = [];
 function reversiWaitingRoom() {
   const room = waitingRoom();
   return reversiRoomSchema.parse({
-    roundId: null,
-    positionRevision: 0,
     ...room,
     settings: { game: "reversi", timeControl: roomTimeControl },
     players: room.players.slice(0, 2),

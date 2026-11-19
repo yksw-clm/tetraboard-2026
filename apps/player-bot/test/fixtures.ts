@@ -89,11 +89,11 @@ export class GameFixture {
           }
         : null,
       lastRound,
+      roundId: this.playing ? roundId : null,
+      positionRevision: this.playing ? g.moveNumber : 0,
       ...(this.game === "four-shogi"
         ? {
             checkState: Object.fromEntries(sides.map((s) => [s, false])),
-            roundId: this.playing ? roundId : null,
-            positionRevision: this.playing ? this.shogi.moveNumber : 0,
             legalActions: this.playing ? getLegalActions(this.shogi) : [],
             threePlayerAttackForbiddenActions: [],
           }

@@ -242,25 +242,29 @@ test("停止後の同一局面では再起動せず、復帰は最新受信を�
   await settle();
   expect(h.pending).toHaveLength(2);
 });
-test("手番外の脱落と次局で旧結果を破棄し再解析する", async () => {
-  const h = harness(),
-    o = observation();
-  h.controller.observe(o);
-  await h.controller.toggle();
-  await settle();
-  const eliminated = structuredClone(o);
-  eliminated.game!.eliminatedColors = ["blue"];
-  h.controller.observe(eliminated);
-  await settle();
-  expect(h.pending).toHaveLength(2);
-  h.pending[0].resolve({ ok: true, data: responseFor(h.pending[0].request) });
-  await settle();
-  expect(h.controller.result).toBeNull();
-  h.controller.observe({ ...o, status: "waiting", game: null });
-  h.controller.observe({ ...o, turnStartedAt: 300, serverNowMs: 300 });
-  await settle();
-  expect(h.pending).toHaveLength(3);
-});
+test.each([false, true])(
+  "手番外の脱落と次局で旧結果を破棄し再解析する（局面の版あり=%s）",
+  async (versioned) => {
+    const h = harness();
+    const current = observation();
+    const o = versioned ? current : { ...current, roundId: null, positionRevision: null };
+    h.controller.observe(o);
+    await h.controller.toggle();
+    await settle();
+    const eliminated = structuredClone(o);
+    eliminated.game!.eliminatedColors = ["blue"];
+    h.controller.observe(eliminated);
+    await settle();
+    expect(h.pending).toHaveLength(2);
+    h.pending[0].resolve({ ok: true, data: responseFor(h.pending[0].request) });
+    await settle();
+    expect(h.controller.result).toBeNull();
+    h.controller.observe({ ...o, status: "waiting", game: null });
+    h.controller.observe({ ...o, turnStartedAt: 300, serverNowMs: 300 });
+    await settle();
+    expect(h.pending).toHaveLength(3);
+  },
+);
 test("本人の在室が消えたら同じ盤面でも結果を消す", async () => {
   const h = harness(),
     o = observation();

@@ -16,6 +16,8 @@ export const playerId = "00000000-0000-4000-8000-000000000001";
 export function observation(): ReversiObservation {
   return {
     gameId: "four-reversi",
+    roundId: "00000000-0000-4000-8000-000000000020",
+    positionRevision: 0,
     roomId: "12345",
     instanceId: "00000000-0000-4000-8000-000000000010",
     generation: 1,

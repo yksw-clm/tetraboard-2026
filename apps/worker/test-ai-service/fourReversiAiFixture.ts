@@ -124,6 +124,8 @@ export class FourReversiAiFixture {
         this.clock.now = Math.max(this.clock.now, room.clock.turnStartedAt) + 1;
         host.send({
           type: "room.game.action",
+          roundId: room.roundId,
+          positionRevision: room.positionRevision,
           action: { type: "placeStone", position: getLegalMoves(room.game)[0] },
         });
         await host.waitFor(
