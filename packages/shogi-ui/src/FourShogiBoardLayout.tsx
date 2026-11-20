@@ -10,7 +10,7 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
-import boardImage from "../assets/board-wood.png";
+import { boardImageUrl } from "./boardImage";
 import { RoomBoardGroup } from "./RoomBoardGroup";
 import { FourShogiHand } from "./FourShogiHand";
 import { ShogiPiece } from "./ShogiPiece";
@@ -441,7 +441,7 @@ export function FourShogiBoardLayout({
         ref={boardRef}
         data-testid="shogi-board"
         className="[grid-area:board] relative w-[var(--shogi-board-width)] aspect-square place-self-center bg-[#cb8900] bg-cover bg-center shadow-[0_8px_24px_#71531c25]"
-        style={{ backgroundImage: `url("${boardImage}")` }}
+        style={{ backgroundImage: `url("${boardImageUrl}")` }}
         role="group"
         aria-label={standard ? "将棋の盤面" : "四人将棋の盤面"}
       >

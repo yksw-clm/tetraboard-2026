@@ -1,8 +1,12 @@
-import { expect, test } from "bun:test";
+import { gomokuRoomSchema, reversiRoomSchema, type Room } from "@tetraboard/protocol";
+import * as boardImage from "@tetraboard/shogi-ui/board-image";
+import { expect, spyOn, test } from "bun:test";
 import { RouterContextProvider } from "react-router";
 import { roomLoader } from "../src/features/room/roomLoader";
 import { waitingRoom, membership, token, now } from "../test/fixtures/rooms";
 import { waitingShogiRoom } from "../test/fixtures/fourShogiFixtures";
+import { standardWaitingRoom } from "../test/fixtures/standardShogiFixtures";
+import { fourGomokuWaitingRoom } from "../test/fixtures/fourGomokuFixtures";
 import {
   readTournamentRoom,
   saveTournamentRoom,
@@ -22,10 +26,47 @@ const args = (path: string, id = "12345", signal?: AbortSignal) => ({
   url: new URL(`https://tetraboard.test${path}`),
   pattern: "/rooms/:id",
 });
-const snapshot = (room: ReturnType<typeof waitingRoom> | ReturnType<typeof waitingShogiRoom>) => ({
+const snapshot = (room: Room) => ({
   room,
   presence: { hostPlayerId: room.players[0]!.id, connectedPlayerIds: [] },
   serverNowMs: now,
+});
+
+const fourReversi = waitingRoom();
+const twoPlayerRoom = { ...fourReversi, players: fourReversi.players.slice(0, 2) };
+const timeControl = fourReversi.settings.timeControl;
+test.each([
+  { room: standardWaitingRoom(), preload: true },
+  { room: waitingShogiRoom(), preload: true },
+  { room: fourReversi, preload: false },
+  { room: fourGomokuWaitingRoom(), preload: false },
+  {
+    room: reversiRoomSchema.parse({ ...twoPlayerRoom, settings: { game: "reversi", timeControl } }),
+    preload: false,
+  },
+  {
+    room: gomokuRoomSchema.parse({
+      ...twoPlayerRoom,
+      settings: { game: "gomoku", forbiddenRules: true, timeControl },
+    }),
+    preload: false,
+  },
+])("$room.settings.game の本人確認中に盤面画像の先読みを判定する", async ({ room, preload }) => {
+  const preloadSpy = spyOn(boardImage, "preloadBoardImage").mockImplementation(() => {});
+  try {
+    sessionStorage.setItem("tetraboard:room:12345:membership", token);
+    const pending = roomLoader(args("/rooms/12345"));
+    expect(preloadSpy).not.toHaveBeenCalled();
+    requests[0]!.respond(snapshot(room));
+    await flush();
+    expect(requests[1]!.url).toBe("/api/rooms/12345/me");
+    expect(preloadSpy).toHaveBeenCalledTimes(preload ? 1 : 0);
+    requests[1]!.respond(membership);
+    expect((await pending).game).toBe(room.settings.game);
+    expect(preloadSpy).toHaveBeenCalledTimes(preload ? 1 : 0);
+  } finally {
+    preloadSpy.mockRestore();
+  }
 });
 
 test("直接アクセス・再読み込みはゲームを判別し、招待世代と本人確認を維持", async () => {

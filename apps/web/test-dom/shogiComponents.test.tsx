@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { applyAction, type FourShogiAction } from "@tetraboard/four-shogi";
 import { ShogiPiece } from "../src/features/room/ShogiPiece";
-import boardImage from "@tetraboard/shogi-ui/assets/board-wood.png";
+import { boardImageUrl } from "@tetraboard/shogi-ui/board-image";
 import { createShogiImageStore } from "../src/features/room/shogiImageStore";
 import {
   prepareShogiAssets,
@@ -69,7 +69,7 @@ test("盤と全18駒を初回に準備し、処理中・成功・失敗の同じ
   await flush();
   expect(pendingImages).toHaveLength(19);
   expect(new Set(pendingImages.map((p) => p.image.src)).size).toBe(19);
-  expect(pendingFor(boardImage)).toBeDefined();
+  expect(pendingFor(boardImageUrl)).toBeDefined();
   for (const direction of ["up", "down"] as const) {
     for (const kind of ["king", "rook", "gold", "silver", "pawn"] as const)
       expect(pendingFor(shogiPieceImage(kind, false, false, direction).src)).toBeDefined();
@@ -222,7 +222,7 @@ test("ロビーの専用画像はルームの画像準備を始めず、入室�
   render(<FourShogiBoardLayout {...boardProps(() => true)} />);
   await flush();
   expect(pendingImages).toHaveLength(19);
-  expect(pendingFor(boardImage)).toBeDefined();
+  expect(pendingFor(boardImageUrl)).toBeDefined();
 });
 
 function boardProps(onAction: (action: FourShogiAction) => boolean): FourShogiBoardLayoutProps {
