@@ -1,12 +1,15 @@
 import { roomForEntryResponse } from "@tetraboard/protocol";
 import { completeGuestAccount } from "./guestAccountFixtures";
-import { expect, spyOn, test } from "bun:test";
+import { afterEach, beforeAll, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { StrictMode } from "react";
-import { useLocation } from "react-router";
+import { createMemoryRouter, RouterProvider, useLocation } from "react-router";
 import { roomSchema, type Room } from "@tetraboard/protocol";
 import { gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import { roomRecruitmentText } from "@tetraboard/protocol/room-sharing";
+import { AccountContext } from "../src/features/account/useAccount";
+import { RoomPage } from "../src/features/room/RoomPage";
 import { RoomShareDialog } from "../src/features/room/RoomShareDialog";
+import { roomLoader } from "../src/features/room/roomLoader";
 import { useRoomInvitation } from "../src/features/room/useRoomInvitation";
 import { useRoomEntry } from "../src/features/lobby/useRoomEntry";
 import {
@@ -15,15 +18,17 @@ import {
   consumeRoomShareIntent,
 } from "../src/features/room/roomShareIntent";
 import { updatePageMetadata } from "../src/seo/pageMetadata";
-import { membership, token, waitingRoom, playingRoom } from "../test/fixtures/rooms";
+import { profile } from "../test/fixtures/account";
+import { membership, now, token, waitingRoom, playingRoom } from "../test/fixtures/rooms";
 import { waitingShogiRoom } from "../test/fixtures/fourShogiFixtures";
 import { standardWaitingRoom } from "../test/fixtures/standardShogiFixtures";
 import { fourGomokuWaitingRoom } from "../test/fixtures/fourGomokuFixtures";
 import { act, flush, press, render, renderHook, rerender, requests, wrap } from "./harness";
+import { installSocket, Socket } from "./socket";
 
-function fixture(game: GameId): Room {
+function fixture(game: GameId, playerCount = 1): Room {
   const base = waitingRoom();
-  base.players = base.players.slice(0, 1);
+  base.players = base.players.slice(0, playerCount);
   const room =
     game === "four-shogi"
       ? waitingShogiRoom()
@@ -43,8 +48,104 @@ function fixture(game: GameId): Room {
                 roundId: null,
                 positionRevision: 0,
               });
-  return { ...room, players: room.players.slice(0, 1) } as Room;
+  return { ...room, players: room.players.slice(0, playerCount) } as Room;
 }
+
+describe("招待リンクからのルーム参加", () => {
+  beforeAll(async () => {
+    // 初回描画を待つ間に、遅延読み込みのための実時間に依存しないようにします。
+    await Promise.all([
+      import("../src/features/room/FourReversiRoomDetail"),
+      import("../src/features/room/FourShogiRoomDetail"),
+      import("../src/features/room/ReversiRoomDetail"),
+      import("../src/features/room/GomokuRoomDetail"),
+      import("../src/features/room/FourGomokuRoomDetail"),
+      import("../src/features/room/ShogiRoomDetail"),
+    ]);
+  });
+  let restoreSocket: () => void;
+  beforeEach(() => {
+    restoreSocket = installSocket();
+  });
+  afterEach(() => restoreSocket());
+
+  function snapshot(room: Room) {
+    return {
+      room,
+      presence: { hostPlayerId: room.players[0]!.id, connectedPlayerIds: [] },
+      serverNowMs: now,
+    };
+  }
+
+  async function submitInvitation(room: Room) {
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/rooms/:id",
+          loader: roomLoader,
+          Component: RoomPage,
+          HydrateFallback: () => null,
+        },
+      ],
+      { initialEntries: [`/rooms/${room.id}?invite=${room.instanceId}`] },
+    );
+    const view = render(
+      <AccountContext.Provider
+        value={{
+          user: profile,
+          loading: false,
+          error: null,
+          refresh: async () => {},
+          update: () => {},
+        }}
+      >
+        <RouterProvider router={router} />
+      </AccountContext.Provider>,
+    );
+    requests[0]!.respond(snapshot(room));
+    await flush();
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    expect(dialog?.textContent ?? view.textContent).toContain(`ルーム ${room.id} に参加`);
+    press(dialog, "参加する");
+    requests[1]!.respond({ user: profile });
+    await flush();
+    requests[2]!.respond(snapshot(room));
+    await flush();
+    const join = requests[3]!;
+    expect(join.url).toBe(`/api/rooms/${room.id}/players?snapshot=1`);
+    return { view, join };
+  }
+
+  test.each([...gameIds])("%s は参加成功後にダイアログが閉じて準備完了できる", async (game) => {
+    const room = fixture(game, 2);
+    const participant = { playerId: room.players[1]!.id, role: "player" as const };
+    const { view, join } = await submitInvitation(fixture(game));
+    join.respond({
+      room: roomForEntryResponse(room),
+      membership: { ...participant, token },
+      snapshot: snapshot(room),
+      currentMembership: { ...participant, accountLinked: true },
+    });
+    await flush();
+
+    expect(document.querySelector('[role="dialog"]')?.textContent).toBeUndefined();
+    const socket = Socket.instances.at(-1)!;
+    socket.open();
+    socket.snapshot(room);
+    socket.receive({ type: "room.authenticated", membership: participant });
+    press(view, "準備完了");
+    expect(socket.sent.at(-1)).toEqual({ type: "room.ready.set", ready: true });
+  });
+
+  test("満室で参加に失敗するとダイアログにエラーが表示される", async () => {
+    const { join } = await submitInvitation(fixture("reversi"));
+    join.respond({ error: "room_full" }, 409);
+    await flush();
+
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog?.querySelector('[role="alert"]')?.textContent).toContain("このルームは満室です");
+  });
+});
 
 test("全6ゲームの通常作成だけが作成者・世代を照合する共有意図を渡す", async () => {
   for (const game of gameIds) {
