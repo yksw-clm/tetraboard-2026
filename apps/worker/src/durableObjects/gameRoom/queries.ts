@@ -58,14 +58,36 @@ export async function getRoomSnapshot(
   const room = await getRoom(runtime);
   return room === null
     ? null
-    : {
-        room,
-        presence: presence(runtime, room),
-        serverNowMs: Date.now(),
-        ...roomFormationAnalysis(room, formationAnalysis),
-        ...runtime.gameAdapter(room).displayHands(room, eliminatedHands),
-        ...(stamps ? { stampsSupported: true as const } : {}),
-      };
+    : roomSnapshot(runtime, room, formationAnalysis, stamps, eliminatedHands);
+}
+
+function roomSnapshot(
+  runtime: RoomRuntime,
+  room: Room,
+  formationAnalysis: boolean,
+  stamps: boolean,
+  eliminatedHands: boolean,
+) {
+  return {
+    room,
+    presence: presence(runtime, room),
+    serverNowMs: Date.now(),
+    ...roomFormationAnalysis(room, formationAnalysis),
+    ...runtime.gameAdapter(room).displayHands(room, eliminatedHands),
+    ...(stamps ? { stampsSupported: true as const } : {}),
+  };
+}
+
+export async function getRoomEntrySnapshot(runtime: RoomRuntime, tokenHash: string) {
+  const room = await getRoom(runtime);
+  if (room === null) return null;
+  const result = currentRoomMembership(runtime, tokenHash, room);
+  if (result.status !== "found") return null;
+  return {
+    // Web の fetchRoom と同じ ?stamps=1&eliminatedHands=1 で読み取ります。
+    snapshot: roomSnapshot(runtime, room, false, true, true),
+    currentMembership: result.membership,
+  };
 }
 
 export async function getPublicMetadata(runtime: RoomRuntime, profilePreview = false) {

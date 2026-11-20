@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { isRatedMatchmakingGame } from "@tetraboard/protocol";
 import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { PlayerProfileProvider } from "../src/features/players/PlayerProfileProvider";
@@ -19,6 +19,7 @@ const normalRequest = () => requests.filter(({ url }) => url.includes("/rankings
 const ratingRequest = () => requests.filter(({ url }) => url.endsWith("/rankings/rating")).at(-1)!;
 const selected = (view: HTMLElement) =>
   view.querySelector('[role="tab"][aria-selected="true"]')?.textContent;
+const preview = (view: HTMLElement) => view.querySelector('[role="tabpanel"] > div')!;
 function tab(view: Element, name: string) {
   const target = [...view.querySelectorAll<HTMLElement>('[role="tab"]')].find(
     (item) => item.textContent === name,
@@ -84,6 +85,51 @@ for (const game of gameIds) {
     expect(requests).toHaveLength(rated ? 2 : 1);
   });
 }
+
+test("プレビューは100msで退出し、切替後に150msの登場演出を付ける", async () => {
+  const view = await ready();
+  tab(view, "優勝数");
+  expect(preview(view).className.split(" ")).toEqual(
+    expect.arrayContaining(["motion-safe:opacity-0", "duration-100", "motion-reduce:duration-0"]),
+  );
+  clock.advance(99);
+  expect(selected(view)).toBe("レート");
+  clock.advance(1);
+  expect(selected(view)).toBe("優勝数");
+  expect(preview(view).className.split(" ")).toEqual(
+    expect.arrayContaining([
+      "motion-safe:animate-in",
+      "motion-safe:fade-in",
+      "motion-safe:slide-in-from-bottom-[4px]",
+      "motion-safe:duration-150",
+    ]),
+  );
+  clock.advance(150);
+  expect(preview(view).className).not.toContain("animate-in");
+});
+
+test("動きを減らす設定に切り替えると退出待ちが0msになる", async () => {
+  const query = "(prefers-reduced-motion: reduce)";
+  const nativeMatchMedia = window.matchMedia.bind(window);
+  const media = nativeMatchMedia(query);
+  const matchMedia = spyOn(window, "matchMedia").mockImplementation((value) =>
+    value === query ? media : nativeMatchMedia(value),
+  );
+  try {
+    const view = await ready();
+    tab(view, "優勝数");
+    expect(selected(view)).toBe("レート");
+    act(() => {
+      Object.defineProperty(media, "matches", { value: true });
+      media.dispatchEvent(new Event("change"));
+    });
+    clock.advance(0);
+    expect(selected(view)).toBe("優勝数");
+    expect(preview(view).className).not.toContain("animate-in");
+  } finally {
+    matchMedia.mockRestore();
+  }
+});
 
 test("手動操作は最後の選択を優先し、停止は再開まで維持する", async () => {
   const view = await ready();

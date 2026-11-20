@@ -126,6 +126,7 @@ export const eventMethods = [
   "getRoom",
   "getShareMetadata",
   "getRoomSnapshot",
+  "getRoomEntrySnapshot",
   "resolvePlayerProfile",
   "refreshLobbyIndex",
   "getPublicMetadata",

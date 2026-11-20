@@ -13,6 +13,7 @@ import {
   type ReplayMatch,
   type ReplayMatchFor,
 } from "@tetraboard/protocol";
+import { preloadBoardImage } from "@tetraboard/shogi-ui/board-image";
 import type { LoaderFunctionArgs } from "react-router";
 import type { FourShogiReplayFrame } from "./fourShogiReplay";
 import { preloadRecovery } from "../../shared/preloadRecovery";
@@ -41,6 +42,7 @@ export const replayLoaders = {
     match: ReplayMatchFor<"shogi">,
     signal: AbortSignal,
   ): Promise<MatchReplayDataFor<"shogi">> => {
+    preloadBoardImage();
     const { fetchShogiMatchReplay } = await import("./standardShogiMatchReplay");
     return { game: "shogi", match, frames: await fetchShogiMatchReplay(match, signal) };
   },
@@ -60,6 +62,7 @@ export const replayLoaders = {
     match: ReplayMatchFor<"four-shogi">,
     signal: AbortSignal,
   ): Promise<MatchReplayDataFor<"four-shogi">> => {
+    preloadBoardImage();
     const { fetchFourShogiMatchReplay } = await import("./fourShogiMatchReplay");
     return { game: "four-shogi", match, frames: await fetchFourShogiMatchReplay(match, signal) };
   },

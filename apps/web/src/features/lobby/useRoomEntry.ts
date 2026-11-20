@@ -9,6 +9,7 @@ import {
   roomTimeControl,
   type RoomTimeControl,
   getRoomContract,
+  profileInputSchema,
   roomCodeSchema,
   type RoomError,
   type RoomMode,
@@ -18,6 +19,7 @@ import {
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { canStoreRoomMembership, saveRoomMembershipToken } from "../../shared/roomMembership";
+import { saveRoomEntryHandoff, splitRoomEntryResponse } from "../../shared/roomEntryHandoff";
 
 import { joinRoom, roomEntryErrorMessage, RoomEntryError } from "../../shared/roomAccess";
 import { useRegistrationRestore } from "../account/useRegistrationRestore";
@@ -103,16 +105,22 @@ export function useRoomEntry(game: GameId = defaultGameId) {
     setIsSubmitting(intent);
 
     try {
-      let user = await readAccount();
-      const wasAccount = Boolean(account.user);
-      account.update(user);
-      if (wasAccount && !user)
-        throw new RoomEntryError(
-          "ログインの有効期限が切れました。ログインするか、ニックネームを入力して参加してください。",
-        );
+      let user = account.user;
+      if (
+        intent === "join" ||
+        user !== null ||
+        !profileInputSchema.shape.name.safeParse(name).success
+      ) {
+        user = await readAccount();
+        account.update(user);
+        if (account.user && !user)
+          throw new RoomEntryError(
+            "ログインの有効期限が切れました。ログインするか、ニックネームを入力して参加してください。",
+          );
+      }
       if (user && !user.profileCompleted) return;
-      const entryName = user ? undefined : name;
       if (intent === "join") {
+        const entryName = user ? undefined : name;
         const result = await joinRoom(selectedRoomCode, entryName, instanceId, async () => {
           try {
             user = await prepareRoomGuest(name, user, avatarPresetId, account.update);
@@ -129,7 +137,7 @@ export function useRoomEntry(game: GameId = defaultGameId) {
 
       const request = contract.request.safeParse(
         createRoomRequests[game]({
-          name: entryName,
+          name: user ? undefined : name,
           quickPlay: intent === "quick",
           ...(intent === "quick" ? { cpuLevel } : {}),
           mode,
@@ -150,19 +158,23 @@ export function useRoomEntry(game: GameId = defaultGameId) {
           error instanceof Error ? error.message : "ゲスト情報を保存できませんでした。",
         );
       }
-      const path = createRoomContract.path;
-      const response = await fetch(`/api${path}`, {
+      if (!user.profileCompleted) return;
+      const entryName = user.isGuest ? request.data.name : undefined;
+
+      const response = await fetch(`/api${contract.path}?snapshot=1`, {
         method: contract.method,
         headers: {
           "Content-Type": "application/json",
           "X-Legal-Consent": legalVersion,
         },
-        body: JSON.stringify(request.data),
+        body: JSON.stringify({ ...request.data, name: entryName }),
       });
       const body: unknown = await response.json();
 
       if (response.status === 201) {
-        const result = contract.response.parse(body);
+        const receivedAt = performance.now();
+        const { entry, initial } = splitRoomEntryResponse(body);
+        const result = contract.response.parse(entry);
         if (
           result.room.settings.game !== game ||
           result.membership.role !== "host" ||
@@ -173,10 +185,11 @@ export function useRoomEntry(game: GameId = defaultGameId) {
         if (!saveRoomMembershipToken(result.room.id, result.membership.token)) {
           throw new Error("Failed to store membership");
         }
-        saveGuestName(request.data.name);
+        saveGuestName(entryName);
         roomSounds.playJoin(result.room.instanceId, result.membership.playerId);
         const state =
           intent === "create" ? createRoomShareIntent(result.room, result.membership) : undefined;
+        saveRoomEntryHandoff(result, initial, receivedAt);
         try {
           await navigate(getRoomContract.pathFor(result.room.id), { state });
         } catch (error) {

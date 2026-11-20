@@ -2,7 +2,7 @@ import { gameCatalog } from "@tetraboard/protocol/games";
 import { gameThemes } from "../../shared/ui/appTheme";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { useState, type ReactNode } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "../../shared/useReducedMotion";
 import { usePlayerProfiles } from "../players/usePlayerProfiles";
 import { useRankingRotation } from "./useRankingRotation";
 import { type PreviewRankings, type RoomMode, type MatchGame } from "@tetraboard/protocol";
@@ -334,7 +334,7 @@ function LobbyRankingsView({
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const profiles = usePlayerProfiles();
-  const reducedMotion = Boolean(useReducedMotion());
+  const reducedMotion = useReducedMotion();
   const rotation = useRankingRotation(
     Boolean(state.rankings && state.rating.data?.entries.length),
     hovered || focused || open || Boolean(profiles?.active),
@@ -342,14 +342,18 @@ function LobbyRankingsView({
     state.rating.supported ? "rating" : "victories",
   );
   const preview = (
-    <motion.div
+    <div
       key={rotation.metric}
-      initial={rotation.phase === "in" ? { opacity: 0, y: 4 } : false}
-      animate={{ opacity: rotation.phase === "out" ? 0 : 1, y: 0 }}
-      transition={{ duration: reducedMotion ? 0 : rotation.phase === "out" ? 0.1 : 0.15 }}
+      className={
+        rotation.phase === "out"
+          ? "transition-opacity duration-100 ease-out motion-safe:opacity-0 motion-reduce:duration-0"
+          : rotation.phase === "in"
+            ? "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-[4px] motion-safe:duration-150 motion-safe:ease-out"
+            : undefined
+      }
     >
       <RankingContent state={state} mode="singles" metric={rotation.metric} limit={3} preview />
-    </motion.div>
+    </div>
   );
   return (
     <section

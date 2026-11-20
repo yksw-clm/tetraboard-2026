@@ -954,6 +954,20 @@ const roomEntryResponseSchema = z.strictObject({
   membership: roomMembershipIssuedSchema,
 });
 
+const roomSnapshotSchema = z.strictObject({
+  room: roomSchema,
+  presence: roomPresenceSchema,
+  serverNowMs: serverNowMsSchema,
+  formationAnalysis: fourShogiFormationAnalysisSchema.nullable().optional(),
+  eliminatedHands: fourShogiEliminatedHandsSchema.nullable().optional(),
+  stampsSupported: z.literal(true).optional(),
+});
+const roomEntryQuerySchema = z.object({ snapshot: z.literal("1").optional() });
+const roomEntryResponseWithSnapshotSchema = roomEntryResponseSchema.extend({
+  snapshot: roomSnapshotSchema.optional(),
+  currentMembership: roomMembershipSchema.optional(),
+});
+
 export function roomForEntryResponse(room: Room): z.infer<typeof roomEntryResponseSchema>["room"] {
   if (!isFourReversiRoom(room)) return room;
   const { roundId: _roundId, positionRevision: _positionRevision, ...entryRoom } = room;
@@ -985,6 +999,7 @@ const roomErrorSchema = z.strictObject({
 export const createRoomContract = {
   method: "POST",
   path: "/rooms",
+  query: roomEntryQuerySchema,
   request: playerNameRequestSchema
     .extend({
       quickPlay: z.boolean(),
@@ -1002,6 +1017,7 @@ export const createRoomContract = {
         : value.mode !== undefined,
     ),
   response: roomEntryResponseSchema,
+  responseWithSnapshot: roomEntryResponseWithSnapshotSchema,
   error: roomErrorSchema,
 } as const;
 
@@ -1028,8 +1044,10 @@ export const joinRoomContract = {
   method: "POST",
   path: "/rooms/:id/players",
   pathFor: (id: string) => `/rooms/${id}/players`,
+  query: roomEntryQuerySchema,
   request: playerNameRequestSchema.extend({ instanceId: z.uuid().optional() }),
   response: roomEntryResponseSchema,
+  responseWithSnapshot: roomEntryResponseWithSnapshotSchema,
   error: roomErrorSchema,
 } as const;
 
@@ -1051,14 +1069,7 @@ export const getRoomContract = {
     eliminatedHands: z.literal("1").optional(),
     stamps: z.literal("1").optional(),
   }),
-  response: z.strictObject({
-    room: roomSchema,
-    presence: roomPresenceSchema,
-    serverNowMs: serverNowMsSchema,
-    formationAnalysis: fourShogiFormationAnalysisSchema.nullable().optional(),
-    eliminatedHands: fourShogiEliminatedHandsSchema.nullable().optional(),
-    stampsSupported: z.literal(true).optional(),
-  }),
+  response: roomSnapshotSchema,
   error: roomErrorSchema,
 } as const;
 
@@ -1274,6 +1285,7 @@ export const roomSocketContract = {
 
 export type CreateRoomRequest = z.infer<typeof createRoomContract.request>;
 export type JoinRoomRequest = z.infer<typeof joinRoomContract.request>;
+export type RoomEntryResponseWithSnapshot = z.infer<typeof roomEntryResponseWithSnapshotSchema>;
 export type Room = z.infer<typeof roomSchema>;
 export type RoomMode = z.infer<typeof roomModeSchema>;
 export type RoomPublicMetadata = z.infer<typeof roomPublicMetadataSchema>;

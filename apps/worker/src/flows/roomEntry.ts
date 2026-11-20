@@ -11,7 +11,7 @@ import type { AccountAdmission } from "./accountSeats/types";
 export type JoinRoomResult = Awaited<ReturnType<GameRoom["joinRoom"]>>;
 
 type RoomEntryResponse<Args extends unknown[]> = {
-  success: (...args: Args) => Response;
+  success: (...args: [...Args, token: string, tokenHash: string]) => Response | Promise<Response>;
   failure: (
     error: RoomError["error"],
     status: RoomAccountError["status"] | 404 | 410 | 500,
@@ -51,7 +51,7 @@ export async function createRoomWithAvailableCode(
   env: Env,
   rawRequest: Request,
   request: CreateRoomRequest,
-  respond: RoomEntryResponse<[code: string, room: Room, token: string]>,
+  respond: RoomEntryResponse<[code: string, room: Room]>,
 ) {
   let profile;
   try {
@@ -75,7 +75,7 @@ async function tryRoomCodes(
   profile: Awaited<ReturnType<typeof roomEntryProfile>>,
   token: string,
   tokenHash: string,
-  respond: RoomEntryResponse<[code: string, room: Room, token: string]>,
+  respond: RoomEntryResponse<[code: string, room: Room]>,
 ) {
   for (let attempt = 0; attempt < maxRoomCodeAttempts; attempt++) {
     const code = generateRoomCode();
@@ -109,7 +109,7 @@ async function tryRoomCodes(
         continue;
       }
 
-      return respond.success(code, room, token);
+      return await respond.success(code, room, token, tokenHash);
     } catch (error) {
       // A failed response may follow a committed admission. Only the DO can decide.
       if (admission) await cancelFailedRoomEntryReservation(env, admission);
@@ -139,7 +139,7 @@ export async function joinRequestedRoom(
   rawRequest: Request,
   code: string,
   request: JoinRoomRequest,
-  respond: RoomEntryResponse<[result: JoinRoomResult, token: string]>,
+  respond: RoomEntryResponse<[result: JoinRoomResult]>,
 ) {
   let admission: AccountAdmission | undefined;
   try {
@@ -169,7 +169,7 @@ export async function joinRequestedRoom(
       roomEntryAnalytics(rawRequest, profile.user),
     );
     if (result.status !== "joined" && admission) await cancelReservation(env, admission);
-    return respond.success(result, token);
+    return await respond.success(result, token, tokenHash);
   } catch (error) {
     if (admission) await cancelFailedRoomEntryReservation(env, admission);
     return respond.failure(

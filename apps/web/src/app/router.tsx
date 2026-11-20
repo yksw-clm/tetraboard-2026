@@ -1,19 +1,10 @@
-import { DeletionPage } from "../features/privacy/DeletionPage";
-import { LegalPage } from "../features/privacy/LegalPage";
 import { matchReplayLoader, publicMatchReplayLoader } from "../features/room/matchReplayLoader";
-import { MatchReplayPage, MatchReplayErrorPage } from "../features/room/MatchReplayPage";
 import { PlayerProfileProvider } from "../features/players/PlayerProfileProvider";
 import { ActiveTournamentProvider } from "../features/tournaments/ActiveTournamentProvider";
 import { AccountLayout } from "../features/account/AccountSession";
-import { LoginPage, ProfilePage } from "../features/account/AccountPages";
 import { createBrowserRouter, Link, replace } from "react-router";
 import { matchmakingPath } from "../features/matchmaking/paths";
-import { RoomErrorPage, RoomPage } from "../features/room/RoomPage";
 import { roomLoader } from "../features/room/roomLoader";
-
-import { FeedbackPage } from "../features/feedback/FeedbackPage";
-import { UpdatesPage, UpdateDetailPage } from "../features/updates/UpdatesPage";
-import { HowToPlayPage } from "../features/help/HowToPlayPage";
 
 import { AppPageLoading } from "../shared/ui/AppPageState";
 import { AppRouteErrorPage } from "../shared/ui/AppErrorPage";
@@ -63,6 +54,13 @@ export const lobbyRoutes = {
     lazy: () => Promise<{ Component: ComponentType }>;
   };
 };
+
+const lazyMatchReplayPage = () => ({
+  Component: async () => (await import("../features/room/MatchReplayPage")).MatchReplayPage,
+  ErrorBoundary: async () =>
+    (await import("../features/room/MatchReplayPage")).MatchReplayErrorPage,
+});
+
 export const router = createBrowserRouter([
   {
     ErrorBoundary: AppRouteErrorPage,
@@ -74,12 +72,52 @@ export const router = createBrowserRouter([
       </PlayerProfileProvider>
     ),
     children: [
-      { path: "/how-to-play", Component: HowToPlayPage },
-      { path: "/privacy", element: <LegalPage kind="privacy" /> },
-      { path: "/terms", element: <LegalPage kind="terms" /> },
-      { path: "/feedback", Component: FeedbackPage },
-      { path: "/updates", Component: UpdatesPage },
-      { path: "/updates/:id", Component: UpdateDetailPage },
+      {
+        path: "/how-to-play",
+        lazy: async () => ({
+          Component: (await import("../features/help/HowToPlayPage")).HowToPlayPage,
+        }),
+        hydrateFallbackElement: <AppPageLoading message="遊び方を読み込んでいます…" />,
+      },
+      {
+        path: "/privacy",
+        lazy: async () => {
+          const { LegalPage } = await import("../features/privacy/LegalPage");
+          return { element: <LegalPage kind="privacy" /> };
+        },
+        hydrateFallbackElement: (
+          <AppPageLoading message="プライバシーポリシーを読み込んでいます…" />
+        ),
+      },
+      {
+        path: "/terms",
+        lazy: async () => {
+          const { LegalPage } = await import("../features/privacy/LegalPage");
+          return { element: <LegalPage kind="terms" /> };
+        },
+        hydrateFallbackElement: <AppPageLoading message="利用規約を読み込んでいます…" />,
+      },
+      {
+        path: "/feedback",
+        lazy: async () => ({
+          Component: (await import("../features/feedback/FeedbackPage")).FeedbackPage,
+        }),
+        hydrateFallbackElement: <AppPageLoading message="フィードバックを読み込んでいます…" />,
+      },
+      {
+        path: "/updates",
+        lazy: async () => ({
+          Component: (await import("../features/updates/UpdatesPage")).UpdatesPage,
+        }),
+        hydrateFallbackElement: <AppPageLoading message="お知らせを読み込んでいます…" />,
+      },
+      {
+        path: "/updates/:id",
+        lazy: async () => ({
+          Component: (await import("../features/updates/UpdatesPage")).UpdateDetailPage,
+        }),
+        hydrateFallbackElement: <AppPageLoading message="お知らせを読み込んでいます…" />,
+      },
       {
         path: "/tournaments/:id",
         lazy: async () => ({
@@ -101,23 +139,46 @@ export const router = createBrowserRouter([
           <AppPageLoading message="将棋ロビーを読み込んでいます…" theme="shogi" />
         ),
       },
-      { path: "/login", Component: LoginPage },
-      { path: "/account/setup", element: <ProfilePage setup /> },
-      { path: "/account", Component: ProfilePage },
-      { path: "/account/deletion", Component: DeletionPage },
+      {
+        path: "/login",
+        lazy: async () => ({
+          Component: (await import("../features/account/AccountPages")).LoginPage,
+        }),
+        hydrateFallbackElement: <AppPageLoading message="ログイン画面を読み込んでいます…" />,
+      },
+      {
+        path: "/account/setup",
+        lazy: async () => {
+          const { ProfilePage } = await import("../features/account/AccountPages");
+          return { element: <ProfilePage setup /> };
+        },
+        hydrateFallbackElement: <AppPageLoading message="プロフィール設定を読み込んでいます…" />,
+      },
+      {
+        path: "/account",
+        lazy: async () => ({
+          Component: (await import("../features/account/AccountPages")).ProfilePage,
+        }),
+        hydrateFallbackElement: <AppPageLoading message="プロフィールを読み込んでいます…" />,
+      },
+      {
+        path: "/account/deletion",
+        lazy: async () => ({
+          Component: (await import("../features/privacy/DeletionPage")).DeletionPage,
+        }),
+        hydrateFallbackElement: <AppPageLoading message="退会画面を読み込んでいます…" />,
+      },
       {
         path: "/account/matches/:matchId",
-        Component: MatchReplayPage,
         loader: matchReplayLoader,
-        ErrorBoundary: MatchReplayErrorPage,
+        lazy: lazyMatchReplayPage(),
         hydrateFallbackElement: <AppPageLoading message="棋譜を読み込んでいます…" />,
       },
       {
         path: "/matches/:matchId",
         id: "public-match",
-        Component: MatchReplayPage,
         loader: publicMatchReplayLoader,
-        ErrorBoundary: MatchReplayErrorPage,
+        lazy: lazyMatchReplayPage(),
         hydrateFallbackElement: <AppPageLoading message="棋譜を読み込んでいます…" />,
       },
       {
@@ -136,9 +197,11 @@ export const router = createBrowserRouter([
       {
         path: "/rooms/:id",
         id: "room",
-        Component: RoomPage,
         loader: roomLoader,
-        ErrorBoundary: RoomErrorPage,
+        lazy: {
+          Component: async () => (await import("../features/room/RoomPage")).RoomPage,
+          ErrorBoundary: async () => (await import("../features/room/RoomPage")).RoomErrorPage,
+        },
         hydrateFallbackElement: <AppPageLoading message="ルームを読み込んでいます…" />,
       },
       {

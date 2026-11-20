@@ -99,10 +99,8 @@ function submit() {
 async function reachGuestSave(offset = 0) {
   requests[offset]!.respond({ user: null });
   await flush();
-  requests[offset + 1]!.respond({ user: null });
-  await flush();
-  expect(requests[offset + 2]!.url).toBe("/api/account/guest");
-  return requests[offset + 2]!;
+  expect(requests[offset + 1]!.url).toBe("/api/account/guest");
+  return requests[offset + 1]!;
 }
 
 test("初期表示とシャッフルは保存せず、連続して別のプリセットを表示・読み上げ、閉じると下書きを破棄する", async () => {
@@ -140,7 +138,12 @@ test("全6ゲームの作成・CPU・参加は初期／変更済みアイコン�
       const selected = preview()!;
       submit();
       expect(shuffle().disabled).toBe(true);
-      const save = await reachGuestSave(offset);
+      const isJoin = intent === "join";
+      if (isJoin) {
+        requests[offset]!.respond({ user: null });
+        await flush();
+      }
+      const save = await reachGuestSave(offset + (isJoin ? 1 : 0));
       expect(JSON.parse(String(save.init.body))).toEqual({
         name: "参加者",
         avatarPresetId: selected.split("/").at(-1),
@@ -149,7 +152,7 @@ test("全6ゲームの作成・CPU・参加は初期／変更済みアイコン�
       await flush();
       expect(preview()).toBe(selected);
       expect(shuffle().disabled).toBe(false);
-      expect(requests).toHaveLength(offset + 3);
+      expect(requests).toHaveLength(offset + (isJoin ? 3 : 2));
       rerender(view, null);
     }
   }
@@ -171,49 +174,61 @@ test("プロフィール保存後にルーム作成が失敗しても保存済�
   const user = { ...guestProfile("参加者"), avatarPresetId: preset, avatarUrl: selected };
   save.respond(user, 201);
   await flush();
-  requests[3]!.respond({ user });
+  requests[2]!.respond({ user });
   await flush();
-  expect(requests[4]!.url).toBe("/api/rooms");
-  requests[4]!.respond({ error: "rate_limited" }, 429);
+  expect(requests[3]!.url).toBe("/api/rooms?snapshot=1");
+  requests[3]!.respond({ error: "rate_limited" }, 429);
   await flush();
   expect(preview()).toBe(selected);
   expect(shuffle()).toBeNull();
   submit();
-  requests[5]!.respond({ user });
+  requests[4]!.respond({ user });
   await flush();
-  expect(requests[6]!.url).toBe("/api/rooms");
+  expect(requests[5]!.url).toBe("/api/rooms?snapshot=1");
   expect(requests.filter((r) => r.url === "/api/account/guest")).toHaveLength(1);
   rerender(view, null);
 });
 
-test("別タブで先に保存されたプロフィールは上書きせず、表示を更新して再確認後だけ進む", async () => {
-  render(
-    wrap()(
-      <Session>
-        <Entry />
-      </Session>,
-    ),
-  );
-  await flush();
-  submit();
-  requests[0]!.respond({ user: null });
-  await flush();
-  const user = {
-    ...guestProfile("先に保存"),
-    avatarPresetId: avatarPresets[5].id,
-    avatarUrl: avatarPresetUrl(avatarPresets[5].id),
-  };
-  requests[1]!.respond({ user });
-  await flush();
-  expect(requests).toHaveLength(2);
-  expect(dialog().textContent).toContain(guestIdentityChangedMessage);
-  expect(dialog().textContent).toContain(user.name);
-  expect(preview()).toBe(user.avatarUrl);
-  submit();
-  requests[2]!.respond({ user });
-  await flush();
-  expect(requests[3]!.url).toBe("/api/rooms");
-});
+test.each([
+  { label: "名前入力済みの作成", intent: "create", name: "参加者" },
+  { label: "名前未入力の作成", intent: "create", name: "" },
+  { label: "名前未入力のCPU対局", intent: "quick", name: "" },
+] as const)(
+  "$label は別タブで先に保存されたプロフィールを再確認してから進む",
+  async ({ intent, name }) => {
+    localStorage.setItem("tetraboard:guest-name", name);
+    render(
+      wrap()(
+        <Session>
+          <Entry intent={intent} />
+        </Session>,
+      ),
+    );
+    await flush();
+    expect(dialog().querySelector("input")?.value).toBe(name);
+    submit();
+    const user = {
+      ...guestProfile("先に保存"),
+      avatarPresetId: avatarPresets[5].id,
+      avatarUrl: avatarPresetUrl(avatarPresets[5].id),
+    };
+    expect(requests[0]?.url).toBe("/api/account/session");
+    expect(requests[0]?.init.method ?? "GET").toBe("GET");
+    requests[0]!.respond({ user });
+    await flush();
+    expect(requests).toHaveLength(1);
+    expect(dialog().textContent).toContain(guestIdentityChangedMessage);
+    expect(dialog().textContent).toContain(user.name);
+    expect(preview()).toBe(user.avatarUrl);
+    submit();
+    requests[1]!.respond({ user });
+    await flush();
+    expect(requests[2]!.url).toBe("/api/rooms?snapshot=1");
+    const body = JSON.parse(String(requests[2]!.init.body));
+    expect(body).not.toHaveProperty("name");
+    expect(body.quickPlay).toBe(intent === "quick");
+  },
+);
 
 test("招待と観戦からの参加も選んだアイコンを保存し、閉じて開き直すと未保存の選択を破棄する", async () => {
   for (const invited of [false, true]) {

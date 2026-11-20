@@ -55,15 +55,13 @@ test("名前未入力・認証障害・Cookie拒否ではルーム作成を送�
   act(() => void hook.current.submitRoom("create"));
   requests[0]!.respond({ user: null });
   await flush();
-  requests[1]!.respond({ user: null });
+  requests[1]!.respond(guestProfile("参加者"), 201);
   await flush();
-  requests[2]!.respond(guestProfile("参加者"), 201);
-  await flush();
-  requests[3]!.respond({ user: null });
+  requests[2]!.respond({ user: null });
   await flush();
   expect(hook.current.message).toContain("Cookie");
   expect(hook.current.name).toBe("参加者");
-  expect(requests.some((r) => r.url === "/api/rooms")).toBe(false);
+  expect(requests.some((r) => r.url.startsWith("/api/rooms"))).toBe(false);
   const count = requests.length;
   act(() => void hook.current.submitRoom("create"));
   requests[count]!.reject(new Error("offline"));

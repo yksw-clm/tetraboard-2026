@@ -15,7 +15,7 @@
 | 番号 | 判断 | 状態 |
 | --- | --- | --- |
 | [0001](0001-incremental-migration.md) | 同じリポジトリの中で段階的に作り替える | 承認済み |
-| [0002](0002-web-and-api-workers.md) | web と api を別の Worker にし、同一オリジンに載せる | 承認済み |
+| [0002](0002-web-and-api-workers.md) | web と api を別の Worker にし、同一オリジンに載せる | 0012 で置き換え |
 | [0003](0003-contexts-and-drizzle.md) | contexts による軽い DDD と drizzle を採用する | 承認済み |
 | [0004](0004-game-contract.md) | 6 ゲームを共通の契約に揃える | 承認済み |
 | [0005](0005-posthog-and-admin.md) | 分析を PostHog へ移し、管理画面を 3 画面に縮小する | 分析の部分を 0009 で置き換え |
@@ -25,3 +25,4 @@
 | [0009](0009-analytics-on-cloudflare.md) | 分析は Cloudflare の中で作り直す | 承認済み |
 | [0010](0010-contexts-and-shell.md) | 文脈の境界と Worker の殻の形 | 承認済み |
 | [0011](0011-game-contract.md) | ゲーム契約の形 | 承認済み |
+| [0012](0012-web-stays-react.md) | web は React のまま、効果のある所を直す | 承認済み |
