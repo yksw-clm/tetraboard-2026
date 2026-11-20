@@ -5,71 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1794706489132,
+      "when": 1795081106170,
       "tag": "0000_baseline",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1794717837933,
-      "tag": "0001_drop_account_insights_ready",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1794830220206,
-      "tag": "0002_generalize_match_tables",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1794840130791,
-      "tag": "0003_consolidate_rating_tables",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1794900826738,
-      "tag": "0004_tournament_point_events_entry",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1794997806088,
-      "tag": "0005_announcements_published_on",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1795048544429,
-      "tag": "0006_room_index_retention",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1795057623494,
-      "tag": "0007_drop_community_triggers",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1795060973764,
-      "tag": "0008_drop_privacy_triggers",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "6",
-      "when": 1795069442257,
-      "tag": "0009_drop_announcements_date",
       "breakpoints": true
     }
   ]

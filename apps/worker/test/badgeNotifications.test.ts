@@ -1,5 +1,4 @@
 import { seedStoredMatches } from "./storedMatchFixtures";
-import { encodeSnapshotMatch } from "../src/adapters/record/snapshotMatchEvents";
 import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
 import { expect, test } from "vitest";
@@ -10,7 +9,7 @@ import { humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
 import { createInitialState, eliminateColor } from "@tetraboard/four-reversi";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { badgeNotificationResponseSchema } from "@tetraboard/protocol";
-import { badgeAwardStatements, badgeAwardsSql } from "../src/adapters/record/badgeAwards";
+import { badgeAwardsSql } from "../src/adapters/record/badgeAwards";
 import { fourReversiRatingMethod } from "@tetraboard/context-rating";
 
 const db = env.APP_DB;
@@ -251,40 +250,23 @@ test("migration snapshots historical badges without notifications and detects th
   const migrations = (
     env as typeof env & { TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1] }
   ).TEST_MIGRATIONS;
-  const database = (env as typeof env & { BADGE_MIGRATION_TEST_DB: D1Database })
-    .BADGE_MIGRATION_TEST_DB;
-  const last = migrations.find((m) => m.name.includes("0013_badge_notifications"))!;
-  await applyD1Migrations(
-    database,
-    migrations.filter((m) => m.name < last.name),
-  );
+  const database = (env as typeof env & { HISTORICAL_BADGE_TEST_DB: D1Database })
+    .HISTORICAL_BADGE_TEST_DB;
+  await applyD1Migrations(database, migrations);
   const user = await accountFixture(true, crypto.randomUUID(), database);
-  // チャンク表ができる前のmigrationを検証するため、集計に使う本体だけを現行形式で入れます。
-  for (let i = 1; i <= 19; i++) {
-    const record = winningRecord(user.id, i);
-    await database.batch([
-      database
-        .prepare("INSERT INTO matches VALUES (?, ?, ?, ?, ?, ?)")
-        .bind(
-          record.id,
-          "four-reversi",
-          "singles",
-          record.startedAtMs,
-          record.endedAtMs,
-          JSON.stringify(encodeSnapshotMatch(record).record),
-        ),
-      database
-        .prepare(
-          "INSERT INTO account_match_history (account_id, match_id, mode, started_at_ms, game) VALUES (?, ?, ?, ?, ?)",
-        )
-        .bind(user.id, record.id, "singles", record.startedAtMs, "four-reversi"),
-    ]);
-  }
-  const ratedMigration = migrations.find((m) => m.name.includes("rated_badge_baseline"))!;
-  await applyD1Migrations(
+  await seedStoredMatches(
     database,
-    migrations.filter((m) => m.name >= last.name && m.name < ratedMigration.name),
+    Array.from({ length: 19 }, (_, i) => ({ record: winningRecord(user.id, i + 1) })),
   );
+  // 保存済みの基準行は対局IDを持たず、獲得時の通知もありません。
+  await database
+    .prepare(`INSERT INTO account_badge_awards
+      (account_id, game, badge_id, tier, value, previous_tier, match_id)
+      VALUES (?1,'four-reversi','games',1,19,0,NULL),
+             (?1,'four-reversi','wins',1,19,0,NULL),
+             (?1,'four-reversi','wins',2,19,0,NULL)`)
+    .bind(user.id)
+    .run();
   const baseline = await database
     .prepare("SELECT badge_id, MAX(tier) AS tier FROM account_badge_awards GROUP BY badge_id")
     .all();
@@ -295,7 +277,7 @@ test("migration snapshots historical badges without notifications and detects th
   expect(
     (await database.prepare("SELECT * FROM account_badge_notifications").all()).results,
   ).toEqual([]);
-  // 過去migrationの固定SQLは維持し、新しい本人関係の集計でも基準行が増えないことを確認します。
+  // 現行の集計で基準行が増えないことを確認します。
   for (const game of ["four-reversi", "four-shogi"] as const)
     await database.prepare(badgeAwardsSql(game, true)).bind(game).run();
   expect(
@@ -305,35 +287,23 @@ test("migration snapshots historical badges without notifications and detects th
         .first<{ n: number }>()
     )?.n,
   ).toBe(3);
-  await writeHistoricalMatch(database, humanFixtureRecord(user.id, 20));
+  await writeMatch(database, humanFixtureRecord(user.id, 20));
   const response = await operation(user, "claim", crypto.randomUUID(), undefined, database);
   expect(badgeNotificationResponseSchema.parse(await response.json()).notification?.badges).toEqual(
     [{ id: "games", tier: 2, previousTier: 1, value: 20 }],
   );
 
   const ratedUser = await accountFixture(true, crypto.randomUUID(), database);
-  for (let i = 1; i <= 4; i++) {
-    const record = ratedWinningRecord(ratedUser.id, i);
-    await database.batch([
-      database
-        .prepare("INSERT INTO matches VALUES (?, 'four-reversi', 'singles', ?, ?, ?)")
-        .bind(
-          record.id,
-          record.startedAtMs,
-          record.endedAtMs,
-          JSON.stringify(encodeSnapshotMatch(record).record),
-        ),
-      database
-        .prepare(
-          "INSERT INTO account_match_history (account_id, match_id, mode, started_at_ms, game) VALUES (?, ?, 'singles', ?, 'four-reversi')",
-        )
-        .bind(ratedUser.id, record.id, record.startedAtMs),
-    ]);
-  }
-  await applyD1Migrations(
+  await seedStoredMatches(
     database,
-    migrations.filter((m) => m.name >= ratedMigration.name),
+    Array.from({ length: 4 }, (_, i) => ({ record: ratedWinningRecord(ratedUser.id, i + 1) })),
   );
+  await database
+    .prepare(`INSERT INTO account_badge_awards
+      (account_id, game, badge_id, tier, value, previous_tier, match_id)
+      VALUES (?,'four-reversi','wins',1,4,0,NULL)`)
+    .bind(ratedUser.id)
+    .run();
   expect(
     (
       await database
@@ -358,27 +328,3 @@ test("migration snapshots historical badges without notifications and detects th
   ]);
   expect(await count("notification_events")).toBe(1);
 });
-
-// 過去schemaの検証中は、当時の本体保存とバッジ更新だけを行います。
-async function writeHistoricalMatch(
-  database: D1Database,
-  record: ReturnType<typeof humanFixtureRecord>,
-) {
-  await database.batch([
-    database
-      .prepare("INSERT INTO matches VALUES (?, 'four-reversi', 'singles', ?, ?, ?)")
-      .bind(
-        record.id,
-        record.startedAtMs,
-        record.endedAtMs,
-        JSON.stringify(encodeSnapshotMatch(record).record),
-      ),
-    database
-      .prepare(`INSERT INTO account_match_history
-      SELECT json_extract(p.value, '$.accountId'), m.id, m.mode, m.started_at_ms, m.game
-      FROM matches m, json_each(m.record_json, '$.participants') p
-      WHERE m.id = ? AND json_extract(p.value, '$.accountId') IS NOT NULL`)
-      .bind(record.id),
-    ...badgeAwardStatements(database, "four-reversi", record.id),
-  ]);
-}

@@ -1,6 +1,5 @@
 import { seedStoredMatches } from "./storedMatchFixtures";
 import { encodeSnapshotMatch } from "../src/adapters/record/snapshotMatchEvents";
-import { writeOutcomeFixture } from "./matchFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
@@ -82,62 +81,62 @@ test("extended stats rejects unsupported opt-in values", async () => {
 });
 
 test("migration assigns unique UUIDs to existing accounts and keeps previous-code inserts compatible", async () => {
-  const migrations = (
-    env as typeof env & {
-      TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1];
-    }
-  ).TEST_MIGRATIONS;
-  const migration = migrations.find((item) => item.name.includes("0010_player_profiles"))!;
-  await db.exec(
-    "CREATE TABLE preview_migration_user (id TEXT PRIMARY KEY, name TEXT); CREATE TABLE preview_migration_rooms (room_id TEXT PRIMARY KEY);",
+  const existing = await Promise.all(
+    ["one", "two"].map(() => accountFixture(true, crypto.randomUUID(), db)),
   );
+  const oldWorkerId = crypto.randomUUID();
+  const roomId = "12345";
   try {
-    await db.exec(
-      "INSERT INTO preview_migration_user VALUES ('one', '同名'), ('two', '同名'); INSERT INTO preview_migration_rooms VALUES ('12345');",
-    );
-    const sql = migration.queries
-      .join("\n")
-      .replace(/\buser\b/g, "preview_migration_user")
-      .replace(/\broom_index\b/g, "preview_migration_rooms")
-      .replace("user_public_profile_id_idx", "preview_migration_public_id_idx");
-    await db.exec(sql);
     const rows = await db
-      .prepare("SELECT publicProfileId FROM preview_migration_user ORDER BY id")
-      .all<{ publicProfileId: string }>();
-    expect(new Set(rows.results.map((r) => r.publicProfileId)).size).toBe(2);
+      .prepare("SELECT id, publicProfileId FROM user WHERE id IN (?,?) ORDER BY id")
+      .bind(existing[0]!.id, existing[1]!.id)
+      .all<{ id: string; publicProfileId: string }>();
+    expect(new Set(rows.results.map((row) => row.publicProfileId)).size).toBe(2);
     for (const row of rows.results)
       expect(
         playerProfileTargetSchema.safeParse({ source: "profile", profileId: row.publicProfileId })
           .success,
       ).toBe(true);
-    await db.exec(
-      "INSERT INTO preview_migration_user (id, name) VALUES ('old-worker', '登録者'); UPDATE preview_migration_user SET name = '変更名' WHERE id = 'one';",
-    );
+    const [one, two] = rows.results;
+    await db.batch([
+      db
+        .prepare(`INSERT INTO user (id,name,email,emailVerified,createdAt,updatedAt)
+          VALUES (?,'登録者',?,1,1,1)`)
+        .bind(oldWorkerId, oldWorkerId + "@example.test"),
+      db.prepare("UPDATE user SET name='変更名' WHERE id=?").bind(one!.id),
+      db
+        .prepare(`INSERT INTO room_index
+          (room_id,game,mode,main_time_ms,byoyomi_ms,status,human_count,cpu_count,capacity,open_seats,updated_at_ms,revision)
+          VALUES (?,'four-reversi','singles',60000,10000,'waiting',1,0,4,3,1,1)`)
+        .bind(roomId),
+    ]);
     expect(
-      (
-        await db
-          .prepare("SELECT publicProfileId FROM preview_migration_user WHERE id = 'old-worker'")
-          .first()
-      )?.publicProfileId,
+      (await db.prepare("SELECT publicProfileId FROM user WHERE id=?").bind(oldWorkerId).first())
+        ?.publicProfileId,
     ).toBeNull();
     expect(
-      (
-        await db
-          .prepare("SELECT publicProfileId FROM preview_migration_user WHERE id = 'one'")
-          .first()
-      )?.publicProfileId,
-    ).toBe(rows.results[0]!.publicProfileId);
+      (await db.prepare("SELECT publicProfileId FROM user WHERE id=?").bind(one!.id).first())
+        ?.publicProfileId,
+    ).toBe(one!.publicProfileId);
     await expect(
       db
-        .prepare("UPDATE preview_migration_user SET publicProfileId = ? WHERE id = 'two'")
-        .bind(rows.results[0]!.publicProfileId)
+        .prepare("UPDATE user SET publicProfileId=? WHERE id=?")
+        .bind(one!.publicProfileId, two!.id)
         .run(),
     ).rejects.toThrow();
     expect(
-      await db.prepare("SELECT instance_id, host_player_id FROM preview_migration_rooms").first(),
+      await db
+        .prepare("SELECT instance_id, host_player_id FROM room_index WHERE room_id=?")
+        .bind(roomId)
+        .first(),
     ).toEqual({ instance_id: null, host_player_id: null });
   } finally {
-    await db.exec("DROP TABLE preview_migration_user; DROP TABLE preview_migration_rooms;");
+    await db.batch([
+      db
+        .prepare("DELETE FROM user WHERE id IN (?,?,?)")
+        .bind(existing[0]!.id, existing[1]!.id, oldWorkerId),
+      db.prepare("DELETE FROM room_index WHERE room_id=?").bind(roomId),
+    ]);
   }
 });
 for (const game of ["four-reversi", "four-shogi"] as const) {
