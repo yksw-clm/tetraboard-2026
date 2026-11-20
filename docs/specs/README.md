@@ -24,4 +24,5 @@
 | [analytics.md](analytics.md) | 利用状況の計測 | フェーズ 2 で実装中。実装が終わるまで、今の計測の正本は README の「計測用管理画面」と「管理画面・分析の改修仕様」 |
 | [matchmaking.md](matchmaking.md) | レート戦の待機、組み合わせ、入室と開始 | 移行済み（TB-115） |
 | [privacy.md](privacy.md) | プライバシーポリシーと利用規約、同意、公開情報、アカウント削除、保存期間 | 移行済み（TB-150） |
+| [room-sharing.md](room-sharing.md) | ルーム共有（共有ダイアログ、X での募集、ルーム向けの OGP） | 移行済み（TB-183） |
 | [tournament.md](tournament.md) | 大会の定義と公開、エントリー、待機と組み合わせ、勝ち点と順位、結果の確定、大会チャット、管理 | 移行済み（TB-119） |
