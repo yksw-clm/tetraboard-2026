@@ -5,6 +5,7 @@ import {
   fourShogiMatchDetailSchema,
   matchSummarySchema,
 } from "@tetraboard/protocol";
+import { matchPostText } from "@tetraboard/protocol/match-sharing";
 import { reversiArchives, shogiArchives } from "../../../test-fixtures/matches";
 import FourReversiMatchReplayView from "../src/features/room/FourReversiMatchReplayView";
 import FourShogiMatchReplayView from "../src/features/room/FourShogiMatchReplayView";
@@ -13,6 +14,7 @@ import { matchReplayLoader } from "../src/features/room/matchReplayLoader";
 import { fetchFourShogiMatchReplay } from "../src/features/room/fourShogiMatchReplay";
 import { MatchHistoryCard } from "../src/features/matches/MatchHistoryCard";
 import { simultaneousMateFrames } from "../test/fixtures/shogiKnockouts";
+import { shogiRoundWithoutHumans } from "../test/fixtures/fourShogiFixtures";
 import { token } from "../test/fixtures/rooms";
 import { AccountContext } from "../src/features/account/useAccount";
 import { act, clock, flush, press, render, requests, wrap } from "./harness";
@@ -117,6 +119,55 @@ test("固定棋譜5種を表示し、局面・回転操作は通信せず参加�
     await flush();
   }
   expect(sessionStorage.getItem("tetraboard:room:12345:membership")).toBe(token);
+});
+
+test("最後の人間の投了を再生し、保存済み棋譜に終局理由を表示する", async () => {
+  const { playing, ended, event } = shogiRoundWithoutHumans();
+  const round = ended.lastRound!;
+  const match = fourShogiMatchDetailSchema.parse({
+    ...shogiArchives[0]!.detail,
+    settings: playing.settings,
+    selfPlayerId: playing.players[0]!.id,
+    participants: round.players.map((player, seat) => ({
+      id: player.id,
+      name: player.name,
+      side: player.side,
+      seat,
+      ...(player.appearance?.kind === "cpu"
+        ? { kind: "cpu", level: player.appearance.level }
+        : { kind: "human", avatarUrl: null }),
+    })),
+    game: round.game,
+    replay: {
+      rulesVersion: 1,
+      initial: {
+        mode: "singles",
+        players: round.game.players,
+        threePlayerAttackProhibited: true,
+      },
+      eventCount: 1,
+    },
+  });
+  const loaded = fetchFourShogiMatchReplay(match, new AbortController().signal);
+  requests.at(-1)!.respond({
+    matchId: match.id,
+    ...match.replay,
+    events: [{ index: 0, event }],
+    nextCursor: null,
+  });
+  const frames = await loaded;
+  expect(frames.map(({ game }) => game.status)).toEqual(["playing", "finished"]);
+  expect(frames.at(-1)?.game).toEqual(round.game);
+  const view = render(wrap()(<FourShogiMatchReplayView match={match} frames={frames} />));
+  await flush();
+  press(view, "結果");
+  await flush();
+  expect(document.querySelector('[aria-label="対局結果の詳細"]')?.textContent).toContain(
+    "終局理由：人間のプレイヤーがいなくなったため",
+  );
+  expect(matchPostText(match, playing.players[0]!.id, "https://example.com/match")).toContain(
+    "四人将棋で4位でした！",
+  );
 });
 
 test("棋譜エラーは400・404の案内と503の再試行を分け、再試行をロックして成功へ戻る", async () => {

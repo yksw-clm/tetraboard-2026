@@ -21,7 +21,7 @@ export async function fetchEventReplay<I, E, S, F extends { game: { status: stri
   validateInitial: (initial: I) => boolean;
   rules: {
     initialize: (initial: I) => S;
-    applyEvent: (state: S, event: E) => { ok: false } | { ok: true; state: S };
+    applyEvent: (state: S, event: E, last: boolean) => { ok: false } | { ok: true; state: S };
     createFrame: (state: S, transition?: { before: S; event: E }) => F;
   };
   finalGame: unknown;
@@ -62,7 +62,7 @@ export async function fetchEventReplay<I, E, S, F extends { game: { status: stri
       if (signal.aborted) throw new DOMException("Aborted", "AbortError");
       if (entry.index !== cursor || state === null) throw new Error("Replay event index mismatch");
       const before = state;
-      const result = rules.applyEvent(before, entry.event);
+      const result = rules.applyEvent(before, entry.event, cursor + 1 === page.eventCount);
       if (!result.ok) throw new Error("Replay event is invalid");
       state = result.state;
       frames.push(rules.createFrame(state, { before, event: entry.event }));

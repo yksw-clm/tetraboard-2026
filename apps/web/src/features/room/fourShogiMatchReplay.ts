@@ -26,7 +26,11 @@ export function fetchFourShogiMatchReplay(
       return page;
     },
     validateInitial: (initial) => replayDataEqual(initial, match.replay.initial),
-    rules: getFourShogiDisplayReplayRules(match.replay.rulesVersion),
+    rules: getFourShogiDisplayReplayRules(
+      match.replay.rulesVersion,
+      match.game.result.reason,
+      new Map(match.participants.map(({ side, kind }) => [side, kind])),
+    ),
     finalGame: fourShogiPublicStateSchema.parse(match.game),
   });
 }

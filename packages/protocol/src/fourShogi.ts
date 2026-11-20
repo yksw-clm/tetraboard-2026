@@ -48,7 +48,7 @@ export const fourShogiEliminationSchema = z.strictObject({
 const result = z.discriminatedUnion("mode", [
   z.strictObject({
     mode: z.literal("singles"),
-    reason: z.enum(["last_player", "no_survivors", "repetition", "agreement"]),
+    reason: z.enum(["last_player", "no_survivors", "repetition", "agreement", "no_humans"]),
     standings: z.array(z.strictObject({ side: fourShogiSideSchema, rank: z.int().min(1).max(4) })),
   }),
   z.strictObject({

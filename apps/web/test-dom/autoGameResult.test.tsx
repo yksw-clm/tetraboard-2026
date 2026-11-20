@@ -31,7 +31,11 @@ import {
   playerIds,
   token,
 } from "../test/fixtures/rooms";
-import { finishedShogiRound, playingShogiRoom } from "../test/fixtures/fourShogiFixtures";
+import {
+  finishedShogiRound,
+  playingShogiRoom,
+  shogiRoundWithoutHumans,
+} from "../test/fixtures/fourShogiFixtures";
 import {
   standardPlayingRoom,
   standardSavedRound,
@@ -330,6 +334,26 @@ for (const { playing, ended, renderDetail } of rounds()) {
     }
   }
 }
+
+test("最後の人間が脱落するとルームの結果に終局理由を表示する", async () => {
+  const { playing, ended } = shogiRoundWithoutHumans();
+  const { renderDetail } = pair(playing, ended, FourShogiRoomDetail);
+  sessionStorage.setItem(`tetraboard:room:${playing.id}:membership`, token);
+  render(wrap(profile)(renderDetail(false)));
+  const socket = Socket.instances.at(-1)!;
+  act(() => {
+    socket.open();
+    socket.snapshot(playing);
+    socket.receive({ type: "room.authenticated", membership });
+    socket.snapshot(ended);
+  });
+  await flush();
+  clock.advance(1000);
+  await flush();
+  expect(document.querySelector('[aria-label="対局結果の詳細"]')?.textContent).toContain(
+    "終局理由：人間のプレイヤーがいなくなったため",
+  );
+});
 
 test("アカウント席からログアウトしてもゲスト対局の登録案内を出さない", async () => {
   const { playing, ended, renderDetail } = rounds()[0]!;

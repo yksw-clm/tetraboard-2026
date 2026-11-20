@@ -44,7 +44,7 @@ export type MoveRecord = Readonly<{
 export type GameResult =
   | Readonly<{
       mode: "singles";
-      reason: "last_player" | "no_survivors" | "repetition" | "agreement";
+      reason: "last_player" | "no_survivors" | "repetition" | "agreement" | "no_humans";
       standings: readonly Readonly<{ side: Side; rank: number }>[];
     }>
   | Readonly<{
