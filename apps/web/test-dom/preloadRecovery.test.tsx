@@ -215,6 +215,24 @@ test("既存のルーム・棋譜のHTTPエラーは専用案内を保ち、自�
   expect(reload).not.toHaveBeenCalled();
 });
 
+test("公開棋譜とマイページの棋譜を続けて開いても、それぞれ専用案内を表示する", async () => {
+  const { router } = await import("../src/app/router");
+  const view = render(<RouterProvider router={router} />);
+  for (const [path, backLabel] of [
+    ["/matches/invalid", "ロビーへ戻る"],
+    ["/account/matches/invalid", "マイページへ戻る"],
+  ] as const) {
+    await act(async () => {
+      await router.navigate(path);
+    });
+    expect(view.querySelector('[role="alert"]')?.textContent).toContain(
+      "棋譜のURLが正しくありません。",
+    );
+    expect(view.textContent).toContain(backLabel);
+  }
+  expect(reload).not.toHaveBeenCalled();
+});
+
 for (const game of ["four-reversi", "four-shogi"] as const) {
   for (const page of ["room", "replay"] as const) {
     test(`${game}の${page}のReact.lazy失敗は個別エラー境界から共通復旧へ進む`, async () => {
