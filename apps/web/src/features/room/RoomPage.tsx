@@ -32,15 +32,15 @@ function LiveRoom({ data }: { data: RoomLoaderData }) {
     }
     case "four-gomoku": {
       const View = liveViews["four-gomoku"];
-      return <View key={data.room.id} {...common} initialRoom={data.room} />;
+      return <View key={key} {...common} initialRoom={data.room} />;
     }
     case "gomoku": {
       const View = liveViews.gomoku;
-      return <View key={data.room.id} {...common} initialRoom={data.room} />;
+      return <View key={key} {...common} initialRoom={data.room} />;
     }
     case "reversi": {
       const View = liveViews.reversi;
-      return <View key={data.room.id} {...common} initialRoom={data.room} />;
+      return <View key={key} {...common} initialRoom={data.room} />;
     }
     case "four-reversi": {
       const View = liveViews["four-reversi"];
