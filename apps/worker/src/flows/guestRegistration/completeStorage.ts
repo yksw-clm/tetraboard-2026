@@ -1,7 +1,7 @@
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { roomSchema, type Room, type RoomMembership } from "@tetraboard/protocol";
 import type { AccountAdmission } from "../accountSeats/types";
-import { profileAvatarUrl } from "../../accounts/auth";
+import { profileAvatarUrl } from "../../adapters/account/auth";
 import {
   accountKey,
   membershipStorageKey,
@@ -9,13 +9,13 @@ import {
   disconnectedAtKey,
   reconnectGraceMs,
 } from "../../durableObjects/gameRoom/storageKeys";
-import { roomStorageKey, nextPublicUpdateAt } from "../../rooms/progressHelpers";
+import { roomStorageKey, nextPublicUpdateAt } from "../../adapters/room/games/progressHelpers";
 import { analyticsPlayerKey, type AnalyticsIdentity } from "../../usageEvents/matches";
 import {
   activeRegistrationKey,
   registrationKey,
   type StoredGuestRegistration,
-} from "../../rooms/registrationTypes";
+} from "../../adapters/account/registrationTypes";
 
 export function persistRegistrationCredentials(
   runtime: RoomRuntime,

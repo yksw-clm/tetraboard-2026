@@ -2,7 +2,7 @@ import { type Room, type RoomMembership } from "@tetraboard/protocol";
 import { refreshLobbyIndex as refreshIndex } from "../../adapters/room/indexJob";
 import { publicMetadata } from "../../adapters/room/metadata";
 import { currentRoomMembership, readRoom } from "../../adapters/room/state";
-import { roomFormationAnalysis } from "../../rooms/fourShogiFormationAnalysis";
+import { roomFormationAnalysis } from "../../adapters/record/fourShogiFormationAnalysis";
 import type { RoomRuntime } from "./runtime";
 import { presence } from "./snapshots";
 

@@ -1,5 +1,5 @@
 import { accountAvatarPresetId } from "@tetraboard/protocol";
-import { avatarKeyPattern, type StoredProfile } from "../../accounts/auth";
+import { avatarKeyPattern, type StoredProfile } from "../../adapters/account/auth";
 import { updateLinkedSeat } from "../../adapters/account/registrationSeats";
 import { D1RegistrationWrites } from "../../adapters/account/registrationWrites";
 import { guestRoomLinkComplete, RegistrationError, type RegistrationFlow } from "./account";

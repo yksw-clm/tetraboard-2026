@@ -1,6 +1,6 @@
 import { declareShogi, play, resign, setShogiDrawProposal } from "../../../adapters/room/commands";
 import { startGame } from "../../../adapters/room/startGame";
-import type { ActionCommand } from "../../../rooms/gameAdapters/types";
+import type { ActionCommand } from "../../../adapters/room/games/types";
 import type { RoomRuntime, SocketCommand } from "../runtime";
 import { rejectAction, sendRoomSnapshot } from "../snapshots";
 

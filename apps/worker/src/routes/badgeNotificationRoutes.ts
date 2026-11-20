@@ -7,7 +7,7 @@ import {
   badgeNotificationResponseSchema,
   getBadgeIds,
 } from "@tetraboard/protocol";
-import { accountIdentity, type StoredProfile } from "../accounts/auth";
+import { accountIdentity, type StoredProfile } from "../adapters/account/auth";
 
 export const badgeNotificationRoutes = new Hono<{
   Bindings: Env;

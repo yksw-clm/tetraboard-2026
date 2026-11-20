@@ -11,7 +11,7 @@ import {
   feedbackSummarySchema,
 } from "@tetraboard/protocol";
 import { editFeedback } from "@tetraboard/context-community";
-import type { StoredProfile } from "../accounts/auth";
+import type { StoredProfile } from "../adapters/account/auth";
 import { adminIdentity } from "../admin/auth";
 import {
   createFeedbackTopic,

@@ -1,7 +1,7 @@
 import { membershipTokenSchema, roomSchema, type Room } from "@tetraboard/protocol";
 import { isHumanParticipant, readMembership, readRoom } from "../../adapters/room/state";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import { roomStorageKey } from "../../rooms/progressHelpers";
+import { roomStorageKey } from "../../adapters/room/games/progressHelpers";
 import {
   activeRegistrationKey,
   guestRegistrationState,
@@ -12,7 +12,7 @@ import {
   type BeginGuestRegistrationResult,
   type GuestRegistrationInput,
   type StoredGuestRegistration,
-} from "../../rooms/registrationTypes";
+} from "../../adapters/account/registrationTypes";
 import { storedAccount } from "../accountSeats/seats";
 import { registrationForPlayer } from "./records";
 

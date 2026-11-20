@@ -9,9 +9,9 @@ import {
   shogiRoomSchema,
 } from "@tetraboard/protocol";
 import { getActionAvailability, getCheckState, type ShogiState } from "@tetraboard/shogi";
-import { StandardShogiStore } from "../src/rooms/standardShogiStore";
+import { StandardShogiStore } from "../src/adapters/room/games/shogi/store";
 import { enteringState, goldCycle } from "./standardShogiFixtures";
-import { ShogiProgress, type ShogiCpuJob } from "../src/rooms/standardShogiProgress";
+import { ShogiProgress, type ShogiCpuJob } from "../src/adapters/room/games/shogi/progress";
 import { RoomBoundaryFixtures, boundaryRequest, boundaryJson } from "./roomBoundaryFixtures";
 let fixtures: RoomBoundaryFixtures;
 beforeEach(() => {

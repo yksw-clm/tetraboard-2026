@@ -4,7 +4,7 @@ import {
   encodeSnapshotMatch,
   rebuildSnapshotMatch,
   type SnapshotMatch,
-} from "../../rooms/snapshotMatchEvents";
+} from "../../adapters/record/snapshotMatchEvents";
 import { verifyFinalState, verifySnapshotReplay } from "@tetraboard/context-record";
 
 type UploadRecord = {

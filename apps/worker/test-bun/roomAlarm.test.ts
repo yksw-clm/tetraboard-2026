@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { isFourShogiRoom, matchmakingRules, tournamentRules } from "@tetraboard/protocol";
-import { nextRoomAlarmAt, type RoomAlarmInput } from "../src/rooms/roomAlarm";
+import { nextRoomAlarmAt, type RoomAlarmInput } from "../src/adapters/room/roomAlarm";
 import { roomFixture } from "./roomStateFixtures";
 
 type Retry = { retryAtMs: number };

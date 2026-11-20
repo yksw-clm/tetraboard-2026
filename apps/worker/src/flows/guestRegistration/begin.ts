@@ -11,7 +11,7 @@ import {
   type BeginGuestRegistrationResult,
   type GuestRegistrationInput,
   type StoredGuestRegistration,
-} from "../../rooms/registrationTypes";
+} from "../../adapters/account/registrationTypes";
 import { beginRegistrationSeat } from "./beginSeat";
 import { originalMatchAccounts } from "./claims";
 import { registrationView } from "./records";

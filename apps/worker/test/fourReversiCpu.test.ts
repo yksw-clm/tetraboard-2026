@@ -17,8 +17,8 @@ import {
   FourReversiProgress,
   fourReversiCpuJobKey,
   type FourReversiCpuJob,
-} from "../src/rooms/fourReversiProgress";
-import { matchStartKey } from "../src/rooms/matchStore";
+} from "../src/adapters/room/games/four-reversi/progress";
+import { matchStartKey } from "../src/adapters/record/matchStore";
 
 let fixtures = new RoomBoundaryFixtures();
 afterEach(async () => {

@@ -1,11 +1,11 @@
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import { RoomJob } from "../../rooms/roomJobs";
+import { RoomJob } from "./roomJobs";
 import {
   pendingShogiMatchPrefix,
   pendingStandardShogiMatchPrefix,
   type PendingShogiMatch,
   type PendingStandardShogiMatch,
-} from "../../rooms/shogiMatchStore";
+} from "../record/shogiMatchStore";
 import { advanceShogiMatchSave } from "../../flows/matchSave/shogi";
 import { readRoom } from "./state";
 

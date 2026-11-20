@@ -1,7 +1,7 @@
 import { roomSchema } from "@tetraboard/protocol";
 import { isHumanParticipant, readMembership, readRoom } from "../../adapters/room/state";
 import { withIndexTransaction } from "../../adapters/room/transaction";
-import { roomStorageKey } from "../../rooms/progressHelpers";
+import { roomStorageKey } from "../../adapters/room/games/progressHelpers";
 import { tournamentReturnKey, type TournamentReturn } from "@tetraboard/context-tournament";
 import type { RoomRuntime } from "./runtime";
 import { broadcastRoom, sendSocketError } from "./snapshots";

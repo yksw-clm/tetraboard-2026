@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { expect, test } from "vitest";
-import { writeRoomIndex, type PendingRoomIndex } from "../src/rooms/roomIndex";
+import { writeRoomIndex, type PendingRoomIndex } from "../src/adapters/room/roomIndexWrite";
 import { markDeleted } from "./guestFenceFixtures";
 import { seedMerge } from "./guestMergeRecordFixtures";
 

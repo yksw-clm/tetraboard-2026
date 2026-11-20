@@ -1,4 +1,4 @@
-import { registeredIdentity as accountIdentity, type AuthEnv } from "../accounts/auth";
+import { registeredIdentity as accountIdentity, type AuthEnv } from "../adapters/account/auth";
 export type AdminEnv = AuthEnv & { ADMIN_ACCOUNT_IDS?: string };
 export function adminAccountIds(env: AdminEnv): string[] | null {
   if (env.ADMIN_ACCOUNT_IDS !== undefined) {

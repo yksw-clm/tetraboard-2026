@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { nextDueRoomDeadline, earliestAlarmAt } from "../src/rooms/roomDeadlines";
+import { nextDueRoomDeadline, earliestAlarmAt } from "@tetraboard/context-room";
 
 const players = [
   { id: "first", reconnectDeadline: 100 },

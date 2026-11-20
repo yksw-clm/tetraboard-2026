@@ -1,4 +1,4 @@
-import { accountIdentity } from "../src/accounts/auth";
+import { accountIdentity } from "../src/adapters/account/auth";
 import { mergeGuestAccounts, rememberGuestLink } from "../src/flows/guestRegistration/guestLink";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { env } from "cloudflare:workers";

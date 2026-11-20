@@ -68,6 +68,10 @@ export function withVisitStarted(
   });
 
   if (existingId) return response;
+  return withAnalyticsCookie(response, browserId, url);
+}
+
+function withAnalyticsCookie(response: Response, browserId: string, url: URL): Response {
   const headers = new Headers(response.headers);
   headers.append(
     "Set-Cookie",

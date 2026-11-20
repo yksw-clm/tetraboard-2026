@@ -7,7 +7,7 @@ import {
   guestTokenHash,
   guestLifetimeMs,
 } from "../src/routes/guestSession";
-import { withAccountSessionCookies } from "../src/accounts/auth";
+import { withAccountSessionCookies } from "../src/adapters/account/auth";
 import { accountFixture, origin } from "./accountFixtures";
 import { fixTestTime } from "./fixedTimeFixture";
 const now = 1794900000000;

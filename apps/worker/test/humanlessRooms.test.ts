@@ -13,7 +13,7 @@ import {
 } from "@tetraboard/protocol";
 import { eliminateSide, getLegalActions } from "@tetraboard/four-shogi";
 import { eliminateColor } from "@tetraboard/four-reversi";
-import { ShogiStore } from "../src/rooms/shogiStore";
+import { ShogiStore } from "../src/adapters/room/games/four-shogi/store";
 import { accountFixture, origin } from "./accountFixtures";
 
 type Game = "four-reversi" | "four-shogi";

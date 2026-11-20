@@ -5,7 +5,7 @@ import {
   notificationReadSchema,
   notificationReadAllSchema,
 } from "@tetraboard/protocol";
-import { accountIdentity } from "../accounts/auth";
+import { accountIdentity } from "../adapters/account/auth";
 import { notificationRequestStore } from "../adapters/community/notifications";
 import {
   listNotifications,

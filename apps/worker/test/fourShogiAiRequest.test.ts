@@ -2,7 +2,7 @@ import drawFixture from "../../../test-fixtures/matches/shogi-singles-draw.json"
 import fixture from "../../../test-fixtures/matches/shogi-singles.json";
 import { fourShogiReplayEventSchema } from "@tetraboard/protocol";
 import { expect, test } from "vitest";
-import { requestFourShogiAiMove } from "../src/rooms/aiService";
+import { requestFourShogiAiMove } from "../src/adapters/room/ai/fourShogiAi";
 import {
   calibratedFourShogiProfile,
   selectFourShogi,

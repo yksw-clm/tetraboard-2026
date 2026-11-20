@@ -1,5 +1,5 @@
 import { retiredName } from "@tetraboard/context-privacy";
-import type { AuthEnv } from "../../accounts/auth";
+import type { AuthEnv } from "../../adapters/account/auth";
 import { deactivateDeletedAccountStatements } from "../../adapters/account/deletionWrites";
 import { avatarKeyPattern } from "../../adapters/account/profilePolicy";
 import { hideDeletedFeedbackStatement } from "../../adapters/community/feedbackDeletion";

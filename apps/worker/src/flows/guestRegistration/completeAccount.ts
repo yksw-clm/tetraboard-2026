@@ -1,5 +1,5 @@
 import type { RegistrationIdentity } from "@tetraboard/context-account";
-import type { StoredProfile } from "../../accounts/auth";
+import type { StoredProfile } from "../../adapters/account/auth";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { reserveAccountSeat, cancelReservation } from "../accountSeats/reserve";
 import { RoomAccountError } from "../accountSeats/entryProfile";

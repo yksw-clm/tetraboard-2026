@@ -3,8 +3,8 @@ import { runInDurableObject } from "cloudflare:test";
 import { getLegalActions } from "@tetraboard/four-shogi";
 import { getActionAvailability } from "@tetraboard/shogi";
 import { isFourShogiRoom, isShogiRoom, roomSchema, type GameId } from "@tetraboard/protocol";
-import { ShogiStore } from "../src/rooms/shogiStore";
-import { StandardShogiStore } from "../src/rooms/standardShogiStore";
+import { ShogiStore } from "../src/adapters/room/games/four-shogi/store";
+import { StandardShogiStore } from "../src/adapters/room/games/shogi/store";
 import type { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 
 export async function startCpuRoom(fixtures: RoomBoundaryFixtures, game: GameId, level = 1) {

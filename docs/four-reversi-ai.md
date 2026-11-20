@@ -25,8 +25,8 @@
 | 1      | 開発者の今回の仕様確定指示・承認済みの変更指示                                                                                                                                                                     | 実装範囲と意思決定                                                   |
 | 2      | [AGENTS.md](../AGENTS.md)、[READMEの仕様案内](../README.md#必要な仕様への案内)、[四人リバーシルール](rules/four-reversi.md)                                                                                        | develop運用・確定ルール・CPU仕様                                     |
 | 3      | [開発手順](development.md#共通の作業手順)、[ルームの実装](development.md#ルームの実装の入口)、[ルームの仕様](specs/room.md)、[構成](architecture.md)、[テスト方針](testing.md)     | 責務・時計・保存・配信・検証の制約                                   |
-| 4      | [現エンジン](../packages/four-reversi/src/index.ts)、[現CPU](../packages/four-reversi/src/cpu.ts)、[Worker進行](../apps/worker/src/rooms/fourReversiProgress.ts)、[GameRoom](../apps/worker/src/durableObjects/gameRoom/gameRoom.ts) | 合法性・遷移・公開API・内部保存の実装                                |
-| 5      | [エンジンテスト](../packages/four-reversi/test/)、[CPU待ち時間](../apps/worker/test/cpuRoom.test.ts)、[期限境界](../apps/worker/test/roomDeadlineBoundary.test.ts)、[固定棋譜](../test-fixtures/matches/)          | 回帰と独立した期待値                                                 |
+| 4      | [現エンジン](../packages/four-reversi/src/index.ts)、[現CPU](../packages/four-reversi/src/cpu.ts)、[Worker進行](../apps/worker/src/adapters/room/games/four-reversi/progress.ts)、[GameRoom](../apps/worker/src/durableObjects/gameRoom/gameRoom.ts) | 合法性・遷移・公開API・内部保存の実装                                |
+| 5      | [エンジンテスト](../packages/four-reversi/test/)、[CPU待ち時間](../apps/worker/test/cpuRoom.test.ts)、[期限境界](../apps/worker/test/)、[固定棋譜](../test-fixtures/matches/)          | 回帰と独立した期待値                                                 |
 | 6      | [四人将棋CPU](development.md#四人将棋cpu)、[採用記録](four-shogi-ai.md)、[PR #99](https://github.com/yksw-clm/tetraboard-2026/pull/99)、五目並べのCPUジョブとGit履歴                                               | 探索・処理共有・測定・2段階適用の先例                                |
 | 7      | 前回の簡易終盤調査、必要なら公開棋譜と一次資料                                                                                                                                                                     | 問題集の候補。現行ルールとの差を確認し、外部の重み・棋力を流用しない |
 
@@ -55,7 +55,7 @@
 | 共有着手   | 生成済み合法候補の返す座標・盤面を再利用する内部経路を設け、通常着手と手番・パス・終局まで共有する                                    |
 | 探索・評価 | `cpuSearch.ts`・`cpuEvaluation.ts`・`cpuForecast.ts` を分離する。根の全候補・反復深化・予算・全読み・キャッシュ・元の列挙順を管理する |
 | 測定       | `packages/four-reversi/bench/` に対戦・戦術・性能・集計を置く。長時間benchを通常testへ組み込まない                                    |
-| Worker     | `fourReversiProgress.ts` の内部ジョブ、`gameRoom.ts` のAlarm選択・適用・破棄を変更する。通常リバーシなど他ゲームの方式は維持する      |
+| Worker     | `adapters/room/games/four-reversi/` の進行の内部ジョブ、`gameRoom.ts` のAlarm選択・適用・破棄を変更する。通常リバーシなど他ゲームの方式は維持する      |
 
 ### Workerの選択保存と適用
 

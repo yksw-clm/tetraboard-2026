@@ -6,7 +6,7 @@ import {
   completeExternalCpu,
   type ExternalCpuJob,
   type ExternalCpuRuntime,
-} from "../src/rooms/externalCpu";
+} from "../src/adapters/room/ai/externalCpu";
 
 interface Types {
   state: number;

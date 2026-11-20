@@ -1,0 +1,251 @@
+import { defaultGameId, gameCatalog, type GameId } from "@tetraboard/protocol/games";
+import { matchKindSchema, roomPublicMetadataSchema } from "@tetraboard/protocol";
+import { lobbyRoomCardSchema, type LobbyRoomsQuery } from "@tetraboard/protocol/general-lobby";
+import { indexedParticipantsSchema } from "./roomIndexParticipants";
+
+type IndexRow = {
+  room_id: string;
+  tournament_id: number | null;
+  matchmaking: number;
+  match_kind: string | null;
+  match_sequence: number | null;
+  instance_id: string | null;
+  host_player_id: string | null;
+  game: string;
+  mode: string;
+  main_time_ms: number;
+  byoyomi_ms: number;
+  status: string;
+  host_name: string | null;
+  host_avatar_url: string | null;
+  human_count: number;
+  cpu_count: number;
+  capacity: number;
+  open_seats: number;
+  updated_at_ms: number;
+  revision: number;
+  participants_json: string | null;
+};
+
+const lobbyRoomPriority =
+  "CASE WHEN status='waiting' AND open_seats>0 THEN 0 WHEN status='waiting' THEN 1 ELSE 2 END";
+
+async function readLobbyRoomCards(db: D1Database, query: LobbyRoomsQuery) {
+  const conditions = ["closed=0", "status IN ('waiting','playing')"];
+  const values: (string | number)[] = [];
+  for (const [column, value] of [
+    ["game", query.game],
+    ["capacity", query.capacity],
+    ["mode", query.mode],
+  ] as const) {
+    if (value !== undefined) {
+      conditions.push(`${column}=?`);
+      values.push(column === "capacity" ? Number(value) : value);
+    }
+  }
+  if (query.joinable === "true") conditions.push("status='waiting' AND open_seats>0");
+  const where = conditions.join(" AND ");
+  const [rank, at, id] = query.cursor?.split(":") ?? [];
+  const cursorWhere = query.cursor
+    ? `AND (${lobbyRoomPriority}>? OR (${lobbyRoomPriority}=? AND (updated_at_ms<? OR (updated_at_ms=? AND room_id<?))))`
+    : "";
+  const [count, page] = await db.batch<{ total_count: number } | (IndexRow & { priority: number })>(
+    [
+      db.prepare(`SELECT COUNT(*) AS total_count FROM room_index WHERE ${where}`).bind(...values),
+      db
+        .prepare(`SELECT *, ${lobbyRoomPriority} AS priority FROM room_index WHERE ${where}
+      ${cursorWhere} ORDER BY priority,updated_at_ms DESC,room_id DESC LIMIT 21`)
+        .bind(
+          ...values,
+          ...(query.cursor ? [Number(rank), Number(rank), Number(at), Number(at), id] : []),
+        ),
+    ],
+  );
+  return {
+    totalCount: (count.results[0] as { total_count: number }).total_count,
+    rows: page.results as (IndexRow & { priority: number })[],
+  };
+}
+
+export async function listLobbyRoomCards(
+  env: Pick<Env, "APP_DB" | "GAME_ROOM">,
+  query: LobbyRoomsQuery,
+) {
+  // 旧索引だけをDOから再発行し、退会処理を経たD1の値を読み直します。
+  for (let attempt = 0; attempt <= 3; attempt++) {
+    const page = await readLobbyRoomCards(env.APP_DB, query);
+    const rows = page.rows.slice(0, 20);
+    const incomplete = rows.filter(
+      (row) => row.participants_json === null || row.instance_id === null,
+    );
+    if (incomplete.length === 0 && query.includeMatchKind === "1" && attempt === 0) {
+      const missingKinds = rows.filter((row) => row.match_kind === null);
+      if (missingKinds.length) {
+        await Promise.allSettled(
+          missingKinds.map((row) =>
+            env.GAME_ROOM.getByName(row.room_id).refreshLobbyIndex(row.instance_id, row.revision),
+          ),
+        );
+        continue;
+      }
+    }
+    if (incomplete.length === 0) {
+      const last = rows.at(-1);
+      return {
+        rooms: rows.map((row) => lobbyRoomCard(row, query)),
+        totalCount: page.totalCount,
+        nextCursor:
+          page.rows.length > 20 && last
+            ? `${last.priority}:${last.updated_at_ms}:${last.room_id}`
+            : null,
+      };
+    }
+    if (attempt === 3) break;
+    await Promise.all(
+      incomplete.map((row) =>
+        env.GAME_ROOM.getByName(row.room_id).refreshLobbyIndex(row.instance_id, row.revision),
+      ),
+    );
+  }
+  throw new Error("Participant previews could not be refreshed");
+}
+
+function lobbyRoomCard(row: IndexRow, query: LobbyRoomsQuery) {
+  return lobbyRoomCardSchema.parse({
+    ...parseRow(row, true),
+    ...(query.includeMatchKind === "1"
+      ? { matchKind: matchKindSchema.parse(row.match_kind ?? "unknown") }
+      : {}),
+    ...(query.includeMatchSequence === "1" &&
+    row.match_sequence !== null &&
+    (row.match_kind === "rated" || row.match_kind === "tournament")
+      ? { matchSequence: row.match_sequence }
+      : {}),
+    instanceId: row.instance_id,
+    participants: indexedParticipantsSchema
+      .parse(JSON.parse(row.participants_json!))
+      .map(({ playerId, appearance }) =>
+        appearance.kind === "cpu"
+          ? appearance
+          : {
+              ...appearance,
+              profileTarget: appearance.retired
+                ? null
+                : {
+                    source: "room" as const,
+                    roomId: row.room_id,
+                    instanceId: row.instance_id,
+                    playerId,
+                  },
+            },
+      ),
+  });
+}
+
+function parseRow(row: IndexRow, preview: boolean) {
+  return {
+    ...(preview && row.instance_id
+      ? {
+          profileTarget: row.host_player_id
+            ? {
+                source: "room" as const,
+                roomId: row.room_id,
+                instanceId: row.instance_id,
+                playerId: row.host_player_id,
+              }
+            : null,
+        }
+      : {}),
+    ...roomPublicMetadataSchema.parse({
+      id: row.room_id,
+      ...(row.matchmaking ? { matchmaking: true as const } : {}),
+      ...(row.tournament_id ? { tournamentId: row.tournament_id } : {}),
+      game: row.game,
+      mode: gameCatalog[roomPublicMetadataSchema.shape.game.parse(row.game)].hasModes
+        ? row.mode
+        : undefined,
+      timeControl: { mainTimeMs: row.main_time_ms, byoyomiMs: row.byoyomi_ms },
+      status: row.status,
+      hostName: row.host_name,
+      hostAvatarUrl: row.host_avatar_url,
+      humanCount: row.human_count,
+      cpuCount: row.cpu_count,
+      capacity: row.capacity,
+      openSeats: row.open_seats,
+      updatedAtMs: row.updated_at_ms,
+    }),
+  };
+}
+
+export async function listRoomIndex(
+  db: D1Database,
+  cursor: { updatedAtMs: number; id: string } | null,
+  game: GameId = defaultGameId,
+  preview = false,
+) {
+  const query = `SELECT room_id, game, mode, main_time_ms, byoyomi_ms, status,
+      host_name, host_avatar_url, human_count, cpu_count, capacity, open_seats, updated_at_ms, instance_id, host_player_id, tournament_id, matchmaking
+    FROM room_index
+    WHERE closed = 0 AND status IN ('waiting', 'playing') AND game = ?`;
+  const statement = cursor
+    ? db
+        .prepare(
+          `${query} AND (updated_at_ms < ? OR (updated_at_ms = ? AND room_id < ?))
+           ORDER BY updated_at_ms DESC, room_id DESC LIMIT 21`,
+        )
+        .bind(game, cursor.updatedAtMs, cursor.updatedAtMs, cursor.id)
+    : db.prepare(`${query} ORDER BY updated_at_ms DESC, room_id DESC LIMIT 21`).bind(game);
+  const result = await statement.all<IndexRow>();
+  const rooms = result.results.slice(0, 20).map((row) => parseRow(row, preview));
+  const last = rooms.at(-1);
+  return {
+    rooms,
+    nextCursor: result.results.length > 20 && last ? `${last.updatedAtMs}:${last.id}` : null,
+  };
+}
+
+export async function listGeneralRooms(db: D1Database, capacity?: string, cursor?: string) {
+  const priority =
+    "CASE WHEN status='waiting' AND open_seats>0 THEN 0 WHEN status='waiting' THEN 1 ELSE 2 END";
+  const [rank, at, id] = cursor?.split(":") ?? [];
+  const values: (string | number)[] = [];
+  if (capacity) values.push(Number(capacity));
+  if (cursor) values.push(Number(rank), Number(rank), Number(at), Number(at), id);
+  const rows = await db
+    .prepare(`SELECT *, ${priority} AS priority FROM room_index
+    WHERE closed=0 AND status IN ('waiting','playing') AND instance_id IS NOT NULL
+    ${capacity ? "AND capacity=?" : ""}
+    ${cursor ? `AND (${priority}>? OR (${priority}=? AND (updated_at_ms<? OR (updated_at_ms=? AND room_id<?))))` : ""}
+    ORDER BY priority,updated_at_ms DESC,room_id DESC LIMIT 21`)
+    .bind(...values)
+    .all<IndexRow & { priority: number }>();
+  const page = rows.results.slice(0, 20);
+  const last = page.at(-1);
+  return {
+    rooms: page.map((row) => ({ ...parseRow(row, false), instanceId: row.instance_id })),
+    nextCursor:
+      rows.results.length > 20 && last
+        ? `${last.priority}:${last.updated_at_ms}:${last.room_id}`
+        : null,
+  };
+}
+
+export function completeRoomIndexPreviews(
+  gameRoom: Env["GAME_ROOM"],
+  rooms: ReturnType<typeof parseRow>[],
+) {
+  return Promise.all(
+    rooms.map(async (room) => {
+      if (room.profileTarget !== undefined) return room;
+      const current = await gameRoom.getByName(room.id).getPublicMetadata(true);
+      if (!current || current.game !== room.game || !current.instanceId) return null;
+      const { instanceId, hostPlayerId, ...metadata } = current;
+      return {
+        ...metadata,
+        profileTarget: hostPlayerId
+          ? { source: "room" as const, roomId: room.id, instanceId, playerId: hostPlayerId }
+          : null,
+      };
+    }),
+  );
+}

@@ -7,7 +7,7 @@ import { invokeRoomUseCase } from "../../adapters/room/useCases";
 import { purgeAccount } from "../../flows/accountPurge/purge";
 import { advanceMatchmakingStart } from "../../flows/matchmakingRoom/start";
 import { advanceTournamentStart } from "../../flows/tournamentRoom/start";
-import type { ExternalCpuRequest } from "../../rooms/gameAdapters/cpuTypes";
+import type { ExternalCpuRequest } from "../../adapters/room/games/cpuTypes";
 import type { RoomRuntime } from "./runtime";
 
 export async function reconcileDeadlines(runtime: RoomRuntime, applyCpu = false): Promise<void> {

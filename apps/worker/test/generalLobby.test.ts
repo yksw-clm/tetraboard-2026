@@ -15,7 +15,7 @@ import { cleanupLobbyChat } from "../src/adapters/community/chatCleanup";
 import { lobbyRetentionMs } from "@tetraboard/context-community";
 import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { processDeletions } from "../src/flows/accountPurge/processDeletions";
-import { writeRoomIndex } from "../src/rooms/roomIndex";
+import { writeRoomIndex } from "../src/adapters/room/roomIndexWrite";
 import { gameIds, gameCatalog } from "@tetraboard/protocol/games";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { accountProfileSchema } from "@tetraboard/protocol";

@@ -9,9 +9,12 @@ import {
 import { accountFixture } from "./accountFixtures";
 import { humanShogiRecord, shogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
 import { matchRequest } from "./matchFixtures";
-import { type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
+import { type ShogiSaveProgress } from "../src/adapters/record/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
-import { emptyFormationUsage, type ShogiFormationUsage } from "../src/rooms/shogiFormationUsage";
+import {
+  emptyFormationUsage,
+  type ShogiFormationUsage,
+} from "../src/adapters/record/shogiFormationUsage";
 import { fourReversiRatingMethod } from "@tetraboard/context-rating";
 
 beforeEach(async () => {

@@ -1,5 +1,5 @@
 import { seedStoredMatches } from "./storedMatchFixtures";
-import { encodeSnapshotMatch } from "../src/rooms/snapshotMatchEvents";
+import { encodeSnapshotMatch } from "../src/adapters/record/snapshotMatchEvents";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
@@ -21,7 +21,7 @@ import {
 import { accountFixture, origin } from "./accountFixtures";
 import { fixtureRecord, humanFixtureRecord } from "./matchFixtures";
 import { humanShogiRecord, saveShogiFixture, shogiRecord } from "./shogiMatchFixtures";
-import { type MatchRecord } from "../src/rooms/matchStore";
+import { type MatchRecord } from "../src/adapters/record/matchStore";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 const db = (env as typeof env & { PUBLIC_MATCH_TEST_DB: D1Database }).PUBLIC_MATCH_TEST_DB;
 const ids: string[] = [];

@@ -5,7 +5,7 @@ import {
   runGuestClaims,
   type PendingGuestClaims,
 } from "../../flows/guestRegistration/claims";
-import { RoomJob } from "../../rooms/roomJobs";
+import { RoomJob } from "./roomJobs";
 
 export function createGuestClaimsJob(runtime: RoomRuntime) {
   return new RoomJob(runtime.alarms, {

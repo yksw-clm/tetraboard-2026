@@ -10,17 +10,17 @@ import {
   snapshotHistoryStatement,
 } from "../../adapters/record/publication";
 import { encodeValidatedSnapshot, normalizeMatchUpload } from "./validation";
-import { matchEventSchema } from "../../rooms/snapshotMatchEvents";
-import type { MatchRecord } from "../../rooms/matchStore";
+import { matchEventSchema } from "../../adapters/record/snapshotMatchEvents";
+import type { MatchRecord } from "../../adapters/record/matchStore";
 import { tournamentMatchStatements } from "../../adapters/tournament/store";
 import { readStoredMatch } from "../../adapters/record/matchDataContracts";
-import { fourReversiRatingStore } from "../../rooms/fourReversiRating";
+import { fourReversiRatingStore } from "../../adapters/rating/fourReversiRating";
 import type { TournamentRoomContext } from "@tetraboard/context-tournament";
 import { redactParticipants } from "../accountPurge/redactParticipants";
 import { applyMatchClaims } from "./claims";
-import type { MatchRecord as FourGomokuMatchRecord } from "../../rooms/fourGomokuMatchStore";
-import type { MatchRecord as GomokuMatchRecord } from "../../rooms/gomokuMatchStore";
-import type { MatchRecord as ReversiMatchRecord } from "../../rooms/reversiMatchStore";
+import type { MatchRecord as FourGomokuMatchRecord } from "../../adapters/record/fourGomokuMatchStore";
+import type { MatchRecord as GomokuMatchRecord } from "../../adapters/record/gomokuMatchStore";
+import type { MatchRecord as ReversiMatchRecord } from "../../adapters/record/reversiMatchStore";
 import { matchBadgeStatements } from "./badges";
 export async function writeMatch(
   db: D1Database,

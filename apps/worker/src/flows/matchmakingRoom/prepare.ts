@@ -1,6 +1,6 @@
 import { cpuProfileRating, hasProfileRating } from "@tetraboard/context-rating";
 import { roomSchema, type ProfileRatings, type Room } from "@tetraboard/protocol";
-import { profileAvatarUrl } from "../../accounts/auth";
+import { profileAvatarUrl } from "../../adapters/account/auth";
 import { readProfileRating } from "../../adapters/rating/profileRatings";
 import { reserveCpuCapacity } from "../../adapters/room/cpuCapacity";
 import { readRoom } from "../../adapters/room/state";
@@ -15,8 +15,8 @@ import {
   matchmakingCpuAppearance,
   matchmakingRoomConfiguration,
   matchmakingRoomMetadata,
-} from "../../rooms/gameAdapters/matchmaking";
-import { waitingRoomFactories } from "../../rooms/waitingRoomFactories";
+} from "../../adapters/room/games/matchmaking";
+import { waitingRoomFactories } from "../../adapters/room/waitingRoomFactories";
 import { persistMatchmakingRoom } from "./prepareStorage";
 
 type MatchmakingConfiguration = ReturnType<typeof matchmakingRoomConfiguration>;

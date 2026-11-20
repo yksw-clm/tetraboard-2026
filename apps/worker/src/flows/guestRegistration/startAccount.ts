@@ -4,7 +4,7 @@ import {
   RegistrationError,
 } from "@tetraboard/context-account";
 import type { StartRegistration } from "@tetraboard/protocol";
-import { accountIdentity } from "../../accounts/auth";
+import { accountIdentity } from "../../adapters/account/auth";
 import { digest } from "../../crypto";
 import { D1RegistrationWrites } from "../../adapters/account/registrationWrites";
 import { registrationStatus } from "./account";

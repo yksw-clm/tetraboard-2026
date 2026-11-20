@@ -5,7 +5,7 @@ import {
   updateGameSettings,
 } from "../../../adapters/room/commands";
 import { readRoom } from "../../../adapters/room/state";
-import type { SettingsCommand } from "../../../rooms/gameAdapters/types";
+import type { SettingsCommand } from "../../../adapters/room/games/types";
 import type { RoomRuntime, RoomUpdateResult, SocketCommand } from "../runtime";
 import { rejectAction, sendRoomSnapshot } from "../snapshots";
 

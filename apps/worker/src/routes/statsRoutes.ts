@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { getAccountStatsContract } from "@tetraboard/protocol";
-import { accountIdentity } from "../accounts/auth";
+import { accountIdentity } from "../adapters/account/auth";
 import { readAccountStats } from "../adapters/record/stats";
 
 export const statsRoutes = new Hono<{ Bindings: Env }>();

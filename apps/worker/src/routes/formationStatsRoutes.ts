@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { getFourShogiFormationStatsContract } from "@tetraboard/protocol";
-import { accountIdentity } from "../accounts/auth";
+import { accountIdentity } from "../adapters/account/auth";
 import { readFormationStats } from "../adapters/record/formationStats";
 
 export const formationStatsRoutes = new Hono<{ Bindings: Env }>();

@@ -34,8 +34,8 @@ import {
   type CompleteGuestRegistrationResult,
   type GuestRegistrationInput,
   type GuestRegistrationState,
-} from "../../rooms/registrationTypes";
-import { wrapRoomAlarmEvents } from "../../rooms/roomAlarmEvents";
+} from "../../adapters/account/registrationTypes";
+import { wrapRoomAlarmEvents } from "../../adapters/room/roomAlarmEvents";
 import {
   type PrepareTournamentRoomInput,
   type RekeyTournamentPlayerInput,

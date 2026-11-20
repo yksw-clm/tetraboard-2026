@@ -11,8 +11,8 @@ import {
   type ShogiState,
 } from "@tetraboard/shogi";
 import { shogiDefinition as definition, usiMove } from "@tetraboard/shogi/definition";
-import { ShogiProgress, type ShogiCpuJob } from "../src/rooms/standardShogiProgress";
-import { requestShogiAiMove, type ShogiAiWork } from "../src/rooms/aiService";
+import { ShogiProgress, type ShogiCpuJob } from "../src/adapters/room/games/shogi/progress";
+import { requestShogiAiMove, type ShogiAiWork } from "../src/adapters/room/ai/shogiAi";
 import { shogiCpuProfile, selectShogiCpu } from "@tetraboard/context-matchmaking";
 import { enteringState } from "./standardShogiFixtures";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";

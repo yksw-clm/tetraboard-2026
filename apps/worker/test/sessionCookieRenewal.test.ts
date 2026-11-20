@@ -2,7 +2,11 @@ import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import worker from "../src/worker";
-import { accountIdentity, createAuth, withAccountSessionCookies } from "../src/accounts/auth";
+import {
+  accountIdentity,
+  createAuth,
+  withAccountSessionCookies,
+} from "../src/adapters/account/auth";
 import type { AdminEnv } from "../src/admin/auth";
 import { accountFixture, origin } from "./accountFixtures";
 

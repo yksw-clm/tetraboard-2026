@@ -1,5 +1,5 @@
 import { accountNotDeletedSql } from "../../db/deletionGuard";
-import type { ShogiFormationUsage } from "../../rooms/shogiFormationUsage";
+import type { ShogiFormationUsage } from "./shogiFormationUsage";
 import { mergedAccountIdSql } from "./guestMerges";
 
 export function snapshotHistoryStatement(db: D1Database, matchId: string) {

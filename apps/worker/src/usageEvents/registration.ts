@@ -2,8 +2,13 @@ import {
   registrationAnalyticsInputSchema,
   type RegistrationAnalyticsInput,
 } from "@tetraboard/protocol";
-import { accountIdentity, createAuth, type AuthEnv, type StoredProfile } from "../accounts/auth";
-import { responseCookies } from "../accounts/authCookies";
+import {
+  accountIdentity,
+  createAuth,
+  type AuthEnv,
+  type StoredProfile,
+} from "../adapters/account/auth";
+import { responseCookies } from "../adapters/account/authCookies";
 import { browserIdFromRequest } from "./browserId";
 import type { UsageEvent } from "./events";
 import { createUsageEventWriter } from "./writer";
