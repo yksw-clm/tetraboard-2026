@@ -26,7 +26,6 @@
     "@tetraboard/protocol": "workspace:*",
     "@tetraboard/reversi": "workspace:*",
     "@tetraboard/shogi": "workspace:*",
-    "motion": "^14.1.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router": "^8.4.0",

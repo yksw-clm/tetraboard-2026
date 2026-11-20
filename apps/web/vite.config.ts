@@ -1,4 +1,5 @@
 import { gameChunks } from "./build/gameChunks.ts";
+import { initialJsBudget } from "./build/initialJsBudget.ts";
 import { webpAssets } from "./build/webpAssets.ts";
 import { webAnalytics } from "./build/webAnalytics.ts";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
@@ -19,6 +20,7 @@ export default defineConfig({
     babel({ presets: [reactCompilerPreset()] }),
     tailwindcss(),
     gameChunks(),
+    initialJsBudget(),
     webpAssets(),
     webAnalytics(),
   ],
