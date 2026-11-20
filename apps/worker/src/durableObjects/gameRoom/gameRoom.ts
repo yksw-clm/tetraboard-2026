@@ -191,6 +191,10 @@ export class GameRoom extends DurableObject<Env> {
     return queries.getRoomSnapshot(this.runtime, formationAnalysis, stamps, eliminatedHands);
   }
 
+  async getRoomEntrySnapshot(tokenHash: string) {
+    return queries.getRoomEntrySnapshot(this.runtime, tokenHash);
+  }
+
   async resolvePlayerProfile(instanceId: string, playerId: string) {
     return profiles.resolvePlayerProfile(this.runtime, instanceId, playerId);
   }

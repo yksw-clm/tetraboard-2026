@@ -57,10 +57,8 @@ test("全6ゲームの通常作成だけが作成者・世代を照合する共�
       );
       act(() => h.current.entry.setName("ホスト"));
       act(() => void h.current.entry.submitRoom(intent));
-      requests[0]!.respond({ user: null });
-      await flush();
       const room = fixture(game);
-      const submitted = await completeGuestAccount("ホスト");
+      const submitted = await completeGuestAccount("ホスト", 0);
       submitted.respond(
         { room: roomForEntryResponse(room), membership: { ...membership, token } },
         201,

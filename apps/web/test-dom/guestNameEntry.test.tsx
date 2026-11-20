@@ -139,9 +139,11 @@ test("ゲストの作成・すぐ遊ぶ・番号／一覧参加の成功後だ�
           "selectedRoomId" in entry ? entry.selectedRoomId : undefined,
         );
       });
-      requests[0]!.respond({ user: null });
-      await flush();
-      const submitted = await completeGuestAccount("新しい名前");
+      if (entry.intent === "join") {
+        requests[0]!.respond({ user: null });
+        await flush();
+      }
+      const submitted = await completeGuestAccount("新しい名前", entry.intent === "join" ? 1 : 0);
       expect(JSON.parse(String(submitted.init.body)).name).toBe("新しい名前");
       expect(localStorage.getItem(storageKey)).toBe("前の名前");
       // 送信後に下書きが変わっても、実際に送った名前を記録する。
@@ -306,9 +308,11 @@ test("作成・参加の通信失敗・拒否・不正応答・資格保存失�
       act(() => {
         void h.current.submitRoom(intent, "12345");
       });
-      requests[0]!.respond({ user: null });
-      await flush();
-      const submitted = await completeGuestAccount("変更した名前");
+      if (intent === "join") {
+        requests[0]!.respond({ user: null });
+        await flush();
+      }
+      const submitted = await completeGuestAccount("変更した名前", intent === "join" ? 1 : 0);
       const blocked = failure === "storage" ? denyStorage() : null;
       try {
         if (failure === "network") submitted.reject(new Error("offline"));
@@ -417,9 +421,11 @@ test("名前の保存領域が読取り／書込み不能でもゲストの作�
       act(() => {
         void h.current.submitRoom(intent, "12345");
       });
-      requests[0]!.respond({ user: null });
-      await flush();
-      const submitted = await completeGuestAccount("使う名前");
+      if (intent === "join") {
+        requests[0]!.respond({ user: null });
+        await flush();
+      }
+      const submitted = await completeGuestAccount("使う名前", intent === "join" ? 1 : 0);
       expect(new Headers(submitted.init.headers).get("X-Legal-Consent")).toBe(legalVersion);
       submitted.respond(
         {

@@ -237,8 +237,6 @@ test("両ゲームのすぐ遊ぶ成功はjoinだけ、作成失敗・既存席�
     act(() => {
       void h.current.submitRoom("quick");
     });
-    requests.at(-1)!.respond({ user: null });
-    await flush();
     const room = game === "four-reversi" ? waitingRoom() : waitingShogiRoom();
     await completeGuestAccount("参加者", requests.length - 1);
     requests
@@ -263,8 +261,6 @@ test("両ゲームのすぐ遊ぶ成功はjoinだけ、作成失敗・既存席�
     h.current.setName("参加者");
     void h.current.submitRoom("create");
   });
-  requests.at(-1)!.respond({ user: null });
-  await flush();
   await completeGuestAccount("参加者", requests.length - 1);
   requests.at(-1)!.respond({ error: "rate_limited" }, 429);
   await flush();
