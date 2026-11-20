@@ -1,6 +1,9 @@
 import type { GameId, RoomFor } from "@tetraboard/protocol";
-import { waitingRoomFactories, type WaitingRoomFactories } from "../src/rooms/waitingRoomFactories";
-import { rankingReaders } from "../src/rooms/rankingRoutes";
+import {
+  waitingRoomFactories,
+  type WaitingRoomFactories,
+} from "../src/adapters/room/waitingRoomFactories";
+import { rankingReaders } from "../src/adapters/rating/rankingReaders";
 // @ts-expect-error 初期Roomのゲームを取り違えられない
 export const wrongFactory: WaitingRoomFactories["four-shogi"] =
   waitingRoomFactories["four-reversi"];
@@ -12,8 +15,8 @@ declare const playing: Extract<RoomFor<"four-reversi">, { status: "playing" }>;
 // @ts-expect-error factoryは待機Roomを返す
 export const wrongStatus: ReturnType<WaitingRoomFactories["four-reversi"]> = playing;
 
-import { createClock, advanceClock } from "../src/rooms/clock";
-import { createShogiClock, advanceShogiClock } from "../src/rooms/shogiClock";
+import { createClock, advanceClock } from "../src/adapters/room/clock";
+import { createShogiClock, advanceShogiClock } from "../src/adapters/room/shogiClock";
 import type { PlayingRoomClock, PlayingShogiClock } from "@tetraboard/protocol";
 const reversiClock = createClock(0);
 const shogiClock = createShogiClock(0);

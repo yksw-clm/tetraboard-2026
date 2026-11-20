@@ -5,8 +5,11 @@ import { afterEach, expect, test, vi } from "vitest";
 import { fourReversiRoomSchema, gameIds, roundReplaySchema, type Room } from "@tetraboard/protocol";
 import { getLegalMoves } from "@tetraboard/four-reversi";
 import { RoomBoundaryFixtures, boundaryRequest } from "./roomBoundaryFixtures";
-import { FourShogiProgress } from "../src/rooms/fourShogiProgress";
-import { currentRoomStateVersion, roomStateVersionKey } from "../src/rooms/roomStateVersion";
+import { FourShogiProgress } from "../src/adapters/room/games/four-shogi/progress";
+import {
+  currentRoomStateVersion,
+  roomStateVersionKey,
+} from "../src/adapters/room/roomStateVersion";
 
 let fixtures = new RoomBoundaryFixtures();
 afterEach(async () => {

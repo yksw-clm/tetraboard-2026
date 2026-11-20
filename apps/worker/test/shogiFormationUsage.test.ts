@@ -9,7 +9,7 @@ import {
   emptyFormationUsage,
   recordFormationUsage,
   isFormationMatchEligible,
-} from "../src/rooms/shogiFormationUsage";
+} from "../src/adapters/record/shogiFormationUsage";
 
 test("全16戦法・4方向の確定着手を局内一度記録し、復元後も重複させない", () => {
   for (const fixture of formationCases)

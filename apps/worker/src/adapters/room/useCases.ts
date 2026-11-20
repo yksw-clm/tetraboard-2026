@@ -9,10 +9,10 @@ import {
 } from "@tetraboard/context-room";
 import type { Room } from "@tetraboard/protocol";
 import { gameCapacity } from "@tetraboard/protocol/games";
-import { profileAvatarUrl } from "../../accounts/auth";
+import { profileAvatarUrl } from "../../adapters/account/auth";
 import type { AccountAdmission } from "../../flows/accountSeats/types";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
-import { prepareRoomSettings } from "../../rooms/applyRoomSettings";
+import { prepareRoomSettings } from "./applyRoomSettings";
 import { lifecycleState, type LifecycleIdentity } from "./lifecycleState";
 
 export function roomPorts(runtime: RoomRuntime, identity?: LifecycleIdentity): RoomPorts {

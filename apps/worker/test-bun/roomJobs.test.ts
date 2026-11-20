@@ -1,5 +1,5 @@
 import { expect, mock, spyOn, test } from "bun:test";
-import { RoomJob } from "../src/rooms/roomJobs";
+import { RoomJob } from "../src/adapters/room/roomJobs";
 
 function fixture(mode: "drain" | "single" | "snapshot" = "drain", stopOnFailure = true) {
   const pending = new Map<string, { revision: number; retryAtMs: number }>();

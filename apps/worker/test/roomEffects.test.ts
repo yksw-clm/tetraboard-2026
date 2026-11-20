@@ -5,7 +5,7 @@ import { expect, test } from "vitest";
 import { TransactionRoomEffects } from "../src/adapters/room/effects";
 import { withIndexTransaction } from "../src/adapters/room/transaction";
 import { invokeRoomUseCase } from "../src/adapters/room/useCases";
-import { roomStorageKey } from "../src/rooms/progressHelpers";
+import { roomStorageKey } from "../src/adapters/room/games/progressHelpers";
 import type { RoomRuntime } from "../src/durableObjects/gameRoom/runtime";
 import type { Room } from "@tetraboard/protocol";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";

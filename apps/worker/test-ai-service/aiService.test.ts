@@ -8,9 +8,10 @@ import {
   fourReversiAiJobKey,
   fourReversiCpuJobKey,
   type FourReversiCpuJob,
-} from "../src/rooms/fourReversiProgress";
-import { aiServiceTimeout, requestAiMove } from "../src/rooms/aiService";
-import { profileIdSchema, profileMetadata } from "../src/rooms/aiServiceProfiles";
+} from "../src/adapters/room/games/four-reversi/progress";
+import { aiServiceTimeout } from "../src/adapters/room/ai/aiService";
+import { requestAiMove } from "../src/adapters/room/ai/fourReversiAi";
+import { profileIdSchema, profileMetadata } from "../src/adapters/room/ai/aiServiceProfiles";
 import { FourReversiAiFixture } from "./fourReversiAiFixture";
 
 const { cpuSetup, reply, alarmWithProfile, clock } = new FourReversiAiFixture();

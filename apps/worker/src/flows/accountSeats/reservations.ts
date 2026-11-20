@@ -1,4 +1,4 @@
-import { profileAvatarUrl } from "../../accounts/auth";
+import { profileAvatarUrl } from "../../adapters/account/auth";
 import type { AccountAdmission } from "./types";
 import { readRoom } from "../../adapters/room/state";
 import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";

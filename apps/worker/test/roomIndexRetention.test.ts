@@ -1,6 +1,6 @@
-import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
+import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, onTestFinished, test, vi } from "vitest";
 import {
   indexRevisionKey,
   pendingIndexKey,
@@ -14,17 +14,18 @@ import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import * as monthlyKpi from "../src/kpi/monthly";
 import { guestClaimsKey } from "../src/flows/guestRegistration/claims";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
-import { pendingMatchPrefix } from "../src/rooms/matchStore";
-import { writeRoomIndex, type PendingRoomIndex } from "../src/rooms/roomIndex";
+import { pendingMatchPrefix } from "../src/adapters/record/matchStore";
+import { roomStorageKey } from "../src/adapters/room/games/progressHelpers";
+import { writeRoomIndex, type PendingRoomIndex } from "../src/adapters/room/roomIndexWrite";
 import {
   roomIndexRetentionCandidatesSql,
   runRoomIndexRetention,
-} from "../src/rooms/roomIndexRetention";
+} from "../src/adapters/room/roomIndexRetention";
 import {
   pendingShogiMatchPrefix,
   pendingStandardShogiMatchPrefix,
-} from "../src/rooms/shogiMatchStore";
-import { waitingRoomFactories } from "../src/rooms/waitingRoomFactories";
+} from "../src/adapters/record/shogiMatchStore";
+import { waitingRoomFactories } from "../src/adapters/room/waitingRoomFactories";
 import { runScheduledMaintenance } from "../src/scheduledMaintenance";
 import { pendingTournamentStatePrefix } from "@tetraboard/context-tournament";
 import { accountFixture } from "./accountFixtures";
@@ -62,10 +63,10 @@ function scan(at = scanTime, rooms = env.GAME_ROOM) {
   );
 }
 
-async function runMaintenance(bindings = env) {
+async function runMaintenance() {
   const kpi = vi.spyOn(monthlyKpi, "savePreviousMonthKpi").mockResolvedValue();
   try {
-    await runScheduledMaintenance(bindings);
+    await runScheduledMaintenance(env);
   } finally {
     kpi.mockRestore();
   }
@@ -448,49 +449,52 @@ test("索引削除後の退会定期処理で 0014 前の DO の旧名を消し�
   expect(await storedMatch(record.id)).toEqual(saved);
 });
 
-test("既定の毎時処理は候補を数え、RPC・行の更新・削除を行わない", async () => {
-  const { id } = await seedClosed(Date.now() - retention);
-  const legacy = await seedClosed(null);
+test("毎時の点検は走査位置を記録し、索引と初回起動時の掃除済み DO の状態を保つ", async () => {
+  const now = Date.now();
+  fixTestTime(now);
+  const stale = await seedClosed(null);
+  const rooms = [stale, await seedClosed(now - retention), await seedClosed(null)];
+  const legacyRoom = waitingRoomFactories.reversi({
+    code: stale.id,
+    name: "旧ホスト",
+    request: { game: "reversi", quickPlay: false },
+  });
+  await runInDurableObject(stale.stub, async (_, ctx) => {
+    // 新しいルームの送信前に、D1 側に旧世代の閉鎖行が残っている状況です。
+    ctx.storage.kv.put(roomStorageKey, legacyRoom);
+    await ctx.storage.setAlarm(now + hour);
+  });
+  const readRoomStorage = ({ stub }: (typeof rooms)[number]) =>
+    runInDurableObject(stub, async (_, { storage }) => ({
+      kv: [...storage.kv.list()],
+      alarm: await storage.getAlarm(),
+    }));
+  const indexQueries = [
+    db.prepare("SELECT * FROM room_index ORDER BY room_id"),
+    db.prepare("SELECT * FROM room_index_deleted_revisions ORDER BY room_id"),
+  ];
+  const readIndexTables = async () => (await db.batch(indexQueries)).map(({ results }) => results);
+  const beforeDb = await readIndexTables();
+  const beforeRooms = await Promise.all(rooms.map(readRoomStorage));
+  for (const { stub } of rooms) await evictDurableObject(stub);
+
   const log = vi.spyOn(console, "info").mockImplementation(() => {});
-  const rpc = vi.fn(async () => "ready" as const);
-  try {
-    await runMaintenance({ ...env, GAME_ROOM: withRoomCheck(rpc) });
+  onTestFinished(() => log.mockRestore());
+  await runMaintenance();
 
-    expect(await readIndex(id)).toMatchObject({ closed: 1 });
-    expect(await readIndex(legacy.id)).toMatchObject({ closed_observed_at_ms: null });
-    expect(await readLedger(id)).toBeNull();
-    expect(rpc).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledWith(
-      "Room index retention",
-      expect.objectContaining({
-        expired: 1,
-        unknownClosure: 1,
-        checked: 0,
-        deleted: 0,
-      }),
-    );
-  } finally {
-    log.mockRestore();
-  }
-});
-
-test("削除を止めたまま RPC で確認しても旧行の初回観測時刻と台帳は書かない", async () => {
-  const { id } = await seedClosed(null);
-  expect(
-    await runRoomIndexRetention(
-      env,
-      {
-        deleteExpired: false,
-        inspectCandidates: true,
-      },
-      () => scanTime,
-    ),
-  ).toMatchObject({
-    checked: 1,
+  const retentionLogs = log.mock.calls.filter(([message]) => message === "Room index retention");
+  expect(retentionLogs).toHaveLength(1);
+  expect(retentionLogs[0][1]).toEqual({
+    expired: 1,
+    unknownClosure: 2,
+    checked: 3,
     observed: 0,
     deleted: 0,
-    rpcResults: { ready: 1 },
+    changed: 0,
+    failures: 0,
+    rpcResults: { ready: 2, "room-present": 1 },
   });
-  expect(await readIndex(id)).toMatchObject({ closed_observed_at_ms: null });
-  expect(await readLedger(id)).toBeNull();
+  expect(await readIndexTables()).toEqual(beforeDb);
+  expect(await Promise.all(rooms.map(readRoomStorage))).toEqual(beforeRooms);
+  expect(await db.prepare("SELECT id FROM room_index_retention_cursor").first("id")).toBe(1);
 });

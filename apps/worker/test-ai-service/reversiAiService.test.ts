@@ -8,7 +8,7 @@ import {
   type ReversiRoom,
 } from "@tetraboard/protocol";
 import { applyAction, chooseCpuMove, getLegalMoves, type ReversiState } from "@tetraboard/reversi";
-import { replayKey, roomStorageKey } from "../src/rooms/progressHelpers";
+import { replayKey, roomStorageKey } from "../src/adapters/room/games/progressHelpers";
 import { boundaryRequest, RoomBoundaryFixtures } from "../test/roomBoundaryFixtures";
 
 let fixtures = new RoomBoundaryFixtures();

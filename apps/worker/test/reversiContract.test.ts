@@ -5,8 +5,8 @@ import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import archive from "../../../test-fixtures/matches/reversi-standard-draw.json";
 import { playerTokenHash } from "../src/adapters/room/state";
-import { gameDefinitions } from "../src/rooms/gameDefinitions";
-import { matchStartKey, type MatchStart } from "../src/rooms/reversiMatchStore";
+import { gameDefinitions } from "../src/adapters/room/games/gameDefinitions";
+import { matchStartKey, type MatchStart } from "../src/adapters/record/reversiMatchStore";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
 
 let fixtures: RoomBoundaryFixtures;

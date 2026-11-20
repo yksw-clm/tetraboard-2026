@@ -17,6 +17,7 @@ import { createMatchmakingRuntime } from "../src/adapters/matchmaking/runtime";
 import { createTournamentRuntime } from "../src/adapters/tournament/runtime";
 import { fenceFixture, waiting } from "./accountSeatFenceFixtures";
 import { matchmakingFenceRoom, tournamentFenceRoom } from "./accountSeatFenceRooms";
+import { unusedRoomId } from "./unusedRoomId";
 
 const db = env.APP_DB;
 for (const kind of ["matchmaking", "tournament"] as const) {
@@ -25,7 +26,7 @@ for (const kind of ["matchmaking", "tournament"] as const) {
     const players = f.users.slice(0, 4).map((u) => u.player);
     const id = crypto.randomUUID(),
       instanceId = crypto.randomUUID();
-    const roomId = String(crypto.getRandomValues(new Uint32Array(1))[0]! % 100000).padStart(5, "0");
+    const roomId = await unusedRoomId();
     const now = Date.now();
     const policy = ratedMatchmakingPolicy("four-reversi");
     const rules = matchmakingQueues["four-reversi"];

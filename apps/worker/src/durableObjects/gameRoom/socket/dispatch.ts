@@ -1,5 +1,5 @@
 import type { RoomSocketClientMessage } from "@tetraboard/protocol";
-import { unreachable } from "../../../rooms/gameProgress";
+import { unreachable } from "../../../adapters/room/games/gameProgress";
 import type { RoomRuntime } from "../runtime";
 import { authenticate } from "./authenticate";
 import { handleChat, handleStamp } from "./interactions";

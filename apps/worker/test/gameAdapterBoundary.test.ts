@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { gameIds, type GameId, type RoomSocketClientMessage } from "@tetraboard/protocol";
 import { RoomBoundaryFixtures } from "./roomBoundaryFixtures";
-import type { ActionCommand } from "../src/rooms/gameAdapters/types";
+import type { ActionCommand } from "../src/adapters/room/games/types";
 
 let fixtures: RoomBoundaryFixtures;
 beforeEach(() => {

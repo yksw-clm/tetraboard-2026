@@ -5,7 +5,7 @@ import { changeGuestName, allowGuestCreation } from "@tetraboard/context-account
 import { D1GuestAccounts } from "../adapters/account/guestAccounts";
 import { authSecret } from "../adapters/account/authTokens";
 import { readLimitedBody } from "./readLimitedBody";
-import { accountIdentity, publicProfile } from "../accounts/auth";
+import { accountIdentity, publicProfile } from "../adapters/account/auth";
 import { createGuestAccount } from "./guestSession";
 async function guestInput(request: Request): Promise<{
   name?: unknown;

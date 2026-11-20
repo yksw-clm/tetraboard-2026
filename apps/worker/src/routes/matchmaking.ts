@@ -9,7 +9,7 @@ import {
   type MatchmakingGame,
   type MatchmakingState,
 } from "@tetraboard/protocol";
-import { accountIdentity } from "../accounts/auth";
+import { accountIdentity } from "../adapters/account/auth";
 import { roomEntryProfile, RoomAccountError } from "../flows/accountSeats/entryProfile";
 import { readLimitedBody } from "./readLimitedBody";
 import { gameCatalog } from "@tetraboard/protocol/games";
@@ -101,7 +101,33 @@ matchmakingRoutes.get(`${root}/results/:matchId`, async (c) => {
   );
   return result ? c.json(result) : c.notFound();
 });
-for (const action of ["join", "heartbeat", "cancel", "takeover"] as const)
+const actions = ["join", "heartbeat", "cancel", "takeover"] as const;
+
+function runMatchmakingAction(
+  coordinator: ReturnType<Env["MATCHMAKING_COORDINATOR"]["getByName"]>,
+  action: (typeof actions)[number],
+  accountId: string,
+  input: z.output<typeof matchmakingInputSchema> | z.output<typeof matchmakingControlSchema>,
+) {
+  if (action === "join") return coordinator.join(accountId, input.operationId, input.controllerId);
+  if (action === "takeover")
+    return coordinator.takeover(
+      accountId,
+      input.operationId,
+      input.controllerId,
+      "version" in input ? Number(input.version) : 0,
+    );
+  return coordinator.control(
+    accountId,
+    {
+      ...input,
+      version: "version" in input && typeof input.version === "number" ? input.version : 0,
+    },
+    action,
+  );
+}
+
+for (const action of actions)
   matchmakingRoutes.post(`${root}/${action}`, async (c) => {
     const game = gameSchema.safeParse(c.req.param("game"));
     if (!game.success) return c.notFound();
@@ -132,26 +158,7 @@ for (const action of ["join", "heartbeat", "cancel", "takeover"] as const)
     const coordinator = c.env.MATCHMAKING_COORDINATOR.getByName(
       legacy ? matchmakingRules.key : matchmakingQueues[game.data].key,
     );
-    const input = parsed.data;
-    const result =
-      action === "join"
-        ? await coordinator.join(user.id, input.operationId, input.controllerId)
-        : action === "takeover"
-          ? await coordinator.takeover(
-              user.id,
-              input.operationId,
-              input.controllerId,
-              "version" in input ? Number(input.version) : 0,
-            )
-          : await coordinator.control(
-              user.id,
-              {
-                ...input,
-                version:
-                  "version" in input && typeof input.version === "number" ? input.version : 0,
-              },
-              action,
-            );
+    const result = await runMatchmakingAction(coordinator, action, user.id, parsed.data);
     if (
       result.ok &&
       !legacy &&

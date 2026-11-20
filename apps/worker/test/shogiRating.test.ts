@@ -3,11 +3,11 @@ import { env } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { shogiRoomSchema } from "@tetraboard/protocol";
-import { ShogiProgress, type ShogiCpuJob } from "../src/rooms/standardShogiProgress";
+import { ShogiProgress, type ShogiCpuJob } from "../src/adapters/room/games/shogi/progress";
 import {
   pendingStandardShogiMatchPrefix,
   type PendingStandardShogiMatch,
-} from "../src/rooms/shogiMatchStore";
+} from "../src/adapters/record/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { accountFixture } from "./accountFixtures";
 import { boundaryRequest, RoomBoundaryFixtures } from "./roomBoundaryFixtures";

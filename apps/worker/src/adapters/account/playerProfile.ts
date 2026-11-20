@@ -14,8 +14,8 @@ import { readMatchProfileRating, readProfileRating } from "../rating/profileRati
 import { readStoredMatch } from "../record/matchDataContracts";
 import { readAccountStats } from "../record/stats";
 import { resolveMatchParticipants } from "../record/matchProfiles";
-import { readPublicReversiRating } from "../../rooms/reversiRating";
-import { readPublicShogiRating } from "../../rooms/shogiRating";
+import { readPublicReversiRating } from "../rating/reversiRating";
+import { readPublicShogiRating } from "../rating/shogiRating";
 import { D1AccountProfiles } from "./profiles";
 import { profilePolicy } from "./profilePolicy";
 export function playerProfilePorts(env: Env): PlayerProfilePorts {

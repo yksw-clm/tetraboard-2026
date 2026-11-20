@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { type StoredProfile } from "../accounts/auth";
+import { type StoredProfile } from "../adapters/account/auth";
 import { adminIdentity, type AdminEnv } from "./auth";
 import { kpiQuerySchema, kpiReportSchema } from "@tetraboard/protocol";
 import { readKpi } from "../kpi/report";

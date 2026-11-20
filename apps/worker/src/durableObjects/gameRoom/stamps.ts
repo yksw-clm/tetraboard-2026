@@ -8,7 +8,7 @@ import {
 } from "@tetraboard/protocol";
 import { isHumanParticipant, readMembership } from "../../adapters/room/state";
 import { withIndexTransaction } from "../../adapters/room/transaction";
-import { roomStorageKey } from "../../rooms/progressHelpers";
+import { roomStorageKey } from "../../adapters/room/games/progressHelpers";
 import type { RoomRuntime } from "./runtime";
 import { lastChatAtKey, mutedKey, stampTag } from "./storageKeys";
 

@@ -3,7 +3,7 @@ import type { AvatarPresetId } from "@tetraboard/protocol";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { identifyGuest } from "../adapters/account/guestIdentity";
 import { D1GuestAccounts } from "../adapters/account/guestAccounts";
-import { appendSessionCookie, type StoredProfile } from "../accounts/auth";
+import { appendSessionCookie, type StoredProfile } from "../adapters/account/auth";
 export { guestLifetimeMs } from "@tetraboard/context-account";
 const cookieName = "tetraboard-2026.guest";
 function guestSessionToken(request: Request) {

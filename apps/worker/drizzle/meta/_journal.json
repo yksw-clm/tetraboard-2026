@@ -64,6 +64,13 @@
       "when": 1795060973764,
       "tag": "0008_drop_privacy_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1795069442257,
+      "tag": "0009_drop_announcements_date",
+      "breakpoints": true
     }
   ]
 }

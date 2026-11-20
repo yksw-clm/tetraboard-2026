@@ -5,7 +5,7 @@ import {
   type DecodedMatch,
   type ReplayedMatch,
 } from "./matchDataContracts";
-import { matchEventSchema, rebuildSnapshotMatch } from "../../rooms/snapshotMatchEvents";
+import { matchEventSchema, rebuildSnapshotMatch } from "./snapshotMatchEvents";
 export const matchReadValidation: MatchReadValidation<DecodedMatch, ReplayedMatch> = {
   readStored: readStoredMatch,
   readComplete: readMatchRecord,

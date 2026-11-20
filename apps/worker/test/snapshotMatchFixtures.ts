@@ -1,5 +1,5 @@
 import { readMatchRecord } from "../src/adapters/record/matchDataContracts";
-import { encodeSnapshotMatch } from "../src/rooms/snapshotMatchEvents";
+import { encodeSnapshotMatch } from "../src/adapters/record/snapshotMatchEvents";
 import { matchChunkSize } from "@tetraboard/context-record";
 
 // 集計用の任意順位も、D1の本体・チャンクの現行形式で用意します。

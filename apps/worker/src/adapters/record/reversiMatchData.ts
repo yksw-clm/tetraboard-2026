@@ -2,7 +2,7 @@ import {
   matchDetail as formatDetail,
   matchSummary as formatSummary,
 } from "@tetraboard/context-record";
-import { eventReplaySchema, type StoredRecord } from "../../rooms/eventRecord";
+import { eventReplaySchema, type StoredRecord } from "./eventRecord";
 import { profileRatingsSchema } from "@tetraboard/protocol";
 import { z } from "zod";
 import {
@@ -12,8 +12,8 @@ import {
   reversiAccountStatsSchema,
   reversiRankingsSchema,
 } from "@tetraboard/protocol";
-import { eloRatingSourceSchema } from "../../rooms/eloRating";
-import type { MatchRecord } from "../../rooms/reversiMatchStore";
+import { eloRatingSourceSchema } from "../rating/eloRating";
+import type { MatchRecord } from "./reversiMatchStore";
 import type { ParticipantProfiles } from "@tetraboard/context-record";
 const participants = z
   .array(

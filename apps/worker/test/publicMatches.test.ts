@@ -18,6 +18,7 @@ import { fixtureRecord, humanFixtureRecord } from "./matchFixtures";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { shogiRecord, humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
+import { seedStoredMatches } from "./storedMatchFixtures";
 
 const db = (env as typeof env & { PUBLIC_MATCH_TEST_DB: D1Database }).PUBLIC_MATCH_TEST_DB;
 const createdIds: string[] = [];
@@ -37,14 +38,17 @@ beforeAll(async () => {
   await applyD1Migrations(db, migrations);
 });
 afterEach(async () => {
-  for (const id of createdIds.splice(0)) {
-    await db.batch([
-      db.prepare("DELETE FROM account_match_history WHERE match_id = ?").bind(id),
-      db.prepare("DELETE FROM matches WHERE id = ?").bind(id),
-      db.prepare("DELETE FROM match_event_chunks WHERE match_id = ?").bind(id),
-      db.prepare("DELETE FROM match_uploads WHERE id = ?").bind(id),
-    ]);
-  }
+  const ids = createdIds.splice(0);
+  if (!ids.length) return;
+  const params = ids.map(() => "?").join(",");
+  await db.batch(
+    [
+      `DELETE FROM account_match_history WHERE match_id IN (${params})`,
+      `DELETE FROM matches WHERE id IN (${params})`,
+      `DELETE FROM match_event_chunks WHERE match_id IN (${params})`,
+      `DELETE FROM match_uploads WHERE id IN (${params})`,
+    ].map((sql) => db.prepare(sql).bind(...ids)),
+  );
 });
 async function list(game: GameId, humanOnly?: boolean) {
   const filter = humanOnly === undefined ? "" : `&humanOnly=${humanOnly}`;
@@ -90,13 +94,13 @@ test("公開・総合・本人の棋譜一覧は要求時だけ保存局面の�
   }
 });
 
-async function saveFilteredFixture(
-  game: GameId,
+function filteredFixture(
+  game: "four-reversi" | "four-shogi",
   namespace: string,
   index: number,
-  mode: RoomMode,
   cpu: boolean,
 ) {
+  const mode = index % 2 ? "singles" : "doubles";
   if (game === "four-reversi") {
     const record = track(humanFixtureRecord(namespace, index, mode));
     record.participants = record.participants.map((player) =>
@@ -109,8 +113,7 @@ async function saveFilteredFixture(
       record.participants[3] = { ...identity, kind: "cpu", level: 1 };
     }
     record.startedAtMs += cpu ? 500 : index <= 5 ? 100 : 0;
-    await writeMatch(db, record);
-    return record;
+    return { record };
   }
   const fixture = humanShogiRecord(null, "south", mode);
   const record = track(fixture.record);
@@ -121,24 +124,20 @@ async function saveFilteredFixture(
     record.participants[3] = { ...identity, kind: "cpu", level: 1 };
   }
   record.startedAtMs += cpu ? 500 : index <= 5 ? 100 : 0;
-  await saveShogiFixture(fixture, db);
-  return record;
+  return fixture;
 }
 
 for (const game of ["four-reversi", "four-shogi"] as const) {
   for (const count of [0, 23]) {
     test(`${game}: 新しいCPU戦21件より前の人間4人の対局${count}件から最新20件を取得する`, async () => {
       const namespace = crypto.randomUUID();
-      const records = [];
-      for (let i = 1; i <= count; i++) {
-        records.push(
-          await saveFilteredFixture(game, namespace, i, i % 2 ? "singles" : "doubles", false),
-        );
-      }
-      for (let i = count + 1; i <= count + 21; i++) {
-        await saveFilteredFixture(game, namespace, i, i % 2 ? "singles" : "doubles", true);
-      }
-      const expected = records
+      const fixtures = Array.from({ length: count + 21 }, (_, index) =>
+        filteredFixture(game, namespace, index + 1, index >= count),
+      );
+      await seedStoredMatches(db, fixtures);
+      const expected = fixtures
+        .slice(0, count)
+        .map(({ record }) => record)
         .sort((a, b) => b.startedAtMs - a.startedAtMs || b.id.localeCompare(a.id))
         .slice(0, 20);
       const matches = await list(game, true);
@@ -169,7 +168,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
 for (const count of [0, 20, 23]) {
   test(`${count}件から開始日時・UUID降順の最新20件だけを匿名取得できる`, async () => {
     const namespace = crypto.randomUUID();
-    const records = [];
+    const fixtures = [];
     for (let i = 1; i <= count; i++) {
       const record = track(fixtureRecord(namespace, i, i % 2 ? "singles" : "doubles"));
       record.startedAtMs += i <= 5 ? 1000 : 0;
@@ -178,10 +177,11 @@ for (const count of [0, 20, 23]) {
       record.participants = record.participants.map((p) =>
         p.kind === "human" ? { ...p, accountId: null } : p,
       );
-      records.push(record);
-      await writeMatch(db, record);
+      fixtures.push({ record });
     }
-    const expected = records
+    await seedStoredMatches(db, fixtures);
+    const expected = fixtures
+      .map(({ record }) => record)
       .sort((a, b) => b.startedAtMs - a.startedAtMs || b.id.localeCompare(a.id))
       .slice(0, 20);
     const matches = await list("four-reversi");

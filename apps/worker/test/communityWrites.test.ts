@@ -165,7 +165,7 @@ test("記事の作成時と公開時に通知し、公開中の更新と非公�
   expect(await announcementEvents(draft)).toEqual(events);
 });
 
-test("公開日列で記事を表示・整列し、編集で旧日付列を書き換えない", async () => {
+test("公開日で記事を表示・整列し、編集後の公開日を返す", async () => {
   const store = announcementStore(db);
   const migrated = crypto.randomUUID();
   const newest = await create(db, {
@@ -179,19 +179,18 @@ test("公開日列で記事を表示・整列し、編集で旧日付列を書�
     lobbyGames: ["four-reversi"],
   });
   expect(
-    await db.prepare("SELECT date,published_on FROM announcements WHERE id=?").bind(newest).first(),
-  ).toEqual({ date: null, published_on: "2091-01-01" });
+    await db.prepare("SELECT published_on FROM announcements WHERE id=?").bind(newest).first(),
+  ).toEqual({ published_on: "2091-01-01" });
   await db.batch([
     db
-      .prepare(`INSERT INTO announcements(id,title,body,date,published_on,kind,published,created_at_ms,updated_at_ms)
-      VALUES(?, '移行済みの記事', '本文', '2090-01-01', '2090-01-01', 'other', 1, ?, ?)`)
+      .prepare(`INSERT INTO announcements(id,title,body,published_on,kind,published,created_at_ms,updated_at_ms)
+      VALUES(?, '移行済みの記事', '本文', '2090-01-01', 'other', 1, ?, ?)`)
       .bind(migrated, now, now),
     db
       .prepare(
         "INSERT INTO announcement_lobby_targets(announcement_id, game) VALUES(?, 'four-reversi')",
       )
       .bind(migrated),
-    db.prepare("UPDATE announcements SET date='2080-01-01' WHERE id=?").bind(newest),
   ]);
 
   for (const onlyPublished of [true, false]) {
@@ -214,11 +213,8 @@ test("公開日列で記事を表示・整列し、編集で旧日付列を書�
   expect(await announcementEvents(migrated)).toEqual([]);
   expect(await update(db, migrated, { ...announcement, date: "2092-01-01" }, 1)).toBe(true);
   expect(
-    await db
-      .prepare("SELECT date,published_on FROM announcements WHERE id=?")
-      .bind(migrated)
-      .first(),
-  ).toEqual({ date: "2090-01-01", published_on: "2092-01-01" });
+    await db.prepare("SELECT published_on FROM announcements WHERE id=?").bind(migrated).first(),
+  ).toEqual({ published_on: "2092-01-01" });
   expect(store.record((await store.read(migrated, true))!).date).toBe("2092-01-01");
 });
 

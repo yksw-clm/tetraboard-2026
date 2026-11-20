@@ -3,7 +3,7 @@ import { currentRoomMembership, readRoom } from "../../../adapters/room/state";
 import { withIndexTransaction } from "../../../adapters/room/transaction";
 import { advanceMatchmakingStart } from "../../../flows/matchmakingRoom/start";
 import { advanceTournamentStart } from "../../../flows/tournamentRoom/start";
-import { roomStorageKey } from "../../../rooms/progressHelpers";
+import { roomStorageKey } from "../../../adapters/room/games/progressHelpers";
 import type { RoomRuntime } from "../runtime";
 import { broadcastRoom, sendSocketError } from "../snapshots";
 import { disconnectedAtKey } from "../storageKeys";

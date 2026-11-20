@@ -3,7 +3,7 @@ import type { RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { registrationForPlayer } from "../../flows/guestRegistration/records";
 import { tournamentReservation } from "../../flows/tournamentRoom/reservations";
 import type { MatchmakingRoomReservation } from "@tetraboard/context-matchmaking";
-import { nextRoomAlarmAt } from "../../rooms/roomAlarm";
+import { nextRoomAlarmAt } from "./roomAlarm";
 import { readRoom } from "./state";
 
 export function nextAlarmAt(

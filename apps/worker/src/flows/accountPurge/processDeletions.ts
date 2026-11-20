@@ -1,6 +1,6 @@
 import { runDeletionJobs } from "@tetraboard/context-privacy";
 import { matchmakingQueueKeys } from "@tetraboard/protocol";
-import type { AuthEnv } from "../../accounts/auth";
+import type { AuthEnv } from "../../adapters/account/auth";
 import { avatarKeyPattern } from "../../adapters/account/profilePolicy";
 import { D1DeletionJobs, deletePrivacyImages } from "../../adapters/privacy/deletionJobs";
 import { revokeProviderToken } from "../../adapters/privacy/revokeProviderToken";

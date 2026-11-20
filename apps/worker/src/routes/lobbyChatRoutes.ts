@@ -10,7 +10,7 @@ import {
 } from "@tetraboard/protocol/general-lobby";
 import { tournamentIdSchema } from "@tetraboard/protocol";
 import { publicTournament, type TournamentRow } from "../adapters/tournament/store";
-import { accountIdentity, type StoredProfile } from "../accounts/auth";
+import { accountIdentity, type StoredProfile } from "../adapters/account/auth";
 import { adminIdentity } from "../admin/auth";
 import { readLimitedBody } from "./readLimitedBody";
 import { digest } from "../crypto";

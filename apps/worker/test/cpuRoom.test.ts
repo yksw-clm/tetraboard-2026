@@ -6,8 +6,8 @@ import { roomSchema, isFourShogiRoom, isShogiRoom } from "@tetraboard/protocol";
 import { getLegalActions } from "@tetraboard/four-shogi";
 import { getActionAvailability } from "@tetraboard/shogi";
 import { RoomBoundaryFixtures, boundaryRequest, boundaryJson } from "./roomBoundaryFixtures";
-import { ShogiStore } from "../src/rooms/shogiStore";
-import { StandardShogiStore } from "../src/rooms/standardShogiStore";
+import { ShogiStore } from "../src/adapters/room/games/four-shogi/store";
+import { StandardShogiStore } from "../src/adapters/room/games/shogi/store";
 
 let fixtures = new RoomBoundaryFixtures();
 afterEach(async () => {

@@ -1,8 +1,8 @@
 import { type Room } from "@tetraboard/protocol";
 import type { RoomCpuCapacity, RoomRuntime } from "../../durableObjects/gameRoom/runtime";
 import { cpuCapacityKey } from "../../durableObjects/gameRoom/storageKeys";
-import { isClockExpired } from "../../rooms/clock";
-import { cpuMoveDelayMs } from "../../rooms/progressHelpers";
+import { isClockExpired } from "./clock";
+import { cpuMoveDelayMs } from "./games/progressHelpers";
 import { readRoom } from "./state";
 const cpuCapacitySequenceKey = "external-cpu-capacity-sequence";
 export async function reserveCpuCapacity(

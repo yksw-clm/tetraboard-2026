@@ -9,15 +9,15 @@ import {
 } from "@tetraboard/protocol";
 import { createInitialState as createShogiState } from "@tetraboard/shogi";
 import { createInitialState as createFourShogiState } from "@tetraboard/four-shogi";
-import { gameDefinitions } from "../src/rooms/gameDefinitions";
-import { waitingRoomFactories } from "../src/rooms/waitingRoomFactories";
-import type { RoomStateMigrationDependencies } from "../src/rooms/roomStateVersion";
+import { gameDefinitions } from "../src/adapters/room/games/gameDefinitions";
+import { waitingRoomFactories } from "../src/adapters/room/waitingRoomFactories";
+import type { RoomStateMigrationDependencies } from "../src/adapters/room/roomStateVersion";
 
 import {
   migrateLegacyFourShogiRoom,
   migrateLegacyFourReversiRoom,
   migrateLegacyFourGomokuRoom,
-} from "../src/rooms/legacyRoomMigrations";
+} from "../src/adapters/room/legacyRoomMigrations";
 
 export function migrationDependencies(readReplay: () => unknown): RoomStateMigrationDependencies {
   return {

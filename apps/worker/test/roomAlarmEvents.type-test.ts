@@ -1,6 +1,6 @@
 import type { GameRoom } from "../src/durableObjects/gameRoom/gameRoom";
-import type { eventMethods } from "../src/rooms/roomAlarmEvents";
-import type { RoomAlarmEvents } from "../src/rooms/roomAlarmEvents";
+import type { eventMethods } from "../src/adapters/room/roomAlarmEvents";
+import type { RoomAlarmEvents } from "../src/adapters/room/roomAlarmEvents";
 
 type PublicMethods<T> = {
   [K in keyof T]-?: Extract<T[K], (...args: never[]) => unknown> extends never ? never : K;

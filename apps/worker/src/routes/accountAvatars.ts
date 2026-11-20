@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { avatarPresets } from "@tetraboard/protocol";
-import { avatarKeyPattern } from "../accounts/auth";
+import { avatarKeyPattern } from "../adapters/account/auth";
 export const avatarRoutes = new Hono<{ Bindings: Env }>();
 avatarRoutes.get("/avatars/:id", async (c) => {
   const preset = avatarPresets.find((candidate) => candidate.id === c.req.param("id"));

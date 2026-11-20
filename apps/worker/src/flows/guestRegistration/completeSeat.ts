@@ -6,7 +6,7 @@ import {
   registrationKey,
   type CompleteGuestRegistrationResult,
   type StoredGuestRegistration,
-} from "../../rooms/registrationTypes";
+} from "../../adapters/account/registrationTypes";
 import type { AnalyticsIdentity } from "../../usageEvents/matches";
 import { storedAccount } from "../accountSeats/seats";
 import { persistRegistrationCredentials, updateRegistrationAppearance } from "./completeStorage";

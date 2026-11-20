@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import { feedbackReceiptSchema } from "@tetraboard/protocol";
 import { feedbackRetryAfterSeconds, submitFeedback } from "@tetraboard/context-community";
-import { accountIdentity } from "../accounts/auth";
+import { accountIdentity } from "../adapters/account/auth";
 import { adminAccountIds, type AdminEnv } from "../admin/auth";
 import { feedbackSubmissionWithPrivacy } from "../flows/feedbackSubmission";
 import { readFeedbackForm, validFeedbackId } from "./feedbackInput";

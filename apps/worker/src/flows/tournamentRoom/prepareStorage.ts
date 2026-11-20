@@ -10,8 +10,8 @@ import {
   viewerSecretKey,
 } from "../../durableObjects/gameRoom/storageKeys";
 import { bytesToHex } from "../../durableObjects/gameRoom/tokenCrypto";
-import { roomStorageKey } from "../../rooms/progressHelpers";
-import { currentRoomStateVersion, roomStateVersionKey } from "../../rooms/roomStateVersion";
+import { roomStorageKey } from "../../adapters/room/games/progressHelpers";
+import { currentRoomStateVersion, roomStateVersionKey } from "../../adapters/room/roomStateVersion";
 import {
   tournamentCredentialVersionKey,
   tournamentReservationKey,

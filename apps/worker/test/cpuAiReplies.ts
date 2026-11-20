@@ -7,7 +7,7 @@ import {
 import { getLegalMoves as fourReversiMoves } from "@tetraboard/four-reversi";
 import { getLegalMoves as reversiMoves } from "@tetraboard/reversi";
 import { usiMove } from "@tetraboard/shogi/definition";
-import type { PlayingFor } from "../src/rooms/gameProgress";
+import type { PlayingFor } from "../src/adapters/room/games/gameProgress";
 import type { GameId } from "@tetraboard/protocol";
 
 export async function cpuAiReply(request: Request, room: PlayingFor<GameId>) {

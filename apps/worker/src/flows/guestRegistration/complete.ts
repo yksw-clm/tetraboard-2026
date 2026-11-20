@@ -8,7 +8,7 @@ import {
   registrationKey,
   type CompleteGuestRegistrationResult,
   type StoredGuestRegistration,
-} from "../../rooms/registrationTypes";
+} from "../../adapters/account/registrationTypes";
 import type { AnalyticsIdentity } from "../../usageEvents/matches";
 import { withAccountAdmission } from "../accountSeats/admission";
 import { completeRegistrationSeat } from "./completeSeat";

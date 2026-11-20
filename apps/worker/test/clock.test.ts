@@ -1,7 +1,7 @@
-import { createShogiClock, advanceShogiClock } from "../src/rooms/shogiClock";
+import { createShogiClock, advanceShogiClock } from "../src/adapters/room/shogiClock";
 import { roomTimeControl, roomTimeControlSchema } from "@tetraboard/protocol";
 import { expect, test } from "vitest";
-import { advanceClock, createClock, isClockExpired } from "../src/rooms/clock";
+import { advanceClock, createClock, isClockExpired } from "../src/adapters/room/clock";
 
 test("期限ちょうどから時間切れとする", () => {
   const clock = createClock(1_000);

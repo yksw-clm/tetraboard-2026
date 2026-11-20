@@ -5,19 +5,21 @@ import {
   reversiRatingSummarySchema,
   type MatchmakingGame,
 } from "@tetraboard/protocol";
-import { aiServiceConfigured, reversiAiEnabled, shogiAiEnabled } from "../../rooms/aiService";
+import { aiServiceConfigured } from "../room/ai/aiService";
+import { reversiAiEnabled } from "../room/ai/reversiAi";
+import { shogiAiEnabled } from "../room/ai/shogiAi";
 import {
   readShogiRatingResult,
   readShogiRatingSummary,
   shogiInitialRating,
   shogiRatingStore,
-} from "../../rooms/shogiRating";
+} from "../rating/shogiRating";
 import { reversiCpuProfile, selectReversiCpu } from "./reversiCpuProfiles";
 import {
   readReversiRatingResult,
   readReversiRatingSummary,
   reversiRatingStore,
-} from "../../rooms/reversiRating";
+} from "../rating/reversiRating";
 
 import { initialFourReversiRating } from "@tetraboard/context-rating";
 import {
@@ -27,7 +29,7 @@ import {
   fourReversiRatingStore,
   readFourReversiRatingResult,
   readFourReversiRatingSummary,
-} from "../../rooms/fourReversiRating";
+} from "../rating/fourReversiRating";
 import {
   calibratedFourReversiProfile,
   hasCalibratedFourReversiProfiles,

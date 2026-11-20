@@ -5,13 +5,13 @@ import { namedCpuProfile } from "../src/adapters/matchmaking/cpuProfiles";
 import {
   aiServiceConfigured,
   aiServiceEnabled,
-  requestAiMove,
-  requestRatedAiWarmup,
-  requestFourShogiAiMove,
-  requestReversiAiMove,
-  requestShogiAiMove,
   type AiServiceBindings,
-} from "../src/rooms/aiService";
+} from "../src/adapters/room/ai/aiService";
+import { requestAiMove } from "../src/adapters/room/ai/fourReversiAi";
+import { requestRatedAiWarmup } from "../src/adapters/room/ai/ratedAiWarmup";
+import { requestFourShogiAiMove } from "../src/adapters/room/ai/fourShogiAi";
+import { requestReversiAiMove } from "../src/adapters/room/ai/reversiAi";
+import { requestShogiAiMove } from "../src/adapters/room/ai/shogiAi";
 
 const token = "test-ai-service-token-at-least-32-characters";
 const enabled = {

@@ -7,7 +7,7 @@ import {
   playerTokenKey,
   reconnectGraceMs,
 } from "../../durableObjects/gameRoom/storageKeys";
-import { roomStorageKey } from "../../rooms/progressHelpers";
+import { roomStorageKey } from "../../adapters/room/games/progressHelpers";
 import { storedAccount } from "../accountSeats/seats";
 import { advanceMatchmakingStart } from "./start";
 

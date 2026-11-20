@@ -9,9 +9,12 @@ import {
 } from "@tetraboard/protocol";
 import { accountFixture, origin } from "../test/accountFixtures";
 import { AcceptedGameRequest } from "../test/acceptedGameRequest";
-import { fourShogiAiJobKey, type ShogiCpuJob } from "../src/rooms/fourShogiProgress";
-import { shogiCpuJobKey } from "../src/rooms/progressHelpers";
-import { requestFourShogiAiMove } from "../src/rooms/aiService";
+import {
+  fourShogiAiJobKey,
+  type ShogiCpuJob,
+} from "../src/adapters/room/games/four-shogi/progress";
+import { shogiCpuJobKey } from "../src/adapters/room/games/progressHelpers";
+import { requestFourShogiAiMove } from "../src/adapters/room/ai/fourShogiAi";
 import {
   calibratedFourShogiProfile,
   selectFourShogi,

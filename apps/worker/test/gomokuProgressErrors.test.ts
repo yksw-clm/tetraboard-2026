@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { ForbiddenReason } from "@tetraboard/gomoku";
-import { gomokuMoveError } from "../src/rooms/gomokuProgressErrors";
+import { gomokuMoveError } from "../src/adapters/room/games/gomoku/progressErrors";
 
 test.each<[ForbiddenReason[], string]>([
   [["double_three"], "gomoku_double_three"],

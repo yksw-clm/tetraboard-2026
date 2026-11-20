@@ -3,7 +3,7 @@ import { getLegalMoves } from "@tetraboard/reversi";
 import { runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, expect, test, vi } from "vitest";
-import type { RoomAlarmEvents } from "../src/rooms/roomAlarmEvents";
+import type { RoomAlarmEvents } from "../src/adapters/room/roomAlarmEvents";
 import { RoomBoundaryFixtures, boundaryRequest } from "./roomBoundaryFixtures";
 
 let fixtures = new RoomBoundaryFixtures();
@@ -136,7 +136,7 @@ test("GET・Alarm・開始・着手の同期部分は getAlarm が各1回以下�
 });
 
 test("確定したルームは同期的なAlarm計算だけに渡し、延期した計算では読み直す", async () => {
-  const { RoomAlarmEvents } = await import("../src/rooms/roomAlarmEvents");
+  const { RoomAlarmEvents } = await import("../src/adapters/room/roomAlarmEvents");
   const inputs: (Room | null | undefined)[] = [];
   const room = { id: "synchronous-input" } as Room;
   const events = new RoomAlarmEvents(
