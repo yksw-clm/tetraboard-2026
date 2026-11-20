@@ -1,28 +1,24 @@
-import { env } from "cloudflare:workers";
-import type { applyD1Migrations } from "cloudflare:test";
+import { matchChunkSize } from "@tetraboard/context-record";
 
-export async function normalizeLegacyData(db: D1Database) {
-  const migrations = (
-    env as typeof env & { TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1] }
-  ).TEST_MIGRATIONS;
-  const migration = migrations.find((entry) => entry.name.startsWith("0046_"));
-  if (!migration) throw new Error("Missing legacy data migration");
-  await db.batch(migration.queries.map((query) => db.prepare(query)));
-}
-
-export async function migratedShogiArchiveJson(db: D1Database, json: string) {
-  const record: { id: string; startedAtMs: number; endedAtMs: number; settings: { mode: string } } =
-    JSON.parse(json);
+export async function seedLegacyShogiUpload(db: D1Database, source: string) {
+  // 旧棋譜を、引分提案だけが補完された保存待ちの形で入れます。
+  const record = JSON.parse(source) as {
+    id: string;
+    game: { drawProposals?: unknown[] };
+    replay: { eventCount: number };
+  };
+  record.game.drawProposals ??= [];
+  const json = JSON.stringify(record);
   await db
-    .prepare("INSERT INTO matches VALUES(?,'four-shogi',?,?,?,?)")
-    .bind(record.id, record.settings.mode, record.startedAtMs, record.endedAtMs, json)
+    .prepare(
+      "INSERT INTO match_uploads (id, record_json, event_count, chunk_count) VALUES (?,?,?,?)",
+    )
+    .bind(
+      record.id,
+      json,
+      record.replay.eventCount,
+      Math.ceil(record.replay.eventCount / matchChunkSize),
+    )
     .run();
-  await normalizeLegacyData(db);
-  const migrated = await db
-    .prepare("SELECT record_json FROM matches WHERE id=?")
-    .bind(record.id)
-    .first<string>("record_json");
-  await db.prepare("DELETE FROM matches WHERE id=?").bind(record.id).run();
-  if (!migrated) throw new Error("Missing migrated archive");
-  return migrated;
+  return json;
 }

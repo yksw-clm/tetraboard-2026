@@ -1,3 +1,4 @@
+import { applyD1Migrations } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { beforeEach, afterEach, expect, test } from "vitest";
 import {
@@ -320,17 +321,15 @@ test("掲載先保存失敗で記事の作成・更新もロールバックす�
   ).toBe(1);
 });
 test("既存記事を新規DBへ移し、既存DBの編集済み記事を上書きしない", async () => {
-  const db = (env as typeof env & { PUBLIC_MATCH_TEST_DB: D1Database }).PUBLIC_MATCH_TEST_DB;
-  await db.exec(
-    "DROP TABLE IF EXISTS announcement_lobby_targets; DROP TABLE IF EXISTS announcements;",
-  );
-  const migrations = (
-    env as typeof env & { TEST_MIGRATIONS: { name: string; queries: string[] }[] }
-  ).TEST_MIGRATIONS;
-  const migration = migrations.find((m) => m.name.includes("0012_announcements"))!;
-  await db.batch(migration.queries.map((sql) => db.prepare(sql)));
+  const { ANNOUNCEMENT_BASELINE_TEST_DB: db, TEST_MIGRATIONS: migrations } = env as typeof env & {
+    ANNOUNCEMENT_BASELINE_TEST_DB: D1Database;
+    TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1];
+  };
+  await applyD1Migrations(db, migrations);
   const row = await db
-    .prepare("SELECT * FROM announcements WHERE id = 'feedback'")
+    .prepare(
+      "SELECT title, body, published, published_on AS date FROM announcements WHERE id = 'feedback'",
+    )
     .first<{ title: string; date: string; published: number; body: string }>();
   expect(row).toMatchObject({
     title: "不具合やご意見を送れるようになりました",
@@ -346,7 +345,7 @@ test("既存記事を新規DBへ移し、既存DBの編集済み記事を上書�
       .first<{ n: number }>())!.n,
   ).toBe(0);
   await db.prepare("UPDATE announcements SET title = '編集済み' WHERE id = 'feedback'").run();
-  await db.batch(migration.queries.map((sql) => db.prepare(sql)));
+  await applyD1Migrations(db, migrations);
   expect(
     (await db
       .prepare("SELECT title FROM announcements WHERE id = 'feedback'")

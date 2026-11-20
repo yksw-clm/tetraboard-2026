@@ -14,7 +14,7 @@ import {
 } from "../src/adapters/record/shogiMatchStore";
 import { advanceShogiMatchSave } from "../src/flows/matchSave/shogi";
 import { fourShogiReplayEventSchema } from "@tetraboard/protocol";
-import { migratedShogiArchiveJson } from "./legacyDataFixtures";
+import { seedLegacyShogiUpload } from "./legacyDataFixtures";
 // 不正JSONの保存テストが、別の部屋のAlarmによる退会処理へ干渉しない実D1を使います。
 const env = {
   ...bindings,
@@ -70,7 +70,7 @@ for (const fixture of [...reversiArchives, ...shogiArchives]) {
     users.push(user.id);
     const source = fixture.recordJson.replaceAll("fixture-self", user.id);
     const json =
-      fixture.name === "shogi-legacy" ? await migratedShogiArchiveJson(env.APP_DB, source) : source;
+      fixture.name === "shogi-legacy" ? await seedLegacyShogiUpload(env.APP_DB, source) : source;
     const match = fixture.detail;
     let expectedStored = json;
     if (match.settings.game === "four-shogi") {
@@ -133,7 +133,7 @@ for (const fixture of [...reversiArchives, ...shogiArchives]) {
 test("migration後の保存待ちは元JSONとmanifestを保持したまま再開する", async () => {
   const fixture = shogiArchives.find((f) => f.name === "shogi-legacy");
   if (!fixture) throw new Error("Missing frozen legacy archive");
-  const json = await migratedShogiArchiveJson(env.APP_DB, fixture.recordJson);
+  const json = await seedLegacyShogiUpload(env.APP_DB, fixture.recordJson);
   const record = await persistedRecord(json);
   const events = fixture.events.map((entry) => fourShogiReplayEventSchema.parse(entry.event));
   const source = (cursor: number) => events.slice(cursor, cursor + 100);
