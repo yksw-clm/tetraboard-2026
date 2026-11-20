@@ -1,6 +1,6 @@
 import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { afterEach, expect, onTestFinished, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import {
   indexRevisionKey,
   pendingIndexKey,
@@ -449,11 +449,9 @@ test("索引削除後の退会定期処理で 0014 前の DO の旧名を消し�
   expect(await storedMatch(record.id)).toEqual(saved);
 });
 
-test("毎時の点検は走査位置を記録し、索引と初回起動時の掃除済み DO の状態を保つ", async () => {
-  const now = Date.now();
-  fixTestTime(now);
+test("点検のみでは走査位置を記録し、索引と初回起動時の掃除済み DO の状態を保つ", async () => {
   const stale = await seedClosed(null);
-  const rooms = [stale, await seedClosed(now - retention), await seedClosed(null)];
+  const rooms = [stale, await seedClosed(scanTime - retention), await seedClosed(null)];
   const legacyRoom = waitingRoomFactories.reversi({
     code: stale.id,
     name: "旧ホスト",
@@ -462,29 +460,20 @@ test("毎時の点検は走査位置を記録し、索引と初回起動時の�
   await runInDurableObject(stale.stub, async (_, ctx) => {
     // 新しいルームの送信前に、D1 側に旧世代の閉鎖行が残っている状況です。
     ctx.storage.kv.put(roomStorageKey, legacyRoom);
-    await ctx.storage.setAlarm(now + hour);
+    await ctx.storage.setAlarm(Date.now() + hour);
   });
   const readRoomStorage = ({ stub }: (typeof rooms)[number]) =>
     runInDurableObject(stub, async (_, { storage }) => ({
       kv: [...storage.kv.list()],
       alarm: await storage.getAlarm(),
     }));
-  const indexQueries = [
-    db.prepare("SELECT * FROM room_index ORDER BY room_id"),
-    db.prepare("SELECT * FROM room_index_deleted_revisions ORDER BY room_id"),
-  ];
-  const readIndexTables = async () => (await db.batch(indexQueries)).map(({ results }) => results);
-  const beforeDb = await readIndexTables();
+  const readIndexes = () => Promise.all(rooms.map(({ id }) => readIndex(id)));
+  const beforeIndexes = await readIndexes();
   const beforeRooms = await Promise.all(rooms.map(readRoomStorage));
   for (const { stub } of rooms) await evictDurableObject(stub);
 
-  const log = vi.spyOn(console, "info").mockImplementation(() => {});
-  onTestFinished(() => log.mockRestore());
-  await runMaintenance();
-
-  const retentionLogs = log.mock.calls.filter(([message]) => message === "Room index retention");
-  expect(retentionLogs).toHaveLength(1);
-  expect(retentionLogs[0][1]).toEqual({
+  const options = { deleteExpired: false, inspectCandidates: true };
+  expect(await runRoomIndexRetention(env, options, () => scanTime)).toEqual({
     expired: 1,
     unknownClosure: 2,
     checked: 3,
@@ -494,7 +483,16 @@ test("毎時の点検は走査位置を記録し、索引と初回起動時の�
     failures: 0,
     rpcResults: { ready: 2, "room-present": 1 },
   });
-  expect(await readIndexTables()).toEqual(beforeDb);
+  expect(await readIndexes()).toEqual(beforeIndexes);
+  expect(await db.prepare("SELECT room_id FROM room_index_deleted_revisions").first()).toBeNull();
   expect(await Promise.all(rooms.map(readRoomStorage))).toEqual(beforeRooms);
   expect(await db.prepare("SELECT id FROM room_index_retention_cursor").first("id")).toBe(1);
+});
+
+test("毎時の定期処理は期限切れの索引を削除し、台帳に版を残す", async () => {
+  fixTestTime(scanTime);
+  const { id, job } = await seedClosed(scanTime - retention);
+  await runMaintenance();
+  expect(await readIndex(id)).toBeNull();
+  expect(await readLedger(id)).toBe(job.revision);
 });
