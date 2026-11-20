@@ -1,7 +1,9 @@
+import * as boardImage from "@tetraboard/shogi-ui/board-image";
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { matchReplayLoader, publicMatchReplayLoader } from "../src/features/room/matchReplayLoader";
 import { replayMatch } from "./fixtures/matchReplayFixtures";
 import { shogiReplayMatch } from "./fixtures/fourShogiRecordFixtures";
+import { standardSavedRound } from "./fixtures/standardShogiFixtures";
 import { RouterContextProvider } from "react-router";
 
 function setupFetchSpy() {
@@ -87,6 +89,32 @@ test("未認証は再確認用401として返し、URL・非公開・取得障�
   fetchSpy.mockRejectedValue(new Error("network"));
   await expect(matchReplayLoader(args(replayMatch().id))).rejects.toMatchObject({ status: 503 });
 });
+
+test.each([standardSavedRound().match, shogiReplayMatch().detail])(
+  "$settings.game の棋譜は局面取得の前に盤面画像を先読みする",
+  async (match) => {
+    const preloadSpy = spyOn(boardImage, "preloadBoardImage").mockImplementation(() => {});
+    try {
+      let callsAtReplayFetch: number | undefined;
+      fetchSpy.mockResolvedValueOnce(Response.json({ match })).mockImplementationOnce(
+        Object.assign(
+          async () => {
+            callsAtReplayFetch = preloadSpy.mock.calls.length;
+            return new Response(null, { status: 503 });
+          },
+          { preconnect() {} },
+        ),
+      );
+      const pending = matchReplayLoader(args(match.id));
+      expect(preloadSpy).not.toHaveBeenCalled();
+      await expect(pending).rejects.toMatchObject({ status: 503 });
+      expect(fetchSpy.mock.calls[1]?.[0]).toBe(`/api/account/matches/${match.id}/replay`);
+      expect(callsAtReplayFetch).toBe(1);
+    } finally {
+      preloadSpy.mockRestore();
+    }
+  },
+);
 
 test("将棋の100件ページ境界を復元し、途中の認証失効は再確認用401として返す", async () => {
   const fixture = shogiReplayMatch();

@@ -16,6 +16,7 @@ import {
   type RoomPresence,
   type FourShogiEliminatedHands,
 } from "@tetraboard/protocol";
+import { preloadBoardImage } from "@tetraboard/shogi-ui/board-image";
 import { redirect, type LoaderFunctionArgs } from "react-router";
 import { recoverTournamentRoom } from "../tournaments/tournamentRoomRecovery";
 import { readTournamentRoom } from "../tournaments/tournamentQueueStorage";
@@ -62,6 +63,7 @@ export async function roomLoader({ params, request }: LoaderFunctionArgs): Promi
       throw redirect(`/tournaments/${reference.tournamentId}?return=unavailable`);
     throw error;
   });
+  if (isShogiRoom(room) || isFourShogiRoom(room)) preloadBoardImage();
   if (tournamentReference && !instanceId && room.instanceId === tournamentReference.instanceId)
     await recoverTournamentRoom(id!, room.instanceId, request.signal);
   if (matchingReference && !instanceId && room.instanceId === matchingReference.instanceId)

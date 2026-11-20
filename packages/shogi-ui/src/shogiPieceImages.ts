@@ -12,7 +12,7 @@ import upPromotedKnight from "../assets/up/up_prom_knight.png";
 import upBishop from "../assets/up/up_bishop.png";
 import upPromotedBishop from "../assets/up/up_prom_bishop.png";
 import upRoyalKing from "../assets/up/up_king.png";
-import boardImage from "../assets/board-wood.png";
+import { boardImageUrl } from "./boardImage";
 import { createShogiImageStore } from "./shogiImageStore";
 import type { HandPieceKind, PieceKind } from "./shogiUiTypes";
 import upKing from "../assets/up/up_king2.png";
@@ -132,7 +132,7 @@ const fourSpriteKeys = [
 ] as const;
 export function prepareShogiAssets(standard = false): Promise<void> {
   const urls = [
-    boardImage,
+    boardImageUrl,
     ...(["up", "down"] as const).flatMap((direction) =>
       standard
         ? Object.entries(sprites[direction])
