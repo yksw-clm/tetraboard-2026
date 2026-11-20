@@ -113,9 +113,8 @@ test("無効な部屋番号・保存不能・無効な時間設定は作成や�
   act(() => {
     void h.current.submitRoom("create");
   });
-  actions()[0]!.respond({ user: null });
   await flush();
-  expect(actions()).toHaveLength(1);
+  expect(actions()).toHaveLength(0);
   expect(h.current.name).toBe("ゲスト");
 });
 test("招待の自動表示はタブ・世代ごとに消費し、対局中・満室・参加済みは消費しない", () => {
@@ -177,7 +176,7 @@ test("招待参加は同世代GET確認後に名前を省略したPOSTを送り�
     serverNowMs: now,
   });
   await flush();
-  expect(actions()[2]!.url).toBe("/api/rooms/12345/players");
+  expect(actions()[2]!.url).toBe("/api/rooms/12345/players?snapshot=1");
   expect(JSON.parse(String(actions()[2]!.init.body))).toEqual({ instanceId: room.instanceId });
   actions()[2]!.respond({ error: "account_seated" }, 409);
   await flush();

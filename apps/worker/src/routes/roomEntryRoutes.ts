@@ -24,6 +24,8 @@ export function roomError(error: RoomError["error"]): RoomError {
 }
 
 export async function createRoom(context: RoomContext<typeof createRoomContract.path>) {
+  const query = createRoomContract.query.safeParse(context.req.query());
+  if (!query.success) return context.json(roomError("invalid_request"), 400);
   let body: unknown;
 
   try {
@@ -38,26 +40,38 @@ export async function createRoom(context: RoomContext<typeof createRoomContract.
   }
 
   return createRoomWithAvailableCode(context.env, context.req.raw, request.data, {
-    success: (code, room, token) => createdRoomResponse(context, code, room, token),
+    success: (code, room, token, tokenHash) =>
+      createdRoomResponse(
+        context,
+        code,
+        room,
+        token,
+        query.data.snapshot === "1" ? tokenHash : null,
+      ),
     failure: (error, status) => context.json(roomError(error), status),
   });
 }
 
-function createdRoomResponse(context: RoomContext, code: string, room: Room, token: string) {
+async function createdRoomResponse(
+  context: RoomContext,
+  code: string,
+  room: Room,
+  token: string,
+  snapshotTokenHash: string | null,
+) {
   context.header("Location", getRoomContract.pathFor(code));
   context.header("Cache-Control", "no-store");
-  return context.json(
-    createRoomContract.response.parse({
-      room: roomForEntryResponse(room),
-      membership: { playerId: room.players[0].id, role: "host", token },
-    }),
-    201,
-  );
+  const entry = createRoomContract.response.parse({
+    room: roomForEntryResponse(room),
+    membership: { playerId: room.players[0].id, role: "host", token },
+  });
+  return context.json(await withEntrySnapshot(context.env, entry, snapshotTokenHash), 201);
 }
 
 export async function joinRoom(context: RoomContext<typeof joinRoomContract.path>) {
   const code = context.req.param("id");
-  if (!roomCodeSchema.safeParse(code).success) {
+  const query = joinRoomContract.query.safeParse(context.req.query());
+  if (!roomCodeSchema.safeParse(code).success || !query.success) {
     return context.json(roomError("invalid_request"), 400);
   }
 
@@ -74,12 +88,18 @@ export async function joinRoom(context: RoomContext<typeof joinRoomContract.path
   }
 
   return joinRequestedRoom(context.env, context.req.raw, code, request.data, {
-    success: (result, token) => joinedRoomResponse(context, result, token),
+    success: (result, token, tokenHash) =>
+      joinedRoomResponse(context, result, token, query.data.snapshot === "1" ? tokenHash : null),
     failure: (error, status) => context.json(roomError(error), status),
   });
 }
 
-function joinedRoomResponse(context: RoomContext, result: JoinRoomResult, token: string) {
+async function joinedRoomResponse(
+  context: RoomContext,
+  result: JoinRoomResult,
+  token: string,
+  snapshotTokenHash: string | null,
+) {
   if (result.status === "account_reservation_invalid")
     return context.json(roomError("internal_error"), 503);
   if (result.status === "room_changed") {
@@ -99,12 +119,26 @@ function joinedRoomResponse(context: RoomContext, result: JoinRoomResult, token:
   if (result.status === "tournament_required")
     return context.json(roomError("tournament_required"), 409);
   context.header("Cache-Control", "no-store");
-  return context.json(
-    joinRoomContract.response.parse({
-      room: roomForEntryResponse(result.room),
-      membership: { ...result.membership, token },
-    }),
-  );
+  const entry = joinRoomContract.response.parse({
+    room: roomForEntryResponse(result.room),
+    membership: { ...result.membership, token },
+  });
+  return context.json(await withEntrySnapshot(context.env, entry, snapshotTokenHash));
+}
+
+async function withEntrySnapshot(
+  env: Env,
+  entry: ReturnType<typeof createRoomContract.response.parse>,
+  tokenHash: string | null,
+) {
+  if (tokenHash === null) return entry;
+  try {
+    const initial = await env.GAME_ROOM.getByName(entry.room.id).getRoomEntrySnapshot(tokenHash);
+    if (initial) return createRoomContract.responseWithSnapshot.parse({ ...entry, ...initial });
+  } catch {
+    // 入室は確定済みなので、読み取りに失敗しても発行した資格を返します。
+  }
+  return entry;
 }
 
 export async function getRoomMembership(

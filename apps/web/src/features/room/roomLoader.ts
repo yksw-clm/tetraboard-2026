@@ -22,6 +22,7 @@ import { recoverTournamentRoom } from "../tournaments/tournamentRoomRecovery";
 import { readTournamentRoom } from "../tournaments/tournamentQueueStorage";
 import { fetchRoomMembership } from "../../shared/roomMembership";
 import { fetchRoom, invitationInstance } from "../../shared/roomAccess";
+import { takeRoomEntryHandoff } from "../../shared/roomEntryHandoff";
 
 export type RoomLoaderDataFor<G extends GameId> = {
   game: G;
@@ -37,46 +38,56 @@ export type RoomLoaderDataFor<G extends GameId> = {
 export type RoomLoaderData = { [G in GameId]: RoomLoaderDataFor<G> }[GameId];
 
 export async function roomLoader({ params, request }: LoaderFunctionArgs): Promise<RoomLoaderData> {
-  const id = params.id;
-  if (!roomCodeSchema.safeParse(id).success) {
+  const code = roomCodeSchema.safeParse(params.id);
+  if (!code.success) {
     throw new Response("ルームIDが不正です。", { status: 400 });
   }
+  const id = code.data;
   const url = new URL(request.url);
   const instanceId = invitationInstance(url);
-  const matchingReference =
-    url.searchParams.get("watch") === "1" ? null : readMatchmakingRoom(id!, instanceId);
-  if (matchingReference && instanceId)
-    await recoverMatchmakingRoom(id!, instanceId, request.signal);
-  const tournamentReference =
-    url.searchParams.get("watch") === "1" ? null : readTournamentRoom(id!, instanceId);
+  const watch = url.searchParams.get("watch") === "1";
+  const handoff = takeRoomEntryHandoff(id);
+  const matchingRoom = readMatchmakingRoom(id, instanceId);
+  const matchingReference = watch ? null : matchingRoom;
+  if (matchingReference && instanceId) await recoverMatchmakingRoom(id, instanceId, request.signal);
+  const tournamentRoom = readTournamentRoom(id, instanceId);
+  const tournamentReference = watch ? null : tournamentRoom;
   if (tournamentReference && instanceId)
-    await recoverTournamentRoom(id!, instanceId, request.signal);
-  const { room, presence, serverNowMs, stampsSupported, eliminatedHands } = await fetchRoom(
-    id!,
-    request.signal,
-    instanceId,
-  ).catch((error: unknown) => {
-    if (matchingReference && error instanceof Response && [404, 410].includes(error.status))
-      throw redirect(matchmakingPath(matchingReference.game ?? "four-reversi"));
-    const reference = tournamentReference;
-    if (reference && instanceId && error instanceof Response && [404, 410].includes(error.status))
-      throw redirect(`/tournaments/${reference.tournamentId}?return=unavailable`);
-    throw error;
-  });
+    await recoverTournamentRoom(id, instanceId, request.signal);
+  const entry =
+    handoff &&
+    !matchingRoom &&
+    !tournamentRoom &&
+    (instanceId === undefined || handoff.snapshot.room.instanceId === instanceId) &&
+    handoff.snapshot.room.players.some((player) => player.id === handoff.currentMembership.playerId)
+      ? handoff
+      : undefined;
+  if (entry) request.signal.throwIfAborted();
+  const { room, presence, serverNowMs, stampsSupported, eliminatedHands } =
+    entry?.snapshot ??
+    (await fetchRoom(id, request.signal, instanceId).catch((error: unknown) => {
+      if (matchingReference && error instanceof Response && [404, 410].includes(error.status))
+        throw redirect(matchmakingPath(matchingReference.game ?? "four-reversi"));
+      const reference = tournamentReference;
+      if (reference && instanceId && error instanceof Response && [404, 410].includes(error.status))
+        throw redirect(`/tournaments/${reference.tournamentId}?return=unavailable`);
+      throw error;
+    }));
   if (isShogiRoom(room) || isFourShogiRoom(room)) preloadBoardImage();
   if (tournamentReference && !instanceId && room.instanceId === tournamentReference.instanceId)
-    await recoverTournamentRoom(id!, room.instanceId, request.signal);
+    await recoverTournamentRoom(id, room.instanceId, request.signal);
   if (matchingReference && !instanceId && room.instanceId === matchingReference.instanceId)
-    await recoverMatchmakingRoom(id!, room.instanceId, request.signal);
-  const membership = await fetchRoomMembership(room.id, request.signal);
+    await recoverMatchmakingRoom(id, room.instanceId, request.signal);
+  const membership =
+    entry?.currentMembership ?? (await fetchRoomMembership(room.id, request.signal));
   if (membership !== null && !room.players.some((player) => player.id === membership.playerId)) {
     throw new Response("本人確認の結果がルーム情報と一致しません。", { status: 503 });
   }
   const common = {
     membership,
     presence,
-    serverNowMs,
-    invited: instanceId !== undefined && url.searchParams.get("watch") !== "1",
+    serverNowMs: entry ? serverNowMs + (performance.now() - entry.receivedAt) : serverNowMs,
+    invited: instanceId !== undefined && !watch,
     stampsSupported: stampsSupported === true,
   };
   if (isShogiRoom(room)) return { ...common, game: "shogi", room };

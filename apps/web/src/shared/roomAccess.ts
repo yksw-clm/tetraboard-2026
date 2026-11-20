@@ -14,6 +14,7 @@ import {
 import { saveGuestName } from "./guestName";
 import { roomSharePath } from "@tetraboard/protocol/room-sharing";
 import { parseRoomResponse } from "./roomResponseValidation";
+import { saveRoomEntryHandoff, splitRoomEntryResponse } from "./roomEntryHandoff";
 
 export const roomChangedMessage =
   "このルームは閉鎖されています。新しい招待リンクを確認するか、ロビーへ戻ってください。";
@@ -100,7 +101,7 @@ export async function joinRoom(
   const request = joinRoomContract.request.safeParse({ name, instanceId });
   if (!request.success) throw new RoomEntryError("ニックネームを1〜10文字で入力してください。");
   await beforeJoin?.();
-  const response = await fetch(`/api${joinRoomContract.pathFor(id)}`, {
+  const response = await fetch(`/api${joinRoomContract.pathFor(id)}?snapshot=1`, {
     method: joinRoomContract.method,
     headers: {
       "Content-Type": "application/json",
@@ -132,7 +133,9 @@ export async function joinRoom(
         "ルームに参加できませんでした。もう一度お試しください。",
     );
   }
-  const result = joinRoomContract.response.parse(body);
+  const receivedAt = performance.now();
+  const { entry, initial } = splitRoomEntryResponse(body);
+  const result = joinRoomContract.response.parse(entry);
   assertRoomIdentity(result.room, id, instanceId);
   if (
     result.membership.role !== "player" ||
@@ -144,5 +147,6 @@ export async function joinRoom(
     throw new RoomEntryError("参加情報を保存できませんでした。ブラウザの設定を確認してください。");
   }
   saveGuestName(request.data.name);
+  saveRoomEntryHandoff(result, initial, receivedAt);
   return { joined: true, room: result.room, membership: result.membership };
 }
