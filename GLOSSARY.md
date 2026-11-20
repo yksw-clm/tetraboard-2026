@@ -10,8 +10,6 @@
 
 | 用語              | 意味                                                                                          |
 | ----------------- | --------------------------------------------------------------------------------------------- |
-| web Worker        | 画面を配信する Cloudflare Worker。SvelteKit の SSR を動かす                                   |
-| api Worker        | API、WebSocket、Durable Objects を持つ Cloudflare Worker                                      |
 | AI Gateway Worker | レート戦の CPU の着手を、AI コンテナへ取り次ぐ Cloudflare Worker                              |
 | 文脈              | `packages/contexts` の下の 1 区画。対局ルーム、マッチングなど、同じ言葉とルールを共有する範囲 |
 | 殻                | Durable Object のうち、時計、通信、保存を受け持つ部分。状態遷移の判断は持たない               |
