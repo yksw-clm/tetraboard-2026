@@ -117,7 +117,7 @@ test("初期HTMLはViteの盤画像URLをタイトルとナビで共用し、五
   expect(() => lobbyBoardSourcesFromManifest({})).toThrow("Missing built lobby board asset");
 });
 
-test("既定HTMLと全公開ロビーはブランド表記とゲーム別titleの語順をそろえる", async () => {
+test("既定HTMLと全公開ロビーはブランド表記をそろえ、四人将棋以外のゲームロビーはtitleの語順をそろえる", async () => {
   const source = await Bun.file(new URL("../index.html", import.meta.url)).text();
   expect(source).toContain("<title>TetraBoard</title>");
   for (const html of [
@@ -132,14 +132,43 @@ test("既定HTMLと全公開ロビーはブランド表記とゲーム別title�
     const html = renderPublicLobby(template, game, lobbyBoardSources);
     const { title, description } = lobbyMetadata[game];
     expect(title).toStartWith(gameCatalog[game].name);
-    expect(title).toEndWith("をブラウザで無料対戦 | TetraBoard");
-    expect(
-      [...title].reduce((width, char) => width + (char.charCodeAt(0) < 128 ? 0.5 : 1), 0),
-    ).toBeLessThanOrEqual(33);
+    if (game !== "four-shogi") {
+      expect(title).toEndWith("をブラウザで無料対戦 | TetraBoard");
+      expect(
+        [...title].reduce((width, char) => width + (char.charCodeAt(0) < 128 ? 0.5 : 1), 0),
+      ).toBeLessThanOrEqual(33);
+    }
     expect(description.length).toBeLessThanOrEqual(120);
     expect(html).toContain(`<title>${title}</title>`);
     expect(html).toContain(`name="description" content="${description}"`);
   }
+});
+
+test.each([
+  {
+    path: "/",
+    html: renderGeneralLobby(template, lobbyBoardSources),
+    title: "TetraBoard | 四人将棋・四人リバーシをブラウザで無料対戦",
+    description:
+      "四人将棋・四人リバーシ・四人五目並べなど6つのボードゲームをブラウザで無料対戦。登録不要でCPUや友達とすぐ遊べます。公開ルームの観戦や毎週の大会も楽しめます。",
+  },
+  {
+    path: "/games/four-shogi",
+    html: renderPublicLobby(template, "four-shogi", lobbyBoardSources),
+    game: "four-shogi",
+    title: "四人将棋（4人将棋）を無料でオンライン対戦｜登録不要・毎週大会 | TetraBoard",
+    description:
+      "四人将棋（4人将棋）をブラウザで無料対戦。登録・インストール不要で、CPU戦も友達との対局もすぐ遊べます。シングルス・ダブルスに対応。毎週土曜の夜に大会を開いていて、対局の棋譜も見られます。",
+  },
+] as const)("$path の検索・OGP・Xのメタ情報は承認済みの文面と一致する", (page) => {
+  expect(page.html).toContain(`<title>${page.title}</title>`);
+  expect(page.html).toContain(`<meta name="description" content="${page.description}"`);
+  expectPublicPageSocialTags(
+    page.html,
+    page,
+    `https://tetraboard.net${page.path}`,
+    "game" in page ? page.game : undefined,
+  );
 });
 
 test("四人ゲームの初期HTMLは固有本文・正規URL・描画資産と通常リンクを持つ", () => {
@@ -232,7 +261,6 @@ test("総合ロビーの初期HTMLは全ゲームへの入口と正規URLを持�
   const html = renderGeneralLobby(template, lobbyBoardSources);
   expect(html).toContain('data-public-lobby="all"');
   expect(html).toContain('href="https://tetraboard.net/"');
-  expectPublicPageSocialTags(html, generalLobbyMetadata, "https://tetraboard.net/");
-  expect(html).toContain("総合ロビー");
+  expect(html).toContain("<h1>総合ロビー</h1>");
   expect(html).not.toContain("chat-1");
 });
