@@ -29,6 +29,7 @@ import {
   tournamentDocumentController,
 } from "../src/features/tournaments/tournamentController";
 import { profile } from "../test/fixtures/account";
+import { expectPublicPageSocialTags, readSocialTags } from "../test/fixtures/publicPageSocialTags";
 import { startPageMetadata } from "../src/seo/pageMetadata";
 import { act, clock, denyStorage, flush, press, render, rerender, requests, wrap } from "./harness";
 
@@ -232,6 +233,11 @@ test("大会一覧から詳細へ移動すると公開HTMLと同じメタ情報�
     );
     expect(meta("robots")).toBe("index,follow");
     expect(canonical()).toBe("https://tetraboard.net/tournaments");
+    expectPublicPageSocialTags(
+      document.head.innerHTML,
+      { title: document.title, description: meta("description")! },
+      canonical()!,
+    );
 
     const startsAtMs = Date.UTC(2026, 10, 20, 16);
     const endsAtMs = startsAtMs + 3_600_000;
@@ -265,6 +271,9 @@ test("大会一覧から詳細へ移動すると公開HTMLと同じメタ情報�
     expect(document.title).toBe("大会｜TetraBoard");
     expect(meta("description")).toBeUndefined();
     expect(meta("robots")).toBe("noindex,follow");
+    expect(readSocialTags(document.head.innerHTML)).toEqual([
+      ['property="og:site_name"', "TetraBoard"],
+    ]);
 
     clock.advance(0);
     await respond(result);
@@ -275,6 +284,12 @@ test("大会一覧から詳細へ移動すると公開HTMLと同じメタ情報�
     );
     expect(meta("robots")).toBe("index,follow");
     expect(canonical()).toBe("https://tetraboard.net/tournaments/1");
+    expectPublicPageSocialTags(
+      document.head.innerHTML,
+      { title: document.title, description: meta("description")! },
+      canonical()!,
+      "four-shogi",
+    );
     await act(async () => {
       await router.navigate("/tournaments/1?source=list");
     });

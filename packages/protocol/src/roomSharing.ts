@@ -35,27 +35,39 @@ export function roomShareMetadata(origin: string, room: ShareRoom | null) {
   const description = game
     ? `ブラウザで遊べる${name}。リンクからルームに参加・観戦できます。`
     : "ブラウザですぐ遊べるオンラインボードゲーム。友達と対戦・観戦を楽しめます。";
-  const image = new URL(`/assets/ogp/${game ?? "tetraboard"}.png`, origin).href;
-  const alt = game ? `${name}の盤面とTetraBoardのロゴ` : "TetraBoardのロゴとボードゲームの盤面";
   const url = new URL(room ? roomSharePath(room) : "/", origin).href;
   return {
     title,
     tags: [
       { kind: "name", key: "description", value: description },
-      { kind: "property", key: "og:title", value: title },
-      { kind: "property", key: "og:description", value: description },
-      { kind: "property", key: "og:type", value: "website" },
-      { kind: "property", key: "og:url", value: url },
-      { kind: "property", key: "og:image", value: image },
-      { kind: "property", key: "og:image:width", value: "1200" },
-      { kind: "property", key: "og:image:height", value: "630" },
-      { kind: "property", key: "og:image:alt", value: alt },
-      { kind: "property", key: "og:site_name", value: "TetraBoard" },
-      { kind: "name", key: "twitter:card", value: "summary_large_image" },
-      { kind: "name", key: "twitter:title", value: title },
-      { kind: "name", key: "twitter:description", value: description },
-      { kind: "name", key: "twitter:image", value: image },
-      { kind: "name", key: "twitter:image:alt", value: alt },
+      ...openGraphTags({ title, description }, url, game),
     ] as const,
   };
+}
+
+export function openGraphTags(
+  { title, description }: { title: string; description: string },
+  url: string,
+  game?: GameId,
+) {
+  const image = new URL(`/assets/ogp/${game ?? "tetraboard"}.png`, url).href;
+  const alt = game
+    ? `${gameCatalog[game].name}の盤面とTetraBoardのロゴ`
+    : "TetraBoardのロゴとボードゲームの盤面";
+  return [
+    { kind: "property", key: "og:title", value: title },
+    { kind: "property", key: "og:description", value: description },
+    { kind: "property", key: "og:type", value: "website" },
+    { kind: "property", key: "og:url", value: url },
+    { kind: "property", key: "og:image", value: image },
+    { kind: "property", key: "og:image:width", value: "1200" },
+    { kind: "property", key: "og:image:height", value: "630" },
+    { kind: "property", key: "og:image:alt", value: alt },
+    { kind: "property", key: "og:site_name", value: "TetraBoard" },
+    { kind: "name", key: "twitter:card", value: "summary_large_image" },
+    { kind: "name", key: "twitter:title", value: title },
+    { kind: "name", key: "twitter:description", value: description },
+    { kind: "name", key: "twitter:image", value: image },
+    { kind: "name", key: "twitter:image:alt", value: alt },
+  ] as const;
 }

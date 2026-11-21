@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { tournamentSettingsSchema } from "@tetraboard/protocol";
 import { afterEach, expect, test, vi } from "vitest";
 import { accountFixture } from "./accountFixtures";
 import { assetFixture, files } from "./publicAssetFixtures";
@@ -52,10 +53,38 @@ async function seedTournament(
   return key;
 }
 
-function expectTournamentHead(body: string, title: string, description: string, canonical: string) {
+function expectTournamentHead(
+  body: string,
+  title: string,
+  description: string,
+  canonical: string,
+  imageName = "tetraboard",
+  alt = "TetraBoardのロゴとボードゲームの盤面",
+) {
   expect(body).toContain(`<title>${title}</title>`);
   expect(body).toContain(`<meta name="description" content="${description}">`);
   expect(body).toContain(`<link rel="canonical" href="${canonical}">`);
+  const image = new URL(`/assets/ogp/${imageName}.png`, canonical).href;
+  const tags = Array.from(
+    body.matchAll(/<meta (property="og:[^"]+"|name="twitter:[^"]+") content="([^"]*)">/g),
+    ([, attribute, content]) => [attribute, content],
+  );
+  expect(tags).toEqual([
+    ['property="og:title"', title],
+    ['property="og:description"', description],
+    ['property="og:type"', "website"],
+    ['property="og:url"', canonical],
+    ['property="og:image"', image],
+    ['property="og:image:width"', "1200"],
+    ['property="og:image:height"', "630"],
+    ['property="og:image:alt"', alt],
+    ['property="og:site_name"', "TetraBoard"],
+    ['name="twitter:card"', "summary_large_image"],
+    ['name="twitter:title"', title],
+    ['name="twitter:description"', description],
+    ['name="twitter:image"', image],
+    ['name="twitter:image:alt"', alt],
+  ]);
 }
 
 test("公開大会の全件を状態別に配信し、既存の7 URLと大会をサイトマップに載せる", async () => {
@@ -220,7 +249,14 @@ test("大会詳細は開催前の名前を公開せず、確定後は匿名化�
     expect(response.headers.get("ETag")).toBeNull();
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     const body = await response.text();
-    expectTournamentHead(body, title, description, `https://tetraboard.net/tournaments/${id}`);
+    expectTournamentHead(
+      body,
+      title,
+      description,
+      `https://tetraboard.net/tournaments/${id}`,
+      "four-shogi",
+      "四人将棋の盤面とTetraBoardのロゴ",
+    );
     expect(body).toContain('content="index,follow"');
     expect(body).toContain(label);
     expect(body).toContain(`<dt>エントリー人数</dt><dd>${id === 1 || id === 4 ? 1 : 0}人</dd>`);
@@ -248,8 +284,19 @@ test("大会詳細は開催前の名前を公開せず、確定後は匿名化�
   expect(await head.text()).toBe("");
 });
 
-test("開発の大会HTMLは検索除外と開発のcanonicalを使い、サイトマップは静的なまま返す", async () => {
-  await seedTournament(1, "開発の大会", Date.now() + hour);
+test("開発の大会HTMLは検索除外と開発のcanonical・OGPを使い、サイトマップは静的なまま返す", async () => {
+  vi.spyOn(Date, "now").mockReturnValue(tournamentNow);
+  const key = await seedTournament(1, "開発の大会", tournamentNow + hour);
+  const settings = tournamentSettingsSchema.parse({
+    game: "four-reversi",
+    mode: "singles",
+    timeControl: { mainTimeMs: 60000, byoyomiMs: 10000 },
+  });
+  await env.APP_DB.prepare(
+    "UPDATE tournaments SET rule_version=2,game=?,settings_json=? WHERE key=?",
+  )
+    .bind(settings.game, JSON.stringify(settings), key)
+    .run();
   const origin = "https://tetraboard-dev.chaossi-lab.workers.dev";
   const assets = assetFixture({ APP_ORIGIN: origin });
   for (const path of ["/tournaments", "/tournaments/1"]) {
@@ -258,8 +305,19 @@ test("開発の大会HTMLは検索除外と開発のcanonicalを使い、サイ�
     expect(response.headers.get("X-Robots-Tag")).toContain("noindex");
     const body = await response.text();
     expect(body).toContain('content="noindex,follow"');
-    expect(body).toContain(`href="${origin}${path}"`);
     expect(body).toContain("開発の大会");
+    if (path === "/tournaments") {
+      expectTournamentHead(body, "大会一覧｜TetraBoard", tournamentListDescription, origin + path);
+    } else {
+      expectTournamentHead(
+        body,
+        "開発の大会｜TetraBoard",
+        "四人リバーシの大会です。2026年11月22日に開催します。",
+        origin + path,
+        "four-reversi",
+        "四人リバーシの盤面とTetraBoardのロゴ",
+      );
+    }
   }
   expect(await (await assets.fetch("/sitemap.xml")).text()).toBe(files["/sitemap.xml"]!.body);
 });

@@ -1,4 +1,10 @@
 import { expect, test } from "bun:test";
+import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { fourShogiRulesMetadata } from "../src/seo/fourShogiRulesMetadata";
+import { generalLobbyMetadata, lobbyMetadata } from "../src/seo/lobbyMetadata";
+import { expectPublicPageSocialTags } from "./fixtures/publicPageSocialTags";
+
+const developmentOrigin = "https://tetraboard-dev.chaossi-lab.workers.dev";
 
 test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URLと検索除外を維持する", () => {
   const result = Bun.spawnSync(
@@ -8,16 +14,21 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
       `
     import { createMemoryRouter } from "react-router";
     import { Window } from "happy-dom";
-    import { renderFourShogiRules, renderPublicLobby, renderSitemap, robotsText } from "./build/renderPublicLobby";
+    import { gameIds } from "@tetraboard/protocol/games";
+    import { renderFourShogiRules, renderGeneralLobby, renderPublicLobby, renderSitemap, robotsText } from "./build/renderPublicLobby";
     import { lobbyBoardSources, resolveRulesDiagramAsset } from "./test/fixtures/lobbyBoardSources";
     import { startPageMetadata, updatePageMetadata } from "./src/seo/pageMetadata";
     import { validateDeploymentLobbyHtml } from "../../scripts/deploymentLobbyHtml";
     const window = new Window();
     globalThis.document = window.document;
-    const template = '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>';
-    const html = renderPublicLobby(template, "four-reversi", lobbyBoardSources);
-    validateDeploymentLobbyHtml(html, "four-reversi", {
-      publicOrigin: "https://tetraboard-dev.chaossi-lab.workers.dev",
+    const template = await Bun.file("index.html").text();
+    const lobbies = Object.fromEntries(gameIds.map((game) => [
+      game,
+      renderPublicLobby(template, game, lobbyBoardSources),
+    ]));
+    const home = renderGeneralLobby(template, lobbyBoardSources);
+    validateDeploymentLobbyHtml(lobbies["four-reversi"], "four-reversi", {
+      publicOrigin: "${developmentOrigin}",
       searchIndexable: false,
     });
     const pages = [];
@@ -45,27 +56,40 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
     pages.push(document.head.innerHTML);
     stop();
     router.dispose();
-    console.log(JSON.stringify({ html, rulesHtml, sitemap: renderSitemap(), robotsText, pages }));
+    console.log(JSON.stringify({ home, lobbies, rulesHtml, sitemap: renderSitemap(), robotsText, pages }));
   `,
     ],
     {
       cwd: new URL("..", import.meta.url).pathname.replace(/\/$/, ""),
       env: {
         ...process.env,
-        VITE_PUBLIC_ORIGIN: "https://tetraboard-dev.chaossi-lab.workers.dev",
+        VITE_PUBLIC_ORIGIN: developmentOrigin,
         VITE_SEARCH_INDEXABLE: "false",
       },
     },
   );
   expect(result.exitCode).toBe(0);
   const output = JSON.parse(result.stdout.toString());
-  expect(output.html).toContain('content="noindex,follow"');
-  expect(output.html).toContain(
-    'href="https://tetraboard-dev.chaossi-lab.workers.dev/games/four-reversi"',
+  expectPublicPageSocialTags(output.home, generalLobbyMetadata, `${developmentOrigin}/`);
+  for (const game of gameIds) {
+    expectPublicPageSocialTags(
+      output.lobbies[game],
+      lobbyMetadata[game],
+      `${developmentOrigin}${gameCatalog[game].lobbyPath}`,
+      game,
+    );
+  }
+  expectPublicPageSocialTags(
+    output.rulesHtml,
+    fourShogiRulesMetadata,
+    `${developmentOrigin}${fourShogiRulesPath}`,
+    "four-shogi",
   );
-  expect(output.rulesHtml).toContain('content="noindex,follow"');
-  expect(output.rulesHtml).toContain(
-    'href="https://tetraboard-dev.chaossi-lab.workers.dev/games/four-shogi/rules"',
+  expectPublicPageSocialTags(
+    output.pages[5],
+    fourShogiRulesMetadata,
+    `${developmentOrigin}${fourShogiRulesPath}`,
+    "four-shogi",
   );
   expect(output.pages[5]).toContain(
     'href="https://tetraboard-dev.chaossi-lab.workers.dev/games/four-shogi/rules"',
@@ -74,7 +98,12 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
   expect(output.sitemap).not.toContain("<lastmod>");
   expect(output.robotsText).toContain("Allow: /");
   expect(output.robotsText).not.toContain("Sitemap:");
-  for (const page of output.pages) {
+  for (const page of [
+    output.home,
+    ...Object.values(output.lobbies),
+    output.rulesHtml,
+    ...output.pages,
+  ]) {
     expect(page).toContain('content="noindex,follow"');
     expect(page).not.toContain("https://tetraboard.net");
   }

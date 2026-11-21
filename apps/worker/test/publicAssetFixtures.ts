@@ -18,7 +18,7 @@ export const files: Record<string, { body: string; type: string }> = {
     type: "text/html; charset=utf-8",
   },
   "/app.html": {
-    body: '<html><head><title>TetraBoard</title><meta name="robots" content="noindex,follow"></head><body><div id="root"></div></body></html>',
+    body: '<html><head><title>TetraBoard</title><meta property="og:site_name" content="TetraBoard"><meta name="robots" content="noindex,follow"></head><body><div id="root"></div></body></html>',
     type: "text/html; charset=utf-8",
   },
   "/index.html": {

@@ -5,6 +5,7 @@ import {
   tournamentRulesSummary,
   tournamentSettingsDescription,
   tournamentStatusLabels,
+  type GameId,
   type TournamentPublic,
   type TournamentSettings,
   type TournamentStage,
@@ -16,6 +17,7 @@ import {
   tournamentListMetadata,
   tournamentListPath,
 } from "@tetraboard/protocol/tournament-pages";
+import { openGraphTags } from "@tetraboard/protocol/room-sharing";
 import {
   publicFinalStandings,
   publicSummary,
@@ -24,7 +26,7 @@ import {
 } from "./adapters/tournament/store";
 import { dynamicAssetHeaders, escapeShareHtml, fetchUnconditionalAsset } from "./htmlAssets";
 
-type TournamentPage = ReturnType<typeof tournamentListMetadata> & { body: string };
+type TournamentPage = ReturnType<typeof tournamentListMetadata> & { body: string; game?: GameId };
 type TournamentPages = Awaited<ReturnType<typeof publicTournamentPages>>;
 type FinalStandings = Awaited<ReturnType<typeof publicFinalStandings>>;
 
@@ -113,22 +115,30 @@ async function readTournamentPage(
   return {
     ...tournamentDetailMetadata(env.APP_ORIGIN, { ...tournament, game: settings.game }),
     body: renderDetail(tournament, standings, settings),
+    game: settings.game,
   };
 }
 
 function rewriteTournamentHtml(response: Response, page: TournamentPage, indexable: boolean) {
   const robots = indexable ? "index,follow" : "noindex,follow";
+  const socialTags = openGraphTags(page, page.canonical, page.game)
+    .map(({ kind, key, value }) => `<meta ${kind}="${key}" content="${escapeShareHtml(value)}">`)
+    .join("");
   const tags =
     `<title>${escapeShareHtml(page.title)}</title>` +
     `<meta name="description" content="${escapeShareHtml(page.description)}">` +
     `<meta name="robots" content="${robots}">` +
-    `<link rel="canonical" href="${escapeShareHtml(page.canonical)}">`;
+    `<link rel="canonical" href="${escapeShareHtml(page.canonical)}">` +
+    socialTags;
   return new HTMLRewriter()
-    .on("title, meta[name='description'], meta[name='robots'], link[rel='canonical']", {
-      element(element) {
-        element.remove();
+    .on(
+      "title, meta[name='description'], meta[name='robots'], link[rel='canonical'], meta[property^='og:'], meta[name^='twitter:']",
+      {
+        element(element) {
+          element.remove();
+        },
       },
-    })
+    )
     .on("head", {
       element(element) {
         element.append(tags, { html: true });

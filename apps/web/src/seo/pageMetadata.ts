@@ -10,7 +10,11 @@ import {
   generalLobbyMetadata,
   publicOrigin,
 } from "./lobbyMetadata";
-import { roomShareMetadata, type ShareRoom } from "@tetraboard/protocol/room-sharing";
+import {
+  openGraphTags,
+  roomShareMetadata,
+  type ShareRoom,
+} from "@tetraboard/protocol/room-sharing";
 import { legalDocuments } from "@tetraboard/protocol/privacy";
 import { matchShareMetadata, type ShareMatch } from "@tetraboard/protocol/match-sharing";
 import {
@@ -110,38 +114,45 @@ export function updatePageMetadata(
   ) {
     const metadata = matchShareMetadata(window.location.origin, match);
     document.title = metadata.title;
-    for (const { kind, key, value } of metadata.tags) {
-      const tag = document.createElement("meta");
-      tag.setAttribute(kind, key);
-      tag.content = value;
-      document.head.append(tag);
-    }
+    for (const tag of metadata.tags) appendMetaTag(tag);
     return;
   }
   if (/^\/rooms\/[^/]+\/?$/.test(path)) {
     const currentRoom = room && path.replace(/\/$/, "") === `/rooms/${room.id}` ? room : null;
     const metadata = roomShareMetadata(window.location.origin, currentRoom);
     document.title = metadata.title;
-    for (const { kind, key, value } of metadata.tags) {
-      const tag = document.createElement("meta");
-      tag.setAttribute(kind, key);
-      tag.content = value;
-      document.head.append(tag);
-    }
+    for (const tag of metadata.tags) appendMetaTag(tag);
     return;
   }
-  const siteName = document.createElement("meta");
-  siteName.setAttribute("property", "og:site_name");
-  siteName.content = "TetraBoard";
-  document.head.append(siteName);
-  if (!metadata) return;
-  const description = document.createElement("meta");
-  description.name = "description";
-  description.content = metadata.description;
+  if (!metadata) {
+    appendMetaTag({ kind: "property", key: "og:site_name", value: "TetraBoard" });
+    return;
+  }
+  appendMetaTag({ kind: "name", key: "description", value: metadata.description });
   const canonical = document.createElement("link");
   canonical.rel = "canonical";
-  canonical.href =
+  const canonicalUrl =
     tournamentMetadata?.canonical ??
     (game ? lobbyCanonical(game) : `${publicOrigin}${publicPage ? currentPath : "/"}`);
-  document.head.append(description, canonical);
+  canonical.href = canonicalUrl;
+  document.head.append(canonical);
+  const imageGame =
+    game ??
+    (currentPath === fourShogiRulesPath ? "four-shogi" : isDetail ? tournament?.game : undefined);
+  for (const tag of openGraphTags(metadata, canonicalUrl, imageGame)) appendMetaTag(tag);
+}
+
+function appendMetaTag({
+  kind,
+  key,
+  value,
+}: {
+  kind: "name" | "property";
+  key: string;
+  value: string;
+}): void {
+  const tag = document.createElement("meta");
+  tag.setAttribute(kind, key);
+  tag.content = value;
+  document.head.append(tag);
 }
