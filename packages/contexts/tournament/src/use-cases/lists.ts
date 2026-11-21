@@ -10,7 +10,11 @@ import { settingsForTournament } from "../domain/settings";
 import { stage } from "../domain/stage";
 import { standingFromRow, visibleStanding } from "../domain/standings";
 import { nextOffset } from "../domain/cursor";
-import type { TournamentReadPorts, TournamentPolicy } from "./ports";
+import type {
+  PublishedTournamentPagesReader,
+  TournamentReadPorts,
+  TournamentPolicy,
+} from "./ports";
 import { record, summarize } from "./summary";
 export async function lobbySections(
   ports: TournamentReadPorts,
@@ -100,6 +104,32 @@ function listItem(
         return { name, avatarUrl, ...(isGuest ? { isGuest: true } : {}) };
       }),
   };
+}
+export async function publicTournamentPages(
+  store: PublishedTournamentPagesReader,
+  policy: TournamentPolicy,
+  now: number,
+) {
+  const rows = await store.publicPageRows();
+  return rows.map((row) => {
+    const startsAtMs = row.starts_at_ms!;
+    const endsAtMs = row.ends_at_ms!;
+    const updatedAtMs = row.updated_at_ms;
+    return {
+      id: row.public_id!,
+      name: row.name,
+      game: settingsForTournament(row, policy).game,
+      startsAtMs,
+      endsAtMs,
+      status: stage(row, now) as TournamentPublic["status"],
+      lastModifiedAtMs: Math.max(
+        updatedAtMs,
+        row.finalized_at_ms ?? updatedAtMs,
+        startsAtMs <= now ? startsAtMs : updatedAtMs,
+        endsAtMs <= now ? endsAtMs : updatedAtMs,
+      ),
+    };
+  });
 }
 export async function adminList(ports: TournamentReadPorts, offset: number) {
   const rows = await ports.store.adminRows(offset);

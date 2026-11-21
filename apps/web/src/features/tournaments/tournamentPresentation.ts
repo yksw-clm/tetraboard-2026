@@ -1,28 +1,5 @@
 import type { TournamentPublic } from "@tetraboard/protocol";
 
-export const tournamentStatusLabels = {
-  upcoming: "エントリー受付中",
-  active: "開催中",
-  settling: "結果発表待ち",
-  finished: "結果発表",
-};
-const dateFormatter = new Intl.DateTimeFormat("ja-JP", {
-  timeZone: "Asia/Tokyo",
-  month: "long",
-  day: "numeric",
-  weekday: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-export function tournamentDate(
-  startsAtMs: number,
-  endsAtMs: number,
-  { showTimeZone = true }: { showTimeZone?: boolean } = {},
-) {
-  return `${dateFormatter.format(startsAtMs)} 〜 ${dateFormatter.format(endsAtMs)}${showTimeZone ? "〈日本時間〉" : ""}`;
-}
-
 const listDateOptions: Intl.DateTimeFormatOptions = {
   timeZone: "Asia/Tokyo",
   month: "numeric",

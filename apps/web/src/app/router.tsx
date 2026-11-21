@@ -61,7 +61,18 @@ const lazyMatchReplayPage = () => ({
     (await import("../features/room/MatchReplayPage")).MatchReplayErrorPage,
 });
 
+// 一覧と詳細の遅延読み込み先を共用し、既存画面が読む共通チャンクの細分化を抑えます。
+const loadTournamentPages = () => import("../features/tournaments/tournamentRoutes");
+
 export const router = createBrowserRouter([
+  {
+    path: "/tournaments",
+    lazy: async () => ({
+      Component: (await loadTournamentPages()).TournamentListPage,
+    }),
+    ErrorBoundary: AppRouteErrorPage,
+    hydrateFallbackElement: <AppPageLoading message="大会一覧を読み込んでいます…" />,
+  },
   {
     ErrorBoundary: AppRouteErrorPage,
     Component: () => (
@@ -121,7 +132,7 @@ export const router = createBrowserRouter([
       {
         path: "/tournaments/:id",
         lazy: async () => ({
-          Component: (await import("../features/tournaments/TournamentPage")).TournamentPage,
+          Component: (await loadTournamentPages()).TournamentPage,
         }),
         hydrateFallbackElement: (
           <AppPageLoading message="大会を読み込んでいます…" theme="four-shogi" />

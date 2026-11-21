@@ -40,3 +40,10 @@ export async function standingsPage(
     nextCursor: all && values.length > offset + 50 ? nextOffset(offset + 50) : null,
   };
 }
+export async function publicFinalStandings(ports: TournamentReadPorts, row: TournamentRow) {
+  if (row.finalized_at_ms === null) return [];
+  const standings = await allStandings(ports, row);
+  return standings.flatMap(({ rank, name, pointsUnits }) =>
+    rank === null ? [] : [{ rank, name, pointsUnits }],
+  );
+}

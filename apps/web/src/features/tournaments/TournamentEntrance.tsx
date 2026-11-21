@@ -5,13 +5,14 @@ import {
 } from "@tetraboard/protocol";
 import type { TournamentPublic } from "@tetraboard/protocol";
 import type { GameId } from "@tetraboard/protocol/games";
+import { tournamentDate } from "@tetraboard/protocol/tournament-pages";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppSkeletonCard } from "../../shared/ui/AppSkeleton";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { useAccount } from "../account/useAccount";
 import { TournamentStatus } from "./TournamentStatus";
-import { tournamentDate, tournamentRemaining } from "./tournamentPresentation";
+import { tournamentRemaining } from "./tournamentPresentation";
 import { useLobbyTournaments } from "./useLobbyTournaments";
 
 function TournamentEntranceCard({

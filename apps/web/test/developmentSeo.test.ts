@@ -20,10 +20,20 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
       searchIndexable: false,
     });
     const pages = [];
-    for (const path of ["/games/four-reversi", "/matches/example", "/games/shogi"]) {
+    for (const path of ["/games/four-reversi", "/matches/example", "/games/shogi", "/tournaments/"]) {
       updatePageMetadata(path);
       pages.push(document.head.innerHTML);
     }
+    updatePageMetadata("/tournaments/1", undefined, undefined, {
+      id: 1,
+      name: "開発の大会",
+      game: "four-reversi",
+      startsAtMs: Date.UTC(2026, 10, 20, 16),
+      status: "upcoming",
+      entryCount: 0,
+      finalizedAtMs: null,
+    });
+    pages.push(document.head.innerHTML);
     console.log(JSON.stringify({ html, sitemap: renderSitemap(), robotsText, pages }));
   `,
     ],
@@ -51,4 +61,10 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
     expect(page).not.toContain("https://tetraboard.net");
   }
   expect(output.pages[2]).toContain("https://tetraboard-dev.chaossi-lab.workers.dev/games/shogi");
+  expect(output.pages[3]).toContain("https://tetraboard-dev.chaossi-lab.workers.dev/tournaments");
+  expect(output.pages[3]).toContain("大会一覧｜TetraBoard");
+  expect(output.pages[4]).toContain(
+    'href="https://tetraboard-dev.chaossi-lab.workers.dev/tournaments/1"',
+  );
+  expect(output.pages[4]).toContain("四人リバーシの大会です。2026年11月21日に開催します。");
 });

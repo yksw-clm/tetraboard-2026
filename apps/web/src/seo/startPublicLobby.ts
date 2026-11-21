@@ -1,7 +1,7 @@
 import type { DataRouter } from "react-router";
 import { preloadRecovery, preloadRecoveryMessage } from "../shared/preloadRecovery";
 
-/** 遅延ルートの準備が済むまで、配信された紹介HTMLを残す。 */
+/** 遅延ルートの準備が済むまで、配信された初期HTMLを残します。 */
 export function startPublicLobby(root: HTMLElement, router: DataRouter, mount: () => void): void {
   if (!root.dataset.publicLobby) {
     mount();
