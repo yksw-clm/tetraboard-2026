@@ -1,3 +1,4 @@
+import { fourShogiRulesPath } from "@tetraboard/protocol/games";
 import type { DataRouter } from "react-router";
 import type { RoomLoaderData } from "../features/room/roomLoader";
 import type { MatchReplayData } from "../features/room/matchReplayLoader";
@@ -20,6 +21,8 @@ import {
   type TournamentPageInfo,
 } from "@tetraboard/protocol/tournament-pages";
 
+type PublicPageMetadata = { title: string; description: string };
+
 const tournamentDetailPattern = /^\/tournaments\/[1-9]\d*$/;
 let initialTournamentPath: string | undefined;
 
@@ -27,7 +30,7 @@ function isTournamentPage(path: string): boolean {
   return path === tournamentListPath || /^\/tournaments\/[^/]+$/.test(path);
 }
 
-export function startPageMetadata(router: DataRouter): () => void {
+export function startPageMetadata(router: DataRouter, root?: HTMLElement): () => void {
   let currentPath = router.state.location.pathname.replace(/\/$/, "");
   initialTournamentPath = isTournamentPage(currentPath) ? currentPath : undefined;
   function syncMetadata(state: DataRouter["state"]) {
@@ -44,7 +47,16 @@ export function startPageMetadata(router: DataRouter): () => void {
     const replay = state.errors
       ? undefined
       : (state.loaderData["public-match"] as MatchReplayData | undefined);
-    updatePageMetadata(pathname, data?.room, replay?.match);
+    // ルールの初期HTMLが表示されている間は、そのメタ情報も残します。
+    if (
+      nextPath === fourShogiRulesPath &&
+      (!state.initialized || (state.errors && root?.dataset.publicLobby === "four-shogi-rules"))
+    )
+      return;
+    const handle = state.matches.at(-1)?.route.handle as
+      | { pageMetadata?: PublicPageMetadata }
+      | undefined;
+    updatePageMetadata(pathname, data?.room, replay?.match, undefined, handle?.pageMetadata);
   }
   syncMetadata(router.state);
   const stop = router.subscribe(syncMetadata);
@@ -59,6 +71,7 @@ export function updatePageMetadata(
   room?: ShareRoom,
   match?: ShareMatch,
   tournament?: TournamentPageInfo,
+  publicPage?: PublicPageMetadata,
 ): void {
   const currentPath = path.replace(/\/$/, "");
   if (currentPath === initialTournamentPath) return;
@@ -71,7 +84,9 @@ export function updatePageMetadata(
       : null;
   const game = lobbyGameForPath(path);
   const metadata =
-    tournamentMetadata ?? (path === "/" ? generalLobbyMetadata : game ? lobbyMetadata[game] : null);
+    publicPage ??
+    tournamentMetadata ??
+    (path === "/" ? generalLobbyMetadata : game ? lobbyMetadata[game] : null);
   const legalDocument =
     path === "/terms" ? legalDocuments.terms : path === "/privacy" ? legalDocuments.privacy : null;
   document.title = legalDocument
@@ -126,6 +141,7 @@ export function updatePageMetadata(
   const canonical = document.createElement("link");
   canonical.rel = "canonical";
   canonical.href =
-    tournamentMetadata?.canonical ?? (game ? lobbyCanonical(game) : `${publicOrigin}/`);
+    tournamentMetadata?.canonical ??
+    (game ? lobbyCanonical(game) : `${publicOrigin}${publicPage ? currentPath : "/"}`);
   document.head.append(description, canonical);
 }

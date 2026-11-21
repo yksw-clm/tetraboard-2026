@@ -5,6 +5,7 @@ const budgets = {
   GeneralLobbyPage: 305,
   FourReversiLobbyPage: 335,
   FourShogiLobbyPage: 335,
+  FourShogiRulesPage: 245,
   ReversiLobbyPage: 335,
   ShogiLobbyPage: 335,
   GomokuLobbyPage: 335,

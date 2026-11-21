@@ -110,6 +110,22 @@ export function gameChunks(): Plugin {
             this.error(`${entry} statically loads ${other}`);
         }
       }
+      const rulesRoute = chunks.find((chunk) =>
+        Object.keys(chunk.modules).some((id) => id.endsWith("/fourShogiRulesRoute.ts")),
+      );
+      if (
+        !rulesRoute?.isDynamicEntry ||
+        chunks.some((chunk) => chunk.imports.includes(rulesRoute.fileName))
+      )
+        this.error("The four-shogi rules page must be a lazy entry");
+      for (const module of [
+        "FourShogiRulesPage.tsx",
+        "FourShogiRuleDiagrams.tsx",
+        "fourShogiRulesMetadata.ts",
+      ]) {
+        if (!Object.keys(rulesRoute.modules).some((id) => id.endsWith(`/${module}`)))
+          this.error(`${module} must be emitted with the four-shogi rules page`);
+      }
       const report = chunks.map((chunk) => ({
         file: chunk.fileName,
         entry: chunk.isEntry,

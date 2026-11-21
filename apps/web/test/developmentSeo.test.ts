@@ -6,10 +6,11 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
       process.execPath,
       "--eval",
       `
+    import { createMemoryRouter } from "react-router";
     import { Window } from "happy-dom";
-    import { renderPublicLobby, renderSitemap, robotsText } from "./build/renderPublicLobby";
-    import { lobbyBoardSources } from "./test/fixtures/lobbyBoardSources";
-    import { updatePageMetadata } from "./src/seo/pageMetadata";
+    import { renderFourShogiRules, renderPublicLobby, renderSitemap, robotsText } from "./build/renderPublicLobby";
+    import { lobbyBoardSources, resolveRulesDiagramAsset } from "./test/fixtures/lobbyBoardSources";
+    import { startPageMetadata, updatePageMetadata } from "./src/seo/pageMetadata";
     import { validateDeploymentLobbyHtml } from "../../scripts/deploymentLobbyHtml";
     const window = new Window();
     globalThis.document = window.document;
@@ -34,7 +35,17 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
       finalizedAtMs: null,
     });
     pages.push(document.head.innerHTML);
-    console.log(JSON.stringify({ html, sitemap: renderSitemap(), robotsText, pages }));
+    const rulesHtml = renderFourShogiRules(template, lobbyBoardSources, resolveRulesDiagramAsset);
+    const router = createMemoryRouter([
+      { path: "/" },
+      { path: "/games/four-shogi/rules", lazy: () => import("./src/features/lobby/fourShogiRulesRoute") },
+    ]);
+    const stop = startPageMetadata(router);
+    await router.navigate("/games/four-shogi/rules");
+    pages.push(document.head.innerHTML);
+    stop();
+    router.dispose();
+    console.log(JSON.stringify({ html, rulesHtml, sitemap: renderSitemap(), robotsText, pages }));
   `,
     ],
     {
@@ -51,6 +62,13 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
   expect(output.html).toContain('content="noindex,follow"');
   expect(output.html).toContain(
     'href="https://tetraboard-dev.chaossi-lab.workers.dev/games/four-reversi"',
+  );
+  expect(output.rulesHtml).toContain('content="noindex,follow"');
+  expect(output.rulesHtml).toContain(
+    'href="https://tetraboard-dev.chaossi-lab.workers.dev/games/four-shogi/rules"',
+  );
+  expect(output.pages[5]).toContain(
+    'href="https://tetraboard-dev.chaossi-lab.workers.dev/games/four-shogi/rules"',
   );
   expect(output.sitemap).not.toContain("<loc>");
   expect(output.sitemap).not.toContain("<lastmod>");

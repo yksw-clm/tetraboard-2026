@@ -13,6 +13,10 @@ export const files: Record<string, { body: string; type: string }> = {
       },
     ]),
   ),
+  "/games/four-shogi/rules/index.html": {
+    body: '<h1>四人将棋のルール</h1><meta name="robots" content="index,follow">',
+    type: "text/html; charset=utf-8",
+  },
   "/app.html": {
     body: '<html><head><title>TetraBoard</title><meta name="robots" content="noindex,follow"></head><body><div id="root"></div></body></html>',
     type: "text/html; charset=utf-8",
@@ -35,7 +39,9 @@ export const files: Record<string, { body: string; type: string }> = {
         (path) =>
           `<url><loc>https://tetraboard.net${path}</loc><lastmod>2026-10-15</lastmod></url>`,
       )
-      .join("")}</urlset>`,
+      .join(
+        "",
+      )}<url><loc>https://tetraboard.net/games/four-shogi/rules</loc><lastmod>2026-11-21</lastmod></url></urlset>`,
     type: "application/xml",
   },
   "/assets/app.js": { body: "export {};", type: "application/javascript" },
