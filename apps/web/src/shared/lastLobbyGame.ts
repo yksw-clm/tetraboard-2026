@@ -1,5 +1,6 @@
 import {
   defaultGameId,
+  fourShogiRulesPath,
   gameCatalog,
   gameIds,
   isGameId,
@@ -8,8 +9,8 @@ import {
 
 export const lastLobbyGameKey = "tetraboard:last-lobby-game";
 
-export function lobbyGameForNavigation(path: string): GameId | undefined {
-  return gameIds.find((game) => path.replace(/\/$/, "") === gameCatalog[game].lobbyPath);
+export function rulesGameForNavigation(pathname: string): GameId | undefined {
+  return pathname === fourShogiRulesPath ? "four-shogi" : undefined;
 }
 
 export class LastLobbyGameStore {
@@ -36,7 +37,10 @@ export class LastLobbyGameStore {
   }
 
   visit(path: string): void {
-    const game = lobbyGameForNavigation(path);
+    const pathname = path.replace(/\/$/, "");
+    const game =
+      rulesGameForNavigation(pathname) ??
+      gameIds.find((id) => pathname === gameCatalog[id].lobbyPath);
     if (!game) return;
     try {
       this.storage().setItem(lastLobbyGameKey, game);

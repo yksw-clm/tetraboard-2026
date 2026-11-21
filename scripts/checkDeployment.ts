@@ -1,10 +1,11 @@
+import { fourShogiRulesMetadata } from "../apps/web/src/seo/fourShogiRulesMetadata";
 import {
   healthzContract,
   listRoomsContract,
   tournamentLobbySchema,
   tournamentDetailSchema,
 } from "../packages/protocol/src/index";
-import { gameCatalog, gameIds } from "../packages/protocol/src/games";
+import { fourShogiRulesPath, gameCatalog, gameIds } from "../packages/protocol/src/games";
 import { generalLobbyMetadata, lobbyMetadata } from "../apps/web/src/seo/lobbyMetadata";
 import { formationCatalog } from "../packages/four-shogi/src/formationCatalog";
 import { validateDeploymentLobbyHtml } from "./deploymentLobbyHtml";
@@ -91,6 +92,26 @@ for (const game of gameIds) {
     validateDeploymentLobbyHtml(html, game, { publicOrigin, searchIndexable });
   });
 }
+await check(
+  fourShogiRulesPath,
+  async (response) => {
+    if (response.status !== 200 || !response.headers.get("content-type")?.includes("text/html"))
+      throw new Error("Expected four-shogi rules HTML");
+    if (Boolean(response.headers.get("X-Robots-Tag")?.includes("noindex")) === searchIndexable)
+      throw new Error("Unexpected four-shogi rules indexing policy");
+    const html = await response.text();
+    const robots = searchIndexable ? "index,follow" : "noindex,follow";
+    if (
+      !html.includes(`<meta name="robots" content="${robots}"`) ||
+      !html.includes(`<title>${fourShogiRulesMetadata.title}</title>`) ||
+      !html.includes(`<meta name="description" content="${fourShogiRulesMetadata.description}"`) ||
+      !html.includes(`<link rel="canonical" href="${publicOrigin}${fourShogiRulesPath}"`) ||
+      !new RegExp(`<h1\\b[^>]*>${fourShogiRulesMetadata.heading}</h1>`).test(html)
+    )
+      throw new Error("Missing four-shogi rules heading or expected metadata");
+  },
+  "manual",
+);
 await check("/robots.txt", async (response) => {
   if (!response.headers.get("content-type")?.includes("text/plain"))
     throw new Error("Expected robots text");
@@ -119,22 +140,23 @@ await check("/sitemap.xml", async (response) => {
     return;
   }
 
-  const lobbies = new Map([
+  const staticPages = new Map([
     [`${publicOrigin}/`, generalLobbyMetadata.lastModified],
     ...gameIds.map((game) => [lobbyCanonical(game), lobbyMetadata[game].lastModified] as const),
+    [`${publicOrigin}${fourShogiRulesPath}`, fourShogiRulesMetadata.lastModified],
   ]);
   const tournamentList = `${publicOrigin}/tournaments`;
   const detailPrefix = `${tournamentList}/`;
   if (
     (tournamentIndexable
       ? !locations.includes(tournamentList)
-      : locations.length !== lobbies.size) ||
-    [...lobbies].some(
+      : locations.length !== staticPages.size) ||
+    [...staticPages].some(
       ([url, lastmod]) => !text.includes(`<loc>${url}</loc><lastmod>${lastmod}</lastmod>`),
     ) ||
     locations.some(
       (url) =>
-        !lobbies.has(url) &&
+        !staticPages.has(url) &&
         (!tournamentIndexable ||
           (url !== tournamentList &&
             !(url.startsWith(detailPrefix) && /^[1-9]\d*$/.test(url.slice(detailPrefix.length))))),

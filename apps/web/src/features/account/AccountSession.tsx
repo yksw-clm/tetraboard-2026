@@ -1,8 +1,9 @@
+import { fourShogiRulesPath } from "@tetraboard/protocol/games";
 import { NotificationProvider } from "../notifications/NotificationProvider";
 import { GuestMergeConfirmation } from "./GuestAccountControls";
 import { accountPrivacyEvent } from "./accountPrivacy";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Navigate, Outlet, useLocation } from "react-router";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Navigate, Outlet, useLocation, useNavigationType } from "react-router";
 import type { AccountProfile } from "@tetraboard/protocol";
 import {
   accountRequestGeneration,
@@ -44,6 +45,10 @@ export function AccountLayout() {
     null,
   );
   const location = useLocation();
+  const navigationType = useNavigationType();
+  useLayoutEffect(() => {
+    if (navigationType === "PUSH" && location.state?.scrollToTop === true) window.scrollTo(0, 0);
+  }, [location, navigationType]);
   const guestMergePending = new URLSearchParams(location.search).has("guestMerge");
   const update = useCallback((user: AccountProfile | null) => {
     version.current++;
@@ -195,6 +200,7 @@ export function AccountLayout() {
               location.pathname,
             ) &&
             location.pathname !== "/feedback" &&
+            location.pathname.replace(/\/$/, "") !== fourShogiRulesPath &&
             !/^\/tournaments\/[1-9]\d*\/?$/.test(location.pathname) &&
             !/^\/updates(?:\/[^/]+)?\/?$/.test(location.pathname) &&
             !/^\/matches\/[^/]+\/?$/.test(location.pathname) &&

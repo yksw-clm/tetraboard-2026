@@ -27,6 +27,14 @@ export default defineConfig({
   optimizeDeps: { exclude: ["@jsquash/webp"] },
   build: {
     manifest: true,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          // 初回に共通で読むモジュールをまとめ、遅延ルート追加時の細分化を抑えます。
+          groups: [{ name: "initial-app", tags: ["$initial"] }],
+        },
+      },
+    },
     assetsInlineLimit(filePath) {
       if (/\/src\/assets\/lobby\/[^/]+\.webp$/.test(filePath)) return false;
     },

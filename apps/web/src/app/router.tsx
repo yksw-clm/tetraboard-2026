@@ -9,7 +9,7 @@ import { roomLoader } from "../features/room/roomLoader";
 import { AppPageLoading } from "../shared/ui/AppPageState";
 import { AppRouteErrorPage } from "../shared/ui/AppErrorPage";
 import { gameThemes } from "../shared/ui/appTheme";
-import { gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
+import { fourShogiRulesPath, gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import type { ComponentType } from "react";
 export const lobbyRoutes = {
   "four-gomoku": {
@@ -83,6 +83,13 @@ export const router = createBrowserRouter([
       </PlayerProfileProvider>
     ),
     children: [
+      {
+        path: fourShogiRulesPath,
+        lazy: () => import("../features/lobby/fourShogiRulesRoute"),
+        hydrateFallbackElement: (
+          <AppPageLoading message="ルールを読み込んでいます…" theme="four-shogi" />
+        ),
+      },
       {
         path: "/how-to-play",
         lazy: async () => ({

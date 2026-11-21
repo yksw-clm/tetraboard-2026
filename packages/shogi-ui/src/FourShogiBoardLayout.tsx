@@ -13,6 +13,7 @@ import {
 import { boardImageUrl } from "./boardImage";
 import { RoomBoardGroup } from "./RoomBoardGroup";
 import { FourShogiHand } from "./FourShogiHand";
+import { ShogiBoardSquareLines } from "./ShogiBoardSquareLines";
 import { ShogiPiece } from "./ShogiPiece";
 import { prepareShogiAssets } from "./shogiPieceImages";
 import { ShogiPromotionChoice } from "./ShogiPromotionChoice";
@@ -472,7 +473,6 @@ export function FourShogiBoardLayout({
             const y = Math.floor(index / 9);
             const position = shogiBoardPosition({ x, y }, viewerSide);
             const squareName = shogiSquareName(position);
-            const star = (x === 3 || x === 6) && (y === 3 || y === 6);
             const highlightBounds = `absolute top-px left-px ${x === 8 ? "right-px" : "right-0"} ${y === 8 ? "bottom-px" : "bottom-0"} pointer-events-none`;
             const piece = game.board[position.y][position.x];
             const dead = !standard && piece !== null && eliminated.includes(piece.side);
@@ -574,16 +574,7 @@ export function FourShogiBoardLayout({
                     className={`absolute size-[18%] rounded-full ring-1 pointer-events-none ${forbiddenDestination ? "bg-[#e93f35b0] ring-[#fff0edc7]" : "bg-[#267541b0] ring-[#f6ffd8c7]"}`}
                   />
                 )}
-                <span
-                  aria-hidden="true"
-                  className={`absolute inset-0 z-[1] pointer-events-none border-solid border-[#3b260c] border-t border-l ${x === 8 ? "border-r" : "border-r-0"} ${y === 8 ? "border-b" : "border-b-0"}`}
-                />
-                {star && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute top-0 left-0 z-[2] size-[clamp(3px,14%,8px)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#3b260c] pointer-events-none"
-                  />
-                )}
+                <ShogiBoardSquareLines x={x} y={y} />
               </button>
             );
           })}

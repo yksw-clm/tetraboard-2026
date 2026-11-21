@@ -1,10 +1,16 @@
-import { gameCapacity } from "@tetraboard/protocol/games";
-import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
+import { Link, useInRouterContext } from "react-router";
+import {
+  fourShogiRulesPath,
+  gameCapacity,
+  gameCatalog,
+  type GameId,
+} from "@tetraboard/protocol/games";
 import { lobbyMetadata } from "./lobbyMetadata";
 import { lobbyQuestions } from "./lobbyQuestions";
 
 export function GameIntroduction({ game }: { game: GameId }) {
   const content = lobbyMetadata[game];
+  const inRouter = useInRouterContext();
   const questions = lobbyQuestions[game];
   return (
     <section
@@ -77,7 +83,19 @@ export function GameIntroduction({ game }: { game: GameId }) {
           </a>
         </>
       ) : null}
-      <p className="mt-3 text-muted">詳しいルールはロビー上部の「遊び方」で確認できます。</p>
+      {game === "four-shogi" ? (
+        <p className="mt-3 font-bold text-brand underline">
+          {inRouter ? (
+            <Link to={fourShogiRulesPath} state={{ scrollToTop: true }}>
+              ルールを詳しく見る
+            </Link>
+          ) : (
+            <a href={fourShogiRulesPath}>ルールを詳しく見る</a>
+          )}
+        </p>
+      ) : (
+        <p className="mt-3 text-muted">詳しいルールはロビー上部の「遊び方」で確認できます。</p>
+      )}
     </section>
   );
 }

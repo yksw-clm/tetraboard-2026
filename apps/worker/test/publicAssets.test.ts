@@ -3,16 +3,17 @@ import { gameIds } from "@tetraboard/protocol/games";
 import { formationCatalog } from "@tetraboard/four-shogi/formation-catalog";
 import { assetFixture } from "./publicAssetFixtures";
 
-test("公開ロビーは通常UAとGooglebotへ同じHTMLを返し、HEAD・304・キャッシュを保持", async () => {
+test("公開ロビーと四人将棋のルールは通常UAとGooglebotへ同じHTMLを返し、HEAD・304・キャッシュを保持", async () => {
   const assets = assetFixture();
-  for (const game of gameIds) {
-    const path = `/games/${game}`;
+  for (const path of [...gameIds.map((game) => `/games/${game}`), "/games/four-shogi/rules"]) {
     const user = await assets.fetch(path, { headers: { "User-Agent": "Mozilla/5.0" } });
     const bot = await assets.fetch(path, { headers: { "User-Agent": "Googlebot" } });
     expect(user.status).toBe(200);
     expect(user.headers.get("Content-Type")).toContain("text/html");
     expect(user.headers.get("X-Robots-Tag")).toBeNull();
-    expect(await user.text()).toBe(await bot.text());
+    const body = await user.text();
+    expect(body).toBe(await bot.text());
+    if (path === "/games/four-shogi/rules") expect(body).toContain("<h1>四人将棋のルール</h1>");
     const head = await assets.fetch(path, { method: "HEAD" });
     expect(head.status).toBe(200);
     expect(await head.text()).toBe("");
@@ -29,6 +30,8 @@ test("トップと公開URLの別表記はクエリを保持した恒久転送�
   for (const method of ["GET", "HEAD"]) {
     for (const [path, target] of [
       ["/index.html", "/"],
+      ["/games/four-shogi/rules/", "/games/four-shogi/rules"],
+      ["/games/four-shogi/rules/index.html", "/games/four-shogi/rules"],
       ...gameIds.flatMap((game) => [
         [`/games/${game}/`, `/games/${game}`],
         [`/games/${game}/index.html`, `/games/${game}`],
@@ -99,7 +102,8 @@ test("既知SPA画面はnoindexで配信し、未知画面と欠落資産は本�
     "/unknown",
     "/updates/feedback/unknown",
     "/games/unknown",
-    "/games/four-shogi/rules",
+    "/games/four-shogi/rules/unknown",
+    "/games/shogi/rules",
     "/assets/missing.js",
     "/four-shogi/formations/missing.jpg",
     "/four-shogi/unknown",

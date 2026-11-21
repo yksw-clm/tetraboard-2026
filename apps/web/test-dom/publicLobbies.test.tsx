@@ -1,12 +1,21 @@
-import { expect, test } from "bun:test";
-import { createMemoryRouter } from "react-router";
+import { shogiPieceImage } from "@tetraboard/shogi-ui/images";
+import { expect, spyOn, test } from "bun:test";
+import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { GameIntroduction } from "../src/seo/GameIntroduction";
 import { startPageMetadata, updatePageMetadata } from "../src/seo/pageMetadata";
 import { startPublicLobby } from "../src/seo/startPublicLobby";
-import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
-import { renderGeneralLobby, renderPublicLobby } from "../build/renderPublicLobby";
-import { lobbyBoardSources } from "../test/fixtures/lobbyBoardSources";
-import { render, flush } from "./support";
+import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import {
+  renderFourShogiRules,
+  renderGeneralLobby,
+  renderPublicLobby,
+} from "../build/renderPublicLobby";
+import { lobbyBoardSources, resolveRulesDiagramAsset } from "../test/fixtures/lobbyBoardSources";
+import { act, render, flush, requests } from "./support";
+import { profile } from "../test/fixtures/account";
+import { AccountLayout } from "../src/features/account/AccountSession";
+import { createInitialState } from "@tetraboard/four-shogi";
+import { HowToPlayDialog } from "../src/features/lobby/HowToPlayDialog";
 
 test.each([
   ["/tournaments/", true, "大会一覧｜TetraBoard"],
@@ -90,6 +99,211 @@ test("他4ゲームの紹介は従来の構成を維持する", () => {
       "主要ルール",
     ]);
     expect(view.querySelector("h3")).toBeNull();
+  }
+});
+
+test("四人将棋のロビーだけがルールページへのリンクを持つ", () => {
+  const template =
+    '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>';
+  for (const game of gameIds) {
+    const view = render(<GameIntroduction game={game} />);
+    const initial = document.implementation.createHTMLDocument();
+    initial.documentElement.innerHTML = renderPublicLobby(template, game, lobbyBoardSources);
+    for (const content of [view, initial.querySelector("main")!]) {
+      const link = content.querySelector(`a[href="${fourShogiRulesPath}"]`);
+      if (game === "four-shogi") {
+        expect(link?.textContent).toBe("ルールを詳しく見る");
+        expect(content.textContent).not.toContain("詳しいルールはロビー上部");
+      } else {
+        expect(link).toBeNull();
+        expect(content.textContent).toContain(
+          "詳しいルールはロビー上部の「遊び方」で確認できます。",
+        );
+      }
+    }
+  }
+});
+
+test("ルールの初期配置図はエンジンの盤面どおりに駒を配置する", () => {
+  const template = '<title>TetraBoard</title><div id="root"></div>';
+  const initial = document.implementation.createHTMLDocument();
+  initial.body.innerHTML = renderFourShogiRules(
+    template,
+    lobbyBoardSources,
+    resolveRulesDiagramAsset,
+  );
+  const board = createInitialState({
+    mode: "singles",
+    players: { south: "s", west: "w", north: "n", east: "e" },
+  }).board;
+  const placement = { south: [], west: [], north: [], east: [] } as Record<
+    "south" | "west" | "north" | "east",
+    string[]
+  >;
+  const names = { king: "王", rook: "飛車", gold: "金", silver: "銀", pawn: "歩" };
+  const diagram = initial.querySelector('[role="img"][aria-label^="9×9の初期配置"]')!;
+  expect(diagram.querySelectorAll("[data-square]")).toHaveLength(36);
+  board.forEach((row, y) =>
+    row.forEach((piece, x) => {
+      const drawn = diagram.querySelector(`[data-square="${x},${y}"]`);
+      if (!piece) {
+        expect(drawn).toBeNull();
+        return;
+      }
+      expect(drawn?.getAttribute("data-piece")).toBe(piece.kind);
+      expect(drawn?.getAttribute("data-side")).toBe(piece.side);
+      placement[piece.side].push(`${9 - x}${"一二三四五六七八九"[y]}に${names[piece.kind]}`);
+      const direction = { south: "up", west: "right", north: "down", east: "left" } as const;
+      const image = drawn?.querySelector("img");
+      const expectedDirection = direction[piece.side];
+      const { src } = shogiPieceImage(piece.kind, piece.promoted, false, expectedDirection);
+      expect(image?.getAttribute("data-piece-direction")).toBe(expectedDirection);
+      expect(image?.getAttribute("src")).toBe(resolveRulesDiagramAsset(src));
+      expect(image?.classList.contains("invisible")).toBe(false);
+      expect(image?.classList.contains("rotate-90")).toBe(piece.side === "west");
+      expect(image?.classList.contains("-rotate-90")).toBe(piece.side === "east");
+    }),
+  );
+  expect([...diagram.querySelectorAll(":scope > span")].map((label) => label.textContent)).toEqual([
+    "北",
+    "西",
+    "東",
+    "南",
+  ]);
+  const firstBoard = diagram.querySelector("img")!;
+  expect(firstBoard.getAttribute("loading")).not.toBe("lazy");
+  expect(firstBoard.getAttribute("fetchpriority")).toBe("high");
+  expect(firstBoard.getAttribute("src")).toBe("/assets/board-wood-fixture1.webp");
+  const description = initial.querySelector('[aria-label="初期配置の駒と位置"]')!;
+  expect(description.classList.contains("sr-only")).toBe(true);
+  expect([...description.querySelectorAll("dt")].map((term) => term.textContent)).toEqual([
+    "南",
+    "西",
+    "北",
+    "東",
+  ]);
+  expect(
+    [...description.querySelectorAll("dd")].map((definition) => definition.textContent),
+  ).toEqual(Object.values(placement).map((pieces) => pieces.join("、")));
+});
+
+test("四人将棋の遊び方ダイアログは従来どおりh3と説明文を表示する", () => {
+  render(
+    <MemoryRouter>
+      <HowToPlayDialog game="four-shogi" onClose={() => {}} />
+    </MemoryRouter>,
+  );
+  const dialog = document.querySelector('[role="dialog"]')!;
+  const headings = [...dialog.querySelectorAll("section h3")].map((heading) => heading.textContent);
+  expect(headings).toEqual([
+    "4つの方向から指す将棋",
+    "取った駒を使い、駒を成る",
+    "王手を受けた人の手番を優先",
+    "シングルスとダブルス",
+    "三人攻撃禁止はON／OFFを切り替え可能",
+    "引き分けと持ち時間",
+  ]);
+  expect([...dialog.querySelectorAll("h2")].map((heading) => heading.textContent)).toEqual([
+    "四人将棋の遊び方",
+  ]);
+  expect(dialog.querySelectorAll('svg[role="img"]')).toHaveLength(0);
+  expect(dialog.textContent).toContain("四人将棋の遊び方");
+  expect(dialog.textContent).toContain("同じ局面が4回現れると、連続王手でも引き分けです。");
+  expect(
+    [...dialog.querySelectorAll("button")].some((button) => button.textContent === "わかった"),
+  ).toBe(true);
+
+  const initial = document.implementation.createHTMLDocument();
+  initial.body.innerHTML = renderFourShogiRules(
+    '<title>TetraBoard</title><div id="root"></div>',
+    lobbyBoardSources,
+    resolveRulesDiagramAsset,
+  );
+  expect(
+    [...initial.querySelectorAll("main section h2")].slice(3).map((heading) => heading.textContent),
+  ).toEqual(headings);
+  expect(
+    [...initial.querySelectorAll("main section p")]
+      .slice(3)
+      .map((paragraph) => paragraph.textContent),
+  ).toEqual(
+    [...dialog.querySelectorAll("section h3")].flatMap((heading) =>
+      [...heading.parentElement!.querySelectorAll("p")].map((paragraph) => paragraph.textContent),
+    ),
+  );
+});
+
+test("ロビーとルールを往復すると先頭へ戻り、共通ナビとメタ情報を表示する", async () => {
+  const lobbyPath = gameCatalog["four-shogi"].lobbyPath;
+  const router = createMemoryRouter(
+    [
+      {
+        Component: AccountLayout,
+        children: [
+          { path: lobbyPath, element: <GameIntroduction game="four-shogi" /> },
+          {
+            path: fourShogiRulesPath,
+            lazy: () => import("../src/features/lobby/fourShogiRulesRoute"),
+          },
+          { path: "/terms", element: <div /> },
+        ],
+      },
+    ],
+    { initialEntries: [lobbyPath] },
+  );
+  const previousHead = document.head.innerHTML;
+  const stop = startPageMetadata(router);
+  const scrollTo = spyOn(window, "scrollTo");
+  try {
+    const view = render(<RouterProvider router={router} />);
+    expect(scrollTo).toHaveBeenCalledTimes(0);
+    requests.find((request) => request.url === "/api/account/session")!.respond({ user: profile });
+    await flush();
+    await act(async () =>
+      view.querySelector<HTMLAnchorElement>(`a[href="${fourShogiRulesPath}"]`)!.click(),
+    );
+    expect(router.state.location.pathname).toBe(fourShogiRulesPath);
+    expect(view.querySelector("h1")?.textContent).toBe("四人将棋のルール");
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenLastCalledWith(0, 0);
+    const desktop = view.querySelector('[aria-label="メインナビゲーション"]')!;
+    const mobile = view.querySelector('[aria-label="下部ナビゲーション"]')!;
+    expect(desktop.querySelector(`a[href="${lobbyPath}"]`)?.textContent).toBe("四人将棋");
+    expect(mobile.textContent).toContain("アカウント");
+    expect(view.querySelector('button[aria-label="表示・サウンド設定"]')).toBeTruthy();
+    expect(view.querySelector('button[aria-label$="のアカウントメニュー"]')).toBeTruthy();
+    const initial = document.implementation.createHTMLDocument();
+    initial.documentElement.innerHTML = renderFourShogiRules(
+      '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>',
+      lobbyBoardSources,
+      resolveRulesDiagramAsset,
+    );
+    expect(document.title).toBe(initial.title);
+    for (const [selector, attribute] of [
+      ['meta[name="description"]', "content"],
+      ['meta[name="robots"]', "content"],
+      ['link[rel="canonical"]', "href"],
+    ]) {
+      expect(document.head.querySelector(selector!)?.getAttribute(attribute!)).toBe(
+        initial.head.querySelector(selector!)!.getAttribute(attribute!),
+      );
+    }
+    const playLink = [...view.querySelectorAll("a")].find(
+      (link) => link.textContent === "四人将棋で遊ぶ",
+    )!;
+    await act(async () => playLink.click());
+    expect(router.state.location.pathname).toBe(lobbyPath);
+    expect(document.title).toContain("四人将棋（4人将棋）を");
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+    expect(scrollTo).toHaveBeenLastCalledWith(0, 0);
+    await act(async () => router.navigate(-1));
+    await act(async () => router.navigate("/terms"));
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+  } finally {
+    scrollTo.mockRestore();
+    stop();
+    router.dispose();
+    document.head.innerHTML = previousHead;
   }
 });
 
@@ -210,6 +424,7 @@ test("ロビー往復・棋譜・履歴移動でメタ情報を同期し古いca
 test.each([
   ["/games/four-shogi", "four-shogi", "四人将棋"],
   ["/tournaments", "tournaments", "大会一覧"],
+  [fourShogiRulesPath, "four-shogi-rules", "四人将棋のルール"],
 ] as const)(
   "初期HTMLは遅延ルートの準備後に一度だけ置き換わる %s",
   async (path, marker, heading) => {
@@ -276,4 +491,50 @@ test("遅延読み込み失敗は紹介とリンクを保持して再読み込�
   expect(root.querySelector('[role="alert"]')!.textContent).toContain("再読み込み");
   expect(root.querySelector("a")!.getAttribute("href")).toBe("/games/four-reversi");
   router.dispose();
+});
+
+test("ルールの初回チャンク取得が失敗しても初期HTMLとメタ情報を保持する", async () => {
+  let reject!: (reason: Error) => void;
+  const router = createMemoryRouter(
+    [
+      {
+        path: fourShogiRulesPath,
+        lazy: () =>
+          new Promise((_, r) => {
+            reject = r;
+          }),
+      },
+    ],
+    { initialEntries: [fourShogiRulesPath] },
+  );
+  const initial = document.implementation.createHTMLDocument();
+  initial.documentElement.innerHTML = renderFourShogiRules(
+    '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>',
+    lobbyBoardSources,
+    resolveRulesDiagramAsset,
+  );
+  const root = initial.getElementById("root")!;
+  const previousHead = document.head.innerHTML;
+  document.head.innerHTML = initial.head.innerHTML;
+  const deliveredHead = document.head.innerHTML;
+  const deliveredBody = root.innerHTML;
+  const stop = startPageMetadata(router, root);
+  try {
+    let mounted = false;
+    startPublicLobby(root, router, () => {
+      mounted = true;
+    });
+    expect(document.head.innerHTML).toBe(deliveredHead);
+    reject(new Error("chunk unavailable"));
+    await flush();
+    expect(router.state.initialized).toBe(true);
+    expect(Boolean(router.state.errors)).toBe(true);
+    expect(mounted).toBe(false);
+    expect(root.innerHTML).toBe(deliveredBody);
+    expect(document.head.innerHTML).toBe(deliveredHead);
+  } finally {
+    stop();
+    router.dispose();
+    document.head.innerHTML = previousHead;
+  }
 });

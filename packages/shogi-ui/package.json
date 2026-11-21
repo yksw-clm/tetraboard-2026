@@ -5,6 +5,7 @@
   "exports": {
     ".": "./src/FourShogiBoardLayout.tsx",
     "./board": "./src/FourShogiBoardLayout.tsx",
+    "./board-lines": "./src/ShogiBoardSquareLines.tsx",
     "./board-image": "./src/boardImage.ts",
     "./notation": "./src/shogiNotation.ts",
     "./presentation": "./src/shogiBoardPresentation.ts",

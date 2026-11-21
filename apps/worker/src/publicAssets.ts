@@ -1,10 +1,11 @@
 import { legalHtml } from "./routes/legalHtml";
-import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { serveRoomShareHtml } from "./roomShareHtml";
 import { serveMatchShareHtml } from "./matchSharing/html";
 import { withVisitStarted } from "./usageEvents/visit";
 import { serveTournamentHtml, serveTournamentSitemap } from "./tournamentPages";
 
+const publicPagePaths = [...gameIds.map((game) => gameCatalog[game].lobbyPath), fourShogiRulesPath];
 const tournamentDetailPath = /^\/tournaments\/([1-9]\d*)\/?$/;
 
 export function withoutIndexing(response: Response): Response {
@@ -96,17 +97,15 @@ export async function servePublicAssets(
     url.pathname = "/index.html";
     return html(await assets.fetch(new Request(url, request)));
   }
-  const game = gameIds.find((id) => {
-    const lobby = gameCatalog[id].lobbyPath;
-    return path === lobby || path === `${lobby}/` || path === `${lobby}/index.html`;
-  });
-  if (game) {
-    const lobby = gameCatalog[game].lobbyPath;
-    if (url.pathname !== lobby) {
-      url.pathname = lobby;
+  const publicPagePath = publicPagePaths.find(
+    (page) => path === page || path === `${page}/` || path === `${page}/index.html`,
+  );
+  if (publicPagePath) {
+    if (url.pathname !== publicPagePath) {
+      url.pathname = publicPagePath;
       return Response.redirect(url.toString(), 308);
     }
-    url.pathname = `${lobby}/index.html`;
+    url.pathname = `${publicPagePath}/index.html`;
     const response = await assets.fetch(new Request(url, request));
     return html(response.status < 400 ? response : withoutIndexing(response));
   }

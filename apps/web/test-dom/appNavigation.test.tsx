@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { fourShogiRulesPath, gameCatalog } from "@tetraboard/protocol/games";
 import { createMemoryRouter, Outlet, RouterProvider } from "react-router";
 import { readRegistrationReturn } from "../src/features/account/registrationReturn";
 import { AppHeader } from "../src/shared/ui/AppHeader";
@@ -63,6 +64,53 @@ test("ヘッダーと下タブは共通の移動先・現在地・直近ゲー�
     router.dispose();
   }
 });
+
+test.each([
+  [null, fourShogiRulesPath],
+  ["gomoku", `${fourShogiRulesPath}/`],
+] as const)(
+  "ルールを直接開くとPC・モバイルで四人将棋ロビーを案内し、直近ゲームを保存する（保存値 %s）",
+  async (storedGame, path) => {
+    if (storedGame) localStorage.setItem(lastLobbyGameKey, storedGame);
+    lastLobbyGame.sync();
+    const router = createMemoryRouter(
+      [
+        {
+          element: (
+            <>
+              <LastLobbyGameTracker />
+              <AppHeader homeTo="/" homeLabel="TetraBoard ホーム" />
+              <Outlet />
+            </>
+          ),
+          children: [{ path: "*", element: <div /> }],
+        },
+      ],
+      { initialEntries: [path] },
+    );
+    const view = render(<RouterProvider router={router} />);
+    const lobbyPath = gameCatalog["four-shogi"].lobbyPath;
+    try {
+      for (const label of ["メインナビゲーション", "下部ナビゲーション"]) {
+        const nav = view.querySelector(`nav[aria-label="${label}"]`)!;
+        const gameLink = nav.querySelector(`a[href="${lobbyPath}"]`);
+        expect(gameLink?.textContent).toBe("四人将棋");
+        expect(gameLink?.hasAttribute("aria-current")).toBe(false);
+        expect(nav.querySelectorAll('a[href^="/games/"]')).toHaveLength(1);
+      }
+      expect(localStorage.getItem(lastLobbyGameKey)).toBe("four-shogi");
+      act(() => lastLobbyGame.sync("gomoku"));
+      expect(view.querySelectorAll(`nav a[href="${lobbyPath}"]`)).toHaveLength(2);
+      act(() => lastLobbyGame.sync());
+      await act(async () => router.navigate("/how-to-play"));
+      expect(view.querySelector('nav a[aria-current="page"]')?.textContent).toBe("遊び方");
+      expect(view.querySelectorAll(`nav a[href="${lobbyPath}"]`)).toHaveLength(2);
+      expect(localStorage.getItem(lastLobbyGameKey)).toBe("four-shogi");
+    } finally {
+      router.dispose();
+    }
+  },
+);
 
 test("下タブのアカウントは登録者・ゲスト・設定前・未認証で既存の入口へ進む", async () => {
   for (const [user, to] of [

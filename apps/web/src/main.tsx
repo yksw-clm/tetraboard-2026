@@ -8,9 +8,8 @@ import { router } from "./app/router.tsx";
 import { startPageMetadata } from "./seo/pageMetadata";
 import { startPublicLobby } from "./seo/startPublicLobby";
 
-startPageMetadata(router);
-
 const root = document.getElementById("root")!;
+startPageMetadata(router, root);
 startPublicLobby(root, router, () => {
   createRoot(root).render(
     <StrictMode>
