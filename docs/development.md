@@ -644,6 +644,8 @@ WebのbuildはVite出力後に `build/generatePublicLobbies.ts` を実行し、�
 
 Worker の `tournamentPages.ts` は `app.html` に大会一覧と公開済み大会詳細の本文・メタ情報を挿入します。本番のサイトマップには静的8 URLへ大会一覧と公開済み大会のURLを追記します。D1の読み取りに失敗した場合、HTMLは `noindex` の `app.html`、サイトマップは静的な資産を配信します。
 
+`renderPublicLobby.tsx` と Worker の `tournamentPages.ts` は `protocol/src/structuredData.ts` のJSON-LD生成を共用します。URLのオリジンは静的HTMLでは `publicOrigin`、大会HTMLでは `APP_ORIGIN` です。`pageMetadata` は表示中のパスが変わったときに初期HTMLのJSON-LDを取り除きます。
+
 `startPublicLobby` は初期本文のあるロビー・四人将棋のルール・大会ページでルーターの初期化完了を待ちます。成功時に既存createRootへ渡し、遅延ルートの失敗時には初期本文と通常リンクを残します。四人将棋のルールは初期HTMLのメタ情報も保持します。他画面の初回loader・fallbackは従来どおりです。`pageMetadata` は初期表示とルーターのlocation変更でtitle・description・canonical・robotsを同期し、公開棋譜独自のrobots操作は行いません。`/terms`・`/privacy` のtitleはWorkerの `legalHtml.ts` と同じ `protocol/privacy` の `legalDocuments` を参照し、文書名とサービス名を保ちます。
 
 本番の資産配信はWorkerが公開ロビー・四人将棋のルール・既知SPA経路・静的資産を明示し、Wranglerの無条件SPAフォールバックを使いません。`worker.ts` の入口で、本番設定の `tetraboard.net` へのHTTPと旧Workerホストを本番HTTPSへ308転送し、パス・クエリを保持します。資産・API・認証・WebSocketの処理前に転送し、ローカル・開発環境には適用しません。HTTPSの `/` は200、`/index.html` と公開URLの別表記は308、未知URL・欠落資産は404、既知の非検索画面はnoindexです。公開ロビーと四人将棋のルールはGET／HEAD・ETag／304に対応し、404本文の取得では条件付きヘッダーを除去します。`scripts/checkDeployment.ts` はトップ配信、全ロビーと四人将棋のルールの初期本文・メタ情報、robots／sitemapと既存APIを確認します。本番URLを指定した場合だけ、HTTPのトップ・ロビー・APIの308とクエリを含むHTTPS転送先も確認します。

@@ -4,6 +4,7 @@ import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/g
 import { generalLobbyMetadata, lobbyMetadata } from "../src/seo/lobbyMetadata";
 import { lobbyBoardSources, resolveRulesDiagramAsset } from "./fixtures/lobbyBoardSources";
 import { expectPublicPageSocialTags } from "./fixtures/publicPageSocialTags";
+import { expectPublicPageStructuredData } from "./fixtures/publicPageStructuredData";
 import { lobbyBoardSourcesFromManifest } from "../build/lobbyBoardAssets";
 import { validateDeploymentLobbyHtml } from "../../../scripts/deploymentLobbyHtml";
 import {
@@ -18,6 +19,18 @@ import {
 
 const template =
   '<!doctype html><html lang="ja"><head><title>TetraBoard</title><meta property="og:site_name" content="TetraBoard" /><script src="/assets/app-123.js"></script><link rel="stylesheet" href="/assets/app-123.css"></head><body><div id="root"></div></body></html>';
+
+test("トップ・6ロビー・四人将棋のルールのheadに構造化データを1件ずつ出力する", () => {
+  const lobbies = Object.fromEntries(
+    gameIds.map((game) => [game, renderPublicLobby(template, game, lobbyBoardSources)]),
+  ) as Record<(typeof gameIds)[number], string>;
+  expectPublicPageStructuredData(
+    "https://tetraboard.net",
+    renderGeneralLobby(template, lobbyBoardSources),
+    lobbies,
+    renderFourShogiRules(template, lobbyBoardSources, resolveRulesDiagramAsset),
+  );
+});
 
 test.each([...gameIds])("公開後のHTML検証は%sの生成済みナビゲーションを受け付ける", (game) => {
   const html = renderPublicLobby(template, game, lobbyBoardSources);

@@ -37,7 +37,7 @@ export const files: Record<string, { body: string; type: string }> = {
     body: `<urlset>${["/", ...gameIds.map((game) => gameCatalog[game].lobbyPath)]
       .map(
         (path) =>
-          `<url><loc>https://tetraboard.net${path}</loc><lastmod>2026-10-15</lastmod></url>`,
+          `<url><loc>https://tetraboard.net${path}</loc><lastmod>2026-11-21</lastmod></url>`,
       )
       .join(
         "",

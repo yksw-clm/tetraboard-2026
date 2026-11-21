@@ -18,6 +18,8 @@ import { AccountLayout } from "../src/features/account/AccountSession";
 import { createInitialState } from "@tetraboard/four-shogi";
 import { HowToPlayDialog } from "../src/features/lobby/HowToPlayDialog";
 
+const jsonLdSelector = 'script[type="application/ld+json"]';
+
 test.each([
   ["/tournaments/", true, "大会一覧｜TetraBoard"],
   ["/tournaments/", false, "大会一覧｜TetraBoard"],
@@ -37,7 +39,8 @@ test.each([
        <link rel="canonical" href="https://tetraboard.net${path.slice(0, -1)}">
        <meta property="og:site_name" content="TetraBoard">
        <meta property="og:title" content="Workerの大会ページ">
-       <meta name="twitter:card" content="summary_large_image">`
+       <meta name="twitter:card" content="summary_large_image">
+       <script type="application/ld+json">{"@type":"BreadcrumbList"}</script>`
       : '<title>TetraBoard</title><meta name="robots" content="noindex,follow">';
     const initialHead = document.head.innerHTML;
     const stop = startPageMetadata(router);
@@ -47,8 +50,10 @@ test.each([
       expect(document.head.innerHTML).toBe(initialHead);
 
       await router.navigate("/terms");
+      expect(document.head.querySelector(jsonLdSelector)).toBeNull();
       await router.navigate(-1);
       expect(document.title).toBe(spaTitle);
+      expect(document.head.querySelector(jsonLdSelector)).toBeNull();
     } finally {
       stop();
       router.dispose();
@@ -337,6 +342,43 @@ test("全公開ロビーの初期HTMLと画面内遷移は同じtitle・descript
     }
   } finally {
     document.head.innerHTML = previousHead;
+  }
+});
+
+test("初期HTMLのJSON-LDは初回表示で残り、ルームへ移動すると消える", async () => {
+  const template = await Bun.file(new URL("../index.html", import.meta.url)).text();
+  const previousHead = document.head.innerHTML;
+  for (const [path, html] of [
+    ["/", renderGeneralLobby(template, lobbyBoardSources)],
+    [
+      gameCatalog["four-shogi"].lobbyPath,
+      renderPublicLobby(template, "four-shogi", lobbyBoardSources),
+    ],
+    [
+      fourShogiRulesPath,
+      renderFourShogiRules(template, lobbyBoardSources, resolveRulesDiagramAsset),
+    ],
+  ] as const) {
+    const initial = document.implementation.createHTMLDocument();
+    initial.documentElement.innerHTML = html;
+    document.head.innerHTML = initial.head.innerHTML;
+    const jsonLd = document.head.querySelector(jsonLdSelector);
+    expect(jsonLd).not.toBeNull();
+    const router = createMemoryRouter([{ path: "*", element: <div /> }], {
+      initialEntries: [path],
+    });
+    const stop = startPageMetadata(router);
+    try {
+      expect(document.head.querySelector(jsonLdSelector)).toBe(jsonLd);
+      await router.navigate("/rooms/example");
+      expect(document.head.querySelector(jsonLdSelector)).toBeNull();
+      await router.navigate(-1);
+      expect(document.head.querySelector(jsonLdSelector)).toBeNull();
+    } finally {
+      stop();
+      router.dispose();
+      document.head.innerHTML = previousHead;
+    }
   }
 });
 

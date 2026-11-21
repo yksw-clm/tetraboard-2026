@@ -2,6 +2,7 @@ import {
   formatTournamentPoints,
   gameCatalog,
   getTournamentSettings,
+  renderBreadcrumbJsonLd,
   tournamentRulesSummary,
   tournamentSettingsDescription,
   tournamentStatusLabels,
@@ -26,7 +27,11 @@ import {
 } from "./adapters/tournament/store";
 import { dynamicAssetHeaders, escapeShareHtml, fetchUnconditionalAsset } from "./htmlAssets";
 
-type TournamentPage = ReturnType<typeof tournamentListMetadata> & { body: string; game?: GameId };
+type TournamentPage = ReturnType<typeof tournamentListMetadata> & {
+  body: string;
+  structuredData: string;
+  game?: GameId;
+};
 type TournamentPages = Awaited<ReturnType<typeof publicTournamentPages>>;
 type FinalStandings = Awaited<ReturnType<typeof publicFinalStandings>>;
 
@@ -100,9 +105,16 @@ async function readTournamentPage(
   env: Env,
   id: number | undefined,
 ): Promise<TournamentPage | null> {
+  const homeUrl = new URL("/", env.APP_ORIGIN).href;
+  const listMetadata = tournamentListMetadata(env.APP_ORIGIN);
+  const listBreadcrumb = { name: "大会一覧", url: listMetadata.canonical };
   if (id === undefined) {
     const pages = await publicTournamentPages(env.APP_DB);
-    return { ...tournamentListMetadata(env.APP_ORIGIN), body: renderList(pages) };
+    return {
+      ...listMetadata,
+      body: renderList(pages),
+      structuredData: renderBreadcrumbJsonLd(homeUrl, listBreadcrumb),
+    };
   }
   if (!Number.isSafeInteger(id)) return null;
   const row = await publicTournament(env.APP_DB, id);
@@ -112,9 +124,14 @@ async function readTournamentPage(
     publicFinalStandings(env.APP_DB, row),
   ]);
   const settings = getTournamentSettings(tournament);
+  const metadata = tournamentDetailMetadata(env.APP_ORIGIN, { ...tournament, game: settings.game });
   return {
-    ...tournamentDetailMetadata(env.APP_ORIGIN, { ...tournament, game: settings.game }),
+    ...metadata,
     body: renderDetail(tournament, standings, settings),
+    structuredData: renderBreadcrumbJsonLd(homeUrl, listBreadcrumb, {
+      name: tournament.name,
+      url: metadata.canonical,
+    }),
     game: settings.game,
   };
 }
@@ -129,7 +146,8 @@ function rewriteTournamentHtml(response: Response, page: TournamentPage, indexab
     `<meta name="description" content="${escapeShareHtml(page.description)}">` +
     `<meta name="robots" content="${robots}">` +
     `<link rel="canonical" href="${escapeShareHtml(page.canonical)}">` +
-    socialTags;
+    socialTags +
+    page.structuredData;
   return new HTMLRewriter()
     .on(
       "title, meta[name='description'], meta[name='robots'], link[rel='canonical'], meta[property^='og:'], meta[name^='twitter:']",
