@@ -1,5 +1,6 @@
 import { gameCatalog, type GameId } from "./games";
 import type { MatchSummary } from "./matches";
+import { openGraphTags } from "./roomSharing";
 
 export type ShareMatch = {
   id: string;
@@ -147,26 +148,12 @@ export function matchShareMetadata(origin: string, match: Pick<ShareMatch, "id" 
   const name = gameCatalog[match.settings.game].name;
   const title = `${name}の対局結果 | TetraBoard`;
   const description = `${name}の最終盤面と対局結果。棋譜を再生して振り返れます。`;
-  const image = new URL(`/assets/ogp/${match.settings.game}.png`, origin).href;
-  const alt = `${name}の盤面とTetraBoardのロゴ`;
+  const url = new URL(`/matches/${match.id}`, origin).href;
   return {
     title,
     tags: [
       { kind: "name", key: "description", value: description },
-      { kind: "property", key: "og:title", value: title },
-      { kind: "property", key: "og:description", value: description },
-      { kind: "property", key: "og:type", value: "website" },
-      { kind: "property", key: "og:url", value: new URL(`/matches/${match.id}`, origin).href },
-      { kind: "property", key: "og:image", value: image },
-      { kind: "property", key: "og:image:width", value: "1200" },
-      { kind: "property", key: "og:image:height", value: "630" },
-      { kind: "property", key: "og:image:alt", value: alt },
-      { kind: "property", key: "og:site_name", value: "TetraBoard" },
-      { kind: "name", key: "twitter:card", value: "summary_large_image" },
-      { kind: "name", key: "twitter:title", value: title },
-      { kind: "name", key: "twitter:description", value: description },
-      { kind: "name", key: "twitter:image", value: image },
-      { kind: "name", key: "twitter:image:alt", value: alt },
+      ...openGraphTags({ title, description }, url, match.settings.game),
     ] as const,
   };
 }

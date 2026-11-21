@@ -9,6 +9,7 @@ import {
   gameIds,
   type GameId,
 } from "@tetraboard/protocol/games";
+import { openGraphTags } from "@tetraboard/protocol/room-sharing";
 import { GameIntroduction } from "../src/seo/GameIntroduction";
 import { InitialNavigation } from "../src/seo/InitialNavigation";
 import { FourShogiRulesPage } from "../src/features/lobby/FourShogiRulesPage";
@@ -37,12 +38,17 @@ function renderPublicPage(
   canonical: string,
   marker: string,
   body: string,
+  game?: GameId,
 ): string {
   if (!template.includes('<div id="root"></div>') || !/<title>.*?<\/title>/.test(template))
     throw new Error("Missing public lobby template markers");
+  const socialTags = openGraphTags(page, canonical, game)
+    .map(({ kind, key, value }) => `<meta ${kind}="${key}" content="${escapeHtml(value)}" />`)
+    .join("");
   const metadata = `<title>${escapeHtml(page.title)}</title><meta name="description" content="${escapeHtml(page.description)}" /><meta name="robots" content="${searchIndexable ? "index,follow" : "noindex,follow"}" /><link rel="canonical" href="${canonical}" />`;
   return template
-    .replace(/<title>.*?<\/title>/, metadata)
+    .replace(/<meta property="og:site_name"[^>]*>/g, "")
+    .replace(/<title>.*?<\/title>/, () => metadata + socialTags)
     .replace('<div id="root"></div>', `<div id="root" data-public-lobby="${marker}">${body}</div>`);
 }
 
@@ -77,7 +83,7 @@ export function renderPublicLobby(
       </main>
     </div>,
   );
-  return renderPublicPage(template, lobbyMetadata[game], lobbyCanonical(game), game, body);
+  return renderPublicPage(template, lobbyMetadata[game], lobbyCanonical(game), game, body, game);
 }
 
 export function renderFourShogiRules(
@@ -99,6 +105,7 @@ export function renderFourShogiRules(
     `${publicOrigin}${fourShogiRulesPath}`,
     "four-shogi-rules",
     body,
+    "four-shogi",
   );
 }
 
@@ -155,12 +162,7 @@ export function renderGeneralLobby(template: string, boardSources: LobbyBoardSou
       </main>
     </div>,
   );
-  return template
-    .replace(
-      /<title>.*?<\/title>/,
-      `<title>${escapeHtml(generalLobbyMetadata.title)}</title><meta name="description" content="${escapeHtml(generalLobbyMetadata.description)}" /><meta name="robots" content="${searchIndexable ? "index,follow" : "noindex,follow"}" /><link rel="canonical" href="${publicOrigin}/" />`,
-    )
-    .replace('<div id="root"></div>', `<div id="root" data-public-lobby="all">${body}</div>`);
+  return renderPublicPage(template, generalLobbyMetadata, `${publicOrigin}/`, "all", body);
 }
 
 export const robotsText = `User-agent: *\nAllow: /\n${searchIndexable ? `Sitemap: ${publicOrigin}/sitemap.xml\n` : ""}`;

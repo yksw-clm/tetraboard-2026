@@ -11,6 +11,7 @@ import {
   renderPublicLobby,
 } from "../build/renderPublicLobby";
 import { lobbyBoardSources, resolveRulesDiagramAsset } from "../test/fixtures/lobbyBoardSources";
+import { readSocialTags } from "../test/fixtures/publicPageSocialTags";
 import { act, render, flush, requests } from "./support";
 import { profile } from "../test/fixtures/account";
 import { AccountLayout } from "../src/features/account/AccountSession";
@@ -33,7 +34,10 @@ test.each([
       ? `<title>Workerの大会ページ</title>
        <meta name="description" content="Workerの説明">
        <meta name="robots" content="index,follow">
-       <link rel="canonical" href="https://tetraboard.net${path.slice(0, -1)}">`
+       <link rel="canonical" href="https://tetraboard.net${path.slice(0, -1)}">
+       <meta property="og:site_name" content="TetraBoard">
+       <meta property="og:title" content="Workerの大会ページ">
+       <meta name="twitter:card" content="summary_large_image">`
       : '<title>TetraBoard</title><meta name="robots" content="noindex,follow">';
     const initialHead = document.head.innerHTML;
     const stop = startPageMetadata(router);
@@ -279,6 +283,7 @@ test("ロビーとルールを往復すると先頭へ戻り、共通ナビと�
       resolveRulesDiagramAsset,
     );
     expect(document.title).toBe(initial.title);
+    expect(readSocialTags(document.head.innerHTML)).toEqual(readSocialTags(initial.head.innerHTML));
     for (const [selector, attribute] of [
       ['meta[name="description"]', "content"],
       ['meta[name="robots"]', "content"],
@@ -307,7 +312,7 @@ test("ロビーとルールを往復すると先頭へ戻り、共通ナビと�
   }
 });
 
-test("全公開ロビーの初期HTMLと画面内遷移は同じtitle・description・ブランド表記を持つ", async () => {
+test("全公開ロビーの初期HTMLと画面内遷移は同じtitle・description・OGPを持つ", async () => {
   const previousHead = document.head.innerHTML;
   const template = await Bun.file(new URL("../index.html", import.meta.url)).text();
   try {
@@ -326,10 +331,9 @@ test("全公開ロビーの初期HTMLと画面内遷移は同じtitle・descript
       expect(document.head.querySelector('meta[name="description"]')?.getAttribute("content")).toBe(
         initial.querySelector('meta[name="description"]')?.getAttribute("content"),
       );
-      expect(document.head.querySelectorAll('meta[property="og:site_name"]')).toHaveLength(1);
-      expect(
-        document.head.querySelector('meta[property="og:site_name"]')?.getAttribute("content"),
-      ).toBe("TetraBoard");
+      expect(readSocialTags(document.head.innerHTML)).toEqual(
+        readSocialTags(initial.head.innerHTML),
+      );
     }
   } finally {
     document.head.innerHTML = previousHead;

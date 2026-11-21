@@ -636,7 +636,7 @@ D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳
 
 四人将棋・四人リバーシのFAQは `src/seo/lobbyQuestions.ts` に置き、`GameIntroduction` が同じ回答を初期HTMLと通常画面へ出力します。対象2ゲームは白背景の紹介カード内に、概要・CPUとの3段階の開始手順・友人との4段階の開始手順・主要ルール・各3問のFAQを縦1列で表示します。見出しはh2、質問はh3、開始手順はol、既存の利用ガイドへの案内は通常のa要素を使い、折り畳み・追加データ取得・参加処理を持ち込みません。他4ゲームの紹介構成は維持します。本文の改善では既存のtitle・descriptionを維持し、公開後は対象URLと検索語ごとの28日比較を基本に、表示回数・クリック数・CTR・平均順位を確認します。
 
-6ロビーのtitleは「ゲーム名をブラウザで無料対戦 | TetraBoard」、四人将棋・四人リバーシの検索向け別表記は[README](../README.md#ゲームロビーの検索向け紹介と配信)に従います。既定HTMLと遷移後の `og:site_name` も `TetraBoard` にそろえます。ルーム共有では `protocol/room-sharing` の同じブランド表記を使い、遷移時に共有用のtitle・画像を残しません。
+6ロビーのtitleは「ゲーム名をブラウザで無料対戦 | TetraBoard」、四人将棋・四人リバーシの検索向け別表記は[README](../README.md#ゲームロビーの検索向け紹介と配信)に従います。静的生成・大会HTML・画面内遷移は、ルーム・棋譜の共有と同じ `protocol/room-sharing` の `openGraphTags` でOGPとXのカードを生成します。canonicalと同じオリジンの画像URLを使い、公開ページの `og:site_name` は1件にそろえます。画面内遷移では前の画面の共有タグを取り除きます。
 
 総合ロビー・各ゲームロビー・四人将棋のルールの `lastModified` は、title・description・紹介・主要ルールなどページの内容を更新した日に `YYYY-MM-DD` で更新します。静的URLの `lastmod` はこの値から生成し、再ビルドや動的一覧の更新だけで日付を進めません。[Googleのlastmodの説明](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap#additional-notes-about-xml-sitemaps)を参照します。
 

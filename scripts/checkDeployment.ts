@@ -48,6 +48,14 @@ async function check(
   }
 }
 
+function validateSocialCard(html: string, image: string) {
+  if (
+    !html.includes(`<meta property="og:image" content="${publicOrigin}/assets/ogp/${image}.png"`) ||
+    !html.includes('<meta name="twitter:card" content="summary_large_image"')
+  )
+    throw new Error("Missing or invalid social card metadata");
+}
+
 if (searchIndexable && base.origin === publicOrigin) {
   for (const path of [
     "/?seo-check=1",
@@ -79,6 +87,7 @@ await check(
       !html.includes(`href="${publicOrigin}/"`)
     )
       throw new Error("Missing general lobby metadata");
+    if (searchIndexable) validateSocialCard(html, "tetraboard");
   },
   "manual",
 );
@@ -90,6 +99,7 @@ for (const game of gameIds) {
       throw new Error("Unexpected lobby indexing policy");
     const html = await response.text();
     validateDeploymentLobbyHtml(html, game, { publicOrigin, searchIndexable });
+    if (searchIndexable && game === "four-shogi") validateSocialCard(html, game);
   });
 }
 await check(

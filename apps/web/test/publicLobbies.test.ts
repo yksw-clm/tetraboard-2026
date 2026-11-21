@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { generalLobbyMetadata, lobbyMetadata } from "../src/seo/lobbyMetadata";
 import { lobbyBoardSources, resolveRulesDiagramAsset } from "./fixtures/lobbyBoardSources";
+import { expectPublicPageSocialTags } from "./fixtures/publicPageSocialTags";
 import { lobbyBoardSourcesFromManifest } from "../build/lobbyBoardAssets";
 import { validateDeploymentLobbyHtml } from "../../../scripts/deploymentLobbyHtml";
 import {
@@ -26,6 +27,12 @@ test.each([...gameIds])("公開後のHTML検証は%sの生成済みナビゲー�
       searchIndexable: true,
     }),
   ).not.toThrow();
+  expectPublicPageSocialTags(
+    html,
+    lobbyMetadata[game],
+    `https://tetraboard.net${gameCatalog[game].lobbyPath}`,
+    game,
+  );
 });
 
 test.each(["/", "/how-to-play", "/games/gomoku"])(
@@ -157,6 +164,12 @@ test("四人将棋のルールは初期HTMLに図・説明・メタ情報・ロ�
   expect(html).toContain(`name="description" content="${fourShogiRulesMetadata.description}"`);
   expect(html).toContain('name="robots" content="index,follow"');
   expect(html).toContain('rel="canonical" href="https://tetraboard.net/games/four-shogi/rules"');
+  expectPublicPageSocialTags(
+    html,
+    fourShogiRulesMetadata,
+    "https://tetraboard.net/games/four-shogi/rules",
+    "four-shogi",
+  );
   expect(html).toContain('data-public-lobby="four-shogi-rules"');
   expect(html).toContain("王手を受けた人の手番を優先");
   expect(html).toContain("成った銀と歩は金と同じ動きです。");
@@ -206,6 +219,7 @@ test("総合ロビーの初期HTMLは全ゲームへの入口と正規URLを持�
   const html = renderGeneralLobby(template, lobbyBoardSources);
   expect(html).toContain('data-public-lobby="all"');
   expect(html).toContain('href="https://tetraboard.net/"');
+  expectPublicPageSocialTags(html, generalLobbyMetadata, "https://tetraboard.net/");
   expect(html).toContain("総合ロビー");
   expect(html).not.toContain("chat-1");
 });
