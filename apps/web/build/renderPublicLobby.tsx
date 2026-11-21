@@ -2,6 +2,7 @@ import type { RulesDiagramAssetResolver } from "../src/features/lobby/FourShogiR
 import { fourShogiRulesMetadata } from "../src/seo/fourShogiRulesMetadata";
 import { appThemeClasses, gameThemes } from "../src/shared/ui/appTheme";
 import { renderToStaticMarkup } from "react-dom/server";
+import { renderBreadcrumbJsonLd, renderWebSiteJsonLd } from "@tetraboard/protocol";
 import {
   defaultGameId,
   fourShogiRulesPath,
@@ -38,6 +39,7 @@ function renderPublicPage(
   canonical: string,
   marker: string,
   body: string,
+  structuredData: string,
   game?: GameId,
 ): string {
   if (!template.includes('<div id="root"></div>') || !/<title>.*?<\/title>/.test(template))
@@ -48,7 +50,7 @@ function renderPublicPage(
   const metadata = `<title>${escapeHtml(page.title)}</title><meta name="description" content="${escapeHtml(page.description)}" /><meta name="robots" content="${searchIndexable ? "index,follow" : "noindex,follow"}" /><link rel="canonical" href="${canonical}" />`;
   return template
     .replace(/<meta property="og:site_name"[^>]*>/g, "")
-    .replace(/<title>.*?<\/title>/, () => metadata + socialTags)
+    .replace(/<title>.*?<\/title>/, () => metadata + socialTags + structuredData)
     .replace('<div id="root"></div>', `<div id="root" data-public-lobby="${marker}">${body}</div>`);
 }
 
@@ -83,7 +85,16 @@ export function renderPublicLobby(
       </main>
     </div>,
   );
-  return renderPublicPage(template, lobbyMetadata[game], lobbyCanonical(game), game, body, game);
+  const canonical = lobbyCanonical(game);
+  return renderPublicPage(
+    template,
+    lobbyMetadata[game],
+    canonical,
+    game,
+    body,
+    renderBreadcrumbJsonLd(`${publicOrigin}/`, { name: gameCatalog[game].name, url: canonical }),
+    game,
+  );
 }
 
 export function renderFourShogiRules(
@@ -99,12 +110,18 @@ export function renderFourShogiRules(
       />
     </StaticRouter>,
   );
+  const canonical = `${publicOrigin}${fourShogiRulesPath}`;
   return renderPublicPage(
     template,
     fourShogiRulesMetadata,
-    `${publicOrigin}${fourShogiRulesPath}`,
+    canonical,
     "four-shogi-rules",
     body,
+    renderBreadcrumbJsonLd(
+      `${publicOrigin}/`,
+      { name: gameCatalog["four-shogi"].name, url: lobbyCanonical("four-shogi") },
+      { name: "ルール", url: canonical },
+    ),
     "four-shogi",
   );
 }
@@ -162,7 +179,15 @@ export function renderGeneralLobby(template: string, boardSources: LobbyBoardSou
       </main>
     </div>,
   );
-  return renderPublicPage(template, generalLobbyMetadata, `${publicOrigin}/`, "all", body);
+  const canonical = `${publicOrigin}/`;
+  return renderPublicPage(
+    template,
+    generalLobbyMetadata,
+    canonical,
+    "all",
+    body,
+    renderWebSiteJsonLd(canonical),
+  );
 }
 
 export const robotsText = `User-agent: *\nAllow: /\n${searchIndexable ? `Sitemap: ${publicOrigin}/sitemap.xml\n` : ""}`;

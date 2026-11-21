@@ -87,6 +87,33 @@ function expectTournamentHead(
   ]);
 }
 
+function expectTournamentBreadcrumbs(
+  body: string,
+  origin: string,
+  detail?: { id: number; name: string },
+) {
+  const scripts = [...body.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
+  expect(scripts).toHaveLength(1);
+  expect(body.match(/<head>([\s\S]*?)<\/head>/)?.[1]).toContain(scripts[0]![0]);
+  const json = scripts[0]![1]!;
+  expect(json).not.toContain("<");
+  const items = [
+    ["ホーム", `${origin}/`],
+    ["大会一覧", `${origin}/tournaments`],
+  ];
+  if (detail) items.push([detail.name, `${origin}/tournaments/${detail.id}`]);
+  expect(JSON.parse(json)).toEqual({
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map(([name, item], index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name,
+      item,
+    })),
+  });
+}
+
 test("公開大会の全件を状態別に配信し、既存の7 URLと大会をサイトマップに載せる", async () => {
   vi.spyOn(Date, "now").mockReturnValue(tournamentNow);
   const assets = assetFixture();
@@ -116,6 +143,7 @@ test("公開大会の全件を状態別に配信し、既存の7 URLと大会を
     tournamentListDescription,
     "https://tetraboard.net/tournaments",
   );
+  expectTournamentBreadcrumbs(body, "https://tetraboard.net");
   expect(body).toContain('<meta name="robots" content="index,follow">');
   expect(body).toContain('<div id="root" data-public-lobby="tournaments">');
   expect(body).toContain("<h1>大会一覧</h1>");
@@ -181,7 +209,8 @@ test("大会と一覧のlastmodは行を更新しなくても開始・終了時�
 
 test("大会詳細は開催前の名前を公開せず、確定後は匿名化した順位表を配信する", async () => {
   vi.spyOn(Date, "now").mockReturnValue(tournamentNow);
-  const upcoming = await seedTournament(1, '次回 <script>"大会"</script>', tournamentNow + hour);
+  const upcomingName = '次回 <script>"大会"</script>';
+  const upcoming = await seedTournament(1, upcomingName, tournamentNow + hour);
   await seedTournament(2, "今週の大会", tournamentNow - hour);
   await seedTournament(3, "集計中の大会", tournamentNow - 3 * hour);
   const finished = await seedTournament(4, "先週の大会", tournamentNow - 24 * hour, {
@@ -268,6 +297,8 @@ test("大会詳細は開催前の名前を公開せず、確定後は匿名化�
     expect(body).toContain("〈日本時間〉");
     expect(body).not.toContain("<script>");
     expect(body).not.toContain(player.id);
+    if (id === 1)
+      expectTournamentBreadcrumbs(body, "https://tetraboard.net", { id, name: upcomingName });
     if (id === 4) {
       expect(body).toContain("<th");
       expect(body).toContain("勝ち点");
@@ -308,6 +339,7 @@ test("開発の大会HTMLは検索除外と開発のcanonical・OGPを使い、�
     expect(body).toContain("開発の大会");
     if (path === "/tournaments") {
       expectTournamentHead(body, "大会一覧｜TetraBoard", tournamentListDescription, origin + path);
+      expectTournamentBreadcrumbs(body, origin);
     } else {
       expectTournamentHead(
         body,
@@ -317,6 +349,7 @@ test("開発の大会HTMLは検索除外と開発のcanonical・OGPを使い、�
         "four-reversi",
         "四人リバーシの盤面とTetraBoardのロゴ",
       );
+      expectTournamentBreadcrumbs(body, origin, { id: 1, name: "開発の大会" });
     }
   }
   expect(await (await assets.fetch("/sitemap.xml")).text()).toBe(files["/sitemap.xml"]!.body);
@@ -348,7 +381,9 @@ test("D1の読み取り失敗時は大会のapp.htmlと静的サイトマップ�
     const response = await assets.fetch(path);
     expect(response.status).toBe(200);
     expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
-    expect(await response.text()).toBe(files["/app.html"]!.body);
+    const body = await response.text();
+    expect(body).toBe(files["/app.html"]!.body);
+    expect(body).not.toContain("application/ld+json");
   }
   expect(await (await assets.fetch("/sitemap.xml")).text()).toBe(files["/sitemap.xml"]!.body);
 });

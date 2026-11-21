@@ -41,6 +41,7 @@ export function startPageMetadata(router: DataRouter, root?: HTMLElement): () =>
     const { pathname } = state.location;
     const nextPath = pathname.replace(/\/$/, "");
     if (nextPath !== currentPath) {
+      document.head.querySelector('script[type="application/ld+json"]')?.remove();
       initialTournamentPath = undefined;
       currentPath = nextPath;
     } else if (isTournamentPage(nextPath)) {

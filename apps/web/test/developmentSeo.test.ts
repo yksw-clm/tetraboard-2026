@@ -3,6 +3,7 @@ import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/g
 import { fourShogiRulesMetadata } from "../src/seo/fourShogiRulesMetadata";
 import { generalLobbyMetadata, lobbyMetadata } from "../src/seo/lobbyMetadata";
 import { expectPublicPageSocialTags } from "./fixtures/publicPageSocialTags";
+import { expectPublicPageStructuredData } from "./fixtures/publicPageStructuredData";
 
 const developmentOrigin = "https://tetraboard-dev.chaossi-lab.workers.dev";
 
@@ -70,6 +71,7 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
   );
   expect(result.exitCode).toBe(0);
   const output = JSON.parse(result.stdout.toString());
+  expectPublicPageStructuredData(developmentOrigin, output.home, output.lobbies, output.rulesHtml);
   expectPublicPageSocialTags(output.home, generalLobbyMetadata, `${developmentOrigin}/`);
   for (const game of gameIds) {
     expectPublicPageSocialTags(
@@ -114,4 +116,5 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
     'href="https://tetraboard-dev.chaossi-lab.workers.dev/tournaments/1"',
   );
   expect(output.pages[4]).toContain("四人リバーシの大会です。2026年11月21日に開催します。");
+  for (const page of output.pages) expect(page).not.toContain("application/ld+json");
 });
