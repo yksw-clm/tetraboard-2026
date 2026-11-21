@@ -16,6 +16,7 @@ import {
   createFourShogiReplayFrame,
   fetchFourShogiReplay,
 } from "../src/features/room/fourShogiReplay";
+import { shogiRoundWithoutHumans } from "./fixtures/fourShogiFixtures";
 
 const instanceId = "00000000-0000-4000-8000-000000000001";
 const roundId = "00000000-0000-4000-8000-000000000002";
@@ -92,6 +93,47 @@ function load(signal = new AbortController().signal, round = lastRound()) {
 }
 
 describe("四人将棋の直前局棋譜", () => {
+  test.each([
+    { mode: "singles", survivors: "cpu", valid: true },
+    { mode: "singles", survivors: "human", valid: false },
+    { mode: "singles", survivors: undefined, valid: false },
+    { mode: "doubles", survivors: "cpu", valid: false },
+  ] as const)(
+    "人間不在の終局を対局モードと生存者の種別で検証する %j",
+    async ({ mode, survivors, valid }) => {
+      const { ended, event } = shogiRoundWithoutHumans();
+      const fixture = ended.lastRound!;
+      const round: FourShogiLastRound = {
+        ...fixture,
+        game: { ...fixture.game, mode },
+        players: fixture.players.map((player) => ({
+          ...player,
+          appearance:
+            survivors === "human"
+              ? { kind: "human", avatarUrl: null }
+              : survivors === "cpu"
+                ? player.appearance
+                : undefined,
+        })),
+      };
+      serve(() =>
+        Response.json({
+          instanceId,
+          roundId: round.roundId,
+          rulesVersion: 1,
+          initial: { ...initial, mode, players: round.game.players },
+          eventCount: round.eventCount,
+          events: [{ index: 0, event }],
+          nextCursor: null,
+        }),
+      );
+
+      const replay = load(new AbortController().signal, round);
+      if (valid) expect((await replay).at(-1)?.game).toEqual(round.game);
+      else await expect(replay).rejects.toThrow("Replay event is invalid");
+    },
+  );
+
   test("分割GETから着手と外部脱落を順に再生し、表示局面に千日手履歴を残さない", async () => {
     const fetcher = serve((url) => {
       expect(url.pathname).toBe(`/api/rooms/12345/rounds/${roundId}/replay`);

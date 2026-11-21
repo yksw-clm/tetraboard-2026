@@ -42,7 +42,7 @@ function finish(state: FourShogiState, reason: GameResult["reason"]): FourShogiS
       .sort((left, right) => left.rank - right.rank);
     result = {
       mode: "singles",
-      reason: reason as "last_player" | "no_survivors" | "repetition" | "agreement",
+      reason: reason as Extract<GameResult, { mode: "singles" }>["reason"],
       standings,
     };
   } else {
@@ -59,6 +59,12 @@ function finish(state: FourShogiState, reason: GameResult["reason"]): FourShogiS
     };
   }
   return { ...state, status: "finished", turn: null, result };
+}
+
+export function finishWithoutHumans(state: FourShogiState): FourShogiState {
+  return state.status === "playing" && state.mode === "singles"
+    ? finish(state, "no_humans")
+    : state;
 }
 
 export function finishIfDrawAgreed(state: FourShogiState): FourShogiState {

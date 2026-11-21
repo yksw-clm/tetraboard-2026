@@ -3,6 +3,7 @@ import {
   applyAction,
   createInitialState,
   eliminateSide,
+  finishWithoutHumans,
   getActiveSides,
   getCheckState,
   getLegalActions,
@@ -11,6 +12,41 @@ import {
 } from "../src/index";
 import type { ExternalEliminationReason, FourShogiAction, FourShogiState } from "../src/index";
 import { fixture, move, position, succeeded } from "./helpers";
+
+test("人間不在で生存者を同率1位とし、脱落時の順位を保つ", () => {
+  const initial = fixture({});
+  const first = succeeded(eliminateSide(initial, "south", "resigned")).state;
+  const second = succeeded(eliminateSide(first, "west", "left")).state;
+  const finished = finishWithoutHumans(second);
+  expect(finished).toEqual({
+    ...second,
+    status: "finished",
+    turn: null,
+    result: {
+      mode: "singles",
+      reason: "no_humans",
+      standings: [
+        { side: "north", rank: 1 },
+        { side: "east", rank: 1 },
+        { side: "west", rank: 3 },
+        { side: "south", rank: 4 },
+      ],
+    },
+  });
+});
+
+test("終局済みとダブルスは人間不在の裁定を適用しない", () => {
+  const doubles = fixture({ mode: "doubles" });
+  expect(finishWithoutHumans(doubles)).toBe(doubles);
+  const finished = succeeded(eliminateSide(doubles, "south", "resigned")).state;
+  expect(finishWithoutHumans(finished)).toBe(finished);
+  const singles = fixture({});
+  const first = succeeded(eliminateSide(singles, "south", "left")).state;
+  const second = succeeded(eliminateSide(first, "west", "left")).state;
+  const lastPlayer = succeeded(eliminateSide(second, "north", "left")).state;
+  expect(lastPlayer.result?.reason).toBe("last_player");
+  expect(finishWithoutHumans(lastPlayer)).toBe(lastPlayer);
+});
 
 test("複数王手は時計回りで近い人から応じ、盤面から次の王手を選び直す", () => {
   const initial = fixture({

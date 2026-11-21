@@ -13,6 +13,7 @@ import { AppButton } from "../../shared/ui/AppButton";
 const endReasonNames = {
   last_player: "最後の1人になったため",
   no_survivors: "全員が脱落したため",
+  no_humans: "人間のプレイヤーがいなくなったため",
   repetition: "千日手のため",
   agreement: "全員の合意による引き分け",
   team_eliminated: "チームのプレイヤーが脱落したため",
