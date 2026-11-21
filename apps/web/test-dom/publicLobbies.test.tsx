@@ -1,33 +1,48 @@
 import { expect, test } from "bun:test";
 import { createMemoryRouter } from "react-router";
 import { GameIntroduction } from "../src/seo/GameIntroduction";
-import { updatePageMetadata } from "../src/seo/pageMetadata";
+import { startPageMetadata, updatePageMetadata } from "../src/seo/pageMetadata";
 import { startPublicLobby } from "../src/seo/startPublicLobby";
 import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { renderGeneralLobby, renderPublicLobby } from "../build/renderPublicLobby";
 import { lobbyBoardSources } from "../test/fixtures/lobbyBoardSources";
 import { render, flush } from "./support";
 
-test("大会の実URLはnoindexと自身のcanonicalを持ち、ロビー移動で取り替える", () => {
-  const previousHead = document.head.innerHTML;
-  try {
-    updatePageMetadata("/tournaments/12");
-    expect(document.title).toBe("四人将棋大会 | TetraBoard");
-    expect(document.head.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
-      "noindex,follow",
-    );
-    expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
-      "https://tetraboard.net/tournaments/12",
-    );
-    updatePageMetadata("/games/four-shogi");
-    expect(document.head.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
-    expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
-      "https://tetraboard.net/games/four-shogi",
-    );
-  } finally {
-    document.head.innerHTML = previousHead;
-  }
-});
+test.each([
+  ["/tournaments/", true, "大会一覧｜TetraBoard"],
+  ["/tournaments/", false, "大会一覧｜TetraBoard"],
+  ["/tournaments/12/", true, "大会｜TetraBoard"],
+  ["/tournaments/12/", false, "大会｜TetraBoard"],
+] as const)(
+  "%s の初期HTMLのメタ情報を保持する（公開HTML: %s）",
+  async (path, published, spaTitle) => {
+    const router = createMemoryRouter([{ path: "*", element: <div /> }], {
+      initialEntries: [path],
+    });
+    const previousHead = document.head.innerHTML;
+    document.head.innerHTML = published
+      ? `<title>Workerの大会ページ</title>
+       <meta name="description" content="Workerの説明">
+       <meta name="robots" content="index,follow">
+       <link rel="canonical" href="https://tetraboard.net${path.slice(0, -1)}">`
+      : '<title>TetraBoard</title><meta name="robots" content="noindex,follow">';
+    const initialHead = document.head.innerHTML;
+    const stop = startPageMetadata(router);
+    try {
+      expect(document.head.innerHTML).toBe(initialHead);
+      await router.revalidate();
+      expect(document.head.innerHTML).toBe(initialHead);
+
+      await router.navigate("/terms");
+      await router.navigate(-1);
+      expect(document.title).toBe(spaTitle);
+    } finally {
+      stop();
+      router.dispose();
+      document.head.innerHTML = previousHead;
+    }
+  },
+);
 
 test("四人将棋・四人リバーシの開始手順とFAQは初期HTMLと通常画面で同じ内容を読める", () => {
   const template =
@@ -192,38 +207,45 @@ test("ロビー往復・棋譜・履歴移動でメタ情報を同期し古いca
   }
 });
 
-test("初期紹介を遅延読み込み中に保ち、成功時だけ一度置き換える", async () => {
-  let resolve!: (value: { Component: () => null }) => void;
-  const router = createMemoryRouter(
-    [
-      {
-        path: "/games/four-shogi",
-        lazy: () =>
-          new Promise((r) => {
-            resolve = r;
-          }),
-      },
-    ],
-    { initialEntries: ["/games/four-shogi"] },
-  );
-  const root = document.createElement("div");
-  root.dataset.publicLobby = "four-shogi";
-  root.innerHTML = '<h1>四人将棋</h1><p data-startup-status role="status">読み込み中</p>';
-  let mounts = 0;
-  startPublicLobby(root, router, () => {
-    mounts++;
-    root.replaceChildren(document.createTextNode("対局画面"));
-  });
-  expect(mounts).toBe(0);
-  expect(root.textContent).toContain("四人将棋");
-  resolve({ Component: () => null });
-  await flush();
-  expect(mounts).toBe(1);
-  expect(root.textContent).toBe("対局画面");
-  await router.revalidate();
-  expect(mounts).toBe(1);
-  router.dispose();
-});
+test.each([
+  ["/games/four-shogi", "four-shogi", "四人将棋"],
+  ["/tournaments", "tournaments", "大会一覧"],
+] as const)(
+  "初期HTMLは遅延ルートの準備後に一度だけ置き換わる %s",
+  async (path, marker, heading) => {
+    let resolve!: (value: { Component: () => null }) => void;
+    const router = createMemoryRouter(
+      [
+        {
+          path,
+          lazy: () =>
+            new Promise((r) => {
+              resolve = r;
+            }),
+        },
+      ],
+      { initialEntries: [path] },
+    );
+    const root = document.createElement("div");
+    root.dataset.publicLobby = marker;
+    root.innerHTML = `<h1>${heading}</h1><p data-startup-status role="status">読み込み中</p>`;
+    let mounts = 0;
+    startPublicLobby(root, router, () => {
+      mounts++;
+      root.replaceChildren(document.createTextNode("対局画面"));
+    });
+    expect(mounts).toBe(0);
+    expect(root.textContent).toContain(heading);
+    resolve({ Component: () => null });
+    await flush();
+    expect(mounts).toBe(1);
+    expect(root.dataset.publicLobby).toBeUndefined();
+    expect(root.textContent).toBe("対局画面");
+    await router.revalidate();
+    expect(mounts).toBe(1);
+    router.dispose();
+  },
+);
 
 test("遅延読み込み失敗は紹介とリンクを保持して再読み込みを案内する", async () => {
   let reject!: (reason: Error) => void;

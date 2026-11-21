@@ -9,6 +9,7 @@
     "./games": "./src/games.ts",
     "./room-sharing": "./src/roomSharing.ts",
     "./match-sharing": "./src/matchSharing.ts",
+    "./tournament-pages": "./src/tournamentPages.ts",
     "./privacy": "./src/privacy.ts"
   },
   "scripts": {

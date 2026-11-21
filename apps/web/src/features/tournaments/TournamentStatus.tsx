@@ -1,7 +1,10 @@
-import { tournamentRules, type TournamentStage } from "@tetraboard/protocol";
+import {
+  tournamentRules,
+  tournamentStatusLabels,
+  type TournamentStage,
+} from "@tetraboard/protocol";
 import type { GameId } from "@tetraboard/protocol/games";
 import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
-import { tournamentStatusLabels } from "./tournamentPresentation";
 export function TournamentStatus({
   stage,
   game = tournamentRules.game,

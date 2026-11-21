@@ -6,10 +6,12 @@ import {
   type TournamentSettings,
 } from "@tetraboard/protocol";
 import { gameCatalog } from "@tetraboard/protocol/games";
+import { tournamentDate } from "@tetraboard/protocol/tournament-pages";
 import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { RoomIdentityFields } from "../account/RoomIdentityFields";
 import { useEffect, useState, type MouseEventHandler, type ReactNode } from "react";
-import { useParams } from "react-router";
+import { useLocation, useParams } from "react-router";
+import { updatePageMetadata } from "../../seo/pageMetadata";
 import {
   tournamentRules,
   type TournamentDetail,
@@ -31,7 +33,7 @@ import { TournamentStatus } from "./TournamentStatus";
 import { TournamentRules } from "./TournamentRules";
 import { TournamentRooms } from "./TournamentRooms";
 import { TournamentPlayer, TournamentStandings } from "./TournamentStandings";
-import { tournamentDate, tournamentPoints, tournamentRemaining } from "./tournamentPresentation";
+import { tournamentPoints, tournamentRemaining } from "./tournamentPresentation";
 import { useTournament } from "./useTournament";
 
 type TournamentState = ReturnType<typeof useTournament>;
@@ -248,6 +250,7 @@ function TournamentMatchedDialog({
   );
 }
 function TournamentContent({ id }: { id: number }) {
+  const { pathname } = useLocation();
   const state = useTournament(id);
   const account = useAccount();
   const detail = state.data;
@@ -256,8 +259,8 @@ function TournamentContent({ id }: { id: number }) {
   const game = settings.game;
   const lobbyPath = gameCatalog[game].lobbyPath;
   useEffect(() => {
-    if (tournament) document.title = `${tournament.name} | TetraBoard`;
-  }, [tournament]);
+    if (tournament) updatePageMetadata(pathname, undefined, undefined, { ...tournament, game });
+  }, [game, pathname, tournament]);
   return (
     <TournamentPageLayout
       game={game}

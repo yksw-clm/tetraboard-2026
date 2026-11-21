@@ -1,5 +1,6 @@
 import {
   legacyTournamentSettings,
+  tournamentRulesSummary,
   tournamentTimeDescription,
   type TournamentSettings,
 } from "@tetraboard/protocol";
@@ -22,9 +23,7 @@ export function TournamentRules({
       )}
       <div className="grid gap-5 md:grid-cols-[1fr_1fr]">
         <div className="space-y-4 text-sm leading-relaxed text-ink-secondary">
-          <p>
-            大会期間中は、エントリーしたプレイヤー同士でランダムマッチを行います。1局ごとの勝ち点を積み重ね、合計点で大会順位を決めます。
-          </p>
+          <p>{tournamentRulesSummary}</p>
           <dl className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2">
             <dt className="text-muted">対局形式</dt>
             <dd>{gameCatalog[settings.game].name}・シングルス（人間4人）</dd>

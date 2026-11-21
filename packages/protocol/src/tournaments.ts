@@ -84,6 +84,16 @@ const count = z.number().int().nonnegative();
 export const tournamentIdSchema = z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 export const tournamentStageSchema = z.enum(["upcoming", "active", "settling", "finished"]);
 export type TournamentStage = z.infer<typeof tournamentStageSchema>;
+
+export const tournamentStatusLabels = {
+  upcoming: "エントリー受付中",
+  active: "開催中",
+  settling: "結果発表待ち",
+  finished: "結果発表",
+} satisfies Record<TournamentStage, string>;
+
+export const tournamentRulesSummary =
+  "大会期間中は、エントリーしたプレイヤー同士でランダムマッチを行います。1局ごとの勝ち点を積み重ね、合計点で大会順位を決めます。";
 const inputFields = {
   name: text(1, 80),
   description: text(0, 2000),
