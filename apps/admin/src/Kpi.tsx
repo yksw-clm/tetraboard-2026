@@ -101,7 +101,7 @@ function KpiTable({
   title: string;
   headers: string[];
   rows: ReactNode[][] | undefined;
-  unavailableReason: string;
+  unavailableReason?: string;
 }) {
   return (
     <Card className="gap-4 p-5">
@@ -177,6 +177,16 @@ function KpiResults({ period }: { period: KpiQuery }) {
               </Card>
             ))}
           </div>
+          <KpiTable
+            title="週次アクティブプレイヤー（12 週）"
+            headers={["週（月曜の日付）", "プレイヤー数", "連携済み", "連携率"]}
+            rows={data.weeklyActivePlayers.map(({ weekStart, players, linked, partial }) => [
+              partial ? `${weekStart} 集計中` : weekStart,
+              quantity(players),
+              quantity(linked),
+              percent(players === 0 ? null : linked / players),
+            ])}
+          />
           <KpiTable
             title="流入元ごと"
             headers={[

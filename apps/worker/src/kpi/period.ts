@@ -1,6 +1,7 @@
-import { kpiQuerySchema, type KpiQuery } from "@tetraboard/protocol";
+import { kpiQuerySchema, kpiWeekCount, type KpiQuery } from "@tetraboard/protocol";
 
 export const dayMs = 86400000;
+export const weekMs = 7 * dayMs;
 const japanOffsetMs = 9 * 3600000;
 
 export function japanDayStart(atMs: number): number {
@@ -13,6 +14,23 @@ export function kpiPeriod(input: KpiQuery) {
   const fromMs = Date.parse(`${from}T00:00:00+09:00`);
   const toMs = Date.parse(`${to}T00:00:00+09:00`) + dayMs;
   return { fromMs, toMs, from: new Date(fromMs).toISOString(), to: new Date(toMs).toISOString() };
+}
+
+/** 選択した終了日を含む週からさかのぼり、日本時間の月曜で区切ります。 */
+export function kpiWeeks(periodEndMs: number, nowMs: number) {
+  const lastDayMs = periodEndMs - dayMs;
+  const daysSinceMonday = (new Date(lastDayMs + japanOffsetMs).getUTCDay() + 6) % 7;
+  const lastWeekStartMs = lastDayMs - daysSinceMonday * dayMs;
+  const fromMs = lastWeekStartMs - (kpiWeekCount - 1) * weekMs;
+  const toMs = lastWeekStartMs + weekMs;
+  const weeks = Array.from({ length: kpiWeekCount }, (_, index) => {
+    const startMs = fromMs + index * weekMs;
+    return {
+      weekStart: new Date(startMs + japanOffsetMs).toISOString().split("T")[0],
+      partial: startMs + weekMs > nowMs,
+    };
+  });
+  return { fromMs, toMs, weeks };
 }
 
 export function previousJapanMonth(nowMs: number): KpiQuery & { month: string } {
