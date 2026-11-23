@@ -117,7 +117,7 @@ test("初期HTMLはViteの盤画像URLをタイトルとナビで共用し、五
   expect(() => lobbyBoardSourcesFromManifest({})).toThrow("Missing built lobby board asset");
 });
 
-test("既定HTMLと全公開ロビーはブランド表記をそろえ、四人将棋以外のゲームロビーはtitleの語順をそろえる", async () => {
+test("既定HTMLと全公開ロビーはブランド表記をそろえ、四人将棋・五目並べ以外のゲームロビーはtitleの語順をそろえる", async () => {
   const source = await Bun.file(new URL("../index.html", import.meta.url)).text();
   expect(source).toContain("<title>TetraBoard</title>");
   for (const html of [
@@ -132,7 +132,7 @@ test("既定HTMLと全公開ロビーはブランド表記をそろえ、四人�
     const html = renderPublicLobby(template, game, lobbyBoardSources);
     const { title, description } = lobbyMetadata[game];
     expect(title).toStartWith(gameCatalog[game].name);
-    if (game !== "four-shogi") {
+    if (game !== "four-shogi" && game !== "gomoku") {
       expect(title).toEndWith("をブラウザで無料対戦 | TetraBoard");
       expect(
         [...title].reduce((width, char) => width + (char.charCodeAt(0) < 128 ? 0.5 : 1), 0),
@@ -160,15 +160,20 @@ test.each([
     description:
       "四人将棋（4人将棋）をブラウザで無料対戦。登録・インストール不要で、CPU戦も友達との対局もすぐ遊べます。シングルス・ダブルスに対応。毎週土曜の夜に大会を開いていて、対局の棋譜も見られます。",
   },
+  {
+    path: "/games/gomoku",
+    html: renderPublicLobby(template, "gomoku", lobbyBoardSources),
+    game: "gomoku",
+    title: "五目並べを無料でオンライン対戦｜友達と2人・CPU戦・登録不要 | TetraBoard",
+    description:
+      "五目並べ（五目ならべ）をブラウザで無料オンライン対戦。登録・インストール不要で、招待URLを送るだけで友達と2人で遊べます。CPU戦でひとりでも練習でき、禁手ありとなしを選べます。スマホでもPCでも遊べ、対局の棋譜も見られます。",
+  },
 ] as const)("$path の検索・OGP・Xのメタ情報は承認済みの文面と一致する", (page) => {
+  const canonical = `https://tetraboard.net${page.path}`;
   expect(page.html).toContain(`<title>${page.title}</title>`);
   expect(page.html).toContain(`<meta name="description" content="${page.description}"`);
-  expectPublicPageSocialTags(
-    page.html,
-    page,
-    `https://tetraboard.net${page.path}`,
-    "game" in page ? page.game : undefined,
-  );
+  expect(page.html).toContain(`<link rel="canonical" href="${canonical}" />`);
+  expectPublicPageSocialTags(page.html, page, canonical, "game" in page ? page.game : undefined);
 });
 
 test("四人ゲームの初期HTMLは固有本文・正規URL・描画資産と通常リンクを持つ", () => {
