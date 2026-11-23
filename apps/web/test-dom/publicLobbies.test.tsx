@@ -149,20 +149,30 @@ test("四人五目並べの紹介は3項目を表示する", () => {
   expect(view.querySelector("h3")).toBeNull();
 });
 
-test("四人将棋のロビーだけがルールページへのリンクを持つ", () => {
+test("四人将棋のロビーだけが紹介にルールと大会一覧へのリンクを持つ", () => {
   const template =
     '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>';
   for (const game of gameIds) {
-    const view = render(<GameIntroduction game={game} />);
+    const view = render(
+      <MemoryRouter>
+        <GameIntroduction game={game} />
+      </MemoryRouter>,
+    );
     const initial = document.implementation.createHTMLDocument();
     initial.documentElement.innerHTML = renderPublicLobby(template, game, lobbyBoardSources);
-    for (const content of [view, initial.querySelector("main")!]) {
+    for (const content of [
+      view,
+      initial.querySelector(`section[aria-label="${gameCatalog[game].name}の紹介"]`)!,
+    ]) {
       const link = content.querySelector(`a[href="${fourShogiRulesPath}"]`);
+      const tournamentLink = content.querySelector('a[href="/tournaments"]');
       if (game === "four-shogi") {
         expect(link?.textContent).toBe("ルールを詳しく見る");
+        expect(tournamentLink?.textContent).toBe("大会の日程と結果");
         expect(content.textContent).not.toContain("詳しいルールはロビー上部");
       } else {
         expect(link).toBeNull();
+        expect(tournamentLink).toBeNull();
         expect(content.textContent).toContain(
           "詳しいルールはロビー上部の「遊び方」で確認できます。",
         );
@@ -266,13 +276,12 @@ test("四人将棋の遊び方ダイアログは従来どおりh3と説明文を
     lobbyBoardSources,
     resolveRulesDiagramAsset,
   );
+  const rulesHeadings = [...initial.querySelectorAll("main section h2")].slice(3, -2);
+  expect(rulesHeadings.map((heading) => heading.textContent)).toEqual(headings);
   expect(
-    [...initial.querySelectorAll("main section h2")].slice(3).map((heading) => heading.textContent),
-  ).toEqual(headings);
-  expect(
-    [...initial.querySelectorAll("main section p")]
-      .slice(3)
-      .map((paragraph) => paragraph.textContent),
+    rulesHeadings.flatMap((heading) =>
+      [...heading.parentElement!.querySelectorAll("p")].map((paragraph) => paragraph.textContent),
+    ),
   ).toEqual(
     [...dialog.querySelectorAll("section h3")].flatMap((heading) =>
       [...heading.parentElement!.querySelectorAll("p")].map((paragraph) => paragraph.textContent),
@@ -292,6 +301,7 @@ test("ロビーとルールを往復すると先頭へ戻り、共通ナビと�
             path: fourShogiRulesPath,
             lazy: () => import("../src/features/lobby/fourShogiRulesRoute"),
           },
+          { path: "/tournaments", element: <div /> },
           { path: "/terms", element: <div /> },
         ],
       },
@@ -325,6 +335,19 @@ test("ロビーとルールを往復すると先頭へ戻り、共通ナビと�
       lobbyBoardSources,
       resolveRulesDiagramAsset,
     );
+    const sections = [...view.querySelectorAll("main > section")].slice(-2);
+    expect(sections.map((section) => section.querySelector("h2")?.textContent)).toEqual([
+      "勝ち方のコツ",
+      "よくある質問",
+    ]);
+    expect(sections.map((section) => section.outerHTML)).toEqual(
+      [...initial.querySelectorAll("main > section")].slice(-2).map((section) => section.outerHTML),
+    );
+    const tournamentLink = view.querySelector<HTMLAnchorElement>('main a[href="/tournaments"]')!;
+    expect(tournamentLink.textContent).toBe("大会の日程と結果");
+    expect(tournamentLink.outerHTML).toBe(
+      initial.querySelector('main a[href="/tournaments"]')!.outerHTML,
+    );
     expect(document.title).toBe(initial.title);
     expect(readSocialTags(document.head.innerHTML)).toEqual(readSocialTags(initial.head.innerHTML));
     for (const [selector, attribute] of [
@@ -347,6 +370,12 @@ test("ロビーとルールを往復すると先頭へ戻り、共通ナビと�
     await act(async () => router.navigate(-1));
     await act(async () => router.navigate("/terms"));
     expect(scrollTo).toHaveBeenCalledTimes(2);
+    await act(async () => router.navigate(-1));
+    expect(router.state.location.pathname).toBe(fourShogiRulesPath);
+    await act(async () =>
+      view.querySelector<HTMLAnchorElement>('main a[href="/tournaments"]')!.click(),
+    );
+    expect(router.state.location.pathname).toBe("/tournaments");
   } finally {
     scrollTo.mockRestore();
     stop();

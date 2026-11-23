@@ -5,8 +5,14 @@ import {
   gameCatalog,
   type GameId,
 } from "@tetraboard/protocol/games";
+import { tournamentListPath } from "@tetraboard/protocol/tournament-pages";
 import { lobbyMetadata } from "./lobbyMetadata";
 import { lobbyQuestions } from "./lobbyQuestions";
+
+const fourShogiLinks = [
+  { path: fourShogiRulesPath, label: "ルールを詳しく見る" },
+  { path: tournamentListPath, label: "大会の日程と結果" },
+];
 
 export function GameIntroduction({ game }: { game: GameId }) {
   const content = lobbyMetadata[game];
@@ -87,13 +93,17 @@ export function GameIntroduction({ game }: { game: GameId }) {
         </>
       ) : null}
       {game === "four-shogi" ? (
-        <p className="mt-3 font-bold text-brand underline">
-          {inRouter ? (
-            <Link to={fourShogiRulesPath} state={{ scrollToTop: true }}>
-              ルールを詳しく見る
-            </Link>
-          ) : (
-            <a href={fourShogiRulesPath}>ルールを詳しく見る</a>
+        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-2 font-bold text-brand underline">
+          {fourShogiLinks.map(({ path, label }) =>
+            inRouter ? (
+              <Link key={path} to={path} state={{ scrollToTop: true }}>
+                {label}
+              </Link>
+            ) : (
+              <a key={path} href={path}>
+                {label}
+              </a>
+            ),
           )}
         </p>
       ) : (
