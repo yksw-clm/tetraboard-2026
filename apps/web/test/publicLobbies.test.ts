@@ -117,7 +117,7 @@ test("初期HTMLはViteの盤画像URLをタイトルとナビで共用し、五
   expect(() => lobbyBoardSourcesFromManifest({})).toThrow("Missing built lobby board asset");
 });
 
-test("既定HTMLと全公開ロビーはブランド表記をそろえ、四人将棋・五目並べ以外のゲームロビーはtitleの語順をそろえる", async () => {
+test("既定HTMLと全公開ロビーはブランド表記をそろえ、四人リバーシ・四人五目並べはtitleの語順をそろえる", async () => {
   const source = await Bun.file(new URL("../index.html", import.meta.url)).text();
   expect(source).toContain("<title>TetraBoard</title>");
   for (const html of [
@@ -132,7 +132,7 @@ test("既定HTMLと全公開ロビーはブランド表記をそろえ、四人�
     const html = renderPublicLobby(template, game, lobbyBoardSources);
     const { title, description } = lobbyMetadata[game];
     expect(title).toStartWith(gameCatalog[game].name);
-    if (game !== "four-shogi" && game !== "gomoku") {
+    if (game === "four-reversi" || game === "four-gomoku") {
       expect(title).toEndWith("をブラウザで無料対戦 | TetraBoard");
       expect(
         [...title].reduce((width, char) => width + (char.charCodeAt(0) < 128 ? 0.5 : 1), 0),
@@ -167,6 +167,22 @@ test.each([
     title: "五目並べを無料でオンライン対戦｜友達と2人・CPU戦・登録不要 | TetraBoard",
     description:
       "五目並べ（五目ならべ）をブラウザで無料オンライン対戦。登録・インストール不要で、招待URLを送るだけで友達と2人で遊べます。CPU戦でひとりでも練習でき、禁手ありとなしを選べます。スマホでもPCでも遊べ、対局の棋譜も見られます。",
+  },
+  {
+    path: "/games/reversi",
+    html: renderPublicLobby(template, "reversi", lobbyBoardSources),
+    game: "reversi",
+    title: "リバーシを無料でオンライン対戦｜友達と2人・CPU戦・登録不要 | TetraBoard",
+    description:
+      "リバーシ（オセロと同じ遊び方）をブラウザで無料オンライン対戦。登録不要で、招待URLを送るだけで友達と2人で遊べます。CPU戦でひとりでも練習でき、登録するとレート戦にも参加できます。スマホでもPCでも遊べ、棋譜も見られます。",
+  },
+  {
+    path: "/games/shogi",
+    html: renderPublicLobby(template, "shogi", lobbyBoardSources),
+    game: "shogi",
+    title: "将棋を無料でオンライン対戦｜友達と2人・CPU戦・登録不要 | TetraBoard",
+    description:
+      "将棋をブラウザで無料オンライン対戦。ダウンロード・登録不要で、招待URLを送るだけで友達と2人で対局できます。CPU戦でひとりでも練習でき、登録するとレート戦にも参加できます。スマホでもPCでも遊べ、対局の棋譜も見られます。",
   },
 ] as const)("$path の検索・OGP・Xのメタ情報は承認済みの文面と一致する", (page) => {
   const canonical = `https://tetraboard.net${page.path}`;
