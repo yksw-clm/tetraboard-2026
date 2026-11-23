@@ -9,7 +9,7 @@ import { roomLoader } from "../features/room/roomLoader";
 import { AppPageLoading } from "../shared/ui/AppPageState";
 import { AppRouteErrorPage } from "../shared/ui/AppErrorPage";
 import { gameThemes } from "../shared/ui/appTheme";
-import { gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
+import { fourShogiRulesPath, gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import type { ComponentType } from "react";
 export const lobbyRoutes = {
   "four-gomoku": {
@@ -61,7 +61,18 @@ const lazyMatchReplayPage = () => ({
     (await import("../features/room/MatchReplayPage")).MatchReplayErrorPage,
 });
 
+// 一覧と詳細の遅延読み込み先を共用し、既存画面が読む共通チャンクの細分化を抑えます。
+const loadTournamentPages = () => import("../features/tournaments/tournamentRoutes");
+
 export const router = createBrowserRouter([
+  {
+    path: "/tournaments",
+    lazy: async () => ({
+      Component: (await loadTournamentPages()).TournamentListPage,
+    }),
+    ErrorBoundary: AppRouteErrorPage,
+    hydrateFallbackElement: <AppPageLoading message="大会一覧を読み込んでいます…" />,
+  },
   {
     ErrorBoundary: AppRouteErrorPage,
     Component: () => (
@@ -72,6 +83,13 @@ export const router = createBrowserRouter([
       </PlayerProfileProvider>
     ),
     children: [
+      {
+        path: fourShogiRulesPath,
+        lazy: () => import("../features/lobby/fourShogiRulesRoute"),
+        hydrateFallbackElement: (
+          <AppPageLoading message="ルールを読み込んでいます…" theme="four-shogi" />
+        ),
+      },
       {
         path: "/how-to-play",
         lazy: async () => ({
@@ -121,7 +139,7 @@ export const router = createBrowserRouter([
       {
         path: "/tournaments/:id",
         lazy: async () => ({
-          Component: (await import("../features/tournaments/TournamentPage")).TournamentPage,
+          Component: (await loadTournamentPages()).TournamentPage,
         }),
         hydrateFallbackElement: (
           <AppPageLoading message="大会を読み込んでいます…" theme="four-shogi" />

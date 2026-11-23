@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
+import { tournamentDate } from "@tetraboard/protocol/tournament-pages";
 import type { TournamentPublic } from "@tetraboard/protocol";
 import {
-  tournamentDate,
   tournamentListDate,
   tournamentRemaining,
 } from "../src/features/tournaments/tournamentPresentation";

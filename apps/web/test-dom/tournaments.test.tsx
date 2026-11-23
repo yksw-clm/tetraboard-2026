@@ -1,5 +1,13 @@
 import { expect, test } from "bun:test";
-import { Link, Route, Routes, useLocation } from "react-router";
+import {
+  createMemoryRouter,
+  Link,
+  Route,
+  RouterProvider,
+  Routes,
+  useLocation,
+  type DataRouter,
+} from "react-router";
 import type {
   TournamentDetail,
   TournamentParticipation as FullParticipation,
@@ -21,6 +29,8 @@ import {
   tournamentDocumentController,
 } from "../src/features/tournaments/tournamentController";
 import { profile } from "../test/fixtures/account";
+import { expectPublicPageSocialTags, readSocialTags } from "../test/fixtures/publicPageSocialTags";
+import { startPageMetadata } from "../src/seo/pageMetadata";
 import { act, clock, denyStorage, flush, press, render, rerender, requests, wrap } from "./harness";
 
 type TournamentParticipation = Omit<FullParticipation, "controller" | "controllerVersion"> &
@@ -168,6 +178,136 @@ async function startQueue(view: HTMLElement) {
   await flush();
   return credential;
 }
+function waitForPage(router: DataRouter, pathname: string): Promise<void> {
+  if (router.state.initialized && router.state.location.pathname === pathname)
+    return Promise.resolve();
+  return new Promise((resolve) => {
+    const stop = router.subscribe((state) => {
+      if (!state.initialized || state.location.pathname !== pathname) return;
+      stop();
+      resolve();
+    });
+  });
+}
+
+test("大会詳細を直接開いたときはAPIが成功してもWorkerのnoindexを保持する", async () => {
+  const { router: appRouter } = await import("../src/app/router");
+  const path = "/tournaments/1";
+  const router = createMemoryRouter(appRouter.routes, { initialEntries: [path] });
+  const previousHead = document.head.innerHTML;
+  document.head.innerHTML =
+    '<title>TetraBoard</title><meta name="robots" content="noindex,follow">';
+  const initialHead = document.head.innerHTML;
+  const stop = startPageMetadata(router);
+  try {
+    await waitForPage(router, path);
+    const view = render(<RouterProvider router={router} />);
+    expect(document.head.innerHTML).toBe(initialHead);
+    clock.advance(0);
+    await respond(detail("finished"));
+    expect(view.querySelector("h1")?.textContent).toBe("四人将棋大会");
+    expect(document.head.innerHTML).toBe(initialHead);
+  } finally {
+    stop();
+    router.dispose();
+    document.head.innerHTML = previousHead;
+  }
+});
+
+test("大会一覧から詳細へ移動すると公開HTMLと同じメタ情報に切り替わる", async () => {
+  const { router: appRouter } = await import("../src/app/router");
+  const router = createMemoryRouter(appRouter.routes, { initialEntries: ["/terms"] });
+  const previousHead = document.head.innerHTML;
+  const unsubscribe = startPageMetadata(router);
+  const meta = (name: string) =>
+    document.head.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
+  const canonical = () =>
+    document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href;
+  try {
+    await router.navigate("/tournaments/");
+    const view = render(<RouterProvider router={router} />);
+    expect(view.querySelector("h1")?.textContent).toBe("大会一覧");
+    expect(document.title).toBe("大会一覧｜TetraBoard");
+    expect(meta("description")).toBe(
+      "TetraBoardで開催している大会の一覧です。開催中の大会、次回の大会、過去の大会の結果を見られます。",
+    );
+    expect(meta("robots")).toBe("index,follow");
+    expect(canonical()).toBe("https://tetraboard.net/tournaments");
+    expectPublicPageSocialTags(
+      document.head.innerHTML,
+      { title: document.title, description: meta("description")! },
+      canonical()!,
+    );
+
+    const startsAtMs = Date.UTC(2026, 10, 20, 16);
+    const endsAtMs = startsAtMs + 3_600_000;
+    const result = detail("finished");
+    Object.assign(result.tournament, { startsAtMs, endsAtMs, finalizedAtMs: endsAtMs });
+    clock.advance(0);
+    requests
+      .find(({ url }) => url === "/api/tournaments?game=all")!
+      .respond({
+        tournaments: [
+          {
+            id: result.tournament.id,
+            name: result.tournament.name,
+            startsAtMs,
+            endsAtMs,
+            status: "finished",
+            entryCount: result.tournament.entryCount,
+            game: "four-shogi",
+            winners: [],
+          },
+        ],
+        nextCursor: null,
+        serverTimeMs: endsAtMs,
+      });
+    await flush();
+    await act(async () => {
+      const arrived = waitForPage(router, "/tournaments/1");
+      view.querySelector<HTMLAnchorElement>('a[href="/tournaments/1"]')!.click();
+      await arrived;
+    });
+    expect(document.title).toBe("大会｜TetraBoard");
+    expect(meta("description")).toBeUndefined();
+    expect(meta("robots")).toBe("noindex,follow");
+    expect(readSocialTags(document.head.innerHTML)).toEqual([
+      ['property="og:site_name"', "TetraBoard"],
+    ]);
+
+    clock.advance(0);
+    await respond(result);
+    expect(view.querySelector("h1")?.textContent).toBe("四人将棋大会");
+    expect(document.title).toBe("四人将棋大会 結果｜TetraBoard");
+    expect(meta("description")).toBe(
+      "四人将棋の大会の結果です。2026年11月21日に開催し、8人がエントリーしました。",
+    );
+    expect(meta("robots")).toBe("index,follow");
+    expect(canonical()).toBe("https://tetraboard.net/tournaments/1");
+    expectPublicPageSocialTags(
+      document.head.innerHTML,
+      { title: document.title, description: meta("description")! },
+      canonical()!,
+      "four-shogi",
+    );
+    await act(async () => {
+      await router.navigate("/tournaments/1?source=list");
+    });
+    expect(document.title).toBe("四人将棋大会 結果｜TetraBoard");
+
+    await act(async () => {
+      await router.navigate("/terms");
+    });
+    expect(meta("description")).toBeUndefined();
+    expect(meta("robots")).toBe("noindex,follow");
+    expect(canonical()).toBeUndefined();
+  } finally {
+    unsubscribe();
+    router.dispose();
+    document.head.innerHTML = previousHead;
+  }
+});
+
 test("エントリーは注記のないdialogの最終操作でだけ現行同意版を送る", async () => {
   const view = page();
   clock.advance(0);

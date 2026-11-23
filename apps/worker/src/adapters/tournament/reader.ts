@@ -1,11 +1,12 @@
 import type {
+  PublishedTournamentPagesReader,
   TournamentReader,
   TournamentRow,
   PublicCounts,
   ScoreRow,
 } from "@tetraboard/context-tournament";
 import type { GameScope } from "@tetraboard/protocol/games";
-export class D1TournamentReader implements TournamentReader {
+export class D1TournamentReader implements TournamentReader, PublishedTournamentPagesReader {
   constructor(private db: D1Database) {}
   read(key: string) {
     return this.db
@@ -73,6 +74,14 @@ export class D1TournamentReader implements TournamentReader {
       .bind(game, game, ...(cursor ? [Number(at), Number(at), Number(id)] : []))
       .all<TournamentRow & { entryCount: number }>();
     return result.results;
+  }
+  async publicPageRows() {
+    const rows = await this.db
+      .prepare(`SELECT * FROM tournaments
+        WHERE published=1 AND public_id IS NOT NULL
+        ORDER BY starts_at_ms DESC,public_id DESC`)
+      .all<TournamentRow>();
+    return rows.results;
   }
   async winnerRows(finalized: string[]) {
     const scores = await this.db

@@ -1,10 +1,11 @@
+import { fourShogiRulesMetadata } from "../apps/web/src/seo/fourShogiRulesMetadata";
 import {
   healthzContract,
   listRoomsContract,
   tournamentLobbySchema,
   tournamentDetailSchema,
 } from "../packages/protocol/src/index";
-import { gameCatalog, gameIds } from "../packages/protocol/src/games";
+import { fourShogiRulesPath, gameCatalog, gameIds } from "../packages/protocol/src/games";
 import { generalLobbyMetadata, lobbyMetadata } from "../apps/web/src/seo/lobbyMetadata";
 import { formationCatalog } from "../packages/four-shogi/src/formationCatalog";
 import { validateDeploymentLobbyHtml } from "./deploymentLobbyHtml";
@@ -15,6 +16,7 @@ const base = new URL(origin);
 const environment = process.argv[3] ?? "production";
 if (!["production", "development"].includes(environment)) throw new Error("Unknown environment");
 const searchIndexable = environment === "production";
+const tournamentIndexable = base.origin === "https://tetraboard.net";
 const publicOrigin = searchIndexable
   ? "https://tetraboard.net"
   : "https://tetraboard-dev.chaossi-lab.workers.dev";
@@ -44,6 +46,14 @@ async function check(
       await Bun.sleep(2_000);
     }
   }
+}
+
+function validateSocialCard(html: string, image: string) {
+  if (
+    !html.includes(`<meta property="og:image" content="${publicOrigin}/assets/ogp/${image}.png"`) ||
+    !html.includes('<meta name="twitter:card" content="summary_large_image"')
+  )
+    throw new Error("Missing or invalid social card metadata");
 }
 
 if (searchIndexable && base.origin === publicOrigin) {
@@ -77,6 +87,7 @@ await check(
       !html.includes(`href="${publicOrigin}/"`)
     )
       throw new Error("Missing general lobby metadata");
+    if (searchIndexable) validateSocialCard(html, "tetraboard");
   },
   "manual",
 );
@@ -88,8 +99,29 @@ for (const game of gameIds) {
       throw new Error("Unexpected lobby indexing policy");
     const html = await response.text();
     validateDeploymentLobbyHtml(html, game, { publicOrigin, searchIndexable });
+    if (searchIndexable && game === "four-shogi") validateSocialCard(html, game);
   });
 }
+await check(
+  fourShogiRulesPath,
+  async (response) => {
+    if (response.status !== 200 || !response.headers.get("content-type")?.includes("text/html"))
+      throw new Error("Expected four-shogi rules HTML");
+    if (Boolean(response.headers.get("X-Robots-Tag")?.includes("noindex")) === searchIndexable)
+      throw new Error("Unexpected four-shogi rules indexing policy");
+    const html = await response.text();
+    const robots = searchIndexable ? "index,follow" : "noindex,follow";
+    if (
+      !html.includes(`<meta name="robots" content="${robots}"`) ||
+      !html.includes(`<title>${fourShogiRulesMetadata.title}</title>`) ||
+      !html.includes(`<meta name="description" content="${fourShogiRulesMetadata.description}"`) ||
+      !html.includes(`<link rel="canonical" href="${publicOrigin}${fourShogiRulesPath}"`) ||
+      !new RegExp(`<h1\\b[^>]*>${fourShogiRulesMetadata.heading}</h1>`).test(html)
+    )
+      throw new Error("Missing four-shogi rules heading or expected metadata");
+  },
+  "manual",
+);
 await check("/robots.txt", async (response) => {
   if (!response.headers.get("content-type")?.includes("text/plain"))
     throw new Error("Expected robots text");
@@ -107,21 +139,51 @@ await check("/sitemap.xml", async (response) => {
   if (!response.headers.get("content-type")?.includes("xml"))
     throw new Error("Expected sitemap XML");
   const text = await response.text();
+  if (!text.includes('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'))
+    throw new Error("Invalid sitemap XML namespace");
+
+  const locations = [...text.matchAll(/<loc>([^<]*)<\/loc>/g)].map(([, url]) => url!);
+  if ((text.match(/<loc>/g) ?? []).length !== locations.length)
+    throw new Error("Malformed sitemap URL");
+  if (!searchIndexable) {
+    if (locations.length || text.includes("<lastmod>")) throw new Error("Invalid sitemap URLs");
+    return;
+  }
+
+  const staticPages = new Map([
+    [`${publicOrigin}/`, generalLobbyMetadata.lastModified],
+    ...gameIds.map((game) => [lobbyCanonical(game), lobbyMetadata[game].lastModified] as const),
+    [`${publicOrigin}${fourShogiRulesPath}`, fourShogiRulesMetadata.lastModified],
+  ]);
+  const tournamentList = `${publicOrigin}/tournaments`;
+  const detailPrefix = `${tournamentList}/`;
   if (
-    !text.includes('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"') ||
-    (text.match(/<loc>/g) ?? []).length !== (searchIndexable ? gameIds.length + 1 : 0) ||
-    (text.match(/<lastmod>/g) ?? []).length !== (searchIndexable ? gameIds.length + 1 : 0) ||
-    (searchIndexable &&
-      (!text.includes(
-        `<loc>${publicOrigin}/</loc><lastmod>${generalLobbyMetadata.lastModified}</lastmod>`,
-      ) ||
-        !gameIds.every((game) =>
-          text.includes(
-            `<loc>${lobbyCanonical(game)}</loc><lastmod>${lobbyMetadata[game].lastModified}</lastmod>`,
-          ),
-        )))
+    (tournamentIndexable
+      ? !locations.includes(tournamentList)
+      : locations.length !== staticPages.size) ||
+    [...staticPages].some(
+      ([url, lastmod]) => !text.includes(`<loc>${url}</loc><lastmod>${lastmod}</lastmod>`),
+    ) ||
+    locations.some(
+      (url) =>
+        !staticPages.has(url) &&
+        (!tournamentIndexable ||
+          (url !== tournamentList &&
+            !(url.startsWith(detailPrefix) && /^[1-9]\d*$/.test(url.slice(detailPrefix.length))))),
+    )
   )
     throw new Error("Invalid sitemap URLs");
+});
+await check("/tournaments", async (response) => {
+  if (response.status !== 200 || !response.headers.get("content-type")?.includes("text/html"))
+    throw new Error("Expected tournament list HTML");
+  const html = await response.text();
+  const robots = tournamentIndexable ? "index,follow" : "noindex,follow";
+  if (
+    !html.includes(`<meta name="robots" content="${robots}">`) ||
+    !html.includes("<h1>大会一覧</h1>")
+  )
+    throw new Error("Missing tournament list heading or expected robots metadata");
 });
 await check("/api/healthz", async (response) => {
   healthzContract.response.parse(await response.json());

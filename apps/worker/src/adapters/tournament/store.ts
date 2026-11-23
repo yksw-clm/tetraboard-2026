@@ -33,6 +33,10 @@ export const publicTournamentList = (
   cursor: string | undefined,
   now: number,
 ) => tournament.publicTournamentList(ports(db), game, cursor, now);
+export const publicTournamentPages = (db: D1Database, now = Date.now()) =>
+  tournament.publicTournamentPages(new D1TournamentReader(db), policy, now);
+export const publicFinalStandings = (db: D1Database, row: TournamentRow) =>
+  tournament.publicFinalStandings(ports(db), row);
 export const createDraft = (db: D1Database, input: TournamentInput) =>
   tournament.createDraft(new D1TournamentDrafts(db), input, {
     id: () => crypto.randomUUID(),

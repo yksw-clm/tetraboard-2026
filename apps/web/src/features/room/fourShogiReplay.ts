@@ -53,7 +53,11 @@ export function fetchFourShogiReplay({
       sides.every(
         (side) => lastRound.players.find((p) => p.side === side)?.id === initial.players[side],
       ),
-    rules: getFourShogiDisplayReplayRules(1),
+    rules: getFourShogiDisplayReplayRules(
+      1,
+      lastRound.game.result.reason,
+      new Map(lastRound.players.map(({ side, appearance }) => [side, appearance?.kind])),
+    ),
     finalGame: fourShogiPublicStateSchema.parse(lastRound.game),
   });
 }

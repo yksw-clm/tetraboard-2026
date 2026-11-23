@@ -1,14 +1,23 @@
-import { gameCapacity } from "@tetraboard/protocol/games";
-import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
+import { Link, useInRouterContext } from "react-router";
+import {
+  fourShogiRulesPath,
+  gameCapacity,
+  gameCatalog,
+  type GameId,
+} from "@tetraboard/protocol/games";
 import { lobbyMetadata } from "./lobbyMetadata";
 import { lobbyQuestions } from "./lobbyQuestions";
 
 export function GameIntroduction({ game }: { game: GameId }) {
   const content = lobbyMetadata[game];
+  const inRouter = useInRouterContext();
   const questions = lobbyQuestions[game];
+  const { name, hasModes } = gameCatalog[game];
+  const capacity = gameCapacity(game);
+  const friend = capacity === 2 ? "友達" : "友人";
   return (
     <section
-      aria-label={`${gameCatalog[game].name}の紹介`}
+      aria-label={`${name}の紹介`}
       className={`rounded-lg border border-solid border-lobby-footer-line p-5 leading-relaxed ${questions ? "bg-white" : ""}`}
     >
       <h2 className="text-xl font-bold">ゲーム概要</h2>
@@ -17,20 +26,20 @@ export function GameIntroduction({ game }: { game: GameId }) {
         <>
           <h2 className="mt-5 text-xl font-bold">ひとりでCPUと遊ぶ</h2>
           <p className="mt-3">
-            通常ルームでの対局は、アプリのインストールやユーザー登録は不要です。人間が4人集まらなくても、CPUを交えて遊べます。
+            {`通常ルームでの対局は、アプリのインストールやユーザー登録は不要です。人間が${capacity}人集まらなくても、CPUを交えて遊べます。`}
           </p>
           <ol className="mt-3 list-decimal space-y-2 pl-5">
             <li>ロビー上部の「CPUと遊ぶ」を押します。</li>
             <li>
-              名前・モード・時間設定などを選ぶと、CPU3人との待機室へ進みます。ログイン中はプロフィールの名前を使います。
+              {`名前・${hasModes ? "モード・" : ""}時間設定などを選ぶと、CPU${capacity - 1}人との待機室へ進みます。ログイン中はプロフィールの名前を使います。`}
             </li>
             <li>ホストが「対局開始」を押すと対局が始まります。</li>
           </ol>
-          <h2 className="mt-5 text-xl font-bold">友人とオンラインで遊ぶ</h2>
+          <h2 className="mt-5 text-xl font-bold">{`${friend}とオンラインで遊ぶ`}</h2>
           <ol className="mt-3 list-decimal space-y-2 pl-5">
             <li>ロビー上部の「公開ルームを作る」から部屋を作成します。</li>
-            <li>部屋の招待URLを友人へ共有し、それぞれの端末から参加してもらいます。</li>
-            <li>人数が足りなければ、ホストがCPUを追加して、人間とCPUで4席を埋めます。</li>
+            <li>{`部屋の招待URLを${friend}へ共有し、それぞれの端末から参加してもらいます。`}</li>
+            <li>{`人数が足りなければ、ホストがCPUを追加して、人間とCPUで${capacity}席を埋めます。`}</li>
             <li>人間全員が「準備完了」にし、ホストが「対局開始」を押します。</li>
           </ol>
           <p className="mt-3">
@@ -41,13 +50,13 @@ export function GameIntroduction({ game }: { game: GameId }) {
         <>
           <h2 className="mt-5 text-xl font-bold">遊び始め方</h2>
           <p className="mt-3">
-            {!gameCatalog[game].hasModes
+            {!hasModes
               ? "アプリのインストールやユーザー登録は不要です。「CPUと遊ぶ」でニックネーム・時間設定を選ぶと、CPU1人との待機室へ進みます。ホストが「対局開始」を押してから対局を始めます。"
               : "アプリのインストールやユーザー登録は不要です。「CPUと遊ぶ」でニックネーム・モード・時間設定を選ぶと、CPU3人との待機室へ進みます。ホストが「対局開始」を押してから対局を始めます。"}
           </p>
           <p className="mt-3">
             友人と遊ぶときは「公開ルームを作る」から招待URLを共有してください。公開ルーム一覧からも参加できます。人間とCPUで
-            {gameCapacity(game)}
+            {capacity}
             席を埋め、人間全員が準備完了になったらホストが開始します。公開ルームの観戦もできます。
           </p>
         </>
@@ -77,7 +86,19 @@ export function GameIntroduction({ game }: { game: GameId }) {
           </a>
         </>
       ) : null}
-      <p className="mt-3 text-muted">詳しいルールはロビー上部の「遊び方」で確認できます。</p>
+      {game === "four-shogi" ? (
+        <p className="mt-3 font-bold text-brand underline">
+          {inRouter ? (
+            <Link to={fourShogiRulesPath} state={{ scrollToTop: true }}>
+              ルールを詳しく見る
+            </Link>
+          ) : (
+            <a href={fourShogiRulesPath}>ルールを詳しく見る</a>
+          )}
+        </p>
+      ) : (
+        <p className="mt-3 text-muted">詳しいルールはロビー上部の「遊び方」で確認できます。</p>
+      )}
     </section>
   );
 }

@@ -12,6 +12,7 @@ import {
 } from "@tetraboard/protocol";
 import { fetchFourShogiMatchReplay } from "../src/features/room/fourShogiMatchReplay";
 import { matchResultGroups } from "../src/features/account/matchSummaryPresentation";
+import { shogiRoundWithoutHumans } from "./fixtures/fourShogiFixtures";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -107,6 +108,45 @@ test("保存棋譜の分割取得から開始・着手・各脱落を復元し�
   expect(frames[2]!.label).toBe("西 退室");
   expect(frames.at(-1)!.game).toEqual(round.match.game);
   expect(frames.every((frame) => !("repetitions" in frame.game))).toBe(true);
+});
+
+test("人間4人で1人だけが投了した保存棋譜は人間不在の終局を拒否する", async () => {
+  const { playing, ended, event } = shogiRoundWithoutHumans();
+  const round = ended.lastRound!;
+  const match = fourShogiMatchDetailSchema.parse({
+    ...savedRound().match,
+    settings: playing.settings,
+    game: round.game,
+    selfPlayerId: round.game.players.south,
+    participants: round.players.map(({ id, name, side }, seat) => ({
+      id,
+      name,
+      side,
+      seat,
+      kind: "human",
+      avatarUrl: null,
+    })),
+    replay: {
+      rulesVersion: 1,
+      initial: {
+        mode: "singles",
+        players: round.game.players,
+        threePlayerAttackProhibited: true,
+      },
+      eventCount: round.eventCount,
+    },
+  });
+  globalThis.fetch = (async () =>
+    Response.json({
+      matchId: match.id,
+      ...match.replay,
+      events: [{ index: 0, event }],
+      nextCursor: null,
+    })) as typeof fetch;
+
+  await expect(fetchFourShogiMatchReplay(match, new AbortController().signal)).rejects.toThrow(
+    "Replay event is invalid",
+  );
 });
 
 test("保存棋譜はページ識別・連続性・終局結果の不一致や取消を採用しない", async () => {

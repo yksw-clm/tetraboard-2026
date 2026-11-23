@@ -12,21 +12,65 @@ const fallbackRotationClasses: Record<ShogiPieceDirection, string> = {
   ...rotationClasses,
   down: "rotate-180",
 };
+type ShogiPieceProps = {
+  kind: PieceKind | HandPieceKind;
+  promoted?: boolean;
+  deadKing?: boolean;
+  direction: ShogiPieceDirection;
+  royalKing?: boolean;
+};
+
 export function ShogiPiece({
   kind,
   promoted = false,
   deadKing = false,
   direction,
   royalKing = false,
-}: {
-  kind: PieceKind | HandPieceKind;
-  promoted?: boolean;
-  deadKing?: boolean;
-  direction: ShogiPieceDirection;
-  royalKing?: boolean;
-}) {
+}: ShogiPieceProps) {
   const { src, name } = shogiPieceImage(kind, promoted, deadKing, direction, royalKing);
   return <PreparedShogiPiece key={src} src={src} name={name} direction={direction} />;
+}
+
+export function StaticShogiPiece({
+  kind,
+  promoted = false,
+  deadKing = false,
+  direction,
+  royalKing = false,
+  resolveAsset,
+}: ShogiPieceProps & { resolveAsset?: (source: string) => string }) {
+  const { src } = shogiPieceImage(kind, promoted, deadKing, direction, royalKing);
+  return (
+    <ShogiPieceBitmap src={resolveAsset?.(src) ?? src} direction={direction} fetchPriority="low" />
+  );
+}
+
+function ShogiPieceBitmap({
+  src,
+  direction,
+  hidden = false,
+  onError,
+  fetchPriority,
+}: {
+  src: string;
+  direction: ShogiPieceDirection;
+  hidden?: boolean;
+  onError?: () => void;
+  fetchPriority?: "low";
+}) {
+  return (
+    <img
+      src={src}
+      alt=""
+      onError={onError}
+      draggable={false}
+      aria-hidden="true"
+      data-testid="shogi-piece"
+      data-piece-direction={direction}
+      fetchPriority={fetchPriority}
+      className={`block w-[var(--shogi-piece-width)] max-w-none aspect-[140/148] object-contain select-none pointer-events-none ${rotationClasses[direction]} ${hidden ? "invisible" : ""}`}
+    />
+  );
 }
 
 function PreparedShogiPiece({
@@ -57,16 +101,11 @@ function PreparedShogiPiece({
       aria-hidden="true"
       className="relative block w-[var(--shogi-piece-width)] aspect-[140/148] select-none pointer-events-none"
     >
-      <img
-        key={src}
+      <ShogiPieceBitmap
         src={src}
-        alt=""
+        direction={direction}
+        hidden={!ready}
         onError={() => setFailed(true)}
-        draggable={false}
-        aria-hidden="true"
-        data-testid="shogi-piece"
-        data-piece-direction={direction}
-        className={`block w-[var(--shogi-piece-width)] max-w-none aspect-[140/148] object-contain select-none pointer-events-none ${rotationClasses[direction]} ${ready ? "" : "invisible"}`}
       />
       {!ready && (
         <span

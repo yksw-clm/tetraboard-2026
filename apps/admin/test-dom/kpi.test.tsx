@@ -16,6 +16,15 @@ function report(overrides: Partial<KpiReport> = {}): KpiReport {
     computedAtMs: Date.now(),
     completedMatches: 1234,
     players: 567,
+    weeklyActivePlayers: [
+      ...Array.from({ length: 11 }, (_, index) => ({
+        weekStart: new Date(Date.UTC(2026, 8, 14 + index * 7)).toISOString().slice(0, 10),
+        players: 0,
+        linked: 0,
+        partial: false,
+      })),
+      { weekStart: "2026-11-30", players: 4, linked: 1, partial: true },
+    ],
     replayWithin7Days: { numerator: 2, denominator: 8, rate: 0.25, observing: 3 },
     newRegistrations: 12,
     events: {
@@ -88,7 +97,7 @@ test("日本時間の今日を含む30日で取得し、実数・割合・分母
   expect(card(view, "7 日以内の再対局率").querySelector("p")?.textContent).toBe("25.0%（2 / 8）");
   expect(card(view, "7 日以内の再対局率").textContent).toContain("観測中 3 人");
   expect(card(view, "新規登録数").querySelector("p")?.textContent).toBe("12");
-  const tables = [...view.querySelectorAll("table")];
+  const tables = [...view.querySelectorAll("table")].slice(1);
   expect(tables).toHaveLength(3);
   const cells = (table: HTMLTableElement, row = 0) =>
     [...table.querySelectorAll("tbody tr")[row]!.querySelectorAll("td")].map(
@@ -116,6 +125,38 @@ test("日本時間の今日を含む30日で取得し、実数・割合・分母
   const link = view.querySelector('a[href="https://dash.cloudflare.com/"]')!;
   expect(link.getAttribute("target")).toBe("_blank");
   expect(link.getAttribute("rel")).toContain("noopener");
+});
+
+test("週次アクティブプレイヤーの実数・連携率・集計中を12週の表に表示する", async () => {
+  setNow();
+  const view = render(<Kpi />);
+  requests[0]!.respond(report());
+  await flush();
+
+  const table = [...view.querySelectorAll("table")].find(
+    (item) => item.caption?.textContent === "週次アクティブプレイヤー（12 週）",
+  );
+  expect(table).toBeDefined();
+  expect([...table!.querySelectorAll("th")].map((cell) => cell.textContent)).toEqual([
+    "週（月曜の日付）",
+    "プレイヤー数",
+    "連携済み",
+    "連携率",
+  ]);
+  const rows = table!.querySelectorAll("tbody tr");
+  expect(rows).toHaveLength(12);
+  expect([...rows[10]!.querySelectorAll("td")].map((cell) => cell.textContent)).toEqual([
+    "2026-11-23",
+    "0",
+    "0",
+    "—",
+  ]);
+  expect([...rows[11]!.querySelectorAll("td")].map((cell) => cell.textContent)).toEqual([
+    "2026-11-30 集計中",
+    "4",
+    "1",
+    "25.0%",
+  ]);
 });
 
 test("4つのプリセットで日本時間の期間を切り替え、その期間で再取得する", async () => {
@@ -225,7 +266,8 @@ test("イベントを取得できない場合は各該当箇所に理由を示�
   expect(card(view, "対局者数").querySelector("p")?.textContent).toBe("567");
   expect(card(view, "7 日以内の再対局率").querySelector("p")?.textContent).toBe("25.0%（2 / 8）");
   expect(card(view, "7 日以内の再対局率").textContent).toContain("観測中 3 人");
-  expect(view.querySelector("table")).toBeNull();
+  expect(view.querySelectorAll("table")).toHaveLength(1);
+  expect(card(view, "週次アクティブプレイヤー（12 週）").querySelector("table")).not.toBeNull();
   expect(view.textContent).not.toContain("999");
   expect(view.textContent).not.toContain("test-source");
   expect(view.textContent).not.toContain("間引");

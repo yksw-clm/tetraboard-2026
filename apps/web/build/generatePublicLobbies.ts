@@ -1,8 +1,10 @@
 import { mkdir, readFile, writeFile, access, rm } from "node:fs/promises";
 import type { Manifest } from "vite";
+import { rulesDiagramAssetFromManifest } from "./rulesDiagramAssets";
 import { lobbyBoardSourcesFromManifest } from "./lobbyBoardAssets";
-import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import {
+  renderFourShogiRules,
   renderGeneralLobby,
   renderPublicLobby,
   renderNotFound,
@@ -13,9 +15,8 @@ import {
 const dist = new URL("../dist/", import.meta.url);
 const template = await readFile(new URL("index.html", dist), "utf8");
 const manifestPath = new URL(".vite/manifest.json", dist);
-const boardSources = lobbyBoardSourcesFromManifest(
-  JSON.parse(await readFile(manifestPath, "utf8")) as Manifest,
-);
+const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Manifest;
+const boardSources = lobbyBoardSourcesFromManifest(manifest);
 for (const source of new Set(Object.values(boardSources)))
   await access(new URL(source.slice(1), dist));
 // 元のVite出力を使い、ハッシュ付きのJS・CSS参照を保持する。
@@ -29,6 +30,16 @@ for (const game of gameIds) {
     renderPublicLobby(template, game, boardSources),
   );
 }
+const rulesDirectory = new URL(`${fourShogiRulesPath.slice(1)}/`, dist);
+await mkdir(rulesDirectory, { recursive: true });
+const rulesAssetUrls = new Set<string>();
+const rulesHtml = renderFourShogiRules(template, boardSources, (source) => {
+  const url = rulesDiagramAssetFromManifest(manifest, source);
+  rulesAssetUrls.add(url);
+  return url;
+});
+for (const url of rulesAssetUrls) await access(new URL(url.slice(1), dist));
+await writeFile(new URL("index.html", rulesDirectory), rulesHtml);
 await writeFile(new URL("404.html", dist), renderNotFound(template));
 await writeFile(
   new URL("app.html", dist),
@@ -40,5 +51,5 @@ await writeFile(new URL("sitemap.xml", dist), renderSitemap());
 // URLの解決にだけ使い、配信資産にはビルド情報を含めません。
 await rm(manifestPath);
 console.info(
-  `Generated general lobby and ${gameIds.length} game lobbies, robots.txt, sitemap.xml and 404.html`,
+  `Generated general lobby and ${gameIds.length} game lobbies, four-shogi rules, robots.txt, sitemap.xml and 404.html`,
 );

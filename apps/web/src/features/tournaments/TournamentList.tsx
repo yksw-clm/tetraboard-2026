@@ -11,15 +11,21 @@ import { LobbyBoardPreview } from "../lobby/LobbyBoardPreview";
 import { tournamentListDate } from "./tournamentPresentation";
 import { useTournamentList } from "./useTournamentList";
 
-export function TournamentList({ game }: { game: GameId | "all" }) {
+export function TournamentList({
+  game,
+  headingLevel: Heading = "h2",
+}: {
+  game: GameId | "all";
+  headingLevel?: "h1" | "h2";
+}) {
   const state = useTournamentList(game);
   const list = useRef<HTMLUListElement>(null);
   const titleId = `tournament-list-${game}-title`;
   return (
     <section aria-labelledby={titleId} className="min-w-0">
-      <h2 id={titleId} className="mb-4 text-xl font-bold">
+      <Heading id={titleId} className="mb-4 text-xl font-bold">
         大会一覧
-      </h2>
+      </Heading>
       {state.error && (
         <p role="alert" className="mb-3 text-sm text-danger">
           {state.error}

@@ -307,6 +307,7 @@ export { fourShogiEliminatedHandsSchema, type FourShogiEliminatedHands } from ".
 
 export * from "./registration";
 export * from "./tournaments";
+export { renderBreadcrumbJsonLd, renderWebSiteJsonLd } from "./structuredData";
 
 export * from "./notifications";
 

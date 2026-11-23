@@ -1,13 +1,9 @@
 import { roomCodeSchema, roomSocketContract } from "@tetraboard/protocol";
 import { roomShareMetadata, type ShareRoom } from "@tetraboard/protocol/room-sharing";
 
-export function escapeShareHtml(value: string): string {
-  return value.replace(
-    /[&<>"']/g,
-    (character) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]!,
-  );
-}
+import { dynamicAssetHeaders, escapeShareHtml, fetchUnconditionalAsset } from "./htmlAssets";
+
+export { escapeShareHtml } from "./htmlAssets";
 
 async function readShareRoom(url: URL, env: Env): Promise<ShareRoom | null> {
   const id = url.pathname.split("/")[2];
@@ -53,17 +49,9 @@ export async function serveShareHtml(
   assets: Fetcher,
   metadata: ReturnType<typeof roomShareMetadata>,
 ): Promise<Response> {
-  const url = new URL(request.url);
-  const assetUrl = new URL("/app.html", url);
-  const assetHeaders = new Headers(request.headers);
-  assetHeaders.delete("If-None-Match");
-  assetHeaders.delete("If-Modified-Since");
-  const asset = await assets.fetch(new Request(assetUrl, { headers: assetHeaders }));
-  const headers = new Headers(asset.headers);
-  headers.set("Cache-Control", "no-store");
+  const asset = await fetchUnconditionalAsset(request, assets, "/app.html");
+  const headers = dynamicAssetHeaders(asset);
   headers.set("X-Robots-Tag", "noindex, follow");
-  for (const name of ["ETag", "Last-Modified", "Content-Length", "Content-Encoding"])
-    headers.delete(name);
   if (request.method === "HEAD") {
     await asset.body?.cancel();
     return new Response(null, { status: asset.status, headers });

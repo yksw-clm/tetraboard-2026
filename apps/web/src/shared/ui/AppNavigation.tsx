@@ -11,7 +11,7 @@ import {
   saveRegistrationReturn,
 } from "../../features/account/registrationReturn";
 import { LobbyBoardPreview } from "../../features/lobby/LobbyBoardPreview";
-import { lastLobbyGame, lobbyGameForNavigation } from "../lastLobbyGame";
+import { lastLobbyGame, rulesGameForNavigation } from "../lastLobbyGame";
 import { isGameViewPath } from "../siteNavigation";
 import { AppAvatar } from "./AppAvatar";
 import { AppIcon } from "./AppIcon";
@@ -31,12 +31,14 @@ export function AppNavigation({
   mobile?: boolean;
   onNavigate?: AppNavigationHandler;
 }) {
-  const location = useLocation();
-  const game = useSyncExternalStore<GameId>(
+  const { pathname, search } = useLocation();
+  const path = pathname.replace(/\/$/, "");
+  const lastGame = useSyncExternalStore<GameId>(
     lastLobbyGame.subscribe,
     lastLobbyGame.getSnapshot,
     () => defaultGameId,
   );
+  const game = rulesGameForNavigation(path) ?? lastGame;
   const account = useContext(AccountContext);
   const user = account?.user;
   const accountAvatar = user?.avatarUrl ?? null;
@@ -66,12 +68,12 @@ export function AppNavigation({
     onNavigate(to, state);
   }
   const links = [
-    { to: "/", label: "ホーム", icon: <AppIcon name="home" />, active: location.pathname === "/" },
+    { to: "/", label: "ホーム", icon: <AppIcon name="home" />, active: pathname === "/" },
     {
       to: "/how-to-play",
       label: "遊び方",
       icon: <AppIcon name="book" />,
-      active: location.pathname.replace(/\/$/, "") === "/how-to-play",
+      active: path === "/how-to-play",
     },
     {
       to: gameCatalog[game].lobbyPath,
@@ -81,10 +83,10 @@ export function AppNavigation({
           <LobbyBoardPreview game={game} compact />
         </span>
       ),
-      active: lobbyGameForNavigation(location.pathname) === game,
+      active: path === gameCatalog[game].lobbyPath,
     },
   ];
-  if (isGameViewPath(location.pathname)) return null;
+  if (isGameViewPath(pathname)) return null;
   return (
     <nav
       aria-label={mobile ? "下部ナビゲーション" : "メインナビゲーション"}
@@ -123,22 +125,20 @@ export function AppNavigation({
           to={accountTo}
           state={accountState}
           aria-current={
-            location.pathname.startsWith("/account") || location.pathname === "/login"
-              ? "page"
-              : undefined
+            pathname.startsWith("/account") || pathname === "/login" ? "page" : undefined
           }
           onClick={(event) => {
             if (accountTo === "/login") {
               beginRegistrationEntry("mobile-navigation", game);
-              const path = registrationPath(location.pathname + location.search);
-              if (path) saveRegistrationReturn({ path }, false);
+              const returnPath = registrationPath(pathname + search);
+              if (returnPath) saveRegistrationReturn({ path: returnPath }, false);
               else clearRegistrationReturn();
             }
             navigateFromLink(event, accountTo, accountState);
           }}
           className={cn(
             "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1 text-[11px] font-bold no-underline",
-            location.pathname.startsWith("/account") || location.pathname === "/login"
+            pathname.startsWith("/account") || pathname === "/login"
               ? "bg-surface-hover text-brand"
               : "text-muted hover:bg-surface-hover",
           )}

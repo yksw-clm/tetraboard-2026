@@ -137,3 +137,57 @@ export function finishedShogiRound() {
   };
   return { room, events: allEvents };
 }
+
+export function shogiRoundWithoutHumans() {
+  const playing = playingShogiRoom();
+  const eliminated = eliminateSide(initialShogiState(), "south", "resigned");
+  if (!eliminated.ok) throw new Error("Invalid fixture elimination");
+  const game = {
+    ...publicShogiState(eliminated.state),
+    status: "finished",
+    turn: null,
+    result: {
+      mode: "singles",
+      reason: "no_humans",
+      standings: [
+        { side: "west", rank: 1 },
+        { side: "north", rank: 1 },
+        { side: "east", rank: 1 },
+        { side: "south", rank: 4 },
+      ],
+    },
+  };
+  const players = playing.players.map((p, index) =>
+    index === 0
+      ? p
+      : {
+          kind: "cpu",
+          id: p.id,
+          name: `CPU ${index}`,
+          ready: true,
+          level: 1,
+          side: p.side,
+          reconnectDeadline: null,
+        },
+  );
+  const ended = fourShogiRoomSchema.parse({
+    ...waitingShogiRoom(),
+    players: players.map((p) => ({ ...p, side: null })),
+    lastRound: {
+      roundId: shogiRoundId,
+      game,
+      players: players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        side: p.side,
+        ...(p.kind === "cpu" ? { appearance: { kind: "cpu", level: 1 } } : {}),
+      })),
+      eventCount: 1,
+    },
+  });
+  return {
+    playing: fourShogiRoomSchema.parse({ ...playing, players }),
+    ended,
+    event: { type: "eliminate", side: "south", reason: "resigned" } as const,
+  };
+}

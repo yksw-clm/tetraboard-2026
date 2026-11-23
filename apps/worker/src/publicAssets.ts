@@ -1,8 +1,12 @@
 import { legalHtml } from "./routes/legalHtml";
-import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { serveRoomShareHtml } from "./roomShareHtml";
 import { serveMatchShareHtml } from "./matchSharing/html";
 import { withVisitStarted } from "./usageEvents/visit";
+import { serveTournamentHtml, serveTournamentSitemap } from "./tournamentPages";
+
+const publicPagePaths = [...gameIds.map((game) => gameCatalog[game].lobbyPath), fourShogiRulesPath];
+const tournamentDetailPath = /^\/tournaments\/([1-9]\d*)\/?$/;
 
 export function withoutIndexing(response: Response): Response {
   const headers = new Headers(response.headers);
@@ -24,12 +28,13 @@ function isSpaPath(path: string) {
       "/account/deletion",
       "/feedback",
       "/updates",
+      "/tournaments",
       "/how-to-play",
       "/games/four-reversi/matchmaking",
       "/games/shogi/matchmaking",
     ].includes(path.replace(/\/$/, "")) ||
     /^\/(?:rooms|matches|updates)\/[^/]+\/?$/.test(path) ||
-    /^\/tournaments\/[1-9]\d*\/?$/.test(path) ||
+    tournamentDetailPath.test(path) ||
     /^\/account\/matches\/[^/]+\/?$/.test(path)
   );
 }
@@ -48,6 +53,24 @@ async function serveNotFoundAsset(request: Request, url: URL, assets: Fetcher) {
   headers.set("Cache-Control", "no-store");
   headers.set("X-Robots-Tag", "noindex, follow");
   return new Response(request.method === "HEAD" ? null : response.body, { status: 404, headers });
+}
+
+async function serveSpaAsset(request: Request, assets: Fetcher, path: string, env?: Env) {
+  if (env) {
+    const tournament = tournamentDetailPath.exec(path);
+    if (tournament || path.replace(/\/$/, "") === "/tournaments")
+      return serveTournamentHtml(
+        request,
+        assets,
+        env,
+        tournament ? Number(tournament[1]) : undefined,
+      );
+    if (/^\/matches\/[^/]+\/?$/.test(path)) return serveMatchShareHtml(request, env, assets);
+    if (/^\/rooms\/[^/]+\/?$/.test(path)) return serveRoomShareHtml(request, env, assets);
+  }
+  const url = new URL(request.url);
+  url.pathname = "/app.html";
+  return withoutIndexing(await assets.fetch(new Request(url, request)));
 }
 
 export async function servePublicAssets(
@@ -74,35 +97,30 @@ export async function servePublicAssets(
     url.pathname = "/index.html";
     return html(await assets.fetch(new Request(url, request)));
   }
-  const game = gameIds.find((id) => {
-    const lobby = gameCatalog[id].lobbyPath;
-    return path === lobby || path === `${lobby}/` || path === `${lobby}/index.html`;
-  });
-  if (game) {
-    const lobby = gameCatalog[game].lobbyPath;
-    if (url.pathname !== lobby) {
-      url.pathname = lobby;
+  const publicPagePath = publicPagePaths.find(
+    (page) => path === page || path === `${page}/` || path === `${page}/index.html`,
+  );
+  if (publicPagePath) {
+    if (url.pathname !== publicPagePath) {
+      url.pathname = publicPagePath;
       return Response.redirect(url.toString(), 308);
     }
-    url.pathname = `${lobby}/index.html`;
+    url.pathname = `${publicPagePath}/index.html`;
     const response = await assets.fetch(new Request(url, request));
     return html(response.status < 400 ? response : withoutIndexing(response));
   }
-  if (isSpaPath(path)) {
-    if (env && /^\/matches\/[^/]+\/?$/.test(path))
-      return html(await serveMatchShareHtml(request, env, assets));
-    if (env && /^\/rooms\/[^/]+\/?$/.test(path))
-      return html(await serveRoomShareHtml(request, env, assets));
-    url.pathname = "/app.html";
-    return html(withoutIndexing(await assets.fetch(new Request(url, request))));
-  }
+  if (isSpaPath(path)) return html(await serveSpaAsset(request, assets, path, env));
   if (
     path.startsWith("/assets/") ||
     path.startsWith("/four-shogi/formations/") ||
     ["/favicon.ico", "/robots.txt", "/sitemap.xml"].includes(path)
   ) {
     url.pathname = path;
-    const response = await assets.fetch(new Request(url, request));
+    const assetRequest = new Request(url, request);
+    const response =
+      env && path === "/sitemap.xml"
+        ? await serveTournamentSitemap(assetRequest, assets, env)
+        : await assets.fetch(assetRequest);
     if (response.status !== 404) return response;
   }
   return serveNotFoundAsset(request, url, assets);

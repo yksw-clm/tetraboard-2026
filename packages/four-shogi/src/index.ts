@@ -17,6 +17,7 @@ import type {
 } from "./types";
 
 export type { RepetitionLookup } from "./repetition";
+export { finishWithoutHumans } from "./progression";
 export {
   detectFormations,
   formationAnalyzerId,

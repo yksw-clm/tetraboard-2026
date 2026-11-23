@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./definition": "./src/definition.ts",
+    "./board": "./src/board.ts",
     "./catalog": "./src/catalog.ts",
     "./replay": "./src/replay.ts",
     "./formation-catalog": "./src/formationCatalog.ts"

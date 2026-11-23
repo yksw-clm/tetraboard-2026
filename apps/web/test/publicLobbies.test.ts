@@ -1,11 +1,15 @@
+import { fourShogiRulesMetadata } from "../src/seo/fourShogiRulesMetadata";
 import { expect, test } from "bun:test";
-import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { generalLobbyMetadata, lobbyMetadata } from "../src/seo/lobbyMetadata";
-import { lobbyBoardSources } from "./fixtures/lobbyBoardSources";
+import { lobbyBoardSources, resolveRulesDiagramAsset } from "./fixtures/lobbyBoardSources";
+import { expectPublicPageSocialTags } from "./fixtures/publicPageSocialTags";
+import { expectPublicPageStructuredData } from "./fixtures/publicPageStructuredData";
 import { lobbyBoardSourcesFromManifest } from "../build/lobbyBoardAssets";
 import { validateDeploymentLobbyHtml } from "../../../scripts/deploymentLobbyHtml";
 import {
   renderPublicLobby,
+  renderFourShogiRules,
   renderGeneralLobby,
   renderNotFound,
   renderSitemap,
@@ -16,6 +20,18 @@ import {
 const template =
   '<!doctype html><html lang="ja"><head><title>TetraBoard</title><meta property="og:site_name" content="TetraBoard" /><script src="/assets/app-123.js"></script><link rel="stylesheet" href="/assets/app-123.css"></head><body><div id="root"></div></body></html>';
 
+test("トップ・6ロビー・四人将棋のルールのheadに構造化データを1件ずつ出力する", () => {
+  const lobbies = Object.fromEntries(
+    gameIds.map((game) => [game, renderPublicLobby(template, game, lobbyBoardSources)]),
+  ) as Record<(typeof gameIds)[number], string>;
+  expectPublicPageStructuredData(
+    "https://tetraboard.net",
+    renderGeneralLobby(template, lobbyBoardSources),
+    lobbies,
+    renderFourShogiRules(template, lobbyBoardSources, resolveRulesDiagramAsset),
+  );
+});
+
 test.each([...gameIds])("公開後のHTML検証は%sの生成済みナビゲーションを受け付ける", (game) => {
   const html = renderPublicLobby(template, game, lobbyBoardSources);
   expect(() =>
@@ -24,6 +40,12 @@ test.each([...gameIds])("公開後のHTML検証は%sの生成済みナビゲー�
       searchIndexable: true,
     }),
   ).not.toThrow();
+  expectPublicPageSocialTags(
+    html,
+    lobbyMetadata[game],
+    `https://tetraboard.net${gameCatalog[game].lobbyPath}`,
+    game,
+  );
 });
 
 test.each(["/", "/how-to-play", "/games/gomoku"])(
@@ -95,7 +117,7 @@ test("初期HTMLはViteの盤画像URLをタイトルとナビで共用し、五
   expect(() => lobbyBoardSourcesFromManifest({})).toThrow("Missing built lobby board asset");
 });
 
-test("既定HTMLと全公開ロビーはブランド表記とゲーム別titleの語順をそろえる", async () => {
+test("既定HTMLと全公開ロビーはブランド表記をそろえ、四人リバーシ・四人五目並べはtitleの語順をそろえる", async () => {
   const source = await Bun.file(new URL("../index.html", import.meta.url)).text();
   expect(source).toContain("<title>TetraBoard</title>");
   for (const html of [
@@ -110,14 +132,64 @@ test("既定HTMLと全公開ロビーはブランド表記とゲーム別title�
     const html = renderPublicLobby(template, game, lobbyBoardSources);
     const { title, description } = lobbyMetadata[game];
     expect(title).toStartWith(gameCatalog[game].name);
-    expect(title).toEndWith("をブラウザで無料対戦 | TetraBoard");
-    expect(
-      [...title].reduce((width, char) => width + (char.charCodeAt(0) < 128 ? 0.5 : 1), 0),
-    ).toBeLessThanOrEqual(33);
+    if (game === "four-reversi" || game === "four-gomoku") {
+      expect(title).toEndWith("をブラウザで無料対戦 | TetraBoard");
+      expect(
+        [...title].reduce((width, char) => width + (char.charCodeAt(0) < 128 ? 0.5 : 1), 0),
+      ).toBeLessThanOrEqual(33);
+    }
     expect(description.length).toBeLessThanOrEqual(120);
     expect(html).toContain(`<title>${title}</title>`);
     expect(html).toContain(`name="description" content="${description}"`);
   }
+});
+
+test.each([
+  {
+    path: "/",
+    html: renderGeneralLobby(template, lobbyBoardSources),
+    title: "TetraBoard | 四人将棋・四人リバーシをブラウザで無料対戦",
+    description:
+      "四人将棋・四人リバーシ・四人五目並べなど6つのボードゲームをブラウザで無料対戦。登録不要でCPUや友達とすぐ遊べます。公開ルームの観戦や毎週の大会も楽しめます。",
+  },
+  {
+    path: "/games/four-shogi",
+    html: renderPublicLobby(template, "four-shogi", lobbyBoardSources),
+    game: "four-shogi",
+    title: "四人将棋（4人将棋）を無料でオンライン対戦｜登録不要・毎週大会 | TetraBoard",
+    description:
+      "四人将棋（4人将棋）をブラウザで無料対戦。登録・インストール不要で、CPU戦も友達との対局もすぐ遊べます。シングルス・ダブルスに対応。毎週土曜の夜に大会を開いていて、対局の棋譜も見られます。",
+  },
+  {
+    path: "/games/gomoku",
+    html: renderPublicLobby(template, "gomoku", lobbyBoardSources),
+    game: "gomoku",
+    title: "五目並べを無料でオンライン対戦｜友達と2人・CPU戦・登録不要 | TetraBoard",
+    description:
+      "五目並べ（五目ならべ）をブラウザで無料オンライン対戦。登録・インストール不要で、招待URLを送るだけで友達と2人で遊べます。CPU戦でひとりでも練習でき、禁手ありとなしを選べます。スマホでもPCでも遊べ、対局の棋譜も見られます。",
+  },
+  {
+    path: "/games/reversi",
+    html: renderPublicLobby(template, "reversi", lobbyBoardSources),
+    game: "reversi",
+    title: "リバーシを無料でオンライン対戦｜友達と2人・CPU戦・登録不要 | TetraBoard",
+    description:
+      "リバーシ（オセロと同じ遊び方）をブラウザで無料オンライン対戦。登録不要で、招待URLを送るだけで友達と2人で遊べます。CPU戦でひとりでも練習でき、登録するとレート戦にも参加できます。スマホでもPCでも遊べ、棋譜も見られます。",
+  },
+  {
+    path: "/games/shogi",
+    html: renderPublicLobby(template, "shogi", lobbyBoardSources),
+    game: "shogi",
+    title: "将棋を無料でオンライン対戦｜友達と2人・CPU戦・登録不要 | TetraBoard",
+    description:
+      "将棋をブラウザで無料オンライン対戦。ダウンロード・登録不要で、招待URLを送るだけで友達と2人で対局できます。CPU戦でひとりでも練習でき、登録するとレート戦にも参加できます。スマホでもPCでも遊べ、対局の棋譜も見られます。",
+  },
+] as const)("$path の検索・OGP・Xのメタ情報は承認済みの文面と一致する", (page) => {
+  const canonical = `https://tetraboard.net${page.path}`;
+  expect(page.html).toContain(`<title>${page.title}</title>`);
+  expect(page.html).toContain(`<meta name="description" content="${page.description}"`);
+  expect(page.html).toContain(`<link rel="canonical" href="${canonical}" />`);
+  expectPublicPageSocialTags(page.html, page, canonical, "game" in page ? page.game : undefined);
 });
 
 test("四人ゲームの初期HTMLは固有本文・正規URL・描画資産と通常リンクを持つ", () => {
@@ -146,13 +218,41 @@ test("四人ゲームの初期HTMLは固有本文・正規URL・描画資産と�
   }
 });
 
-test("サイトマップは総合と6ゲームのロビー、robotsはクロールを許可し404は検索除外する", () => {
+test("四人将棋のルールは初期HTMLに図・説明・メタ情報・ロビーへのリンクを持つ", () => {
+  const html = renderFourShogiRules(template, lobbyBoardSources, resolveRulesDiagramAsset);
+  expect(html).toMatch(/<h1\b[^>]*>四人将棋のルール<\/h1>/);
+  expect(html).toContain(
+    "<title>四人将棋のルール｜駒の動き・成り・禁じ手を図で解説｜TetraBoard</title>",
+  );
+  expect(html).toContain(`name="description" content="${fourShogiRulesMetadata.description}"`);
+  expect(html).toContain('name="robots" content="index,follow"');
+  expect(html).toContain('rel="canonical" href="https://tetraboard.net/games/four-shogi/rules"');
+  expectPublicPageSocialTags(
+    html,
+    fourShogiRulesMetadata,
+    "https://tetraboard.net/games/four-shogi/rules",
+    "four-shogi",
+  );
+  expect(html).toContain('data-public-lobby="four-shogi-rules"');
+  expect(html).toContain("王手を受けた人の手番を優先");
+  expect(html).toContain("成った銀と歩は金と同じ動きです。");
+  expect(html.match(/<div role="img" aria-label="[^"]+"/g)).toHaveLength(8);
+  expect(html.match(/<img[^>]+src="\/assets\/board-wood-fixture1\.webp"/g)).toHaveLength(8);
+  for (const kind of ["king2", "rook", "prom_rook", "gold", "silver", "pawn"])
+    expect(html).toContain(`src="/assets/up_${kind}-fixture1.png"`);
+  expect(html).toMatch(/<a\b[^>]*href="\/games\/four-shogi"[^>]*>四人将棋で遊ぶ<\/a>/);
+  expect(html).toContain('src="/assets/app-123.js"');
+  expect(html).toContain(`src="${lobbyBoardSources["four-shogi"]}"`);
+});
+
+test("サイトマップは総合と6ゲームのロビー、四人将棋のルールを掲載する", () => {
   const xml = renderSitemap();
   expect(xml).toContain('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"');
-  expect(xml.match(/<loc>/g)).toHaveLength(7);
-  expect(xml.match(/<lastmod>/g)).toHaveLength(7);
+  expect(xml.match(/<loc>/g)).toHaveLength(8);
+  expect(xml.match(/<lastmod>/g)).toHaveLength(8);
   for (const [url, lastModified] of [
     ["https://tetraboard.net/", generalLobbyMetadata.lastModified],
+    [`https://tetraboard.net${fourShogiRulesPath}`, "2026-11-21"],
     ...gameIds.map((game) => [
       `https://tetraboard.net${gameCatalog[game].lobbyPath}`,
       lobbyMetadata[game].lastModified,
@@ -182,6 +282,6 @@ test("総合ロビーの初期HTMLは全ゲームへの入口と正規URLを持�
   const html = renderGeneralLobby(template, lobbyBoardSources);
   expect(html).toContain('data-public-lobby="all"');
   expect(html).toContain('href="https://tetraboard.net/"');
-  expect(html).toContain("総合ロビー");
+  expect(html).toContain("<h1>総合ロビー</h1>");
   expect(html).not.toContain("chat-1");
 });

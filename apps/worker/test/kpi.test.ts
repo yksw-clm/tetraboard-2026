@@ -75,14 +75,18 @@ async function account(
   return value;
 }
 
-async function completed(endedAt: number, ids: string[]) {
+async function completed(endedAt: number, ids: string[], cpuCount = 0) {
   const id = crypto.randomUUID();
   matches.push(id);
+  const participants = [
+    ...ids.map((accountId) => ({ kind: "human", accountId })),
+    ...Array.from({ length: cpuCount }, () => ({ kind: "cpu", level: 1 })),
+  ];
   await db
     .prepare(
       "INSERT INTO matches(id,game,mode,started_at_ms,ended_at_ms,record_json) VALUES(?,'four-reversi','singles',?,?,?)",
     )
-    .bind(id, endedAt - 10000, endedAt, JSON.stringify({ participants: [] }))
+    .bind(id, endedAt - 10000, endedAt, JSON.stringify({ participants }))
     .run();
   for (const accountId of ids)
     await db
@@ -181,6 +185,12 @@ test("/apiあり・なしの管理APIは管理者だけが読め、実D1と偽�
     const result = kpiReportSchema.parse(await response.json());
     expect(result.completedMatches).toBe(1);
     expect(result.players).toBe(1);
+    expect(result.weeklyActivePlayers).toContainEqual({
+      weekStart: "1980-12-29",
+      players: 1,
+      linked: 1,
+      partial: false,
+    });
     expect(result.newRegistrations).toBe(1);
     expect(result.replayWithin7Days).toEqual({
       numerator: 0,
@@ -223,6 +233,81 @@ test("D1は完了日の日本時間境界・テストだけの局・混合局・
   expect(result.completedMatches).toBe(3);
   expect(result.players).toBe(2);
   expect(result.replayWithin7Days.denominator).toBe(1);
+});
+
+test("週次はゲストと連携済みを各1人と数え、テストと退会済みを除く", async () => {
+  const guest = await account({ guest: true });
+  const linked = await account();
+  const testUser = await account({ test: true });
+  const deleted = await account({ deleted: true });
+  await completed(at("1981-01-29"), [guest.id, linked.id, testUser.id, deleted.id]);
+  await completed(at("1981-01-30"), [guest.id, linked.id]);
+
+  const result = await readBusinessKpi(env, period, now);
+
+  expect(result.weeklyActivePlayers.at(-1)).toEqual({
+    weekStart: "1981-01-26",
+    players: 2,
+    linked: 1,
+    partial: false,
+  });
+});
+
+test("日本時間の月曜で週を区切り、CPU戦だけのゲストと空の週を含む12週を返す", async () => {
+  const cpuGuest = await account({ guest: true });
+  const linked = await account();
+  await completed(Date.parse("1981-02-08T23:59:00+09:00"), [cpuGuest.id], 3);
+  await completed(Date.parse("1981-02-09T00:00:00+09:00"), [linked.id]);
+  await completed(at("1981-02-12"), [cpuGuest.id], 3);
+
+  const result = await readBusinessKpi(
+    env,
+    { from: "1981-02-09", to: "1981-02-11" },
+    at("1981-02-13"),
+  );
+
+  expect(result.weeklyActivePlayers).toEqual([
+    ...[
+      "1980-11-24",
+      "1980-12-01",
+      "1980-12-08",
+      "1980-12-15",
+      "1980-12-22",
+      "1980-12-29",
+      "1981-01-05",
+      "1981-01-12",
+      "1981-01-19",
+      "1981-01-26",
+    ].map((weekStart) => ({ weekStart, players: 0, linked: 0, partial: false })),
+    { weekStart: "1981-02-02", players: 1, linked: 0, partial: false },
+    { weekStart: "1981-02-09", players: 2, linked: 1, partial: true },
+  ]);
+});
+
+test("過去の水曜を終了日に選んでも、その週の木曜の対局を数えて集計済みとする", async () => {
+  const linked = await account();
+  await completed(at("1981-01-29"), [linked.id]);
+
+  const result = await readBusinessKpi(env, { from: "1981-01-26", to: "1981-01-28" }, now);
+
+  expect(result.weeklyActivePlayers.at(-1)).toEqual({
+    weekStart: "1981-01-26",
+    players: 1,
+    linked: 1,
+    partial: false,
+  });
+});
+
+test("週次の範囲が西暦0000年より前にさかのぼる終了日でもKPIを返す", async () => {
+  const result = await readKpi(env, { from: "0000-01-01", to: "0000-01-01" }, now, fakeEvents());
+
+  expect(result.weeklyActivePlayers).toHaveLength(12);
+  expect(result.weeklyActivePlayers.at(-1)).toEqual({
+    weekStart: "-000001-12-27",
+    players: 0,
+    linked: 0,
+    partial: false,
+  });
 });
 
 test("初回の再対局の観測は期間外の履歴と翌月を含み、観測中は分母から除く", async () => {
@@ -338,7 +423,7 @@ test("イベントの問い合わせ失敗でもD1の値を返し、エラー本
   expect(JSON.parse(body)).not.toHaveProperty("newRegistrationsUnavailableReason");
 });
 
-test("月次は日本時間の前月を一度だけ保存し、IDと表を保存しない", async () => {
+test("月次は日本時間の前月を一度だけ保存し、ID・表・週次の値を保存しない", async () => {
   const factory = vi.spyOn(queries, "createUsageEventQuery").mockReturnValue(fakeEvents());
   await account();
   await savePreviousMonthKpi(env, now);
@@ -359,7 +444,7 @@ test("月次は日本時間の前月を一度だけ保存し、IDと表を保存
     computed_at_ms: now,
   });
   expect(JSON.stringify(first.results)).not.toMatch(
-    /visitor|matchmaking|acquisition|registration.*entry/,
+    /visitor|matchmaking|acquisition|registration.*entry|weeklyActivePlayers/,
   );
   await savePreviousMonthKpi(env, now + 3600000);
   expect(factory).toHaveBeenCalledTimes(1);

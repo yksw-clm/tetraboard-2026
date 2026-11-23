@@ -25,4 +25,5 @@
 | [0009](0009-analytics-on-cloudflare.md) | 分析は Cloudflare の中で作り直す | 承認済み |
 | [0010](0010-contexts-and-shell.md) | 文脈の境界と Worker の殻の形 | 承認済み |
 | [0011](0011-game-contract.md) | ゲーム契約の形 | 承認済み |
-| [0012](0012-web-stays-react.md) | web は React のまま、効果のある所を直す | 承認済み |
+| [0012](0012-web-stays-react.md) | web は React のまま、効果のある所を直す | 凍結を解く時期を 0013 で置き換え |
+| [0013](0013-lift-feature-freeze.md) | LCP の比較を待たずに機能凍結を解く | 承認済み |

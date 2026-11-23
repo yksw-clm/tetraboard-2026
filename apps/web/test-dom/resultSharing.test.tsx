@@ -1,10 +1,45 @@
 import { expect, test } from "bun:test";
 import { publicMatchDetailSchema } from "@tetraboard/protocol";
+import { createMemoryRouter } from "react-router";
 import { ResultShareButton } from "../src/features/room/ResultShareButton";
+import { startPageMetadata } from "../src/seo/pageMetadata";
+import { lobbyMetadata } from "../src/seo/lobbyMetadata";
+import { expectPublicPageSocialTags } from "../test/fixtures/publicPageSocialTags";
 import { reversiArchives } from "../../../test-fixtures/matches";
 import { render, rerender, requests, flush, clock, press, wrap } from "./harness";
 
 const fixture = () => parsePublic(reversiArchives[0]!.detail);
+
+test("公開棋譜からロビーへ遷移するとロビーのOGPへ置き換わる", async () => {
+  const match = fixture();
+  const router = createMemoryRouter(
+    [
+      { path: "/games/shogi" },
+      { path: "/matches/:matchId", id: "public-match", loader: () => ({ match }) },
+    ],
+    { initialEntries: ["/games/shogi"] },
+  );
+  const previousHead = document.head.innerHTML;
+  const stop = startPageMetadata(router);
+  try {
+    await router.navigate(`/matches/${match.id}`);
+    expect(document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe(
+      `${window.location.origin}/assets/ogp/four-reversi.png`,
+    );
+    await router.navigate("/games/shogi");
+    expectPublicPageSocialTags(
+      document.head.innerHTML,
+      lobbyMetadata.shogi,
+      "https://tetraboard.net/games/shogi",
+      "shogi",
+    );
+  } finally {
+    stop();
+    router.dispose();
+    document.head.innerHTML = previousHead;
+  }
+});
+
 test("共有準備後に勝者・敗者に応じたXロゴ付きボタンを表示する", async () => {
   const match = fixture();
   for (const marker of ["blue", "black"] as const) {

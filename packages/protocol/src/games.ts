@@ -66,6 +66,8 @@ export const gameCatalog = {
   },
 } as const satisfies Record<GameId, GameMetadata>;
 
+export const fourShogiRulesPath = `${gameCatalog["four-shogi"].lobbyPath}/rules`;
+
 export function isGameId(value: unknown): value is GameId {
   return gameIds.some((id) => id === value);
 }

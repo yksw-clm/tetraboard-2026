@@ -35,6 +35,9 @@ export interface TournamentReader {
   scoreRows(row: TournamentRow): Promise<ScoreRow[]>;
   adminRows(offset: number): Promise<TournamentRow[]>;
 }
+export interface PublishedTournamentPagesReader {
+  publicPageRows(): Promise<TournamentRow[]>;
+}
 export type TournamentReadPorts = {
   store: TournamentReader;
   policy: TournamentPolicy;

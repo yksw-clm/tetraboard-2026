@@ -3,9 +3,12 @@ import {
   captureEliminatedHands,
   type EliminatedHands,
   createInitialState,
+  finishWithoutHumans,
+  getActiveSides,
   getCheckState,
   getLegalActions,
   type FourShogiState,
+  type Side,
 } from "@tetraboard/four-shogi";
 import { applyReplayEvent as applyFourShogiReplayEvent } from "@tetraboard/four-shogi/replay";
 export { applyFourShogiReplayEvent };
@@ -93,7 +96,11 @@ export function getFourShogiReplayRules(version: unknown) {
 }
 
 /** 表示情報を併走させ、版1のルール状態と最終局面照合を維持します。 */
-export function getFourShogiDisplayReplayRules(version: unknown) {
+export function getFourShogiDisplayReplayRules(
+  version: unknown,
+  finalReason: NonNullable<FourShogiPublicState["result"]>["reason"],
+  playerKinds: ReadonlyMap<Side, "human" | "cpu" | undefined>,
+) {
   const rules = getFourShogiReplayRules(version);
   type State = { game: FourShogiState; hands: EliminatedHands };
   return {
@@ -101,14 +108,25 @@ export function getFourShogiDisplayReplayRules(version: unknown) {
       game: rules.initialize(initial),
       hands: {},
     }),
-    applyEvent: (before: State, event: FourShogiReplayEvent) => {
+    applyEvent: (before: State, event: FourShogiReplayEvent, last: boolean) => {
       const result = rules.applyEvent(before.game, event);
       if (!result.ok) return result;
+      // ルームの裁定は最終結果に記録されるので、最後のイベントの後に反映します。
+      let game = result.state;
+      if (last && finalReason === "no_humans") {
+        if (
+          game.mode !== "singles" ||
+          game.status !== "playing" ||
+          getActiveSides(game).some((side) => playerKinds.get(side) !== "cpu")
+        )
+          return { ok: false as const };
+        game = finishWithoutHumans(game);
+      }
       return {
         ok: true as const,
         state: {
-          game: result.state,
-          hands: captureEliminatedHands(before.hands, before.game, result.state),
+          game,
+          hands: captureEliminatedHands(before.hands, before.game, game),
         },
       };
     },
