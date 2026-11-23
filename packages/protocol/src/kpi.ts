@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const kpiWeekCount = 12;
+
 export const kpiQuerySchema = z
   .object({ from: z.iso.date(), to: z.iso.date() })
   .refine(({ from, to }) => {
@@ -37,12 +39,28 @@ export const eventKpiSchema = z.object({
     }),
   ),
 });
+const weeklyActivePlayersSchema = z
+  .array(
+    z.object({
+      weekStart: z.string().refine((date) => {
+        const midnight = `${date}T00:00:00.000Z`;
+        const start = new Date(midnight);
+        return start.getUTCDay() === 1 && start.toISOString() === midnight;
+      }),
+      players: z.int().nonnegative(),
+      linked: z.int().nonnegative(),
+      partial: z.boolean(),
+    }),
+  )
+  .length(kpiWeekCount);
+
 export const kpiReportSchema = z.object({
   from: z.iso.date(),
   to: z.iso.date(),
   computedAtMs: z.number().int(),
   completedMatches: count,
   players: count,
+  weeklyActivePlayers: weeklyActivePlayersSchema,
   replayWithin7Days: kpiRatioSchema.extend({ observing: count }),
   newRegistrations: count.nullable(),
   events: eventKpiSchema.nullable(),

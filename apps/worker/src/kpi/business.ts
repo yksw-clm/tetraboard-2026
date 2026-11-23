@@ -1,7 +1,27 @@
 import type { KpiQuery } from "@tetraboard/protocol";
 import { replayWithin7Days } from "./calculations";
-import { dayMs, kpiPeriod } from "./period";
+import { dayMs, kpiPeriod, kpiWeeks, weekMs } from "./period";
 import type { KpiEnv } from "./query";
+
+async function readWeeklyActivePlayers(db: D1Database, periodEndMs: number, nowMs: number) {
+  const { fromMs, toMs, weeks } = kpiWeeks(periodEndMs, nowMs);
+  const { results } = await db
+    .prepare(`SELECT CAST((m.ended_at_ms - ?1) / ?2 AS INTEGER) AS weekIndex,
+      COUNT(DISTINCT h.account_id) AS players,
+      COUNT(DISTINCT CASE WHEN u.isAnonymous IS NOT 1 THEN h.account_id END) AS linked
+    FROM account_match_history h JOIN matches m ON m.id=h.match_id JOIN user u ON u.id=h.account_id
+    WHERE m.ended_at_ms >= ?1 AND m.ended_at_ms < ?3 AND COALESCE(u.isTestUser,0)=0
+      AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=h.account_id)
+    GROUP BY weekIndex`)
+    .bind(fromMs, weekMs, toMs)
+    .all<{ weekIndex: number; players: number; linked: number }>();
+  const counts = new Map(results.map((row) => [row.weekIndex, row]));
+  return weeks.map((week, index) => ({
+    ...week,
+    players: counts.get(index)?.players ?? 0,
+    linked: counts.get(index)?.linked ?? 0,
+  }));
+}
 
 export async function readBusinessKpi(env: KpiEnv, query: KpiQuery, nowMs: number) {
   const { fromMs, toMs } = kpiPeriod(query);
@@ -34,9 +54,11 @@ export async function readBusinessKpi(env: KpiEnv, query: KpiQuery, nowMs: numbe
       AND m.ended_at_ms < ? AND m.ended_at_ms <= ?`)
     .bind(nowMs, fromMs, toMs, toMs + 7 * dayMs, nowMs)
     .all<{ accountId: string; matchId: string; endedAtMs: number }>();
+  const weeklyActivePlayers = await readWeeklyActivePlayers(db, toMs, nowMs);
   return {
     completedMatches: completedMatches ?? 0,
     players: players ?? 0,
+    weeklyActivePlayers,
     replayWithin7Days: replayWithin7Days(participation.results, { fromMs, toMs }, nowMs),
   };
 }
