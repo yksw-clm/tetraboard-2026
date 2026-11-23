@@ -289,7 +289,9 @@ test("大会詳細は開催前の名前を公開せず、確定後は匿名化�
     expect(body).toContain('content="index,follow"');
     expect(body).toContain(label);
     expect(body).toContain(`<dt>エントリー人数</dt><dd>${id === 1 || id === 4 ? 1 : 0}人</dd>`);
-    expect(body).toContain('href="/tournaments"');
+    expect(body).toMatch(
+      /<h2>大会ルール<\/h2>[\s\S]*?<a href="\/games\/four-shogi\/rules">四人将棋のルールを見る<\/a>\s*<a href="\/games\/four-shogi">四人将棋で遊ぶ<\/a>[\s\S]*?<a href="\/tournaments">大会一覧へ<\/a>/,
+    );
     expect(body).toContain('href="/terms"');
     expect(body).toContain('href="/privacy"');
     expect(body).toContain("大会の案内 &lt;script&gt;説明&lt;/script&gt;");
@@ -350,6 +352,9 @@ test("開発の大会HTMLは検索除外と開発のcanonical・OGPを使い、�
         "四人リバーシの盤面とTetraBoardのロゴ",
       );
       expectTournamentBreadcrumbs(body, origin, { id: 1, name: "開発の大会" });
+      expect(body).toContain('<a href="/tournaments">大会一覧へ</a>');
+      expect(body).not.toContain('href="/games/four-shogi/rules"');
+      expect(body).not.toContain('href="/games/four-shogi"');
     }
   }
   expect(await (await assets.fetch("/sitemap.xml")).text()).toBe(files["/sitemap.xml"]!.body);

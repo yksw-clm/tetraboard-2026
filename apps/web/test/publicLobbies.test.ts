@@ -218,13 +218,22 @@ test("四人ゲームの初期HTMLは固有本文・正規URL・描画資産と�
   }
 });
 
-test("四人将棋のルールは初期HTMLに図・説明・メタ情報・ロビーへのリンクを持つ", () => {
+test("四人将棋のロビーの初期HTMLは大会一覧へリンクする", () => {
+  const html = renderPublicLobby(template, "four-shogi", lobbyBoardSources);
+  expect(html).toMatch(/<a\b[^>]*href="\/tournaments"[^>]*>大会の日程と結果<\/a>/);
+});
+
+test("四人将棋のルールは初期HTMLに図・コツ・FAQ・メタ情報とロビー・大会へのリンクを持つ", () => {
   const html = renderFourShogiRules(template, lobbyBoardSources, resolveRulesDiagramAsset);
   expect(html).toMatch(/<h1\b[^>]*>四人将棋のルール<\/h1>/);
   expect(html).toContain(
     "<title>四人将棋のルール｜駒の動き・成り・禁じ手を図で解説｜TetraBoard</title>",
   );
-  expect(html).toContain(`name="description" content="${fourShogiRulesMetadata.description}"`);
+  const description = html.match(/name="description" content="([^"]*)"/)![1]!;
+  expect(description).toBe(
+    "四人将棋（4人将棋）のルールを図で解説します。初期配置、駒の動きと成り、王手を受けた人の手番、持ち駒、禁じ手、シングルスとダブルスの違いに加え、勝ち方のコツとよくある質問も紹介します。ブラウザで無料で遊べます。",
+  );
+  expect([...description].length).toBeLessThanOrEqual(120);
   expect(html).toContain('name="robots" content="index,follow"');
   expect(html).toContain('rel="canonical" href="https://tetraboard.net/games/four-shogi/rules"');
   expectPublicPageSocialTags(
@@ -236,11 +245,25 @@ test("四人将棋のルールは初期HTMLに図・説明・メタ情報・ロ�
   expect(html).toContain('data-public-lobby="four-shogi-rules"');
   expect(html).toContain("王手を受けた人の手番を優先");
   expect(html).toContain("成った銀と歩は金と同じ動きです。");
+  expect(
+    Array.from(html.matchAll(/<h2\b[^>]*>([^<]+)<\/h2>/g), ([, name]) => name).slice(-2),
+  ).toEqual(["勝ち方のコツ", "よくある質問"]);
+  expect(Array.from(html.matchAll(/<h3\b[^>]*>([^<]+)<\/h3>/g), ([, name]) => name)).toEqual([
+    "王手で手番の順番が変わる",
+    "3人の相手を同時に見る",
+    "駒が少ないので1枚が重い",
+    "脱落した人の駒を取る",
+    "三人攻撃禁止を意識する",
+    "通常の将棋との違いは？",
+    "4人そろわなくても遊べる？",
+    "大会はある？",
+  ]);
   expect(html.match(/<div role="img" aria-label="[^"]+"/g)).toHaveLength(8);
   expect(html.match(/<img[^>]+src="\/assets\/board-wood-fixture1\.webp"/g)).toHaveLength(8);
   for (const kind of ["king2", "rook", "prom_rook", "gold", "silver", "pawn"])
     expect(html).toContain(`src="/assets/up_${kind}-fixture1.png"`);
   expect(html).toMatch(/<a\b[^>]*href="\/games\/four-shogi"[^>]*>四人将棋で遊ぶ<\/a>/);
+  expect(html).toMatch(/<a\b[^>]*href="\/tournaments"[^>]*>大会の日程と結果<\/a>/);
   expect(html).toContain('src="/assets/app-123.js"');
   expect(html).toContain(`src="${lobbyBoardSources["four-shogi"]}"`);
 });
@@ -252,10 +275,10 @@ test("サイトマップは総合と6ゲームのロビー、四人将棋のル�
   expect(xml.match(/<lastmod>/g)).toHaveLength(8);
   for (const [url, lastModified] of [
     ["https://tetraboard.net/", generalLobbyMetadata.lastModified],
-    [`https://tetraboard.net${fourShogiRulesPath}`, "2026-11-21"],
+    [`https://tetraboard.net${fourShogiRulesPath}`, "2026-11-24"],
     ...gameIds.map((game) => [
       `https://tetraboard.net${gameCatalog[game].lobbyPath}`,
-      lobbyMetadata[game].lastModified,
+      game === "four-shogi" ? "2026-11-24" : lobbyMetadata[game].lastModified,
     ]),
   ]) {
     expect(lastModified!).toMatch(/^\d{4}-\d{2}-\d{2}$/);

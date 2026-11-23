@@ -383,15 +383,27 @@ test("大会ルールは開催前・開催中・結果待機・結果で大会�
           ? "現在8人がエントリー中"
           : "8人がエントリー",
     );
-    const headings = [...view.querySelectorAll("h2")].map((h) => h.textContent);
+    const headingElements = [...view.querySelectorAll("h2")];
+    const headings = headingElements.map((h) => h.textContent);
     const chat = headings.indexOf("大会チャット");
     expect(chat).toBeGreaterThan(0);
     expect(headings[chat - 1]).toBe("大会ルール");
+    const rulesCard = headingElements[chat - 1]!.parentElement!;
+    expect(rulesCard.querySelector('a[href="/games/four-shogi/rules"]')?.textContent).toBe(
+      "四人将棋のルールを見る",
+    );
     if (status === "active" || status === "settling") {
       expect(headings[chat - 2]).toBe("進行中の部屋");
       expect(headings[chat - 3]).toBe("順位表");
     } else expect(headings).not.toContain("進行中の部屋");
   }
+  const lobbyLink = [...view.querySelectorAll('a[href="/games/four-shogi"]')].find(
+    (link) => link.textContent === "四人将棋ロビーへ",
+  );
+  expect(lobbyLink).toBeDefined();
+  const rulesLink = view.querySelector<HTMLAnchorElement>('a[href="/games/four-shogi/rules"]')!;
+  await act(async () => rulesLink.click());
+  expect(view.querySelector("[data-path]")?.textContent).toBe("/games/four-shogi/rules");
 });
 test("対局結果がなくても列見出しを空表示の上に置き、本人行とは分けて表示する", async () => {
   const view = page();
@@ -1634,6 +1646,12 @@ for (const game of ["four-reversi", "four-gomoku"] as const) {
     expect(view.textContent).toContain("持ち時間3分・秒読み10秒");
     expect(view.textContent).not.toContain("撃破");
     expect(view.textContent).not.toContain("三人攻撃禁止");
+    expect(view.querySelector('a[href="/games/four-shogi/rules"]')).toBeNull();
+    expect(
+      [...view.querySelectorAll('a[href="/games/four-shogi"]')].some(
+        (link) => link.textContent === "四人将棋ロビーへ",
+      ),
+    ).toBe(false);
     expect(view.querySelector(`header a[href="/games/${game}"]`)).not.toBeNull();
     press(view, game === "four-reversi" ? "四人リバーシロビーへ" : "四人五目並べロビーへ");
     await flush();

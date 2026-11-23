@@ -1,5 +1,6 @@
 import {
   formatTournamentPoints,
+  fourShogiRulesPath,
   gameCatalog,
   getTournamentSettings,
   renderBreadcrumbJsonLd,
@@ -78,7 +79,13 @@ function renderDetail(
     <h2>大会ルール</h2>
     ${rulesDescription ? `<p class="whitespace-pre-wrap">${escapeShareHtml(rulesDescription)}</p>` : ""}
     <p>${escapeShareHtml(tournamentRulesSummary)}</p>
-    <p>${escapeShareHtml(tournamentSettingsDescription(settings))}</p>
+    <p>${escapeShareHtml(tournamentSettingsDescription(settings))}</p>${
+      settings.game === "four-shogi"
+        ? `
+    <p><a href="${escapeShareHtml(fourShogiRulesPath)}">四人将棋のルールを見る</a>
+      <a href="${escapeShareHtml(gameCatalog["four-shogi"].lobbyPath)}">四人将棋で遊ぶ</a></p>`
+        : ""
+    }
     <p><a href="${escapeShareHtml(tournamentListPath)}">大会一覧へ</a></p>`;
 }
 
