@@ -99,10 +99,14 @@ test("四人将棋・四人リバーシの開始手順とFAQは初期HTMLと通�
   }
 });
 
-test("五目並べの紹介は2人用の開始手順とFAQを表示する", () => {
+test.each([
+  ["gomoku", "禁手（三三・四四・長連）とは？", "スマホでも遊べる？"],
+  ["reversi", "置ける場所がないときは？", "レート戦とは？"],
+  ["shogi", "CPUの強さは選べる？", "引き分けになるのはどんなとき？"],
+] as const)("%s の紹介は2人用の開始手順とFAQを表示する", (game, secondQuestion, thirdQuestion) => {
   const template =
     '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>';
-  const view = render(<GameIntroduction game="gomoku" />);
+  const view = render(<GameIntroduction game={game} />);
   expect([...view.querySelectorAll("h2")].map((heading) => heading.textContent)).toEqual([
     "ゲーム概要",
     "ひとりでCPUと遊ぶ",
@@ -112,35 +116,37 @@ test("五目並べの紹介は2人用の開始手順とFAQを表示する", () =
   ]);
   const steps = view.querySelectorAll("ol");
   expect(steps).toHaveLength(2);
+  expect(steps[0]!.children).toHaveLength(3);
+  expect(steps[1]!.children).toHaveLength(4);
   expect(steps[0]!.textContent).toContain(
     "名前・時間設定などを選ぶと、CPU1人との待機室へ進みます。",
   );
   expect(steps[1]!.textContent).toContain("人間とCPUで2席を埋めます。");
+  expect(view.textContent).toContain("人間が2人集まらなくても");
+  expect(view.textContent).not.toContain("人間が4人集まらなくても");
   expect(view.textContent).not.toContain("CPU3人");
   expect(view.textContent).not.toContain("4席");
   expect([...view.querySelectorAll("h3")].map((heading) => heading.textContent)).toEqual([
     "友達と2人で遊ぶには？",
-    "禁手（三三・四四・長連）とは？",
-    "スマホでも遊べる？",
+    secondQuestion,
+    thirdQuestion,
   ]);
 
   const initial = document.implementation.createHTMLDocument();
-  initial.documentElement.innerHTML = renderPublicLobby(template, "gomoku", lobbyBoardSources);
-  expect(initial.querySelector('section[aria-label="五目並べの紹介"]')!.textContent).toBe(
-    view.textContent,
-  );
+  initial.documentElement.innerHTML = renderPublicLobby(template, game, lobbyBoardSources);
+  expect(
+    initial.querySelector(`section[aria-label="${gameCatalog[game].name}の紹介"]`)!.textContent,
+  ).toBe(view.textContent);
 });
 
-test("他3ゲームの紹介は従来の構成を維持する", () => {
-  for (const game of ["four-gomoku", "shogi", "reversi"] as const) {
-    const view = render(<GameIntroduction game={game} />);
-    expect([...view.querySelectorAll("h2")].map((heading) => heading.textContent)).toEqual([
-      "ゲーム概要",
-      "遊び始め方",
-      "主要ルール",
-    ]);
-    expect(view.querySelector("h3")).toBeNull();
-  }
+test("四人五目並べの紹介は3項目を表示する", () => {
+  const view = render(<GameIntroduction game="four-gomoku" />);
+  expect([...view.querySelectorAll("h2")].map((heading) => heading.textContent)).toEqual([
+    "ゲーム概要",
+    "遊び始め方",
+    "主要ルール",
+  ]);
+  expect(view.querySelector("h3")).toBeNull();
 });
 
 test("四人将棋のロビーだけがルールページへのリンクを持つ", () => {

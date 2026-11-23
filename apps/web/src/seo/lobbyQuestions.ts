@@ -2,6 +2,12 @@ import type { GameId } from "@tetraboard/protocol/games";
 
 type LobbyQuestion = { question: string; answer: string };
 
+const playWithFriend: LobbyQuestion = {
+  question: "友達と2人で遊ぶには？",
+  answer:
+    "ロビー上部の「公開ルームを作る」から部屋を作り、招待URLを友達へ送ります。友達がブラウザで開いて参加し、2人が準備完了になったらホストが「対局開始」を押します。アカウントの登録は要りません。",
+};
+
 export const lobbyQuestions: Partial<Record<GameId, readonly LobbyQuestion[]>> = {
   "four-shogi": [
     {
@@ -38,11 +44,7 @@ export const lobbyQuestions: Partial<Record<GameId, readonly LobbyQuestion[]>> =
     },
   ],
   gomoku: [
-    {
-      question: "友達と2人で遊ぶには？",
-      answer:
-        "ロビー上部の「公開ルームを作る」から部屋を作り、招待URLを友達へ送ります。友達がブラウザで開いて参加し、2人が準備完了になったらホストが「対局開始」を押します。アカウントの登録は要りません。",
-    },
+    playWithFriend,
     {
       question: "禁手（三三・四四・長連）とは？",
       answer:
@@ -51,6 +53,32 @@ export const lobbyQuestions: Partial<Record<GameId, readonly LobbyQuestion[]>> =
     {
       question: "スマホでも遊べる？",
       answer: "スマホ・タブレット・PCのブラウザで遊べます。アプリのインストールは要りません。",
+    },
+  ],
+  reversi: [
+    playWithFriend,
+    {
+      question: "置ける場所がないときは？",
+      answer:
+        "合法手がないときは自動でパスし、相手の手番になります。盤が埋まるか、双方とも置けなくなると終局し、石の多い方が勝ちです。同数なら引き分けです。",
+    },
+    {
+      question: "レート戦とは？",
+      answer:
+        "GoogleかDiscordと連携した登録者向けの対局です。1人5分の切れ負けで、相手が15秒見つからなければレートの近いCPUと対局します。最初の5局が認定戦で、その後の結果はレートとランキングに反映されます。",
+    },
+  ],
+  shogi: [
+    playWithFriend,
+    {
+      question: "CPUの強さは選べる？",
+      answer:
+        "通常ルームでは、CPUのレベルをLv1とLv2から選べます。Lv1は指せる手からランダムに選び、Lv2は駒の価値や玉の安全を考えて指します。",
+    },
+    {
+      question: "引き分けになるのはどんなとき？",
+      answer:
+        "千日手、双方24点以上の持将棋、24〜30点の入玉宣言、500手に達したときは引き分けです。連続王手の千日手と、条件を満たさない入玉宣言は負けになります。",
     },
   ],
 };

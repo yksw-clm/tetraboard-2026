@@ -6,9 +6,9 @@
 
 `scripts/checkDeployment.ts` 自体もWebの `tsconfig.build.json` で型検査し、サイトマップの本番分岐を含む未定義参照を通常のcheck・buildで検出します。公開先に対するHTTP確認は既存の公開確認スクリプトを実行します。
 
-`apps/web/test/publicLobbies.test.ts` と `test-dom/publicLobbies.test.tsx` は、全6ロビーのtitleの語順と長さ、descriptionの120字以内、「4人将棋」「4人オセロ」がtitle・description・紹介文に含まれること、既定HTML・初期HTMLと遷移後のブランド表記・メタ情報の一致を確認します。サイトマップは全7URLにページごとの有効な日付の `lastmod` があること、開発環境ではURLと `lastmod` が出力されないことを確認します。`test-dom/roomSharing.test.tsx` でルーム共有の画像・titleがロビーへ残らず、`og:site_name` が重複しないことも確認します。
+`apps/web/test/publicLobbies.test.ts` と `test-dom/publicLobbies.test.tsx` は、四人リバーシ・四人五目並べのtitleの語順と長さ、四人将棋・五目並べ・リバーシ・将棋の承認済みメタ情報、全6ロビーのdescriptionの120字以内、「4人将棋」「4人オセロ」がtitle・description・紹介文に含まれること、既定HTML・初期HTMLと遷移後のブランド表記・メタ情報の一致を確認します。サイトマップは全7URLにページごとの有効な日付の `lastmod` があること、開発環境ではURLと `lastmod` が出力されないことを確認します。`test-dom/roomSharing.test.tsx` でルーム共有の画像・titleがロビーへ残らず、`og:site_name` が重複しないことも確認します。
 
-四人将棋・四人リバーシ・五目並べの紹介は `test-dom/publicLobbies.test.tsx` で、5項目の見出し、CPUとの3段階・友人（五目並べは友達）との4段階の手順、ホスト開始・準備完了・招待部屋の公開という案内、各3問の回答の常時表示、利用ガイドへの通常リンク、初期HTMLと通常画面の紹介本文の一致を確認します。五目並べの手順は「CPU1人」「2席」の文になり、4人用の文が出ないことも確認します。他3ゲームには従来の3項目の紹介を表示します。白背景・枠線・余白・文字の折り返し・スマホとPCの読みやすさは手動確認し、ブラウザを起動する自動テストは追加しません。
+四人将棋・四人リバーシ・五目並べ・リバーシ・将棋の紹介は `test-dom/publicLobbies.test.tsx` で、5項目の見出し、CPUとの3段階・友人（2人用は友達）との4段階の手順、各3問のFAQ、初期HTMLと通常画面の紹介本文の一致を確認します。四人将棋・四人リバーシではホスト開始・準備完了・招待部屋の公開という案内、折り畳みのないFAQ、利用ガイドへの通常リンクも確認します。2人用の3ゲームでは手順に「CPU1人」「2席」が表示され、4人用の文が出ないことを確認します。四人五目並べには従来の3項目の紹介を表示します。白背景・枠線・余白・文字の折り返し・スマホとPCの読みやすさは手動確認し、ブラウザを起動する自動テストは追加しません。
 
 本番HTTPからHTTPSへの転送は `apiRouting.test.ts` で、トップ・ロビー・招待クエリ・APIのGET／POST・WebSocketの308と転送先、資産処理の未実行、旧Workerホストからの直接転送を確認します。既存のHTTPS応答と、ローカル・開発環境・対象外ホストのHTTPを維持します。本番公開後はHTTPのトップ・ロビー・APIで308とパス・クエリの保持、HTTPSで通常応答を確認します。
 

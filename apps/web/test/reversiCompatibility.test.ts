@@ -33,7 +33,9 @@ test("通常リバーシの初期HTMLはCPU1人と2人ルール、検索メタ�
   const template =
     '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>';
   const html = renderPublicLobby(template, "reversi", lobbyBoardSources);
-  expect(html).toContain("<title>リバーシをブラウザで無料対戦 | TetraBoard</title>");
+  expect(html).toContain(
+    "<title>リバーシを無料でオンライン対戦｜友達と2人・CPU戦・登録不要 | TetraBoard</title>",
+  );
   expect(html).toContain("https://tetraboard.net/games/reversi");
   expect(html).toContain("CPU1人との待機室");
   expect(html).toContain('href="/games/reversi"');
