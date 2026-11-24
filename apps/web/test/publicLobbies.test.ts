@@ -1,15 +1,23 @@
 import { fourShogiRulesMetadata } from "../src/seo/fourShogiRulesMetadata";
 import { expect, test } from "bun:test";
+import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, join, relative } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import type { Manifest } from "vite";
 import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { generalLobbyMetadata, lobbyMetadata } from "../src/seo/lobbyMetadata";
 import { lobbyBoardSources, resolveRulesDiagramAsset } from "./fixtures/lobbyBoardSources";
 import { expectPublicPageSocialTags } from "./fixtures/publicPageSocialTags";
-import { expectPublicPageStructuredData } from "./fixtures/publicPageStructuredData";
+import { expectPublicPageStructuredData, readJsonLd } from "./fixtures/publicPageStructuredData";
 import { lobbyBoardSourcesFromManifest } from "../build/lobbyBoardAssets";
+import { helpScreenshotsFromManifest } from "../build/helpScreenshotAssets";
+import { helpScreenshots } from "../src/features/help/helpScreenshots";
 import { validateDeploymentLobbyHtml } from "../../../scripts/deploymentLobbyHtml";
 import {
   renderPublicLobby,
   renderFourShogiRules,
+  renderHowToPlay,
   renderGeneralLobby,
   renderNotFound,
   renderSitemap,
@@ -268,14 +276,83 @@ test("四人将棋のルールは初期HTMLに図・コツ・FAQ・メタ情報�
   expect(html).toContain(`src="${lobbyBoardSources["four-shogi"]}"`);
 });
 
-test("サイトマップは総合と6ゲームのロビー、四人将棋のルールを掲載する", () => {
+test("利用ガイドの初期HTMLに8章・実在する11枚の画像・検索メタ情報がある", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "help-screenshots-"));
+  const dist = pathToFileURL(`${directory}/`);
+  try {
+    await mkdir(new URL("assets/", dist));
+    const webDirectory = fileURLToPath(new URL("../", import.meta.url));
+    const manifest: Manifest = {};
+    for (const { src } of Object.values(helpScreenshots)) {
+      const file = `assets/${basename(src, ".webp")}-fixture1.webp`;
+      await copyFile(src, new URL(file, dist));
+      manifest[relative(webDirectory, src)] = { file };
+    }
+    const screenshots = await helpScreenshotsFromManifest(manifest, dist);
+    const html = renderHowToPlay(template, lobbyBoardSources, screenshots);
+    const title = "遊び方ガイド｜CPU対戦・友達の招待・大会への参加 | TetraBoard";
+    const description = html.match(/name="description" content="([^"]*)"/)![1]!;
+    const canonical = "https://tetraboard.net/how-to-play";
+    expect(html).toContain(`<title>${title}</title>`);
+    expect(description).toBe(
+      "TetraBoardの使い方を画面のスクリーンショットで解説します。ゲームの選び方、CPU対戦、招待URLで友達と遊ぶ方法、公開ルームへの参加と観戦、棋譜の見方、大会への参加、アカウントの設定まで案内します。",
+    );
+    expect([...description].length).toBeLessThanOrEqual(120);
+    expect(html).toContain('name="robots" content="index,follow"');
+    expect(html).toContain(`rel="canonical" href="${canonical}"`);
+    expectPublicPageSocialTags(html, { title, description }, canonical);
+    expect(readJsonLd(html)).toEqual({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "ホーム", item: "https://tetraboard.net/" },
+        { "@type": "ListItem", position: 2, name: "遊び方ガイド", item: canonical },
+      ],
+    });
+    expect(html).toContain('data-public-lobby="how-to-play"');
+    expect(html).toContain('href="/how-to-play" aria-current="page"');
+    expect(html).toMatch(/<h1\b[^>]*>TetraBoardの使い方<\/h1>/);
+    expect(
+      [...html.matchAll(/<section\b[^>]*>[\s\S]*?<h2\b[^>]*>([^<]+)<\/h2>/g)].map(
+        ([, heading]) => heading,
+      ),
+    ).toEqual([
+      "ゲームを選ぶ",
+      "CPUと遊ぶ",
+      "友達を招待する",
+      "公開ルームに参加・観戦する",
+      "対局画面を使う",
+      "対局の記録を見る",
+      "大会に参加する",
+      "アカウントと設定",
+    ]);
+    const images = [...html.matchAll(/<figure\b[^>]*>[\s\S]*?<img\b[^>]*\bsrc="([^"]+)"/g)].map(
+      ([, src]) => src!,
+    );
+    expect(images).toHaveLength(11);
+    expect(images.toSorted()).toEqual(
+      Object.values(manifest)
+        .map(({ file }) => `/${file}`)
+        .toSorted(),
+    );
+    for (const src of images)
+      expect(await Bun.file(new URL(src.slice(1), dist)).exists()).toBe(true);
+    await rm(new URL(screenshots.home.src.slice(1), dist));
+    await expect(helpScreenshotsFromManifest(manifest, dist)).rejects.toThrow("ENOENT");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("サイトマップは総合と6ゲームのロビー、四人将棋のルール、利用ガイドを掲載する", () => {
   const xml = renderSitemap();
   expect(xml).toContain('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"');
-  expect(xml.match(/<loc>/g)).toHaveLength(8);
-  expect(xml.match(/<lastmod>/g)).toHaveLength(8);
+  expect(xml.match(/<loc>/g)).toHaveLength(9);
+  expect(xml.match(/<lastmod>/g)).toHaveLength(9);
   for (const [url, lastModified] of [
     ["https://tetraboard.net/", generalLobbyMetadata.lastModified],
     [`https://tetraboard.net${fourShogiRulesPath}`, "2026-11-24"],
+    ["https://tetraboard.net/how-to-play", "2026-11-24"],
     ...gameIds.map((game) => [
       `https://tetraboard.net${gameCatalog[game].lobbyPath}`,
       game === "four-shogi" ? "2026-11-24" : lobbyMetadata[game].lastModified,

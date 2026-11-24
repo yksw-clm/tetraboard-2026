@@ -1,7 +1,7 @@
 import { expect } from "bun:test";
 import { fourShogiRulesPath, gameCatalog, gameIds, type GameId } from "@tetraboard/protocol/games";
 
-function readJsonLd(html: string): unknown {
+export function readJsonLd(html: string): unknown {
   const scripts = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
   expect(scripts).toHaveLength(1);
   expect(html.match(/<head>([\s\S]*?)<\/head>/)?.[1]).toContain(scripts[0]![0]);

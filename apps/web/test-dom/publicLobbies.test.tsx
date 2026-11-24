@@ -4,10 +4,12 @@ import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { GameIntroduction } from "../src/seo/GameIntroduction";
 import { startPageMetadata, updatePageMetadata } from "../src/seo/pageMetadata";
 import { startPublicLobby } from "../src/seo/startPublicLobby";
+import { helpScreenshots } from "../src/features/help/helpScreenshots";
 import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import {
   renderFourShogiRules,
   renderGeneralLobby,
+  renderHowToPlay,
   renderPublicLobby,
 } from "../build/renderPublicLobby";
 import { lobbyBoardSources, resolveRulesDiagramAsset } from "../test/fixtures/lobbyBoardSources";
@@ -19,6 +21,52 @@ import { createInitialState } from "@tetraboard/four-shogi";
 import { HowToPlayDialog } from "../src/features/lobby/HowToPlayDialog";
 
 const jsonLdSelector = 'script[type="application/ld+json"]';
+const publicPageTemplate =
+  '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>';
+
+test("画面内遷移で利用ガイドを開くと初期HTMLと同じメタ情報を設定する", async () => {
+  const initial = document.implementation.createHTMLDocument();
+  initial.documentElement.innerHTML = renderHowToPlay(
+    publicPageTemplate,
+    lobbyBoardSources,
+    helpScreenshots,
+  );
+  const router = createMemoryRouter([
+    { path: "/" },
+    {
+      path: "/how-to-play",
+      lazy: async () => ({
+        Component: (await import("../src/features/help/HowToPlayPage")).HowToPlayPage,
+      }),
+    },
+    { path: "/login" },
+  ]);
+  const previousHead = document.head.innerHTML;
+  const stop = startPageMetadata(router);
+  try {
+    await router.navigate("/how-to-play/?source=home#cpu");
+    expect(document.title).toBe(initial.title);
+    for (const [selector, attribute] of [
+      ['meta[name="description"]', "content"],
+      ['meta[name="robots"]', "content"],
+      ['link[rel="canonical"]', "href"],
+    ] as const) {
+      expect(document.head.querySelector(selector)!.getAttribute(attribute)).toBe(
+        initial.head.querySelector(selector)!.getAttribute(attribute),
+      );
+    }
+    expect(readSocialTags(document.head.innerHTML)).toEqual(readSocialTags(initial.head.innerHTML));
+    await router.navigate("/login");
+    expect(document.head.querySelector('meta[name="robots"]')!.getAttribute("content")).toBe(
+      "noindex,follow",
+    );
+    expect(document.head.querySelector('meta[property="og:title"]')).toBeNull();
+  } finally {
+    stop();
+    router.dispose();
+    document.head.innerHTML = previousHead;
+  }
+});
 
 test.each([
   ["/tournaments/", true, "大会一覧｜TetraBoard"],
@@ -538,6 +586,7 @@ test.each([
   ["/games/four-shogi", "four-shogi", "四人将棋"],
   ["/tournaments", "tournaments", "大会一覧"],
   [fourShogiRulesPath, "four-shogi-rules", "四人将棋のルール"],
+  ["/how-to-play", "how-to-play", "TetraBoardの使い方"],
 ] as const)(
   "初期HTMLは遅延ルートの準備後に一度だけ置き換わる %s",
   async (path, marker, heading) => {
@@ -606,48 +655,53 @@ test("遅延読み込み失敗は紹介とリンクを保持して再読み込�
   router.dispose();
 });
 
-test("ルールの初回チャンク取得が失敗しても初期HTMLとメタ情報を保持する", async () => {
-  let reject!: (reason: Error) => void;
-  const router = createMemoryRouter(
-    [
-      {
-        path: fourShogiRulesPath,
-        lazy: () =>
-          new Promise((_, r) => {
-            reject = r;
-          }),
-      },
-    ],
-    { initialEntries: [fourShogiRulesPath] },
-  );
-  const initial = document.implementation.createHTMLDocument();
-  initial.documentElement.innerHTML = renderFourShogiRules(
-    '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>',
-    lobbyBoardSources,
-    resolveRulesDiagramAsset,
-  );
-  const root = initial.getElementById("root")!;
-  const previousHead = document.head.innerHTML;
-  document.head.innerHTML = initial.head.innerHTML;
-  const deliveredHead = document.head.innerHTML;
-  const deliveredBody = root.innerHTML;
-  const stop = startPageMetadata(router, root);
-  try {
-    let mounted = false;
-    startPublicLobby(root, router, () => {
-      mounted = true;
-    });
-    expect(document.head.innerHTML).toBe(deliveredHead);
-    reject(new Error("chunk unavailable"));
-    await flush();
-    expect(router.state.initialized).toBe(true);
-    expect(Boolean(router.state.errors)).toBe(true);
-    expect(mounted).toBe(false);
-    expect(root.innerHTML).toBe(deliveredBody);
-    expect(document.head.innerHTML).toBe(deliveredHead);
-  } finally {
-    stop();
-    router.dispose();
-    document.head.innerHTML = previousHead;
-  }
-});
+test.each([
+  [
+    fourShogiRulesPath,
+    () => renderFourShogiRules(publicPageTemplate, lobbyBoardSources, resolveRulesDiagramAsset),
+  ],
+  ["/how-to-play", () => renderHowToPlay(publicPageTemplate, lobbyBoardSources, helpScreenshots)],
+] as const)(
+  "%s の初回チャンク取得が失敗しても初期HTMLとメタ情報を保持する",
+  async (path, renderInitialPage) => {
+    let reject!: (reason: Error) => void;
+    const router = createMemoryRouter(
+      [
+        {
+          path,
+          lazy: () =>
+            new Promise((_, r) => {
+              reject = r;
+            }),
+        },
+      ],
+      { initialEntries: [path] },
+    );
+    const initial = document.implementation.createHTMLDocument();
+    initial.documentElement.innerHTML = renderInitialPage();
+    const root = initial.getElementById("root")!;
+    const previousHead = document.head.innerHTML;
+    document.head.innerHTML = initial.head.innerHTML;
+    const deliveredHead = document.head.innerHTML;
+    const deliveredBody = root.innerHTML;
+    const stop = startPageMetadata(router, root);
+    try {
+      let mounted = false;
+      startPublicLobby(root, router, () => {
+        mounted = true;
+      });
+      expect(document.head.innerHTML).toBe(deliveredHead);
+      reject(new Error("chunk unavailable"));
+      await flush();
+      expect(router.state.initialized).toBe(true);
+      expect(Boolean(router.state.errors)).toBe(true);
+      expect(mounted).toBe(false);
+      expect(root.innerHTML).toBe(deliveredBody);
+      expect(document.head.innerHTML).toBe(deliveredHead);
+    } finally {
+      stop();
+      router.dispose();
+      document.head.innerHTML = previousHead;
+    }
+  },
+);

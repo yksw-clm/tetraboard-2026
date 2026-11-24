@@ -6,7 +6,6 @@ import { AppHeader } from "../src/shared/ui/AppHeader";
 import { AppNavigation, LastLobbyGameTracker } from "../src/shared/ui/AppNavigation";
 import { lastLobbyGame, lastLobbyGameKey } from "../src/shared/lastLobbyGame";
 import { HowToPlayPage } from "../src/features/help/HowToPlayPage";
-import { updatePageMetadata } from "../src/seo/pageMetadata";
 import { profile } from "../test/fixtures/account";
 import { AccountLayout } from "../src/features/account/AccountSession";
 import { guestProfile } from "./guestAccountFixtures";
@@ -240,27 +239,15 @@ test("対局・観戦・公開棋譜・本人棋譜では固定下タブを表�
   }
 });
 
-test("遊び方ページはサイトガイドとナビを持ち、検索対象外のタイトルへ切り替わる", () => {
-  const previousHead = document.head.innerHTML;
-  try {
-    const view = render(wrap(null, "/how-to-play/")(<HowToPlayPage />));
-    expect(view.querySelector('main[aria-label="遊び方"] h1')!.textContent).toBe(
-      "TetraBoardの使い方",
-    );
-    expect(view.querySelector('[aria-label="下部ナビゲーション"]')).not.toBeNull();
-    expect(
-      view.querySelector('[aria-label="メインナビゲーション"] a[aria-current="page"]')!.textContent,
-    ).toBe("遊び方");
-    updatePageMetadata("/games/shogi");
-    updatePageMetadata("/how-to-play/");
-    expect(document.title).toBe("遊び方 | TetraBoard");
-    expect(document.head.querySelector<HTMLMetaElement>('meta[name="robots"]')!.content).toBe(
-      "noindex,follow",
-    );
-    expect(document.head.querySelector('link[rel="canonical"]')).toBeNull();
-  } finally {
-    document.head.innerHTML = previousHead;
-  }
+test("遊び方ページは末尾スラッシュ付きでもナビの現在地を表示する", () => {
+  const view = render(wrap(null, "/how-to-play/")(<HowToPlayPage />));
+  expect(view.querySelector('main[aria-label="遊び方"] h1')!.textContent).toBe(
+    "TetraBoardの使い方",
+  );
+  expect(view.querySelector('[aria-label="下部ナビゲーション"]')).not.toBeNull();
+  expect(
+    view.querySelector('[aria-label="メインナビゲーション"] a[aria-current="page"]')!.textContent,
+  ).toBe("遊び方");
 });
 
 test("末尾スラッシュ付きの遊び方もプロフィール未設定のまま閲覧できる", async () => {

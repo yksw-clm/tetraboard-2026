@@ -4,11 +4,11 @@ import type { Manifest } from "vite";
 
 const webDirectory = fileURLToPath(new URL("../", import.meta.url));
 
-export function rulesDiagramAssetFromManifest(manifest: Manifest, source: string): string {
+export function publicImageAssetFromManifest(manifest: Manifest, source: string): string {
   const key = relative(webDirectory, source);
   const asset = manifest[key]?.file;
   if (!asset || !/^assets\/[^/]+-[\w-]{8}\.(?:webp|png)$/.test(asset)) {
-    throw new Error(`Missing built rules diagram asset: ${key}`);
+    throw new Error(`Missing built public image asset: ${key}`);
   }
   return `/${asset}`;
 }
