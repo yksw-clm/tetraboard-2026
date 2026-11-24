@@ -8,7 +8,7 @@ export function InitialNavigation({
   boardSrc,
 }: {
   game?: GameId;
-  current?: "home" | "lobby";
+  current?: "home" | "lobby" | "how-to-play";
   boardSrc?: string;
 }) {
   return (
@@ -35,7 +35,8 @@ export function InitialNavigation({
           </a>
           <a
             href="/how-to-play"
-            className="inline-flex min-h-11 items-center gap-2 text-muted no-underline"
+            aria-current={current === "how-to-play" ? "page" : undefined}
+            className={`inline-flex min-h-11 items-center gap-2 ${current === "how-to-play" ? "text-brand" : "text-muted"} no-underline`}
           >
             <AppIcon name="book" />
             遊び方

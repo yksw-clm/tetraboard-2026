@@ -5,7 +5,11 @@ import { serveMatchShareHtml } from "./matchSharing/html";
 import { withVisitStarted } from "./usageEvents/visit";
 import { serveTournamentHtml, serveTournamentSitemap } from "./tournamentPages";
 
-const publicPagePaths = [...gameIds.map((game) => gameCatalog[game].lobbyPath), fourShogiRulesPath];
+const publicPagePaths = [
+  ...gameIds.map((game) => gameCatalog[game].lobbyPath),
+  fourShogiRulesPath,
+  "/how-to-play",
+];
 const tournamentDetailPath = /^\/tournaments\/([1-9]\d*)\/?$/;
 
 export function withoutIndexing(response: Response): Response {
@@ -29,7 +33,6 @@ function isSpaPath(path: string) {
       "/feedback",
       "/updates",
       "/tournaments",
-      "/how-to-play",
       "/games/four-reversi/matchmaking",
       "/games/shogi/matchmaking",
     ].includes(path.replace(/\/$/, "")) ||

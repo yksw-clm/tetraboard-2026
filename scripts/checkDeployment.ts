@@ -1,4 +1,5 @@
 import { fourShogiRulesMetadata } from "../apps/web/src/seo/fourShogiRulesMetadata";
+import { howToPlayMetadata, howToPlayPath } from "../apps/web/src/seo/howToPlayMetadata";
 import {
   healthzContract,
   listRoomsContract,
@@ -154,6 +155,7 @@ await check("/sitemap.xml", async (response) => {
     [`${publicOrigin}/`, generalLobbyMetadata.lastModified],
     ...gameIds.map((game) => [lobbyCanonical(game), lobbyMetadata[game].lastModified] as const),
     [`${publicOrigin}${fourShogiRulesPath}`, fourShogiRulesMetadata.lastModified],
+    [`${publicOrigin}${howToPlayPath}`, howToPlayMetadata.lastModified],
   ]);
   const tournamentList = `${publicOrigin}/tournaments`;
   const detailPrefix = `${tournamentList}/`;

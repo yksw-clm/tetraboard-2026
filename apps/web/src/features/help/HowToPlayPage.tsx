@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
+import { howToPlayMetadata } from "../../seo/howToPlayMetadata";
 import { AccountMenu } from "../account/AccountMenu";
 import { LobbyFooter } from "../lobby/LobbyFooter";
 import { AppButtonLink } from "../../shared/ui/AppButton";
@@ -19,17 +20,16 @@ const chapters = [
   { number: 8, id: "account-settings", title: "アカウントと設定" },
 ] as const;
 
-type Screenshot = keyof typeof helpScreenshots;
+type Screenshot = (typeof helpScreenshots)[keyof typeof helpScreenshots];
 type Figure = { image: Screenshot; alt: string; caption: string };
 
 function GuideFigure({
-  image,
+  image: screenshot,
   alt,
   caption,
   eager = false,
   desktop = false,
 }: Figure & { eager?: boolean; desktop?: boolean }) {
-  const screenshot = helpScreenshots[image];
   return (
     <figure className={`m-0 w-full min-w-0 ${desktop ? "max-w-[960px]" : "max-w-[320px]"}`}>
       <div className="overflow-hidden rounded-2xl border border-solid border-line bg-surface-muted p-2 shadow-panel">
@@ -99,16 +99,26 @@ function Steps({ children }: { children: ReactNode }) {
   return <ol className="m-0 space-y-3 pl-5 marker:font-bold marker:text-brand">{children}</ol>;
 }
 
-export function HowToPlayPage() {
+export function HowToPlayPage({
+  header,
+  screenshots = helpScreenshots,
+}: {
+  header?: ReactNode;
+  screenshots?: typeof helpScreenshots;
+}) {
   return (
     <div className="app-theme min-h-dvh bg-page text-ink">
-      <AppHeader homeTo="/" homeLabel="TetraBoard ホーム">
-        <AccountMenu />
-      </AppHeader>
+      {header ?? (
+        <AppHeader homeTo="/" homeLabel="TetraBoard ホーム">
+          <AccountMenu />
+        </AppHeader>
+      )}
       <main aria-label="遊び方" className={`${appPageWidthClasses} space-y-6 py-8`}>
         <div className="max-w-3xl space-y-4">
           <p className="text-sm font-bold text-brand">はじめての方へ</p>
-          <h1 className="text-[28px] font-bold leading-snug sm:text-[36px]">TetraBoardの使い方</h1>
+          <h1 className="text-[28px] font-bold leading-snug sm:text-[36px]">
+            {howToPlayMetadata.heading}
+          </h1>
           <p className="text-sm leading-7 text-ink-secondary">
             名前を決めたら、ひとりでも友達とでも遊べます。スマホの画面を見ながら、遊び始めるまでの操作を紹介します。
           </p>
@@ -144,14 +154,14 @@ export function HowToPlayPage() {
           {...chapters[0]}
           figures={
             <GuideFigure
-              image="home"
+              image={screenshots.home}
               alt="スマホのホームに並ぶ6種類のゲームと公開ルームの入口"
               caption="ホームのゲーム一覧。遊びたいゲームをタップします。"
               eager
             />
           }
           desktop={{
-            image: "desktopNavigation",
+            image: screenshots.desktopNavigation,
             alt: "PCのホーム上部にあるホーム・遊び方・直近ゲームのナビゲーション",
             caption: "PCでは上部のナビから移動できます。直近に開いたゲームもここに表示されます。",
           }}
@@ -171,7 +181,7 @@ export function HowToPlayPage() {
           {...chapters[1]}
           figures={
             <GuideFigure
-              image="cpu"
+              image={screenshots.cpu}
               alt="四人リバーシで名前・CPUレベル・持ち時間を確認するCPUとの対局ダイアログ"
               caption="名前やCPUレベルなどを確認して、待機室へ進みます。"
             />
@@ -202,12 +212,12 @@ export function HowToPlayPage() {
           figures={
             <>
               <GuideFigure
-                image="invite"
+                image={screenshots.invite}
                 alt="作成したルームのURLをコピーできるルーム共有ダイアログ"
                 caption="「ルームURLをコピー」を押して、友達へ送ります。"
               />
               <GuideFigure
-                image="ready"
+                image={screenshots.ready}
                 alt="四人全員の準備が完了しホストの対局開始ボタンが使える四人リバーシの待機室"
                 caption="全員が準備できたら、ホストが「対局開始」を押します。"
               />
@@ -235,7 +245,7 @@ export function HowToPlayPage() {
           {...chapters[3]}
           figures={
             <GuideFigure
-              image="publicRooms"
+              image={screenshots.publicRooms}
               alt="参加する・観戦ボタンと参加人数が表示されたスマホの公開ルーム一覧"
               caption="募集中の部屋へ参加するか、観戦して対局を見られます。"
             />
@@ -255,13 +265,13 @@ export function HowToPlayPage() {
           {...chapters[4]}
           figures={
             <GuideFigure
-              image="roomTabs"
+              image={screenshots.roomTabs}
               alt="共有・ルーム設定・退室の操作と、下部の盤面・ルーム・チャットタブがあるスマホのルーム情報"
               caption="「ルーム」タブの情報画面。共有や設定、退室はここから行います。"
             />
           }
           desktop={{
-            image: "desktopRoom",
+            image: screenshots.desktopRoom,
             alt: "PCでCPUとの対局中の盤面とルーム情報・チャットが並ぶ四人リバーシの画面",
             caption: "広いPC画面では盤面と情報を並べて見られます。操作はスマホと共通です。",
           }}
@@ -280,7 +290,7 @@ export function HowToPlayPage() {
           {...chapters[5]}
           figures={
             <GuideFigure
-              image="records"
+              image={screenshots.records}
               alt="マイページの棋譜に表示された四人リバーシの対局結果と棋譜を見るリンク"
               caption="マイページの「棋譜」で対局結果を確認し、棋譜を開けます。"
             />
@@ -308,7 +318,7 @@ export function HowToPlayPage() {
           {...chapters[6]}
           figures={
             <GuideFigure
-              image="tournament"
+              image={screenshots.tournament}
               alt="大会の開催日時・人数・エントリー操作を確認できる四人将棋の大会詳細"
               caption="大会の日時とルールを読み、エントリーして参加します。"
             />
@@ -344,7 +354,7 @@ export function HowToPlayPage() {
           {...chapters[7]}
           figures={
             <GuideFigure
-              image="settings"
+              image={screenshots.settings}
               alt="効果音とカード上のスタンプ表示を切り替える表示・サウンド設定ダイアログ"
               caption="右上の設定ボタンから、音やスタンプの表示を変えられます。"
             />

@@ -1,11 +1,14 @@
 import { mkdir, readFile, writeFile, access, rm } from "node:fs/promises";
 import type { Manifest } from "vite";
-import { rulesDiagramAssetFromManifest } from "./rulesDiagramAssets";
+import { publicImageAssetFromManifest } from "./publicImageAssets";
 import { lobbyBoardSourcesFromManifest } from "./lobbyBoardAssets";
+import { helpScreenshotsFromManifest } from "./helpScreenshotAssets";
 import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { howToPlayPath } from "../src/seo/howToPlayMetadata";
 import {
   renderFourShogiRules,
   renderGeneralLobby,
+  renderHowToPlay,
   renderPublicLobby,
   renderNotFound,
   renderSitemap,
@@ -34,12 +37,19 @@ const rulesDirectory = new URL(`${fourShogiRulesPath.slice(1)}/`, dist);
 await mkdir(rulesDirectory, { recursive: true });
 const rulesAssetUrls = new Set<string>();
 const rulesHtml = renderFourShogiRules(template, boardSources, (source) => {
-  const url = rulesDiagramAssetFromManifest(manifest, source);
+  const url = publicImageAssetFromManifest(manifest, source);
   rulesAssetUrls.add(url);
   return url;
 });
 for (const url of rulesAssetUrls) await access(new URL(url.slice(1), dist));
 await writeFile(new URL("index.html", rulesDirectory), rulesHtml);
+const helpScreenshots = await helpScreenshotsFromManifest(manifest, dist);
+const helpDirectory = new URL(`${howToPlayPath.slice(1)}/`, dist);
+await mkdir(helpDirectory, { recursive: true });
+await writeFile(
+  new URL("index.html", helpDirectory),
+  renderHowToPlay(template, boardSources, helpScreenshots),
+);
 await writeFile(new URL("404.html", dist), renderNotFound(template));
 await writeFile(
   new URL("app.html", dist),
@@ -51,5 +61,5 @@ await writeFile(new URL("sitemap.xml", dist), renderSitemap());
 // URLの解決にだけ使い、配信資産にはビルド情報を含めません。
 await rm(manifestPath);
 console.info(
-  `Generated general lobby and ${gameIds.length} game lobbies, four-shogi rules, robots.txt, sitemap.xml and 404.html`,
+  `Generated general lobby and ${gameIds.length} game lobbies, four-shogi rules, how-to-play, robots.txt, sitemap.xml and 404.html`,
 );

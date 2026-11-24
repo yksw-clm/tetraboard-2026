@@ -17,6 +17,10 @@ export const files: Record<string, { body: string; type: string }> = {
     body: '<h1>四人将棋のルール</h1><meta name="robots" content="index,follow">',
     type: "text/html; charset=utf-8",
   },
+  "/how-to-play/index.html": {
+    body: '<h1>TetraBoardの使い方</h1><meta name="robots" content="index,follow">',
+    type: "text/html; charset=utf-8",
+  },
   "/app.html": {
     body: '<html><head><title>TetraBoard</title><meta property="og:site_name" content="TetraBoard"><meta name="robots" content="noindex,follow"></head><body><div id="root"></div></body></html>',
     type: "text/html; charset=utf-8",
@@ -41,7 +45,7 @@ export const files: Record<string, { body: string; type: string }> = {
       )
       .join(
         "",
-      )}<url><loc>https://tetraboard.net/games/four-shogi/rules</loc><lastmod>2026-11-21</lastmod></url></urlset>`,
+      )}<url><loc>https://tetraboard.net/games/four-shogi/rules</loc><lastmod>2026-11-21</lastmod></url><url><loc>https://tetraboard.net/how-to-play</loc><lastmod>2026-11-24</lastmod></url></urlset>`,
     type: "application/xml",
   },
   "/assets/app.js": { body: "export {};", type: "application/javascript" },
