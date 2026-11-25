@@ -374,22 +374,22 @@ test.each([
   expect(response.headers.get("Set-Cookie")).toBeNull();
 });
 
-test.each(excludedUserAgents)(
-  "ブラウザ以外のUA %s の成功HTMLでも訪問とCookieを作らない",
-  async (ua) => {
+test.each(excludedUserAgents.flatMap((ua) => [200, 304].map((status) => ({ ua, status }))))(
+  "ブラウザ以外のUA $ua への $status は訪問とCookieを作らない",
+  async ({ ua, status }) => {
     const events = recordUsageEvents();
-    const response = await pageFixture().fetch("/", {
-      headers: ua === null ? {} : { "User-Agent": ua },
-    });
-    expect(response.status).toBe(200);
-    expect(await response.text()).toBe(body.replace("</head>", `${visitMetaTag}</head>`));
-    expect(events.filter((e) => e.name === "visit_started")).toEqual([]);
+    const headers = { "If-None-Match": '"fixture"', ...(ua === null ? {} : { "User-Agent": ua }) };
+    const response = await pageFixture({ status }).fetch("/games/four-shogi", { headers });
+    expect(response.status).toBe(status);
+    const expectedBody = status === 200 ? body.replace("</head>", `${visitMetaTag}</head>`) : "";
+    expect(await response.text()).toBe(expectedBody);
+    expect(events).toEqual([]);
     expect(response.headers.get("Set-Cookie")).toBeNull();
     expect(response.headers.get("Cache-Control")).toBe(cacheControl);
   },
 );
 
-test.each([301, 302, 304, 404, 500, 503])(
+test.each([301, 302, 404, 500, 503])(
   "アセットが%sを返したら訪問とCookieを作らない",
   async (status) => {
     const events = recordUsageEvents();
