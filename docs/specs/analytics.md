@@ -23,7 +23,7 @@
 ## 計測用 Cookie
 
 - 名前: `tetraboard-2026.analytics`。値は乱数の UUID、有効期間は 1 年、自サイトだけで使います。
-- 画面の HTML を返すときに、Cookie がなければ Worker が発行します。`/privacy`、`/terms`、`/admin` では発行しません。
+- 画面の HTML を返すときに、Cookie がなければ Worker が発行します。ブラウザのキャッシュの HTML を使わせる 304 の応答でも発行します。`/privacy`、`/terms`、`/admin` では発行しません。
 
 ## イベント
 

@@ -75,12 +75,14 @@ visitRoutes.on(visitContract.method, visitContract.path, async (c) => {
 });
 
 export function withVisitHtml(request: Request, response: Response, path: string): Response {
+  if (request.method !== "GET" || request.headers.has("Upgrade") || isExcludedVisitPath(path))
+    return response;
+
+  const notModified = response.status === 304;
   if (
-    request.method !== "GET" ||
-    request.headers.has("Upgrade") ||
-    !response.ok ||
-    response.headers.get("Content-Type")?.split(";")[0]?.trim().toLowerCase() !== "text/html" ||
-    isExcludedVisitPath(path)
+    !notModified &&
+    (!response.ok ||
+      response.headers.get("Content-Type")?.split(";")[0]?.trim().toLowerCase() !== "text/html")
   )
     return response;
 
@@ -92,7 +94,7 @@ export function withVisitHtml(request: Request, response: Response, path: string
   const html = issueCookie
     ? withAnalyticsCookie(response, crypto.randomUUID(), new URL(request.url))
     : response;
-  if (!html.body) return html;
+  if (notModified || !html.body) return html;
 
   const { name, content } = visitContract.meta;
   return new HTMLRewriter()

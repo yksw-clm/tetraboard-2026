@@ -2,6 +2,68 @@ import { expect, test } from "vitest";
 import { gameIds } from "@tetraboard/protocol/games";
 import { formationCatalog } from "@tetraboard/four-shogi/formation-catalog";
 import { assetFixture, visitMetaTag } from "./publicAssetFixtures";
+import { recordUsageEvents } from "./usageEventsRecorder";
+
+const analyticsCookie = "tetraboard-2026.analytics";
+const conditionalHeaders = { "User-Agent": "Mozilla/5.0", "If-None-Match": '"fixture"' };
+
+test.each([true, false])(
+  "Cookieのないブラウザへの304で計測用Cookieを発行する（Content-Typeあり: %s）",
+  async (hasContentType) => {
+    const events = recordUsageEvents();
+    const assets = hasContentType
+      ? assetFixture()
+      : assetFixture({
+          ASSETS: {
+            async fetch(request: Request) {
+              expect(request.headers.get("If-None-Match")).toBe('"fixture"');
+              return new Response(null, {
+                status: 304,
+                headers: {
+                  ETag: '"fixture"',
+                  "Cache-Control": "public, max-age=0, must-revalidate",
+                },
+              });
+            },
+          } as Fetcher,
+        });
+    const response = await assets.fetch("/games/four-shogi", { headers: conditionalHeaders });
+    expect(response.status).toBe(304);
+    expect(response.body).toBeNull();
+    expect(response.headers.get("Content-Type")).toBe(
+      hasContentType ? "text/html; charset=utf-8" : null,
+    );
+    expect(response.headers.get("ETag")).toBe('"fixture"');
+    expect(response.headers.getSetCookie()).toEqual([
+      expect.stringMatching(
+        /^tetraboard-2026\.analytics=[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}; Path=\/; Max-Age=31536000; SameSite=Lax; Secure$/i,
+      ),
+    ]);
+    expect(response.headers.get("Cache-Control")).toBe("private, max-age=0, must-revalidate");
+    expect(events).toEqual([]);
+  },
+);
+
+test.each([
+  { method: "GET", cookie: `${analyticsCookie}=01234567-89ab-4cde-8fab-0123456789ab` },
+  { method: "HEAD", cookie: null },
+])(
+  "有効なCookie付きのGETとHEADへの304ではCookieを発行しない: $method",
+  async ({ method, cookie }) => {
+    const events = recordUsageEvents();
+    const requestHeaders = new Headers(conditionalHeaders);
+    if (cookie) requestHeaders.set("Cookie", cookie);
+    const response = await assetFixture().fetch("/games/four-shogi", {
+      method,
+      headers: requestHeaders,
+    });
+    expect(response.status).toBe(304);
+    expect(response.body).toBeNull();
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=0, must-revalidate");
+    expect(events).toEqual([]);
+  },
+);
 
 test("公開ロビー・四人将棋のルール・利用ガイドは通常UAとGooglebotへ同じHTMLを返し、HEAD・304・キャッシュを保持", async () => {
   const assets = assetFixture();
