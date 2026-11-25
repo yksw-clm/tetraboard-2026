@@ -42,6 +42,7 @@ import { usePostGameFeedback } from "../feedback/usePostGameFeedback";
 import { PostGameFeedbackDialog } from "../feedback/PostGameFeedbackDialog";
 import { RoomShareDialog } from "./RoomShareDialog";
 import { ResultShareButton } from "./ResultShareButton";
+import { InviteAfterCpuButton } from "./InviteAfterCpuButton";
 import { RoomStartCountdown } from "./RoomStartCountdown";
 import { RatedMatchStartCountdown } from "./RatedMatchStartCountdown";
 import {
@@ -126,6 +127,12 @@ export function RoomViewShell({
   const ratedTime = room.settings.timeControl;
   const resultMatchId = registrationMatchId(room);
   const participated = room.lastRound?.players.some((player) => player.id === membership?.playerId);
+  const soloCpuResult =
+    participated &&
+    room.lastRound?.players.every(
+      (player) =>
+        player.appearance?.kind === (player.id === membership?.playerId ? "human" : "cpu"),
+    );
   const showRating = Boolean(ratedMatch && room.lastRound && participated);
   const rating = useRatingResult(
     ratedGame,
@@ -555,6 +562,20 @@ export function RoomViewShell({
                   key={resultMatchId}
                   matchId={resultMatchId}
                   selfId={membership.playerId}
+                />
+              )}
+              {managedPath === null && soloCpuResult && (
+                <InviteAfterCpuButton
+                  leaving={session.leaving}
+                  registrationBusy={signIn.busy}
+                  socketError={session.socketError}
+                  onInvite={(legalVersion) => {
+                    setDialog("result");
+                    void session.handleLeaveClick({
+                      profileId: account.user?.profileId ?? null,
+                      legalVersion,
+                    });
+                  }}
                 />
               )}
               {managedPath !== null && membership && !guestLinkResult && !linkedGuestResult && (

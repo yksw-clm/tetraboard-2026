@@ -20,6 +20,7 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { canStoreRoomMembership, saveRoomMembershipToken } from "../../shared/roomMembership";
 import { saveRoomEntryHandoff, splitRoomEntryResponse } from "../../shared/roomEntryHandoff";
+import { useFriendRoomEntry, type FriendRoomSubmission } from "./useFriendRoomEntry";
 
 import { joinRoom, roomEntryErrorMessage, RoomEntryError } from "../../shared/roomAccess";
 import { useRegistrationRestore } from "../account/useRegistrationRestore";
@@ -78,6 +79,7 @@ export function useRoomEntry(game: GameId = defaultGameId) {
   );
   const [isSubmitting, setIsSubmitting] = useState<RoomEntryIntent | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [entryFromResult, setEntryFromResult] = useState(false);
   const submitting = useRef(false);
 
   async function submitRoom(
@@ -85,11 +87,18 @@ export function useRoomEntry(game: GameId = defaultGameId) {
     selectedRoomCode = roomCode,
     instanceId?: string,
     avatarPresetId?: AvatarPresetId,
+    friendRoom?: FriendRoomSubmission,
   ): Promise<void> {
     if (submitting.current || account.loading || account.error) return;
+    if (
+      friendRoom &&
+      (!friendRoom.profileId || friendRoom.legalVersion !== legalVersion || !friendRoom.isCurrent())
+    )
+      return;
     const contract = createRoomContract;
 
     setMessage(null);
+    setEntryFromResult(friendRoom !== undefined);
 
     if (intent === "join" && !roomCodeSchema.safeParse(selectedRoomCode).success) {
       setMessage("部屋番号は5桁の数字で入力してください。");
@@ -106,7 +115,12 @@ export function useRoomEntry(game: GameId = defaultGameId) {
 
     try {
       let user = account.user;
-      if (
+      if (friendRoom) {
+        user = await readAccount();
+        if (!friendRoom.isCurrent()) return;
+        account.update(user);
+        if (user?.profileId !== friendRoom.profileId) return;
+      } else if (
         intent === "join" ||
         user !== null ||
         !profileInputSchema.shape.name.safeParse(name).success
@@ -135,15 +149,22 @@ export function useRoomEntry(game: GameId = defaultGameId) {
         return;
       }
 
+      const friendRoomSettings = friendRoom?.settings;
       const request = contract.request.safeParse(
         createRoomRequests[game]({
           name: user ? undefined : name,
           quickPlay: intent === "quick",
           ...(intent === "quick" ? { cpuLevel } : {}),
-          mode,
-          timeControl,
-          threePlayerAttackProhibited,
-          forbiddenRules,
+          mode: friendRoomSettings?.mode ?? mode,
+          timeControl: friendRoomSettings?.timeControl ?? timeControl,
+          threePlayerAttackProhibited:
+            friendRoomSettings?.game === "four-shogi"
+              ? friendRoomSettings.threePlayerAttackProhibited
+              : threePlayerAttackProhibited,
+          forbiddenRules:
+            friendRoomSettings?.game === "gomoku"
+              ? friendRoomSettings.forbiddenRules
+              : forbiddenRules,
         }),
       );
       if (!request.success) {
@@ -151,21 +172,23 @@ export function useRoomEntry(game: GameId = defaultGameId) {
         return;
       }
 
-      try {
-        user = await prepareRoomGuest(name, user, avatarPresetId, account.update);
-      } catch (error) {
-        throw new RoomEntryError(
-          error instanceof Error ? error.message : "ゲスト情報を保存できませんでした。",
-        );
+      if (!friendRoom) {
+        try {
+          user = await prepareRoomGuest(name, user, avatarPresetId, account.update);
+        } catch (error) {
+          throw new RoomEntryError(
+            error instanceof Error ? error.message : "ゲスト情報を保存できませんでした。",
+          );
+        }
       }
-      if (!user.profileCompleted) return;
+      if (!user?.profileCompleted || (friendRoom && !friendRoom.isCurrent())) return;
       const entryName = user.isGuest ? request.data.name : undefined;
 
       const response = await fetch(`/api${contract.path}?snapshot=1`, {
         method: contract.method,
         headers: {
           "Content-Type": "application/json",
-          "X-Legal-Consent": legalVersion,
+          "X-Legal-Consent": friendRoom?.legalVersion ?? legalVersion,
         },
         body: JSON.stringify({ ...request.data, name: entryName }),
       });
@@ -187,9 +210,10 @@ export function useRoomEntry(game: GameId = defaultGameId) {
         }
         saveGuestName(entryName);
         roomSounds.playJoin(result.room.instanceId, result.membership.playerId);
+        saveRoomEntryHandoff(result, initial, receivedAt);
+        if (friendRoom && !friendRoom.isCurrent()) return;
         const state =
           intent === "create" ? createRoomShareIntent(result.room, result.membership) : undefined;
-        saveRoomEntryHandoff(result, initial, receivedAt);
         try {
           await navigate(getRoomContract.pathFor(result.room.id), { state });
         } catch (error) {
@@ -216,6 +240,14 @@ export function useRoomEntry(game: GameId = defaultGameId) {
     }
   }
 
+  useFriendRoomEntry(
+    game,
+    !account.loading && !account.error && isSubmitting === null,
+    (request) => {
+      void submitRoom("create", undefined, undefined, undefined, request);
+    },
+  );
+
   return {
     registrationDraft: restored?.entry,
     name,
@@ -234,7 +266,11 @@ export function useRoomEntry(game: GameId = defaultGameId) {
     setForbiddenRules,
     isSubmitting,
     message,
-    clearMessage: () => setMessage(null),
+    entryFromResult,
+    clearMessage: () => {
+      setEntryFromResult(false);
+      setMessage(null);
+    },
     submitRoom,
   };
 }

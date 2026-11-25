@@ -30,6 +30,7 @@ export function FourShogiLobbyPage() {
         threePlayerAttackProhibited={entry.threePlayerAttackProhibited}
         isSubmitting={entry.isSubmitting}
         message={entry.message}
+        entryFromResult={entry.entryFromResult}
         onNameChange={entry.setName}
         onRoomCodeChange={entry.setRoomCode}
         onModeChange={entry.setMode}

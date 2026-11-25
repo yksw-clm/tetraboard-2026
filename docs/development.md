@@ -912,6 +912,7 @@ PCでは盤面領域右下、タブレット・スマートフォンでは状況
 
 - 軽量な `@tetraboard/protocol/room-sharing` に共有URL・募集文・募集可否・メタ情報を集約します。エンジン・Zod・Reactへ依存しません。
 - `useRoomEntry` は通常作成の成功時だけ `roomShareIntent` を作成してルーターのstateへ渡します。nonceをメモリに保持し、作成者・世代・ホスト資格を照合します。`useRoomInvitation` の初期表示後に意図を消費するため、StrictMode・履歴stateの複製でも初回表示を保ち、戻り・再読み込みでは再演しません。共有URLにはこの意図を含めません。
+- CPU戦の後の「友達と遊ぶ」（TB-201）は、`InviteAfterCpuButton` から `handleLeaveClick("friend-room")` で退室し、`shared/friendRoomIntent.ts` のnonceをルーターのstateでロビーへ渡します。依頼（設定、押したときの `profileId` と同意版）はメモリにだけ置き、`useFriendRoomEntry` が最初に表示したロビーの履歴項目に結び付けて、nonceを消してから1回だけ作成します。再読み込み・戻り・ロビーを離れた後は作成も自動の入室もせず、`useRoomEntry` は作成直前の認証が押したときの本人と一致するときだけ送ります。DOMテストは `autoGameResult.test.tsx` です。
 - `RoomShareDialog` は既存 `AppDialog`、入力欄・ボタン・toastを使用し、コピー失敗の案内、再試行、閉鎖後やunmount後の遅い完了の破棄、最新ルーム状態によるX募集の無効化へ対応します。`RoomInfo` の既存ボタンの寸法・配置のクラスは維持し、文言と操作を置き換えます。
 - Workerの `roomShareHtml` はルームHTMLをHTMLRewriterで処理します。`GameRoom.getShareMetadata` は保存状態を読み、世代・24時間の閉鎖期限・人間の復帰期限を照合します。normalize・期限処理・CPU・保存・索引更新は呼びません。情報の取得失敗または1500msの期限では共通カードを返します。
 - ルームHTMLは生成元のETag・更新時刻・Content-Length・Content-Encodingを引き継がず、条件付き取得にも新しいHTMLを200・no-storeで返します。HEADは本文なしです。静的画像7枚は `/assets/ogp/` のPNGで既存の資産配信・HEAD・304を使用します。ゲーム名・画像・URLは同じメタ情報生成関数を使い、Webのルーターから確定したloaderデータで更新して、画面間の残存を防ぎます。
