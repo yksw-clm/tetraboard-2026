@@ -66,6 +66,11 @@ export const gameCatalog = {
   },
 } as const satisfies Record<GameId, GameMetadata>;
 
+export function gameNameWithAlias(game: GameId): string {
+  const { name } = gameCatalog[game];
+  return game === "reversi" || game === "four-reversi" ? `${name}（オセロ）` : name;
+}
+
 export const fourShogiRulesPath = `${gameCatalog["four-shogi"].lobbyPath}/rules`;
 
 export function isGameId(value: unknown): value is GameId {

@@ -1,4 +1,4 @@
-import { gameCatalog } from "@tetraboard/protocol/games";
+import { gameCatalog, gameNameWithAlias } from "@tetraboard/protocol/games";
 import type { ReplayMatch } from "@tetraboard/protocol";
 import { useState, type ReactNode } from "react";
 import { useLocation } from "react-router";
@@ -36,12 +36,15 @@ export function SavedMatchReplayView({
   const location = useLocation();
   const [tab, setTab] = useState("board");
   const [results, setResults] = useState(false);
+  const game = match.settings.game;
+  const { name, lobbyPath, hasModes } = gameCatalog[game];
+  const title = gameNameWithAlias(game);
   const info = (
     <RoomInfoCard roomId={match.roomId} settings={match.settings}>
       <AppButtonLink
         size="compact"
         className="w-full"
-        to={match.selfPlayerId ? "/account" : gameCatalog[match.settings.game].lobbyPath}
+        to={match.selfPlayerId ? "/account" : lobbyPath}
         state={location.state}
       >
         {match.selfPlayerId ? "マイページへ戻る" : "ロビーへ戻る"}
@@ -68,7 +71,7 @@ export function SavedMatchReplayView({
         matchKind={match.matchKind ?? "unknown"}
         hideLabelOnMobile
         onRotate={onRotate}
-        rotationDegrees={!gameCatalog[match.settings.game].hasModes ? 180 : 90}
+        rotationDegrees={!hasModes ? 180 : 90}
       />
     </RoomStatusCard>
   );
@@ -76,6 +79,17 @@ export function SavedMatchReplayView({
     <main
       className={`app-theme ${appThemeClasses[theme]} room-background flex flex-col h-dvh overflow-hidden text-ink text-sm leading-normal`}
     >
+      {!match.selfPlayerId && (
+        <section
+          aria-label="このゲームを遊ぶ"
+          className="flex w-full shrink-0 items-center gap-2 border-b border-solid border-line bg-surface-muted px-3 py-1.5"
+        >
+          <p className="min-w-0 flex-1 text-xs">{title}は登録なしで、ブラウザからすぐ遊べます。</p>
+          <AppButtonLink appearance="primary" size="compact" to={lobbyPath}>
+            {name}を遊ぶ
+          </AppButtonLink>
+        </section>
+      )}
       <RoomLayout
         statusBelowBoard
         desktop={desktop}
