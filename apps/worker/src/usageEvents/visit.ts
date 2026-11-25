@@ -1,19 +1,12 @@
 import { Hono } from "hono";
-import { z } from "zod";
 import { gameIds } from "@tetraboard/protocol/games";
+import { visitContract } from "@tetraboard/protocol/visits";
+import { visitInputSchema } from "@tetraboard/protocol/visit-schema";
 import { normalizePublicAssetPath } from "../publicAssetPath";
 import { classifyDevice, classifyReferrer, sanitizeUtm } from "./acquisition";
 import { analyticsCookie, browserIdFromRequest } from "./browserId";
 import { readBody } from "./readBody";
 import { createUsageEventWriter } from "./writer";
-
-const inputSchema = z.strictObject({
-  path: z.string().startsWith("/").max(1024),
-  referrerHost: z.string().max(253).nullable(),
-  utmSource: z.string().max(256).nullable(),
-  utmMedium: z.string().max(256).nullable(),
-  utmCampaign: z.string().max(256).nullable(),
-});
 
 export function isBrowserUserAgent(userAgent: string | null): boolean {
   return !!userAgent?.includes("Mozilla/") && !/bot|crawler|spider|headless/i.test(userAgent);
@@ -46,11 +39,11 @@ function isExcludedVisitPath(path: string): boolean {
 }
 
 export const visitRoutes = new Hono<{ Bindings: Env }>();
-visitRoutes.post("/visits", async (c) => {
+visitRoutes.on(visitContract.method, visitContract.path, async (c) => {
   c.header("Cache-Control", "no-store");
   if (c.req.header("Origin") !== c.env.APP_ORIGIN)
     return c.json({ message: "操作元を確認できません。" }, 403);
-  const input = inputSchema.safeParse(await readBody(c.req.raw));
+  const input = visitInputSchema.safeParse(await readBody(c.req.raw, visitContract.maxBodyBytes));
   if (!input.success) return c.body(null, 400);
 
   const ua = c.req.raw.headers.get("User-Agent");
@@ -81,21 +74,34 @@ visitRoutes.post("/visits", async (c) => {
   return c.body(null, 204);
 });
 
-export function withVisitCookie(request: Request, response: Response, path: string): Response {
+export function withVisitHtml(request: Request, response: Response, path: string): Response {
   if (
     request.method !== "GET" ||
     request.headers.has("Upgrade") ||
     !response.ok ||
     response.headers.get("Content-Type")?.split(";")[0]?.trim().toLowerCase() !== "text/html" ||
-    ["/privacy", "/terms"].includes(path) ||
-    path.startsWith("/admin") ||
-    path.startsWith("/api") ||
-    !isBrowserUserAgent(request.headers.get("User-Agent")) ||
-    browserIdFromRequest(request)
+    isExcludedVisitPath(path)
   )
     return response;
 
-  return withAnalyticsCookie(response, crypto.randomUUID(), new URL(request.url));
+  const issueCookie =
+    !path.startsWith("/admin") &&
+    !path.startsWith("/api") &&
+    isBrowserUserAgent(request.headers.get("User-Agent")) &&
+    !browserIdFromRequest(request);
+  const html = issueCookie
+    ? withAnalyticsCookie(response, crypto.randomUUID(), new URL(request.url))
+    : response;
+  if (!html.body) return html;
+
+  const { name, content } = visitContract.meta;
+  return new HTMLRewriter()
+    .on("head", {
+      element(element) {
+        element.append(`<meta name="${name}" content="${content}">`, { html: true });
+      },
+    })
+    .transform(html);
 }
 
 function withAnalyticsCookie(response: Response, browserId: string, url: URL): Response {

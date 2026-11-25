@@ -1,5 +1,6 @@
 import { afterEach, expect, mock, test } from "bun:test";
 import { Window } from "happy-dom";
+import { visitContract, type VisitInput } from "@tetraboard/protocol/visits";
 import { startVisits } from "../src/shared/visits";
 
 const windows: Window[] = [];
@@ -7,7 +8,7 @@ afterEach(async () => {
   await Promise.all(windows.splice(0).map((target) => target.happyDOM.close()));
 });
 
-const defaultVisit = {
+const defaultVisit: VisitInput = {
   path: "/",
   referrerHost: "",
   utmSource: null,
@@ -16,9 +17,11 @@ const defaultVisit = {
 };
 const longestHostname = `${`${"a".repeat(63)}.`.repeat(3)}${"b".repeat(61)}`;
 
-function browser(path = "/", referrer = "") {
+function browser(path = "/", referrer = "", marker: string | null = visitContract.meta.content) {
   const target = new Window({ url: `https://tetraboard.test${path}` });
   windows.push(target);
+  if (marker !== null)
+    target.document.head.innerHTML = `<meta name="${visitContract.meta.name}" content="${marker}">`;
   const beacon = mock((_url: string, _body: Blob) => true);
   const fetch = mock((_url: string, _init: RequestInit) =>
     Promise.resolve(new Response(null, { status: 204 })),
@@ -34,7 +37,7 @@ function browser(path = "/", referrer = "") {
   };
 }
 
-test("起動時だけ送信し、同じ画面の再初期化やpushStateでは送らない", async () => {
+test("目印がある文書は起動時だけ送信し、同じ画面の再初期化やpushStateでは送らない", async () => {
   const client = browser();
   client.start();
   expect(client.beacon).toHaveBeenCalledTimes(1);
@@ -110,19 +113,14 @@ test.each([
   }
 });
 
-test.each(["/privacy", "/terms", "/admin", "/admin/settings", "/missing"])(
-  "計測対象外の画面は送信しない: %s",
-  (path) => {
-    const client = browser(path);
-    if (path === "/missing")
-      client.target.document.body.innerHTML = '<main data-not-found=""></main>';
-    client.start();
-    client.target.history.pushState(null, "", "/");
-    client.start();
-    expect(client.beacon).not.toHaveBeenCalled();
-    expect(client.fetch).not.toHaveBeenCalled();
-  },
-);
+test.each([null, "disabled"])("有効な目印がない文書は送信しない: %s", (marker) => {
+  const client = browser("/tournaments/12345", "", marker);
+  client.start();
+  client.target.history.pushState(null, "", "/");
+  client.start();
+  expect(client.beacon).not.toHaveBeenCalled();
+  expect(client.fetch).not.toHaveBeenCalled();
+});
 
 test("sendBeaconがなければPOSTとkeepaliveで送り、拒否を未処理にしない", async () => {
   const client = browser("/rooms/12345");

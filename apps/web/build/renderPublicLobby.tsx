@@ -163,7 +163,7 @@ export function renderNotFound(template: string): string {
       '<div id="root"></div>',
       renderToStaticMarkup(
         <div id="root">
-          <main data-not-found="">
+          <main>
             <h1>ページが見つかりません。</h1>
             {gameIds.map((game) => (
               <p key={game}>

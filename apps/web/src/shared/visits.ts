@@ -1,17 +1,17 @@
+import { visitContract, type VisitInput } from "@tetraboard/protocol/visits";
+
 const started = new WeakSet<Window>();
-const maxPathLength = 1024;
-const maxUtmLength = 256;
-const maxReferrerHostLength = 253;
-const maxBodyBytes = 2048;
 
 function referrerHostname(referrer: string): string | null {
   if (!referrer) return "";
   try {
     const { hostname, protocol } = new URL(referrer);
     if (protocol !== "http:" && protocol !== "https:") return null;
-    if (hostname.length <= maxReferrerHostLength) return hostname;
+    if (hostname.length <= visitContract.maxReferrerHostLength) return hostname;
     const withoutTrailingDot = hostname.replace(/\.$/, "");
-    return withoutTrailingDot.length <= maxReferrerHostLength ? withoutTrailingDot : null;
+    return withoutTrailingDot.length <= visitContract.maxReferrerHostLength
+      ? withoutTrailingDot
+      : null;
   } catch {
     return null;
   }
@@ -28,24 +28,25 @@ function visitBody(path: string, referrerHost: string | null, search: string): s
         ?.slice(0, utmLength)
         .replace(/[\uD800-\uDBFF]$/u, "") ?? null;
 
-    return JSON.stringify({
+    const input: VisitInput = {
       path,
       referrerHost,
       utmSource: utm("utm_source"),
       utmMedium: utm("utm_medium"),
       utmCampaign: utm("utm_campaign"),
-    });
+    };
+    return JSON.stringify(input);
   }
 
-  const body = serialize(maxUtmLength);
-  if (encoder.encode(body).length <= maxBodyBytes) return body;
+  const body = serialize(visitContract.maxUtmLength);
+  if (encoder.encode(body).length <= visitContract.maxBodyBytes) return body;
 
   // JSONのエスケープとUTF-8のバイト数を含め、送れる範囲でUTMの先頭を残します。
   let min = 0;
-  let max = maxUtmLength - 1;
+  let max = visitContract.maxUtmLength - 1;
   while (min < max) {
     const middle = Math.ceil((min + max) / 2);
-    if (encoder.encode(serialize(middle)).length <= maxBodyBytes) min = middle;
+    if (encoder.encode(serialize(middle)).length <= visitContract.maxBodyBytes) min = middle;
     else max = middle - 1;
   }
   return serialize(min);
@@ -56,25 +57,24 @@ export function startVisits(target: Window = window): void {
   started.add(target);
 
   try {
+    const { name, content } = visitContract.meta;
+    if (!target.document.head?.querySelector(`meta[name="${name}"][content="${content}"]`)) return;
     const { pathname, search } = target.location;
-    if (
-      ["/privacy", "/terms", "/admin"].includes(pathname) ||
-      pathname.startsWith("/admin/") ||
-      target.document.querySelector("[data-not-found]")
-    )
-      return;
 
     const body = visitBody(
-      pathname.slice(0, maxPathLength),
+      pathname.slice(0, visitContract.maxPathLength),
       referrerHostname(target.document.referrer),
       search,
     );
     if (typeof target.navigator.sendBeacon === "function") {
-      target.navigator.sendBeacon("/api/visits", new Blob([body], { type: "application/json" }));
+      target.navigator.sendBeacon(
+        visitContract.url,
+        new Blob([body], { type: "application/json" }),
+      );
     } else {
       void target
-        .fetch("/api/visits", {
-          method: "POST",
+        .fetch(visitContract.url, {
+          method: visitContract.method,
           headers: { "Content-Type": "application/json" },
           body,
           keepalive: true,

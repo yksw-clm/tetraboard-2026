@@ -3,6 +3,7 @@ import { expect, test, vi } from "vitest";
 import { gameIds } from "@tetraboard/protocol/games";
 import worker from "../src/worker";
 import { recordUsageEvents } from "./usageEventsRecorder";
+import { visitMetaTag } from "./publicAssetFixtures";
 
 const browserUserAgents = [
   {
@@ -147,11 +148,10 @@ test.each(browserUserAgents)("$browser のHTML取得だけではCookieを発行�
   const events = recordUsageEvents();
   const response = await pageFixture().fetch("/", { headers: { "User-Agent": ua } });
   expect(response.status).toBe(200);
-  expect(await response.text()).toBe(body);
+  expect(await response.text()).toBe(body.replace("</head>", `${visitMetaTag}</head>`));
   const id = issuedBrowserId(response);
   expect(id).toMatch(uuidV4);
   expect(events).toEqual([]);
-  expect(response.headers.get("Set-Cookie")).toContain(`${cookieName}=${id};`);
 });
 
 test.each([
@@ -299,7 +299,7 @@ test.each([
   expect(events).toEqual([]);
   expect(response.headers.get("Cache-Control")).toBe("private, max-age=0, must-revalidate");
   expect(response.headers.get("ETag")).toBe('"fixture"');
-  expect(await response.text()).toBe(body);
+  expect(await response.text()).toBe(body.replace("</head>", `${visitMetaTag}</head>`));
 });
 
 test("HTTPのCookieにSecureを付けず、発行済みの大文字UUIDもそのまま再利用する", async () => {
@@ -334,7 +334,6 @@ test.each([
   ["Public, max-age=30, must-revalidate", "private, max-age=30, must-revalidate"],
   ["", "private"],
 ])("Cookie発行時も既存のキャッシュ制約と他のCookieを保つ: %s", async (before, after) => {
-  recordUsageEvents();
   const response = await pageFixture({
     headers: { "Cache-Control": before!, "Set-Cookie": "other=value; Path=/" },
   }).fetch("/", { headers: { "User-Agent": browserUa } });
@@ -383,7 +382,7 @@ test.each(excludedUserAgents)(
       headers: ua === null ? {} : { "User-Agent": ua },
     });
     expect(response.status).toBe(200);
-    expect(await response.text()).toBe(body);
+    expect(await response.text()).toBe(body.replace("</head>", `${visitMetaTag}</head>`));
     expect(events.filter((e) => e.name === "visit_started")).toEqual([]);
     expect(response.headers.get("Set-Cookie")).toBeNull();
     expect(response.headers.get("Cache-Control")).toBe(cacheControl);
@@ -409,6 +408,7 @@ test("画面URLでもHTML以外の応答は記録しない", async () => {
     headers: { "User-Agent": browserUa },
   });
   expect(response.status).toBe(200);
+  expect(await response.text()).toBe(body);
   expect(events.filter((e) => e.name === "visit_started")).toEqual([]);
   expect(response.headers.get("Set-Cookie")).toBeNull();
 });

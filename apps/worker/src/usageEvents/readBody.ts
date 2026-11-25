@@ -1,6 +1,4 @@
-const maxBodyBytes = 2048;
-
-export async function readBody(request: Request): Promise<unknown> {
+export async function readBody(request: Request, maxBodyBytes: number): Promise<unknown> {
   if (Number(request.headers.get("Content-Length") ?? 0) > maxBodyBytes) return null;
   const reader = request.body?.getReader();
   if (!reader) return null;

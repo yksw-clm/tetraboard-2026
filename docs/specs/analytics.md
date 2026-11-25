@@ -31,7 +31,7 @@
 
 ブラウザ以外のアクセスは、User-Agent で判定します。User-Agent がないもの、`Mozilla/` を含まないもの（curl や監視ツールなど）、クローラー（`bot`・`crawler`・`spider`）、ヘッドレスブラウザ（`headless`）は記録せず、計測用 Cookie も発行しません。
 
-訪問の開始は、画面の JavaScript が起動したときに画面から Worker へ 1 回送り、Worker が記録します（判断は [ADR 0014](../adr/0014-visit-from-client.md)）。送られた訪問に計測用 Cookie がなければ記録しません。参照元は、画面が送る `document.referrer` のホストだけを使います。
+訪問の開始は、画面の JavaScript が起動したときに画面から Worker へ 1 回送り、Worker が記録します（判断は [ADR 0014](../adr/0014-visit-from-client.md)）。送るのは、Worker が計測の対象として目印を付けた画面の HTML からだけです。目印は、200 番台で返す画面の HTML のうち、`/privacy`・`/terms`・`/admin` 以外に付けます。送られた訪問に計測用 Cookie がなければ記録しません。参照元は、画面が送る `document.referrer` のホストだけを使います。
 
 訪問の開始には、アカウント ID と「テストかどうか」を付けません（訪問のたびにセッションを読まないため）。テストの訪問は、KPI の集計で、テストとして記録された対局や登録に出てきたブラウザ ID を除いて扱います。
 
