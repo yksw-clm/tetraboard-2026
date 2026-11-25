@@ -1,18 +1,25 @@
 import type { GameId, Room } from "@tetraboard/protocol";
 import { createUuid } from "./createUuid";
 
-// 履歴に残った nonce だけでは、再読み込み後に作成を再実行できません。
-const pending = new Map<string, Room["settings"]>();
+export type FriendRoomConsent = {
+  profileId: string | null;
+  legalVersion: string;
+};
 
-export function createFriendRoomIntent(settings: Room["settings"]) {
+export type FriendRoomIntent = FriendRoomConsent & { settings: Room["settings"] };
+
+// 履歴に残った nonce だけでは、再読み込み後に作成を再実行できません。
+const pending = new Map<string, FriendRoomIntent>();
+
+export function createFriendRoomIntent(settings: Room["settings"], consent: FriendRoomConsent) {
   const friendRoomNonce = createUuid();
-  pending.set(friendRoomNonce, settings);
+  pending.set(friendRoomNonce, { ...consent, settings });
   return { friendRoomNonce };
 }
 
-export function takeFriendRoomSettings(nonce: string, game: GameId): Room["settings"] | undefined {
-  const settings = pending.get(nonce);
-  if (settings?.game !== game) return undefined;
+export function takeFriendRoomIntent(nonce: string, game: GameId): FriendRoomIntent | undefined {
+  const intent = pending.get(nonce);
+  if (intent?.settings.game !== game) return undefined;
   pending.delete(nonce);
-  return settings;
+  return intent;
 }

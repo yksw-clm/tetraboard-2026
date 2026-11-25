@@ -7,7 +7,7 @@ import { gameCapacity } from "@tetraboard/protocol/games";
 import { usePlayerProfiles } from "../players/usePlayerProfiles";
 import { roomSnapshotFor } from "./roomSnapshot";
 import { createUuid } from "../../shared/createUuid";
-import { createFriendRoomIntent } from "../../shared/friendRoomIntent";
+import { createFriendRoomIntent, type FriendRoomConsent } from "../../shared/friendRoomIntent";
 import type { GameSettingsCommandFor, PendingActionFor } from "./gameSessionTypes";
 import {
   roomSocketContract,
@@ -1119,7 +1119,7 @@ export function useRoomTransport<T extends Room>({
     sendSettingsMessage({ type: "room.cpu.remove", playerId });
   }
 
-  async function handleLeaveClick(nextMatch: boolean | "friend-room" = false): Promise<void> {
+  async function handleLeaveClick(nextMatch: boolean | FriendRoomConsent = false): Promise<void> {
     if (membership === null || leavingRef.current) return;
     const token = readRoomMembershipToken(room.id);
     if (token === null) {
@@ -1133,9 +1133,9 @@ export function useRoomTransport<T extends Room>({
     try {
       await leaveRoom(room.id, token);
       if (readRoomMembershipToken(room.id) === token) clearRoomMembershipToken(room.id);
-      if (nextMatch === "friend-room") {
+      if (typeof nextMatch === "object") {
         void navigate(gameCatalog[room.settings.game].lobbyPath, {
-          state: createFriendRoomIntent(room.settings),
+          state: createFriendRoomIntent(room.settings, nextMatch),
         });
         return;
       }

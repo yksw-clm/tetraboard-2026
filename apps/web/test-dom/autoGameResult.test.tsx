@@ -18,6 +18,7 @@ import {
   type RoomPresence,
 } from "@tetraboard/protocol";
 import { gameCatalog } from "@tetraboard/protocol/games";
+import { legalAcknowledgement, legalVersion } from "@tetraboard/protocol/privacy";
 import { AccountContext } from "../src/features/account/useAccount";
 import { FourGomokuLobbyPage } from "../src/features/lobby/FourGomokuLobbyPage";
 import { FourReversiLobbyPage } from "../src/features/lobby/FourReversiLobbyPage";
@@ -27,6 +28,7 @@ import { ReversiLobbyPage } from "../src/features/lobby/ReversiLobbyPage";
 import { ShogiLobbyPage } from "../src/features/lobby/ShogiLobbyPage";
 import { RoomPage } from "../src/features/room/RoomPage";
 import { roomLoader } from "../src/features/room/roomLoader";
+import { createFriendRoomIntent } from "../src/shared/friendRoomIntent";
 import { saveGuestName } from "../src/shared/guestName";
 import { readRoomMembershipToken, saveRoomMembershipToken } from "../src/shared/roomMembership";
 import archive from "../../../test-fixtures/matches/reversi-standard-draw.json";
@@ -59,7 +61,7 @@ import {
 } from "../test/fixtures/standardShogiFixtures";
 import { replayMatch } from "../test/fixtures/matchReplayFixtures";
 import { profile } from "../test/fixtures/account";
-import { act, clock, flush, press, render, renderHook, requests, wrap } from "./harness";
+import { act, clock, flush, press, render, renderHook, requests, rerender, wrap } from "./harness";
 import { guestProfile } from "./guestAccountFixtures";
 import { installSocket, Socket } from "./socket";
 import {
@@ -606,11 +608,39 @@ const lobbyPages = {
   "four-gomoku": FourGomokuLobbyPage,
 };
 const inviteLabel = "友達と遊ぶ";
+const friendRoomProfile = { ...profile, profileId: "00000000-0000-4000-8000-000000000030" };
 const inheritedTimeControl = { mainTimeMs: 180_000, byoyomiMs: 10_000 };
 const createRequests = () =>
   requests.filter(
     (request) => request.url === "/api/rooms?snapshot=1" && request.init.method === "POST",
   );
+const accountRequests = () =>
+  requests.filter((request) => request.url === "/api/account/session" && !request.init.signal);
+
+function respondWithCreatedRoom(finished: Room) {
+  const created = roomSchema.parse({
+    ...finished,
+    id: "54321",
+    instanceId: "00000000-0000-4000-8000-000000000012",
+    lastRound: null,
+    players: finished.players.slice(0, 1),
+  });
+  const newToken = "b".repeat(64);
+  createRequests()[0]!.respond(
+    {
+      room: roomForEntryResponse(created),
+      membership: { ...membership, token: newToken },
+      snapshot: {
+        room: created,
+        presence: { hostPlayerId: membership.playerId, connectedPlayerIds: [] },
+        serverNowMs: now,
+      },
+      currentMembership: membership,
+    },
+    201,
+  );
+  return { created, newToken };
+}
 
 function cpuResult(room: Room, otherHumans = 0, missingAppearance = false) {
   const { lastRound } = room;
@@ -660,7 +690,7 @@ async function showResult(playing: Room, ended: Room, spectator = false) {
 
 async function openCpuResult(
   { playing, ended, renderDetail }: ReturnType<typeof pair>,
-  user: AccountProfile = profile,
+  user: AccountProfile | null = friendRoomProfile,
 ) {
   const game = playing.settings.game;
   const lobbyPath = gameCatalog[game].lobbyPath;
@@ -668,6 +698,7 @@ async function openCpuResult(
     [
       { path: `/rooms/${playing.id}`, element: renderDetail(false) },
       { path: lobbyPath, Component: lobbyPages[game] },
+      { path: "/other", element: <h1>別の画面</h1> },
       { path: "/rooms/:id", loader: roomLoader, Component: RoomPage, HydrateFallback: () => null },
     ],
     { initialEntries: [`/rooms/${playing.id}`] },
@@ -678,15 +709,16 @@ async function openCpuResult(
       intentState = JSON.parse(JSON.stringify(location.state));
   });
   saveRoomMembershipToken(playing.id, token);
-  const view = render(
+  const app = (loading = false) => (
     <StrictMode>
       <AccountContext.Provider
-        value={{ user, loading: false, error: null, refresh: async () => {}, update: () => {} }}
+        value={{ user, loading, error: null, refresh: async () => {}, update: () => {} }}
       >
         <RouterProvider router={router} />
       </AccountContext.Provider>
-    </StrictMode>,
+    </StrictMode>
   );
+  const view = render(app());
   const finished = cpuResult(ended);
   const dialog = await showResult(playing, finished);
   const leaveRequests = () =>
@@ -699,14 +731,21 @@ async function openCpuResult(
     leaveRequests,
     lobbyPath,
     intentState: () => intentState,
+    setAccountLoading: (loading: boolean) => rerender(view, app(loading)),
+    leaveForLobby: async () => {
+      press(dialog, inviteLabel);
+      leaveRequests().at(-1)!.respond(null, 204);
+      await flush();
+      expect(router.state.location.pathname).toBe(lobbyPath);
+    },
   };
 }
 
 for (const round of rounds()) {
   const game = round.playing.settings.game;
   test(`${game}: CPU戦の結果から同じ設定でルームを作り、共有を一度だけ開く`, async () => {
-    const user = game === "gomoku" ? guestProfile() : profile;
-    if (user.isGuest) saveGuestName(user.name);
+    const user = game === "gomoku" ? guestProfile() : friendRoomProfile;
+    if ("isGuest" in user) saveGuestName(user.name);
     const { router, finished, dialog, view, leaveRequests, lobbyPath, intentState } =
       await openCpuResult(round, user);
     try {
@@ -714,7 +753,10 @@ for (const round of rounds()) {
         (button) => button.textContent === inviteLabel,
       )!;
       expect(invite.classList.contains("w-full")).toBe(true);
-      expect(invite.previousElementSibling?.textContent).toContain("共有の準備中");
+      const notice = document.getElementById(invite.getAttribute("aria-describedby") ?? "");
+      expect(notice?.textContent).toBe(legalAcknowledgement);
+      expect(invite.previousElementSibling).toBe(notice?.parentElement ?? null);
+      expect(notice?.parentElement?.previousElementSibling?.textContent).toContain("共有の準備中");
       expect(invite.nextElementSibling?.textContent).toContain("この対局を、自分の記録に残そう");
       press(dialog, inviteLabel);
       expect(invite.disabled).toBe(true);
@@ -734,11 +776,12 @@ for (const round of rounds()) {
       expect(router.state.location.state).toEqual({});
       expect(view.querySelector("button[data-pending]")?.textContent).toBe("公開ルームを作る");
       expect(createRequests()).toHaveLength(0);
-      requests
-        .find((request) => request.url === "/api/account/session" && !request.init.signal)!
-        .respond({ user });
+      accountRequests()[0]!.respond({ user });
       await flush();
       expect(createRequests()).toHaveLength(1);
+      expect(new Headers(createRequests()[0]!.init.headers).get("X-Legal-Consent")).toBe(
+        legalVersion,
+      );
       expect(JSON.parse(String(createRequests()[0]!.init.body))).toEqual({
         ...(game === "four-reversi" ? {} : { game }),
         timeControl: inheritedTimeControl,
@@ -748,27 +791,7 @@ for (const round of rounds()) {
         ...(game === "gomoku" ? { forbiddenRules: false } : {}),
       });
 
-      const created = roomSchema.parse({
-        ...finished,
-        id: "54321",
-        instanceId: "00000000-0000-4000-8000-000000000012",
-        lastRound: null,
-        players: finished.players.slice(0, 1),
-      });
-      const newToken = "b".repeat(64);
-      createRequests()[0]!.respond(
-        {
-          room: roomForEntryResponse(created),
-          membership: { ...membership, token: newToken },
-          snapshot: {
-            room: created,
-            presence: { hostPlayerId: membership.playerId, connectedPlayerIds: [] },
-            serverNowMs: now,
-          },
-          currentMembership: membership,
-        },
-        201,
-      );
+      const { created, newToken } = respondWithCreatedRoom(finished);
       await flush();
       expect(router.state.location.pathname).toBe(`/rooms/${created.id}`);
       expect(readRoomMembershipToken(created.id)).toBe(newToken);
@@ -837,9 +860,7 @@ test("退室の失敗は結果に表示して再試行でき、作成の失敗�
     expect(leaveRequests()).toHaveLength(2);
     leaveRequests()[1]!.respond(null, 204);
     await flush();
-    requests
-      .find((request) => request.url === "/api/account/session" && !request.init.signal)!
-      .respond({ user: profile });
+    accountRequests()[0]!.respond({ user: friendRoomProfile });
     await flush();
     createRequests()[0]!.respond({ error: "internal_error" }, 500);
     await flush();
@@ -880,6 +901,143 @@ test("結果から登録手続きを始めると、退室操作を受け付け�
       [...dialog.querySelectorAll("button")].find((button) => button.textContent === inviteLabel)
         ?.disabled,
     ).toBe(false);
+  } finally {
+    router.dispose();
+  }
+});
+
+test("同意した版が現在版と異なる作成依頼は送信しない", async () => {
+  const { router, lobbyPath, finished } = await openCpuResult(rounds()[0]!);
+  try {
+    const state = createFriendRoomIntent(finished.settings, {
+      profileId: friendRoomProfile.profileId,
+      legalVersion: "2026-01-01",
+    });
+    await act(() => router.navigate(lobbyPath, { state }));
+    await flush();
+    expect(router.state.location.state).toEqual({});
+    expect(accountRequests()).toHaveLength(0);
+    expect(createRequests()).toHaveLength(0);
+  } finally {
+    router.dispose();
+  }
+});
+
+test("認証状態の読み込み中にロビーを離れると、戻っても作成しない", async () => {
+  const { router, lobbyPath, setAccountLoading, leaveForLobby } = await openCpuResult(rounds()[0]!);
+  try {
+    setAccountLoading(true);
+    await leaveForLobby();
+    const visitKey = router.state.location.key;
+    expect(typeof router.state.location.state?.friendRoomNonce).toBe("string");
+    expect(accountRequests()).toHaveLength(0);
+
+    await act(() => router.navigate("/other"));
+    setAccountLoading(false);
+    await act(() => router.navigate(-1));
+    await flush();
+    expect(router.state.location.pathname).toBe(lobbyPath);
+    expect(router.state.location.key).not.toBe(visitKey);
+    expect(router.state.location.state).toEqual({});
+    expect(accountRequests()).toHaveLength(0);
+    expect(createRequests()).toHaveLength(0);
+  } finally {
+    router.dispose();
+  }
+});
+
+test("作成直前の認証の応答前にロビーを離れると、作成を送信しない", async () => {
+  const { router, leaveForLobby } = await openCpuResult(rounds()[0]!);
+  try {
+    await leaveForLobby();
+    expect(accountRequests()).toHaveLength(1);
+    await act(() => router.navigate("/other"));
+    accountRequests()[0]!.respond({ user: friendRoomProfile });
+    await flush();
+    expect(createRequests()).toHaveLength(0);
+    expect(router.state.location.pathname).toBe("/other");
+  } finally {
+    router.dispose();
+  }
+});
+
+test("認証状態の読み込み中にロビーをアンマウントすると、同じ履歴項目で開き直しても作成しない", async () => {
+  const { router, view, setAccountLoading, leaveForLobby } = await openCpuResult(rounds()[0]!);
+  try {
+    setAccountLoading(true);
+    await leaveForLobby();
+    expect(typeof router.state.location.state?.friendRoomNonce).toBe("string");
+    rerender(view, null);
+    setAccountLoading(false);
+    await flush();
+    expect(router.state.location.state).toEqual({});
+    expect(accountRequests()).toHaveLength(0);
+    expect(createRequests()).toHaveLength(0);
+  } finally {
+    router.dispose();
+  }
+});
+
+test.each(["別の画面", "同じロビーの別の履歴項目", "離れた後に元の履歴項目へ戻る"])(
+  "作成の応答前に移動しても自動で入室しない（%s）",
+  async (destination) => {
+    const { router, lobbyPath, finished, leaveForLobby } = await openCpuResult(rounds()[0]!);
+    try {
+      await leaveForLobby();
+      accountRequests()[0]!.respond({ user: friendRoomProfile });
+      await flush();
+      expect(createRequests()).toHaveLength(1);
+      const submittedKey = router.state.location.key;
+
+      const path = destination === "同じロビーの別の履歴項目" ? lobbyPath : "/other";
+      await act(() =>
+        router.navigate(path, { replace: false, state: router.state.location.state }),
+      );
+      expect(router.state.location.key).not.toBe(submittedKey);
+      if (destination === "離れた後に元の履歴項目へ戻る") {
+        await act(() => router.navigate(-1));
+        expect(router.state.location.key).toBe(submittedKey);
+      }
+      const location = router.state.location;
+      const { created, newToken } = respondWithCreatedRoom(finished);
+      await flush();
+      expect(router.state.location).toBe(location);
+      expect(readRoomMembershipToken(created.id)).toBe(newToken);
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+    } finally {
+      router.dispose();
+    }
+  },
+);
+
+test.each([
+  ["別の登録者", friendRoomProfile, { ...friendRoomProfile, profileId: playerIds[1]! }],
+  ["別のゲスト", guestProfile(), { ...guestProfile(), profileId: playerIds[1]! }],
+  ["ログアウト", friendRoomProfile, null],
+] as const)("作成直前の認証が%sなら作成を送信しない", async (_label, user, verifiedUser) => {
+  const { router, lobbyPath, view, leaveForLobby } = await openCpuResult(rounds()[0]!, user);
+  try {
+    await leaveForLobby();
+    accountRequests()[0]!.respond({ user: verifiedUser });
+    await flush();
+    expect(createRequests()).toHaveLength(0);
+    expect(requests.some((request) => request.url === "/api/account/guest")).toBe(false);
+    expect(router.state.location.pathname).toBe(lobbyPath);
+    expect(view.querySelector('[role="alert"]')).toBeNull();
+    press(view, "公開ルームを作る");
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("ルームを作る");
+  } finally {
+    router.dispose();
+  }
+});
+
+test.each([null, profile])("押したときのプロフィールIDが不明なら作成を送信しない", async (user) => {
+  const { router, leaveForLobby } = await openCpuResult(rounds()[0]!, user);
+  try {
+    await leaveForLobby();
+    expect(accountRequests()).toHaveLength(0);
+    expect(createRequests()).toHaveLength(0);
+    expect(router.state.location.state).toEqual({});
   } finally {
     router.dispose();
   }

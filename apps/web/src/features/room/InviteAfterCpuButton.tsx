@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useId, useState } from "react";
+import { legalVersion } from "@tetraboard/protocol/privacy";
 import { AppButton } from "../../shared/ui/AppButton";
+import { LegalNotice } from "../privacy/LegalNotice";
 
 export function InviteAfterCpuButton({
   leaving,
@@ -10,18 +12,23 @@ export function InviteAfterCpuButton({
   leaving: boolean;
   registrationBusy: boolean;
   socketError: string | null;
-  onInvite: () => void;
+  onInvite: (consentVersion: string) => void;
 }) {
   const [attempted, setAttempted] = useState(false);
+  const consentId = useId();
   return (
     <>
+      <div className="mt-4">
+        <LegalNotice id={consentId} />
+      </div>
       <AppButton
         className="mt-4 w-full"
+        aria-describedby={consentId}
         isDisabled={leaving || registrationBusy}
         isPending={leaving}
         onPress={() => {
           setAttempted(true);
-          onInvite();
+          onInvite(legalVersion);
         }}
       >
         友達と遊ぶ

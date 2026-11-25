@@ -569,9 +569,12 @@ export function RoomViewShell({
                   leaving={session.leaving}
                   registrationBusy={signIn.busy}
                   socketError={session.socketError}
-                  onInvite={() => {
+                  onInvite={(legalVersion) => {
                     setDialog("result");
-                    void session.handleLeaveClick("friend-room");
+                    void session.handleLeaveClick({
+                      profileId: account.user?.profileId ?? null,
+                      legalVersion,
+                    });
                   }}
                 />
               )}
