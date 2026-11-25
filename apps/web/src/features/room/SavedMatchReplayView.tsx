@@ -1,4 +1,4 @@
-import { gameCatalog } from "@tetraboard/protocol/games";
+import { gameCatalog, gameNameWithAlias } from "@tetraboard/protocol/games";
 import type { ReplayMatch } from "@tetraboard/protocol";
 import { useState, type ReactNode } from "react";
 import { useLocation } from "react-router";
@@ -38,7 +38,7 @@ export function SavedMatchReplayView({
   const [results, setResults] = useState(false);
   const game = match.settings.game;
   const { name, lobbyPath, hasModes } = gameCatalog[game];
-  const title = game === "reversi" || game === "four-reversi" ? `${name}（オセロ）` : name;
+  const title = gameNameWithAlias(game);
   const info = (
     <RoomInfoCard roomId={match.roomId} settings={match.settings}>
       <AppButtonLink

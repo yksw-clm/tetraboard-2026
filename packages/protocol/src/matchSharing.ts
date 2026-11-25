@@ -1,4 +1,4 @@
-import { gameCatalog, type GameId } from "./games";
+import { gameCatalog, gameNameWithAlias, type GameId } from "./games";
 import type { MatchSummary } from "./matches";
 import { openGraphTags } from "./roomSharing";
 
@@ -121,8 +121,9 @@ export function matchShareRows(match: ShareMatch): ShareResultRow[] {
 export function matchPostText(match: ShareMatch, selfId: string, url: string): string | null {
   const self = matchShareRows(match).find((row) => row.id === selfId);
   if (!self) return null;
-  const name = gameCatalog[match.settings.game].name;
-  const title = match.settings.game.endsWith("reversi") ? `${name}（オセロ）` : name;
+  const { game } = match.settings;
+  const name = gameCatalog[game].name;
+  const title = gameNameWithAlias(game);
   const mode = match.settings.mode === "doubles" ? "のダブルス" : "";
   const outcome = self.draw
     ? `引き分けでした${self.rank !== undefined ? `（同率${self.rank}位）` : ""}。`
