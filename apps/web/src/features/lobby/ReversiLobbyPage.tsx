@@ -30,6 +30,7 @@ export function ReversiLobbyPage() {
         timeControl={entry.timeControl}
         isSubmitting={entry.isSubmitting}
         message={entry.message}
+        entryFromResult={entry.entryFromResult}
         renderRooms={(onJoin) => (
           <LobbyList
             {...lobby}

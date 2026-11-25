@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import type { ComponentType } from "react";
+import { StrictMode, type ComponentType } from "react";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import { createInitialState } from "@tetraboard/reversi";
 import { createInitialState as initialGomoku } from "@tetraboard/gomoku";
 import { createInitialState as initialFourGomoku } from "@tetraboard/four-gomoku";
@@ -9,10 +10,25 @@ import {
   shogiRoomSchema,
   gomokuRoomSchema,
   fourGomokuRoomSchema,
+  roomForEntryResponse,
+  roomSchema,
+  type AccountProfile,
   type Room,
   type RoomMembership,
   type RoomPresence,
 } from "@tetraboard/protocol";
+import { gameCatalog } from "@tetraboard/protocol/games";
+import { AccountContext } from "../src/features/account/useAccount";
+import { FourGomokuLobbyPage } from "../src/features/lobby/FourGomokuLobbyPage";
+import { FourReversiLobbyPage } from "../src/features/lobby/FourReversiLobbyPage";
+import { FourShogiLobbyPage } from "../src/features/lobby/FourShogiLobbyPage";
+import { GomokuLobbyPage } from "../src/features/lobby/GomokuLobbyPage";
+import { ReversiLobbyPage } from "../src/features/lobby/ReversiLobbyPage";
+import { ShogiLobbyPage } from "../src/features/lobby/ShogiLobbyPage";
+import { RoomPage } from "../src/features/room/RoomPage";
+import { roomLoader } from "../src/features/room/roomLoader";
+import { saveGuestName } from "../src/shared/guestName";
+import { readRoomMembershipToken, saveRoomMembershipToken } from "../src/shared/roomMembership";
 import archive from "../../../test-fixtures/matches/reversi-standard-draw.json";
 import gomokuArchive from "../../../test-fixtures/matches/gomoku-on-five.json";
 import fourGomokuArchive from "../../../test-fixtures/matches/four-gomoku-singles-ranked.json";
@@ -579,4 +595,292 @@ test("終局後に相手が退室しても前局の構成に従って対人戦�
   expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain(
     "通常ルームのCPU戦は",
   );
+});
+
+const lobbyPages = {
+  "four-reversi": FourReversiLobbyPage,
+  "four-shogi": FourShogiLobbyPage,
+  reversi: ReversiLobbyPage,
+  shogi: ShogiLobbyPage,
+  gomoku: GomokuLobbyPage,
+  "four-gomoku": FourGomokuLobbyPage,
+};
+const inviteLabel = "友達と遊ぶ";
+const inheritedTimeControl = { mainTimeMs: 180_000, byoyomiMs: 10_000 };
+const createRequests = () =>
+  requests.filter(
+    (request) => request.url === "/api/rooms?snapshot=1" && request.init.method === "POST",
+  );
+
+function cpuResult(room: Room, otherHumans = 0, missingAppearance = false) {
+  const { lastRound } = room;
+  if (!lastRound) throw new Error("Expected ended round");
+  const game = room.settings.game;
+  return roomSchema.parse({
+    ...room,
+    // CPUが退席して別の人が入った待機室です。
+    players: [room.players[0], { ...room.players[1], id: "00000000-0000-4000-8000-000000000099" }],
+    settings: {
+      ...room.settings,
+      timeControl: inheritedTimeControl,
+      ...(gameCatalog[game].hasModes ? { mode: "doubles" } : {}),
+      ...(game === "four-shogi" ? { threePlayerAttackProhibited: false } : {}),
+      ...(game === "gomoku" ? { forbiddenRules: false } : {}),
+    },
+    lastRound: {
+      ...lastRound,
+      players: lastRound.players.map((player, index) => ({
+        ...player,
+        appearance:
+          index <= otherHumans
+            ? { kind: "human", avatarUrl: null }
+            : missingAppearance && index === 1
+              ? undefined
+              : { kind: "cpu", level: 2 },
+      })),
+    },
+  });
+}
+
+async function showResult(playing: Room, ended: Room, spectator = false) {
+  const socket = Socket.instances.at(-1)!;
+  act(() => {
+    socket.open();
+    socket.snapshot(playing);
+    if (!spectator) socket.receive({ type: "room.authenticated", membership });
+    socket.snapshot(ended);
+  });
+  await flush();
+  clock.advance(1000);
+  await flush();
+  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+  expect(dialog?.textContent).toContain("対局結果");
+  return dialog;
+}
+
+async function openCpuResult(
+  { playing, ended, renderDetail }: ReturnType<typeof pair>,
+  user: AccountProfile = profile,
+) {
+  const game = playing.settings.game;
+  const lobbyPath = gameCatalog[game].lobbyPath;
+  const router = createMemoryRouter(
+    [
+      { path: `/rooms/${playing.id}`, element: renderDetail(false) },
+      { path: lobbyPath, Component: lobbyPages[game] },
+      { path: "/rooms/:id", loader: roomLoader, Component: RoomPage, HydrateFallback: () => null },
+    ],
+    { initialEntries: [`/rooms/${playing.id}`] },
+  );
+  let intentState: { friendRoomNonce: string } | undefined;
+  router.subscribe(({ location }) => {
+    if (location.pathname === lobbyPath && location.state?.friendRoomNonce)
+      intentState = JSON.parse(JSON.stringify(location.state));
+  });
+  saveRoomMembershipToken(playing.id, token);
+  const view = render(
+    <StrictMode>
+      <AccountContext.Provider
+        value={{ user, loading: false, error: null, refresh: async () => {}, update: () => {} }}
+      >
+        <RouterProvider router={router} />
+      </AccountContext.Provider>
+    </StrictMode>,
+  );
+  const finished = cpuResult(ended);
+  const dialog = await showResult(playing, finished);
+  const leaveRequests = () =>
+    requests.filter((request) => request.url === `/api/rooms/${playing.id}/leave`);
+  return {
+    router,
+    finished,
+    dialog,
+    view,
+    leaveRequests,
+    lobbyPath,
+    intentState: () => intentState,
+  };
+}
+
+for (const round of rounds()) {
+  const game = round.playing.settings.game;
+  test(`${game}: CPU戦の結果から同じ設定でルームを作り、共有を一度だけ開く`, async () => {
+    const user = game === "gomoku" ? guestProfile() : profile;
+    if (user.isGuest) saveGuestName(user.name);
+    const { router, finished, dialog, view, leaveRequests, lobbyPath, intentState } =
+      await openCpuResult(round, user);
+    try {
+      const invite = [...dialog.querySelectorAll("button")].find(
+        (button) => button.textContent === inviteLabel,
+      )!;
+      expect(invite.classList.contains("w-full")).toBe(true);
+      expect(invite.previousElementSibling?.textContent).toContain("共有の準備中");
+      expect(invite.nextElementSibling?.textContent).toContain("この対局を、自分の記録に残そう");
+      press(dialog, inviteLabel);
+      expect(invite.disabled).toBe(true);
+      expect(invite.hasAttribute("data-pending")).toBe(true);
+      press(dialog, inviteLabel);
+      expect(leaveRequests()).toHaveLength(1);
+      expect(leaveRequests()[0]!.init).toMatchObject({
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(createRequests()).toHaveLength(0);
+
+      leaveRequests()[0]!.respond(null, 204);
+      await flush();
+      expect(readRoomMembershipToken(round.playing.id)).toBeNull();
+      expect(router.state.location.pathname).toBe(lobbyPath);
+      expect(router.state.location.state).toEqual({});
+      expect(view.querySelector("button[data-pending]")?.textContent).toBe("公開ルームを作る");
+      expect(createRequests()).toHaveLength(0);
+      requests
+        .find((request) => request.url === "/api/account/session" && !request.init.signal)!
+        .respond({ user });
+      await flush();
+      expect(createRequests()).toHaveLength(1);
+      expect(JSON.parse(String(createRequests()[0]!.init.body))).toEqual({
+        ...(game === "four-reversi" ? {} : { game }),
+        timeControl: inheritedTimeControl,
+        quickPlay: false,
+        ...(gameCatalog[game].hasModes ? { mode: "doubles" } : {}),
+        ...(game === "four-shogi" ? { threePlayerAttackProhibited: false } : {}),
+        ...(game === "gomoku" ? { forbiddenRules: false } : {}),
+      });
+
+      const created = roomSchema.parse({
+        ...finished,
+        id: "54321",
+        instanceId: "00000000-0000-4000-8000-000000000012",
+        lastRound: null,
+        players: finished.players.slice(0, 1),
+      });
+      const newToken = "b".repeat(64);
+      createRequests()[0]!.respond(
+        {
+          room: roomForEntryResponse(created),
+          membership: { ...membership, token: newToken },
+          snapshot: {
+            room: created,
+            presence: { hostPlayerId: membership.playerId, connectedPlayerIds: [] },
+            serverNowMs: now,
+          },
+          currentMembership: membership,
+        },
+        201,
+      );
+      await flush();
+      expect(router.state.location.pathname).toBe(`/rooms/${created.id}`);
+      expect(readRoomMembershipToken(created.id)).toBe(newToken);
+      const share = document.querySelector<HTMLElement>('[role="dialog"]')!;
+      expect(share.querySelector("h2")?.textContent).toBe("ルームを共有");
+      expect(share.querySelector("input")?.value).toContain(`invite=${created.instanceId}`);
+      act(() => share.querySelector<HTMLButtonElement>('[aria-label="閉じる"]')!.click());
+      await flush();
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+      if (game === "four-shogi") {
+        expect(typeof intentState()?.friendRoomNonce).toBe("string");
+        await act(() => router.navigate(-1));
+        expect(router.state.location.pathname).toBe(lobbyPath);
+        expect(createRequests()).toHaveLength(1);
+        await act(() => router.navigate(lobbyPath, { state: intentState() }));
+        await flush();
+        expect(router.state.location.state).toEqual({});
+        expect(createRequests()).toHaveLength(1);
+      }
+    } finally {
+      router.dispose();
+    }
+  });
+}
+
+test.each(["ランダムマッチ", "レート戦", "大会", "人間が2人", "観戦者", "対局時の種別が不明"])(
+  "%s の結果に「友達と遊ぶ」を出さない",
+  async (reason) => {
+    const { playing, ended, renderDetail } = rounds()[0]!;
+    const spectator = reason === "観戦者";
+    const room = roomSchema.parse({
+      ...cpuResult(ended, reason === "人間が2人" ? 1 : 0, reason === "対局時の種別が不明"),
+      players: ended.players.slice(0, 1),
+      ...(reason === "大会" ? { tournamentId: 1 } : {}),
+      ...(reason === "ランダムマッチ" || reason === "レート戦"
+        ? {
+            matchmaking: {
+              id: ended.instanceId,
+              preparedAtMs: now,
+              ...(reason === "レート戦" ? { rated: true } : {}),
+            },
+          }
+        : {}),
+    });
+    if (!spectator) saveRoomMembershipToken(playing.id, token);
+    render(wrap(profile)(renderDetail(spectator)));
+    const dialog = await showResult(playing, room, spectator);
+    expect(dialog.textContent).not.toContain(inviteLabel);
+  },
+);
+
+test("退室の失敗は結果に表示して再試行でき、作成の失敗はロビーに表示する", async () => {
+  const { router, dialog, view, leaveRequests, lobbyPath } = await openCpuResult(rounds()[0]!);
+  try {
+    press(dialog, inviteLabel);
+    leaveRequests()[0]!.respond({ error: "internal_error" }, 500);
+    await flush();
+    expect(document.querySelector('[role="dialog"]')).toBe(dialog);
+    expect(dialog.querySelector('[role="alert"]')?.textContent).toBe(
+      "退室できませんでした。再度お試しください。",
+    );
+    expect(readRoomMembershipToken("12345")).toBe(token);
+    expect(createRequests()).toHaveLength(0);
+    press(dialog, inviteLabel);
+    expect(leaveRequests()).toHaveLength(2);
+    leaveRequests()[1]!.respond(null, 204);
+    await flush();
+    requests
+      .find((request) => request.url === "/api/account/session" && !request.init.signal)!
+      .respond({ user: profile });
+    await flush();
+    createRequests()[0]!.respond({ error: "internal_error" }, 500);
+    await flush();
+    expect(router.state.location.pathname).toBe(lobbyPath);
+    expect(
+      [...view.querySelectorAll('[role="alert"]')].map((alert) => alert.textContent),
+    ).toContain("ルームを作成できませんでした。もう一度お試しください。");
+    expect(view.querySelector("button[data-pending]")).toBeNull();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(createRequests()).toHaveLength(1);
+  } finally {
+    router.dispose();
+  }
+});
+
+test("結果から登録手続きを始めると、退室操作を受け付けない", async () => {
+  const { router, finished, dialog, leaveRequests } = await openCpuResult(rounds()[0]!);
+  try {
+    press(dialog, "Discordで続ける");
+    await flush();
+    const registration = requests.find(
+      (request) => request.url === `/api/rooms/${finished.id}/registration`,
+    )!;
+    expect(registration).toBeDefined();
+    const invite = [...dialog.querySelectorAll("button")].find(
+      (button) => button.textContent === inviteLabel,
+    )!;
+    expect(invite.disabled).toBe(true);
+    press(dialog, inviteLabel);
+    expect(leaveRequests()).toHaveLength(0);
+
+    registration.respond({ error: "internal_error" }, 500);
+    await flush();
+    expect(dialog.querySelector('[role="alert"]')?.textContent).toBe(
+      "登録の引継ぎを確認できません。再試行してください。",
+    );
+    expect(
+      [...dialog.querySelectorAll("button")].find((button) => button.textContent === inviteLabel)
+        ?.disabled,
+    ).toBe(false);
+  } finally {
+    router.dispose();
+  }
 });

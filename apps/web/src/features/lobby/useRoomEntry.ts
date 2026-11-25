@@ -1,7 +1,7 @@
 import { prepareRoomGuest } from "../account/guestAccount";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { createRoomRequests } from "./createRoomRequests";
-import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
+import { defaultGameId, gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import { useAccount } from "../account/useAccount";
 import { readAccount } from "../account/accountApi";
 import {
@@ -15,11 +15,13 @@ import {
   type RoomMode,
   type CpuLevel,
   type AvatarPresetId,
+  type Room,
 } from "@tetraboard/protocol";
-import { useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
 import { canStoreRoomMembership, saveRoomMembershipToken } from "../../shared/roomMembership";
 import { saveRoomEntryHandoff, splitRoomEntryResponse } from "../../shared/roomEntryHandoff";
+import { takeFriendRoomSettings } from "../../shared/friendRoomIntent";
 
 import { joinRoom, roomEntryErrorMessage, RoomEntryError } from "../../shared/roomAccess";
 import { useRegistrationRestore } from "../account/useRegistrationRestore";
@@ -63,6 +65,7 @@ function entryErrorMessage(error: RoomError, intent: RoomEntryIntent): string {
 export function useRoomEntry(game: GameId = defaultGameId) {
   useSoundEffects();
   const navigate = useNavigate();
+  const location = useLocation();
   const account = useAccount();
   const restored = useRegistrationRestore();
   const [name, setName] = useState(() => restored?.entry?.name ?? readGuestName());
@@ -78,6 +81,7 @@ export function useRoomEntry(game: GameId = defaultGameId) {
   );
   const [isSubmitting, setIsSubmitting] = useState<RoomEntryIntent | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [entryFromResult, setEntryFromResult] = useState(false);
   const submitting = useRef(false);
 
   async function submitRoom(
@@ -85,11 +89,13 @@ export function useRoomEntry(game: GameId = defaultGameId) {
     selectedRoomCode = roomCode,
     instanceId?: string,
     avatarPresetId?: AvatarPresetId,
+    friendRoomSettings?: Room["settings"],
   ): Promise<void> {
     if (submitting.current || account.loading || account.error) return;
     const contract = createRoomContract;
 
     setMessage(null);
+    setEntryFromResult(friendRoomSettings !== undefined);
 
     if (intent === "join" && !roomCodeSchema.safeParse(selectedRoomCode).success) {
       setMessage("部屋番号は5桁の数字で入力してください。");
@@ -140,10 +146,16 @@ export function useRoomEntry(game: GameId = defaultGameId) {
           name: user ? undefined : name,
           quickPlay: intent === "quick",
           ...(intent === "quick" ? { cpuLevel } : {}),
-          mode,
-          timeControl,
-          threePlayerAttackProhibited,
-          forbiddenRules,
+          mode: friendRoomSettings?.mode ?? mode,
+          timeControl: friendRoomSettings?.timeControl ?? timeControl,
+          threePlayerAttackProhibited:
+            friendRoomSettings?.game === "four-shogi"
+              ? friendRoomSettings.threePlayerAttackProhibited
+              : threePlayerAttackProhibited,
+          forbiddenRules:
+            friendRoomSettings?.game === "gomoku"
+              ? friendRoomSettings.forbiddenRules
+              : forbiddenRules,
         }),
       );
       if (!request.success) {
@@ -216,6 +228,28 @@ export function useRoomEntry(game: GameId = defaultGameId) {
     }
   }
 
+  const submitFriendRoom = useEffectEvent((settings: Room["settings"]) => {
+    void submitRoom("create", undefined, undefined, undefined, settings);
+  });
+  const canSubmit = !account.loading && !account.error && isSubmitting === null;
+  useEffect(() => {
+    if (
+      location.pathname !== gameCatalog[game].lobbyPath ||
+      typeof location.state?.friendRoomNonce !== "string" ||
+      !canSubmit ||
+      submitting.current
+    )
+      return;
+
+    const { friendRoomNonce, ...state } = location.state;
+    const settings = takeFriendRoomSettings(friendRoomNonce, game);
+    async function replaceAndSubmit() {
+      await navigate(location.pathname + location.search + location.hash, { replace: true, state });
+      if (settings) submitFriendRoom(settings);
+    }
+    void replaceAndSubmit();
+  }, [canSubmit, game, location, navigate]);
+
   return {
     registrationDraft: restored?.entry,
     name,
@@ -234,7 +268,11 @@ export function useRoomEntry(game: GameId = defaultGameId) {
     setForbiddenRules,
     isSubmitting,
     message,
-    clearMessage: () => setMessage(null),
+    entryFromResult,
+    clearMessage: () => {
+      setEntryFromResult(false);
+      setMessage(null);
+    },
     submitRoom,
   };
 }
