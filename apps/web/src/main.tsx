@@ -1,5 +1,6 @@
 import "./app/installPreloadRecovery";
 import "./shared/clientErrors";
+import "./shared/visits";
 import "./shared/heroui.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

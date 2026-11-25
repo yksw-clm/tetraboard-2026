@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { expect, test } from "vitest";
 import worker from "../src/worker";
 import { accountFixture, origin } from "./accountFixtures";
+import { visitMetaTag } from "./publicAssetFixtures";
 import type { AdminEnv } from "../src/admin/auth";
 const context = { waitUntil() {} } as unknown as ExecutionContext;
 const fetchWith = (bindings: AdminEnv, path: string, init?: RequestInit) =>
@@ -27,7 +28,14 @@ test("管理API・HTMLは本人限定で、通報用トークンを流用せず�
     expect(allowed.headers.get("Cache-Control")).toBe("no-store");
   }
   const assets = {
-    fetch: async (request: Request) => new Response(new URL(request.url).pathname),
+    fetch: async (request: Request) => {
+      const path = new URL(request.url).pathname;
+      return path.endsWith(".html")
+        ? new Response(`<html><head></head><body>${path}</body></html>`, {
+            headers: { "Content-Type": "text/html" },
+          })
+        : new Response(path);
+    },
   } as Fetcher;
   const deployed = { ...bindings, ASSETS: assets };
   for (const path of [
@@ -43,9 +51,15 @@ test("管理API・HTMLは本人限定で、通報用トークンを流用せず�
   expect((await fetchWith(deployed, "/admin", { headers: { Cookie: other.cookie } })).status).toBe(
     403,
   );
-  expect(
-    await (await fetchWith(deployed, "/admin/kpi", { headers: { Cookie: owner.cookie } })).text(),
-  ).toBe("/admin/index.html");
+  for (const path of ["/admin", "/admin/kpi"]) {
+    const allowed = await fetchWith(deployed, path, {
+      headers: { Cookie: owner.cookie, "User-Agent": "Mozilla/5.0" },
+    });
+    expect(allowed.status).toBe(200);
+    const body = await allowed.text();
+    expect(body).toContain("<body>/admin/index.html</body>");
+    expect(body).not.toContain(visitMetaTag);
+  }
   expect(
     await (
       await fetchWith(deployed, "/admin/assets/example.js", { headers: { Cookie: owner.cookie } })

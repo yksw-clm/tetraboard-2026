@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { gameIds } from "@tetraboard/protocol/games";
 import { formationCatalog } from "@tetraboard/four-shogi/formation-catalog";
-import { assetFixture } from "./publicAssetFixtures";
+import { assetFixture, visitMetaTag } from "./publicAssetFixtures";
 
 test("公開ロビー・四人将棋のルール・利用ガイドは通常UAとGooglebotへ同じHTMLを返し、HEAD・304・キャッシュを保持", async () => {
   const assets = assetFixture();
@@ -17,6 +17,7 @@ test("公開ロビー・四人将棋のルール・利用ガイドは通常UAと
     expect(user.headers.get("X-Robots-Tag")).toBeNull();
     const body = await user.text();
     expect(body).toBe(await bot.text());
+    expect(body.match(/<head>([\s\S]*?)<\/head>/)?.[1]).toContain(visitMetaTag);
     if (path === "/games/four-shogi/rules") expect(body).toContain("<h1>四人将棋のルール</h1>");
     if (path === "/how-to-play") expect(body).toContain("<h1>TetraBoardの使い方</h1>");
     const head = await assets.fetch(path, { method: "HEAD" });
@@ -94,7 +95,9 @@ test("既知SPA画面はnoindexで配信し、未知画面と欠落資産は本�
     const response = await assets.fetch(path);
     expect(response.status).toBe(200);
     expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
-    expect(await response.text()).toContain('content="noindex,follow"');
+    const body = await response.text();
+    expect(body).toContain('content="noindex,follow"');
+    expect(body).toContain(`${visitMetaTag}</head>`);
     const head = await assets.fetch(path, { method: "HEAD" });
     expect(head.status).toBe(200);
     expect(head.headers.get("X-Robots-Tag")).toBe("noindex, follow");
@@ -104,6 +107,7 @@ test("既知SPA画面はnoindexで配信し、未知画面と欠落資産は本�
     expect(conditional.headers.get("X-Robots-Tag")).toBe("noindex, follow");
   }
   for (const path of [
+    "/404.html",
     "/unknown",
     "/updates/feedback/unknown",
     "/games/unknown",
@@ -117,11 +121,20 @@ test("既知SPA画面はnoindexで配信し、未知画面と欠落資産は本�
     expect(response.status).toBe(404);
     expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(await response.text()).toContain('href="/games/four-reversi"');
+    const body = await response.text();
+    expect(body).toContain('href="/games/four-reversi"');
+    expect(body).not.toContain(visitMetaTag);
     const head = await assets.fetch(path, { method: "HEAD" });
     expect(head.status).toBe(404);
     expect(await head.text()).toBe("");
   }
+});
+
+test.each(["/privacy", "/terms"])("%s のHTMLには訪問の目印を付けない", async (path) => {
+  const response = await assetFixture().fetch(path, { headers: { "User-Agent": "Mozilla/5.0" } });
+  expect(response.status).toBe(200);
+  expect(response.headers.get("Content-Type")).toContain("text/html");
+  expect(await response.text()).not.toContain(visitMetaTag);
 });
 
 test("robots・sitemap・資産のContent-Typeを保持し、画面のPOST・WebSocketを拒否", async () => {
