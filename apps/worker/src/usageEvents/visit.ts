@@ -1,7 +1,19 @@
+import { Hono } from "hono";
+import { z } from "zod";
 import { gameIds } from "@tetraboard/protocol/games";
-import { classifyDevice, classifyReferrer, referrerHostname, sanitizeUtm } from "./acquisition";
+import { normalizePublicAssetPath } from "../publicAssetPath";
+import { classifyDevice, classifyReferrer, sanitizeUtm } from "./acquisition";
 import { analyticsCookie, browserIdFromRequest } from "./browserId";
+import { readBody } from "./readBody";
 import { createUsageEventWriter } from "./writer";
+
+const inputSchema = z.strictObject({
+  path: z.string().startsWith("/").max(1024),
+  referrerHost: z.string().max(253).nullable(),
+  utmSource: z.string().max(256).nullable(),
+  utmMedium: z.string().max(256).nullable(),
+  utmCampaign: z.string().max(256).nullable(),
+});
 
 export function isBrowserUserAgent(userAgent: string | null): boolean {
   return !!userAgent?.includes("Mozilla/") && !/bot|crawler|spider|headless/i.test(userAgent);
@@ -25,13 +37,51 @@ function pageType(path: string): string {
                 : "other";
 }
 
-export function withVisitStarted(
-  request: Request,
-  response: Response,
-  path: string,
-  env?: Pick<Env, "USAGE_EVENTS">,
-): Response {
-  const ua = request.headers.get("User-Agent");
+function isExcludedVisitPath(path: string): boolean {
+  return (
+    ["/privacy", "/terms", "/admin", "/api"].includes(path) ||
+    path.startsWith("/admin/") ||
+    path.startsWith("/api/")
+  );
+}
+
+export const visitRoutes = new Hono<{ Bindings: Env }>();
+visitRoutes.post("/visits", async (c) => {
+  c.header("Cache-Control", "no-store");
+  if (c.req.header("Origin") !== c.env.APP_ORIGIN)
+    return c.json({ message: "操作元を確認できません。" }, 403);
+  const input = inputSchema.safeParse(await readBody(c.req.raw));
+  if (!input.success) return c.body(null, 400);
+
+  const ua = c.req.raw.headers.get("User-Agent");
+  const browserId = browserIdFromRequest(c.req.raw);
+  if (!isBrowserUserAgent(ua) || !browserId) return c.body(null, 204);
+
+  const { path, referrerHost, utmSource, utmMedium, utmCampaign } = input.data;
+  const assetPath = normalizePublicAssetPath(path) ?? path;
+  if (isExcludedVisitPath(path) || isExcludedVisitPath(assetPath)) return c.body(null, 204);
+
+  const referrer = classifyReferrer(referrerHost, new URL(c.req.url).hostname);
+  const device = classifyDevice(ua);
+  const pathSegments = assetPath.split("/");
+  createUsageEventWriter(c.env.USAGE_EVENTS).write({
+    name: "visit_started",
+    isTest: false,
+    browserId,
+    accountId: "",
+    page: pageType(assetPath),
+    game: gameIds.find((id) => pathSegments.includes(id)) ?? null,
+    referrerClass: referrer.category ?? "",
+    referrerHost: referrer.host,
+    utmSource: sanitizeUtm(utmSource),
+    utmMedium: sanitizeUtm(utmMedium),
+    utmCampaign: sanitizeUtm(utmCampaign),
+    device: device === "mobile" ? "smartphone" : device === "tablet" ? "tablet" : "pc",
+  });
+  return c.body(null, 204);
+});
+
+export function withVisitCookie(request: Request, response: Response, path: string): Response {
   if (
     request.method !== "GET" ||
     request.headers.has("Upgrade") ||
@@ -40,35 +90,12 @@ export function withVisitStarted(
     ["/privacy", "/terms"].includes(path) ||
     path.startsWith("/admin") ||
     path.startsWith("/api") ||
-    !isBrowserUserAgent(ua)
+    !isBrowserUserAgent(request.headers.get("User-Agent")) ||
+    browserIdFromRequest(request)
   )
     return response;
 
-  const url = new URL(request.url);
-  const existingId = browserIdFromRequest(request);
-  const browserId = existingId ?? crypto.randomUUID();
-  const referrer = classifyReferrer(
-    referrerHostname(request.headers.get("Referer") ?? "", url.hostname),
-    url.hostname,
-  );
-  const device = classifyDevice(ua);
-  createUsageEventWriter(env?.USAGE_EVENTS).write({
-    name: "visit_started",
-    isTest: false,
-    browserId,
-    accountId: "",
-    page: pageType(path),
-    game: gameIds.find((id) => path.split("/").includes(id)) ?? null,
-    referrerClass: referrer.category ?? "",
-    referrerHost: referrer.host,
-    utmSource: sanitizeUtm(url.searchParams.get("utm_source")),
-    utmMedium: sanitizeUtm(url.searchParams.get("utm_medium")),
-    utmCampaign: sanitizeUtm(url.searchParams.get("utm_campaign")),
-    device: device === "mobile" ? "smartphone" : device === "tablet" ? "tablet" : "pc",
-  });
-
-  if (existingId) return response;
-  return withAnalyticsCookie(response, browserId, url);
+  return withAnalyticsCookie(response, crypto.randomUUID(), new URL(request.url));
 }
 
 function withAnalyticsCookie(response: Response, browserId: string, url: URL): Response {

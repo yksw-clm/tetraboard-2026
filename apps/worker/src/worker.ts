@@ -13,6 +13,7 @@ import { announcementRoutes, announcementAdminRoutes } from "./routes/announceme
 import { adminRoutes } from "./admin/routes";
 import { adminIdentity, type AdminEnv } from "./admin/auth";
 import { clientErrorRoutes } from "./usageEvents/clientErrors";
+import { visitRoutes } from "./usageEvents/visit";
 import { healthzContract } from "@tetraboard/protocol";
 import { accountRoutes } from "./routes/accountRoutes";
 import { withAccountSessionCookies } from "./adapters/account/auth";
@@ -29,6 +30,7 @@ import { roomRoutes } from "./routes/roomRoutes";
 import { feedbackRoutes } from "./routes/feedbackRoutes";
 import { feedbackAdminRoutes } from "./routes/feedbackAdminRoutes";
 import { servePublicAssets } from "./publicAssets";
+import { normalizePublicAssetPath } from "./publicAssetPath";
 import { tournamentRoutes, tournamentAdminRoutes } from "./routes/tournaments";
 
 export { CpuCapacity } from "./durableObjects/cpuCapacity";
@@ -56,6 +58,7 @@ api.route("/", feedbackAdminRoutes);
 api.route("/", feedbackRoutes);
 api.route("/", registrationEntryRoutes);
 api.route("/", clientErrorRoutes);
+api.route("/", visitRoutes);
 api.route("/", matchRoutes);
 api.route("/", publicMatchRoutes);
 api.route("/", statsRoutes);
@@ -88,13 +91,8 @@ const worker = {
       return Response.redirect(`${env.APP_ORIGIN}${url.pathname}${url.search}`, 308);
     // 画面・画像はアセットへ渡し、APIだけをHonoで処理します。
     if (env.ASSETS && url.pathname !== "/api" && !url.pathname.startsWith("/api/")) {
-      let assetPath: string;
-      try {
-        const decoded = decodeURIComponent(url.pathname)
-          .replace(/\\/g, "/")
-          .replace(/\/{2,}/g, "/");
-        assetPath = new URL(decoded, "https://assets.invalid").pathname;
-      } catch {
+      const assetPath = normalizePublicAssetPath(url.pathname);
+      if (assetPath === null) {
         return new Response("Not Found", { status: 404, headers: { "Cache-Control": "no-store" } });
       }
       if (assetPath === "/admin" || assetPath.startsWith("/admin/")) {

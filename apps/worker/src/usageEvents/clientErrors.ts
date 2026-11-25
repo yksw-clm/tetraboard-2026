@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { browserIdFromRequest } from "./browserId";
+import { readBody } from "./readBody";
 import { createUsageEventWriter } from "./writer";
 
 const inputSchema = z.strictObject({
@@ -8,31 +9,6 @@ const inputSchema = z.strictObject({
   kind: z.string().refine((value) => Array.from(value).length <= 100),
   message: z.string().refine((value) => Array.from(value).length <= 200),
 });
-
-async function readBody(request: Request): Promise<unknown> {
-  if (Number(request.headers.get("Content-Length") ?? 0) > 2048) return null;
-  const reader = request.body?.getReader();
-  if (!reader) return null;
-  const bytes = new Uint8Array(2048);
-  let length = 0;
-  try {
-    for (;;) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      if (length + chunk.value.length > bytes.length) {
-        await reader.cancel();
-        return null;
-      }
-      bytes.set(chunk.value, length);
-      length += chunk.value.length;
-    }
-    return JSON.parse(new TextDecoder().decode(bytes.subarray(0, length)));
-  } catch {
-    return null;
-  } finally {
-    reader.releaseLock();
-  }
-}
 
 export const clientErrorRoutes = new Hono<{ Bindings: Env }>();
 clientErrorRoutes.post("/client-errors", async (c) => {

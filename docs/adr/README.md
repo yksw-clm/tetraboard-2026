@@ -22,8 +22,9 @@
 | [0006](0006-ai-roles-and-notion.md) | Claude Code が設計とレビュー、Codex が実装を担い、タスクは Notion で管理する | 承認済み |
 | [0007](0007-ci-and-tests.md) | CI は通常の PR で 4 分以内を目標にし、テストを層で分ける | 一部を 0008 で置き換え |
 | [0008](0008-ci-single-job.md) | CI は 1 つのジョブにまとめ、AI のジョブだけを差分があるときに分ける | 承認済み |
-| [0009](0009-analytics-on-cloudflare.md) | 分析は Cloudflare の中で作り直す | 承認済み |
+| [0009](0009-analytics-on-cloudflare.md) | 分析は Cloudflare の中で作り直す | 訪問の記録を 0014 で置き換え |
 | [0010](0010-contexts-and-shell.md) | 文脈の境界と Worker の殻の形 | 承認済み |
 | [0011](0011-game-contract.md) | ゲーム契約の形 | 承認済み |
 | [0012](0012-web-stays-react.md) | web は React のまま、効果のある所を直す | 凍結を解く時期を 0013 で置き換え |
 | [0013](0013-lift-feature-freeze.md) | LCP の比較を待たずに機能凍結を解く | 承認済み |
+| [0014](0014-visit-from-client.md) | 訪問の開始は画面の起動後に画面から送る | 承認済み |

@@ -2,7 +2,7 @@ import { legalHtml } from "./routes/legalHtml";
 import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { serveRoomShareHtml } from "./roomShareHtml";
 import { serveMatchShareHtml } from "./matchSharing/html";
-import { withVisitStarted } from "./usageEvents/visit";
+import { withVisitCookie } from "./usageEvents/visit";
 import { serveTournamentHtml, serveTournamentSitemap } from "./tournamentPages";
 
 const publicPagePaths = [
@@ -83,7 +83,7 @@ export async function servePublicAssets(
   env?: Env,
 ): Promise<Response> {
   const url = new URL(request.url);
-  const html = (response: Response) => withVisitStarted(request, response, path, env);
+  const html = (response: Response) => withVisitCookie(request, response, path);
   if (request.headers.get("Upgrade"))
     return withoutIndexing(new Response("Not Found", { status: 404 }));
   if (request.method !== "GET" && request.method !== "HEAD")

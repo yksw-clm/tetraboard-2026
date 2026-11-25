@@ -1,10 +1,5 @@
 import { expect, test } from "vitest";
-import {
-  classifyDevice,
-  classifyReferrer,
-  referrerHostname,
-  sanitizeUtm,
-} from "../src/usageEvents/acquisition";
+import { classifyDevice, classifyReferrer, sanitizeUtm } from "../src/usageEvents/acquisition";
 const ownHost = "tetraboard.net";
 
 test.each([
@@ -17,30 +12,6 @@ test.each([
   ["source\n\t\0test😀", "sourcetest"],
 ])("UTMは許可文字と64文字制限を保つ: %s", (input, expected) => {
   expect(sanitizeUtm(input)).toBe(expected);
-});
-
-test.each([
-  ["", "direct"],
-  ["https://WWW.Google.COM/search?q=SECRET#secret", "www.google.com"],
-  ["https://tetraboard.net/rooms/secret?invite=secret", "internal"],
-  ["https://TETRABOARD.NET:8443/path", "internal"],
-  ["https://google.com./search", "google.com"],
-  ["http://user:password@x.com:8080/path?secret=value", "x.com"],
-  ["https://日本語.jp/path", "xn--wgv71a119e.jp"],
-  ...[
-    "invalid",
-    "/relative/path",
-    "file:///private/secret",
-    "ftp://google.com/private",
-    "https://192.0.2.1/secret",
-    "https://[2001:db8::1]/secret",
-    "http://localhost/path",
-    `https://${"a".repeat(64)}.com/`,
-    `https://${("a".repeat(63) + ".").repeat(4)}com/`,
-  ].map((value) => [value, null]),
-])("参照元からパス・クエリ・IPを残さずホストだけを抽出する: %s", (input, expected) => {
-  expect(referrerHostname(input!, ownHost)).toBe(expected);
-  expect(referrerHostname(input!, "TETRABOARD.NET")).toBe(expected);
 });
 
 test("検索・SNSのドメインとそのwww・大小文字・末尾ドットを分類する", () => {
@@ -83,15 +54,20 @@ test("検索・SNSのドメインとそのwww・大小文字・末尾ドット�
         expect(classifyReferrer(value, ownHost)).toEqual({ host, category });
       expect(classifyReferrer(`www.${host}`, ownHost)).toEqual({ host: `www.${host}`, category });
     }
-  for (const value of ["direct", "internal"])
-    expect(classifyReferrer(value, ownHost)).toEqual({ host: value, category: value });
-  for (const value of [ownHost, ownHost.toUpperCase()])
+  expect(classifyReferrer("", ownHost)).toEqual({ host: "direct", category: "direct" });
+  for (const value of [ownHost, ownHost.toUpperCase(), `${ownHost}.`])
     expect(classifyReferrer(value, ownHost)).toEqual({ host: "internal", category: "internal" });
-  for (const host of ["evilgoogle.com", "google.com.evil.test", "accounts.google.com"])
+  for (const host of [
+    "evilgoogle.com",
+    "google.com.evil.test",
+    "accounts.google.com",
+    "xn--wgv71a119e.jp",
+  ])
     expect(classifyReferrer(host, ownHost)).toEqual({ host, category: "other" });
   for (const value of [
     null,
-    "",
+    "direct",
+    "internal",
     "localhost",
     "192.0.2.1",
     "[2001:db8::1]",
