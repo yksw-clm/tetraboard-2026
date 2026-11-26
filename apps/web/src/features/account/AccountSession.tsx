@@ -204,7 +204,7 @@ export function AccountLayout() {
             !/^\/tournaments\/[1-9]\d*\/?$/.test(location.pathname) &&
             !boardPagePathPattern.test(location.pathname) &&
             !/^\/updates(?:\/[^/]+)?\/?$/.test(location.pathname) &&
-            !/^\/matches\/[^/]+\/?$/.test(location.pathname) &&
+            !/^\/(?:matches|players)\/[^/]+\/?$/.test(location.pathname) &&
             !(
               location.pathname === "/login" &&
               new URLSearchParams(location.search).get("destination") === "admin"

@@ -1193,6 +1193,10 @@ Workerテストで両ゲーム・両モードの人間4人、CPU1〜3人の過�
 
 ## 公開プレイヤー情報
 
+公開ページ `/players/:profileId` の入口は Web の [PublicPlayerPage.tsx](../apps/web/src/features/players/PublicPlayerPage.tsx) と Worker の [playerProfileRoutes.ts](../apps/worker/src/routes/playerProfileRoutes.ts) です。プロフィールと戦績は `GET /api/player-profile?source=profile&profileId=…&game=…` の公開オプションを使い、モード切替は取得済みの戦績を使います。プロフィール・棋譜のどちらかが404を返した場合、公開参照UUID単位で閲覧不可を保持し、そのUUIDの表示データと進行中の取得を破棄します。公開ページ内でゲームやモードを変える履歴移動でも閲覧不可を維持します。ページはSPAで配信し、HTTPヘッダーと画面に `noindex` を指定します。
+
+`GET /api/players/:profileId/matches?game=…&mode=…` は認証不要です。`game` は必須で、`mode` は四人ゲームだけに指定します。account 文脈が公開プロフィールと同じ条件で対象・統合先を解決し、record 文脈の `readMatchHistory` が参加索引と保存済み対局から公開要約を生成します。応答直前に公開可否と解決先を再照合し、読取中の退会や統合で対象が変わった場合は404を返します。応答は `{ matches: MatchSummary[] }` で、全応答が `no-store` です。条件不正は400、閲覧できない対象は404、取得障害は503を返します。
+
 プレイヤー情報のレートは `includeRating=1` で要求します。応答の省略可能な `rating` は時点（current／before／reference）と公開状態（rated／placement／unavailable）を区別します。新Webはこの指定に対応するWorkerと組み合わせ、旧Workerで400となっても指定を外して再取得しません。既存の `includeShogiRating`・`includeReversiRating` の応答は旧Web向けに維持します。
 
 新規レート戦は成立時にGameRoom内部の参加者ID別スナップショットを固定し、4ゲームの内部対局記録の省略可能な `profileRatings` へ引き継ぎます。公開棋譜の形式へは追加せず、プレイヤー情報APIだけが参照します。既存記録は更新前のレート履歴・認定局数とCPU割当記録を使い、現在値を当時の値として返しません。通常対局・大会ではレート情報を返しません。退会の共通匿名化とGameRoom内の消去はスナップショットも対象にします。DB移行や既存記録の一括更新はありません。
@@ -1209,7 +1213,7 @@ Webのキャッシュは対局・部屋世代・参加者の参照元を維持�
 
 ロビー・ランキングは `profilePreview=1` の要求にだけ参照情報を追加します。通常の応答は従来の形で、旧Workerの400では通常取得へ戻ります。ロビーの古い索引で参照情報がない行は `getPublicMetadata` で現在の部屋世代とホストへ補完し、閉鎖済みを除外します。参照のない旧応答をゲストと判断しません。
 
-Webのプレイヤー機能は取得store、Provider、表示カード、トリガーに分離します。storeは `includeStats=1`・`includeBadges=1`・`includeDetails=1` を指定し、400時にオプションを除去する自動再取得は行いません。旧応答の不足項目は補完せず、`playerStatsSummary.ts` で取得済み値だけを文章にまとめます。成功結果を60秒再利用し、解決した公開参照キーとゲームで共有します。プロフィール保存・終局・画面遷移で無効化し、abort後や旧要求の完了を採用しません。HeroUIのPopoverは非モーダルで位置・Portalを再利用し、開閉・フォーカスは操作種別に応じて制御します。ランキング内ではPortalを所属ダイアログへ置き、Escapeの伝播を止めて外側を閉じません。
+Webのプレイヤー機能は取得store、Provider、表示カード、トリガーに分離します。storeは `includeStats=1`・`includeBadges=1`・`includeDetails=1` を指定し、400時にオプションを除去する自動再取得は行いません。旧応答の不足項目は補完せず、`playerStatsSummary.ts` で取得済み値だけを文章にまとめます。成功結果を60秒再利用し、解決した公開参照キーとゲームで共有します。プロフィール保存・終局・画面遷移で無効化し、abort後や旧要求の完了を採用しません。ダイアログのスクロール領域でカードやリンクが切れないよう、非モーダルのHeroUI Popoverを既定のPortalに描画します。ダイアログ上でも明示操作でカードへフォーカスを移し、Tabでリンクへ進めます。Escapeはカードだけを閉じ、明示操作で開いていた場合はトリガーへフォーカスを戻します。
 
 Workerの `playerProfiles.test.ts` と既存の公開／本人棋譜・戦績テスト、Webの `playerProfiles.test.tsx` で未ログインでの取得、別人への誤紐付け防止、ゲスト・CPU・参照先なし、旧応答、取得障害、開閉、再試行、キャッシュ期限・無効化・遅延応答を確認します。実寸法・ネイティブ入力・画像デコードは手動確認し、PRへ結果と未確認を記載します。
 

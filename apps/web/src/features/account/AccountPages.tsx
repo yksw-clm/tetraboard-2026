@@ -2,7 +2,7 @@ import { GuestAccountControls } from "./GuestAccountControls";
 import { PrivacyLinks } from "../privacy/PrivacyLinks";
 import { RegistrationBenefits } from "./RegistrationBenefits";
 import { SocialSignInButtons } from "./SocialSignInButtons";
-import { gameCatalog, gameIds, defaultGameId, type GameId } from "@tetraboard/protocol/games";
+import { gameCatalog, defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { MatchHistory } from "./MatchHistory";
 import { AccountStats } from "./AccountStats";
 import { useEffect, useId, useState, type ReactNode } from "react";
@@ -14,7 +14,7 @@ import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import type { AccountProfile, RoomMode } from "@tetraboard/protocol";
 import { cn } from "@heroui/react";
-import { LobbyBoardPreview } from "../lobby/LobbyBoardPreview";
+import { ProfileGameButtons } from "../players/ProfileGameButtons";
 import { AppTabs } from "../../shared/ui/AppTabs";
 import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { useAccountSelection } from "./useAccountSelection";
@@ -104,33 +104,6 @@ export function AccountPageShell({
           )}
         </main>
       </div>
-    </div>
-  );
-}
-function AccountGameButtons({
-  game,
-  onChange,
-}: {
-  game: GameId;
-  onChange: (game: GameId) => void;
-}) {
-  return (
-    <div role="group" aria-label="プロフィールのゲーム" className="flex flex-wrap gap-2">
-      {gameIds.map((id) => (
-        <AppButton
-          key={id}
-          appearance={id === game ? "primary" : "secondary"}
-          size="compact"
-          className="min-h-11 px-3 text-sm"
-          aria-pressed={id === game}
-          onPress={() => {
-            if (id !== game) onChange(id);
-          }}
-        >
-          <LobbyBoardPreview game={id} compact className="w-6 rotate-0 shadow-none" />
-          {gameCatalog[id].name}
-        </AppButton>
-      ))}
     </div>
   );
 }
@@ -253,7 +226,7 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
       <AccountPageShell
         layout={setup ? "form" : "profile"}
         game={game}
-        navigation={!setup && <AccountGameButtons game={game} onChange={setGame} />}
+        navigation={!setup && <ProfileGameButtons game={game} onChange={setGame} />}
       >
         <AccountStatus />
       </AccountPageShell>
@@ -274,7 +247,7 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
           profile={
             <AccountProfileCard key={user.profileId ?? user.username} user={user} game={game} />
           }
-          navigation={<AccountGameButtons game={game} onChange={setGame} />}
+          navigation={<ProfileGameButtons game={game} onChange={setGame} />}
           modeTabs={
             <AppTabs.List
               aria-label="プロフィールの対局モード"
