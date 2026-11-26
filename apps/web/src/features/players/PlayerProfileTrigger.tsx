@@ -6,7 +6,6 @@ import {
   useLayoutEffect,
   useRef,
   useSyncExternalStore,
-  useState,
   type ReactNode,
 } from "react";
 import type { PlayerProfile, PlayerProfileTarget, RoomMode } from "@tetraboard/protocol";
@@ -43,7 +42,6 @@ export function PlayerProfileTrigger({
   const closePreview = context?.close;
   const store = context?.store;
   const dismissVersion = context?.dismissVersion ?? 0;
-  const [portalContainer, setPortalContainer] = useState<HTMLElement | undefined>(undefined);
   const id = useId();
   const anchor = useRef<HTMLButtonElement>(null);
   const card = useRef<HTMLElement>(null);
@@ -86,7 +84,6 @@ export function PlayerProfileTrigger({
   const open = (pin: boolean) => {
     clearTimers();
     if (!pin && (flags.current.suppressed || anyPinned)) return;
-    setPortalContainer(anchor.current?.closest<HTMLElement>('[role="dialog"]') ?? undefined);
     context?.activate(id, pin);
     if (target && needsRequest) void context?.store.load(target, game);
   };
@@ -219,7 +216,6 @@ export function PlayerProfileTrigger({
         placement="bottom"
         offset={6}
         containerPadding={16}
-        UNSTABLE_portalContainer={portalContainer}
         className={cn(
           "app-theme z-50 box-border flex flex-col w-[280px] max-w-[calc(100vw-32px)] rounded-panel border border-line bg-white p-4 text-ink shadow-dialog outline-none",
           appThemeClasses[theme],

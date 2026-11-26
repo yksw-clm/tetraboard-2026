@@ -222,6 +222,13 @@ export const router = createBrowserRouter([
         hydrateFallbackElement: <AppPageLoading message="棋譜を読み込んでいます…" />,
       },
       {
+        path: "/players/:profileId",
+        lazy: async () => ({
+          Component: (await import("../features/players/PublicPlayerPage")).PublicPlayerPage,
+        }),
+        hydrateFallbackElement: <AppPageLoading message="プレイヤー情報を読み込んでいます…" />,
+      },
+      {
         path: "/matches/:matchId",
         id: "public-match",
         loader: publicMatchReplayLoader,
