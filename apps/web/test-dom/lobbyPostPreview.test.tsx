@@ -1,8 +1,10 @@
-import { beforeAll, expect, mock, test } from "bun:test";
+import { beforeAll, expect, mock, spyOn, test } from "bun:test";
 import { StrictMode } from "react";
 import type { BoardPost, BoardPublishedPost } from "@tetraboard/protocol/board";
 import { gameCatalog, gameIds, type GameId } from "@tetraboard/protocol/games";
 import { LobbyView } from "../src/features/lobby/LobbyView";
+import * as previewImport from "../src/features/lobby/importLobbyPostPreview";
+import { preloadRecovery } from "../src/shared/preloadRecovery";
 import { clock, flush, press, render, requests, rerender, wrap } from "./harness";
 
 const game = "four-shogi";
@@ -12,7 +14,7 @@ const timelineRequests = (game: GameId) =>
   requests.filter(({ url }) => url === `/api${timelinePath(game)}`);
 
 beforeAll(async () => {
-  await import("../src/features/lobby/loadLobbyPostPreview");
+  await previewImport.importLobbyPostPreview();
 });
 
 function show(game: GameId) {
@@ -54,6 +56,13 @@ function preview(view: HTMLElement) {
   return section;
 }
 
+function links(section: HTMLElement) {
+  return [...section.querySelectorAll("a")].map((link) => [
+    link.textContent,
+    link.getAttribute("href"),
+  ]);
+}
+
 function post(index: number): BoardPublishedPost {
   return {
     id: `aaaaaaaa-aaaa-4aaa-8aaa-${String(index).padStart(12, "0")}`,
@@ -83,15 +92,16 @@ function timeline(posts: BoardPost[], acceptingPosts = true) {
 test.each([...gameIds])("%s のロビーはそのゲームのタイムラインを1回だけ取得する", async (game) => {
   const section = preview(show(game));
   expect(section.textContent).toContain(`${gameCatalog[game].name}の掲示板の新しい投稿です。`);
-  const actions = [...section.querySelectorAll("a")];
-  expect(actions.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+  expect(links(section)).toEqual([["もっと見る", timelinePath(game)]]);
+  await flush();
+  expect(timelineRequests(game)).toHaveLength(1);
+  expect(links(section)).toEqual([["もっと見る", timelinePath(game)]]);
+  timelineRequests(game)[0]!.respond(timeline([]));
+  await flush();
+  expect(links(section)).toEqual([
     ["投稿する", timelinePath(game)],
     ["もっと見る", timelinePath(game)],
   ]);
-  await flush();
-  expect(timelineRequests(game)).toHaveLength(1);
-  timelineRequests(game)[0]!.respond(timeline([]));
-  await flush();
   clock.advance(60_000);
   expect(timelineRequests(game)).toHaveLength(1);
 });
@@ -150,25 +160,69 @@ test.each([true, false])(
   },
 );
 
-test("取得に失敗しても公開ルームは残り、投稿の取得を再試行できる", async () => {
-  const view = show(game);
-  const section = preview(view);
-  const rooms = view.querySelector('section[aria-label="公開ルーム"]');
-  expect(rooms).not.toBeNull();
-  await flush();
-  timelineRequests(game)[0]!.respond(null, 503);
-  await flush();
-  expect(section.querySelector('[role="alert"]')?.textContent).toBe("投稿を取得できませんでした。");
-  expect(view.querySelector('section[aria-label="公開ルーム"]')).toBe(rooms);
+test("投稿 API の失敗から、読み込み済みの区画で投稿の取得を再試行できる", async () => {
+  const load = spyOn(previewImport, "importLobbyPostPreview");
+  try {
+    const view = show(game);
+    const section = preview(view);
+    const rooms = view.querySelector('section[aria-label="公開ルーム"]');
+    expect(rooms).not.toBeNull();
+    await flush();
+    expect(load).toHaveBeenCalled();
+    timelineRequests(game)[0]!.respond(null, 503);
+    await flush();
+    expect(section.querySelector('[role="alert"]')?.textContent).toBe(
+      "投稿を取得できませんでした。",
+    );
+    expect(links(section)).toEqual([["もっと見る", timelinePath(game)]]);
+    expect(view.querySelector('section[aria-label="公開ルーム"]')).toBe(rooms);
 
-  press(section, "再試行");
-  await flush();
-  expect(timelineRequests(game)).toHaveLength(2);
-  const retry = timelineRequests(game)[1]!;
-  retry.respond(timeline([post(1)]));
-  await flush();
-  expect(section.querySelector('[role="alert"]')).toBeNull();
-  expect(section.textContent).toContain(post(1).text);
+    load.mockClear();
+    press(section, "再試行");
+    await flush();
+    expect(timelineRequests(game)).toHaveLength(2);
+    expect(load).not.toHaveBeenCalled();
+    const retry = timelineRequests(game)[1]!;
+    retry.respond(timeline([post(1)]));
+    await flush();
+    expect(section.querySelector('[role="alert"]')).toBeNull();
+    expect(section.textContent).toContain(post(1).text);
+    expect(links(section)).toContainEqual(["投稿する", timelinePath(game)]);
+  } finally {
+    load.mockRestore();
+  }
+});
+
+test("チャンクを読み込めないときは、ロビーを使いながら手動でページを再読み込みできる", async () => {
+  const load = spyOn(previewImport, "importLobbyPostPreview").mockRejectedValue(
+    new Error("Failed to fetch dynamically imported module"),
+  );
+  const reload = spyOn(preloadRecovery, "reload").mockImplementation(() => {});
+  const autoReload = spyOn(preloadRecovery, "tryAutoReload").mockImplementation(() => {});
+  try {
+    const view = show(game);
+    const section = preview(view);
+    const rooms = view.querySelector('section[aria-label="公開ルーム"]');
+    expect(rooms).not.toBeNull();
+    await flush();
+
+    expect(section.querySelector('[role="alert"]')?.textContent).toBe(
+      "画面を読み込めませんでした。アプリが更新された可能性があります。再読み込みしてください。",
+    );
+    expect(links(section)).toEqual([["もっと見る", timelinePath(game)]]);
+    expect(section.textContent).not.toContain("再試行");
+    expect(view.querySelector('section[aria-label="公開ルーム"]')).toBe(rooms);
+    expect(timelineRequests(game)).toHaveLength(0);
+    expect(autoReload).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
+
+    press(section, "再読み込み");
+    expect(reload).toHaveBeenCalledTimes(1);
+  } finally {
+    autoReload.mockRestore();
+    reload.mockRestore();
+    load.mockRestore();
+  }
 });
 
 test("ロビーを離れると進行中の投稿取得を中止する", async () => {

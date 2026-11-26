@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
+import { preloadRecovery, preloadRecoveryMessage } from "../../shared/preloadRecovery";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppSectionHeading } from "../../shared/ui/AppSectionHeading";
 import { AppSkeletonCard } from "../../shared/ui/AppSkeleton";
 import { useBoardPreviewView } from "./boardPreviewView";
+import { importLobbyPostPreview } from "./importLobbyPostPreview";
 
-type PreviewModule = typeof import("./loadLobbyPostPreview");
+type PreviewModule = Awaited<ReturnType<typeof importLobbyPostPreview>>;
 type PreviewState =
   | { status: "loading" }
-  | { status: "error"; message: string }
+  | { status: "api-error" | "chunk-error"; message: string }
   | {
       status: "ready";
       data: Awaited<ReturnType<PreviewModule["readLobbyPostPreview"]>>;
@@ -18,6 +20,7 @@ type PreviewState =
 function useLobbyPostPreview(game: GameId) {
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<PreviewState>({ status: "loading" });
+  const previewModule = useRef<Promise<PreviewModule> | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -30,16 +33,16 @@ function useLobbyPostPreview(game: GameId) {
         LobbyPostPreviewContent: Posts,
         readLobbyPostPreview,
         boardLoadError,
-      } = await import("./loadLobbyPostPreview");
+      } = await (previewModule.current ??= importLobbyPostPreview());
       if (signal.aborted) return;
       try {
         const data = await readLobbyPostPreview(game, signal);
         show({ status: "ready", data, Posts });
       } catch {
-        show({ status: "error", message: boardLoadError });
+        show({ status: "api-error", message: boardLoadError });
       }
     }
-    void load().catch(() => show({ status: "error", message: "投稿を取得できませんでした。" }));
+    void load().catch(() => show({ status: "chunk-error", message: preloadRecoveryMessage }));
     return () => controller.abort();
   }, [game, attempt]);
 
@@ -69,6 +72,7 @@ export function LobbyPostPreview({ game }: { game: GameId }) {
   const { name, lobbyPath } = gameCatalog[game];
   const timelinePath = `${lobbyPath}/posts`;
   const headingId = "lobby-post-preview-title";
+  const needsReload = state.status === "chunk-error";
 
   return (
     <section
@@ -82,7 +86,7 @@ export function LobbyPostPreview({ game }: { game: GameId }) {
         description={`${name}の掲示板の新しい投稿です。`}
       >
         <div className="flex shrink-0 items-center gap-1">
-          {(state.status !== "ready" || state.data.acceptingPosts) && (
+          {state.status === "ready" && state.data.acceptingPosts && (
             <AppButtonLink size="compact" appearance="quiet" className="px-2" to={timelinePath}>
               投稿する
             </AppButtonLink>
@@ -93,13 +97,17 @@ export function LobbyPostPreview({ game }: { game: GameId }) {
         </div>
       </AppSectionHeading>
       {state.status === "loading" && <PostPreviewSkeleton />}
-      {state.status === "error" && (
+      {(needsReload || state.status === "api-error") && (
         <div className="flex flex-col items-start gap-2">
           <p role="alert" className="text-sm text-danger">
             {state.message}
           </p>
-          <AppButton appearance="secondary" size="compact" onPress={retry}>
-            再試行
+          <AppButton
+            appearance="secondary"
+            size="compact"
+            onPress={needsReload ? () => preloadRecovery.reload() : retry}
+          >
+            {needsReload ? "再読み込み" : "再試行"}
           </AppButton>
         </div>
       )}
