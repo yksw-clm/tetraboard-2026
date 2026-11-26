@@ -4,6 +4,7 @@ import { boardPostResultSchema, boardReplyResultSchema } from "@tetraboard/proto
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { roomSharePath } from "@tetraboard/protocol/room-sharing";
 import { afterEach, expect, test } from "vitest";
+import { digest } from "../src/crypto";
 import { accountFixture, origin } from "./accountFixtures";
 import {
   boardPath,
@@ -115,41 +116,11 @@ test("本文を trim し、改行を保ち、見た目の文字数で 1 字か�
   );
 });
 
-test("同一 Origin の公開棋譜・大会・ルーム共有だけを本文の URL として受け付ける", async () => {
+test("同一 Origin の観戦リンクを受け付け、後続の外部 URL は拒否する", async () => {
   await openBoard();
   const user = await accountFixture();
-  const match = `/matches/${crypto.randomUUID()}`;
   const invite = roomSharePath({ id: "12345", instanceId: crypto.randomUUID() });
-  const urls = [match, `${match}?position=0`, "/tournaments/15", "/rooms/12345", invite];
-  const text = urls.map((path) => origin + path).join("\n");
-  expect((await sendBoardPost(boardPath, text, user.headers)).status).toBe(200);
-  for (const link of [
-    "https://example.com" + match,
-    "https://example.com",
-    "www.example",
-    "example.com",
-    origin + match + "/",
-    origin + match + ".",
-    origin + match + "#detail",
-    origin + match + "?position=1&other=1",
-    origin + match + "?position=-1",
-    origin + match + "?position=9007199254740992",
-    origin + "/tournaments/0",
-    origin + "/tournaments/2?tab=rooms",
-    origin + invite + "&watch=1",
-    origin + "/rooms/12345?invite=invalid",
-    origin + "/account" + match,
-  ])
-    expect(
-      (await sendBoardPost(boardPath, `${origin}${match} ${link}`, user.headers)).status,
-      link,
-    ).toBe(400);
-});
-
-test("URLに日本語が続く本文を受け付け、後続の外部URLは拒否する", async () => {
-  await openBoard();
-  const user = await accountFixture();
-  const text = `${origin}/tournaments/3です。${origin}/matches/${crypto.randomUUID()}。`;
+  const text = `観戦はこちらです。${origin}${invite}&watch=1です。`;
   expect((await sendBoardPost(boardPath, text, user.headers)).status).toBe(200);
   expect(
     (await sendBoardPost(boardPath, text + "外部リンクはhttps://example.comです。", user.headers))
@@ -245,8 +216,8 @@ test("並行する別の投稿は1件だけ受け付け、同じ要求の再送�
     availableAtMs: initial.availableAtMs,
   });
   expect(
-    await env.APP_DB.prepare("SELECT body FROM board_posts WHERE id=?")
+    await env.APP_DB.prepare("SELECT body,request_id,body_hash FROM board_posts WHERE id=?")
       .bind(initial.post!.id)
       .first(),
-  ).toEqual({ body: null });
+  ).toEqual({ body: null, request_id: requestId, body_hash: await digest("同じ本文") });
 });

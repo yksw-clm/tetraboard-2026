@@ -5,8 +5,8 @@ export function withdrawBoardStatements(db: D1Database, deletion: DeletionScope)
   const [accountId, ...receiptParams] = guard.params();
   return [
     db
-      .prepare(`UPDATE board_posts SET body=NULL,match_id=NULL,position=NULL,
- deleted_at_ms=COALESCE(deleted_at_ms,?2),deletion_reason=COALESCE(deletion_reason,'withdrawn')
+      .prepare(`UPDATE board_posts SET body=NULL,match_id=NULL,position=NULL,request_id=NULL,body_hash=NULL,
+ deleted_at_ms=COALESCE(deleted_at_ms,?2),deletion_reason='withdrawn'
  WHERE account_id=?1 AND ${guard.sql}`)
       .bind(accountId, Date.now(), ...receiptParams),
     db

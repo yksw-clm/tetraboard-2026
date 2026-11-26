@@ -56,7 +56,7 @@ function insertPost(db: D1Database, attempt: BoardWriteAttempt, id: string, last
 function replayStatement(db: D1Database, accountId: string, requestId: string) {
   return db
     .prepare(`SELECT p.body_hash AS bodyHash,${boardPostColumns} ${boardPostFrom}
- WHERE p.account_id=?1 AND p.request_id=?2 AND ${boardEligibleAccountExistsSql}`)
+ WHERE p.account_id=?1 AND p.request_id=?2 AND p.body_hash IS NOT NULL AND ${boardEligibleAccountExistsSql}`)
     .bind(accountId, requestId);
 }
 

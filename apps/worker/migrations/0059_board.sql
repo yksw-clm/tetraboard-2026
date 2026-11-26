@@ -18,12 +18,13 @@ CREATE TABLE `board_posts` (
 	`deletion_reason` text,
 	`match_id` text,
 	`position` integer,
-	`request_id` text NOT NULL,
-	`body_hash` text NOT NULL,
+	`request_id` text,
+	`body_hash` text,
 	FOREIGN KEY (`parent_id`) REFERENCES `board_posts`(`id`) ON UPDATE no action ON DELETE no action,
 	CONSTRAINT "board_posts_game" CHECK(game_id IN ('four-reversi', 'four-shogi', 'reversi', 'shogi', 'gomoku', 'four-gomoku')),
 	CONSTRAINT "board_posts_body" CHECK((deleted_at_ms IS NULL) = (body IS NOT NULL)),
 	CONSTRAINT "board_posts_deletion_reason" CHECK(deletion_reason IN ('author', 'moderator', 'withdrawn')),
+	CONSTRAINT "board_posts_replay" CHECK(deletion_reason IS 'withdrawn' OR (request_id IS NOT NULL AND body_hash IS NOT NULL)),
 	CONSTRAINT "board_posts_attachment" CHECK((match_id IS NULL AND position IS NULL) OR (match_id IS NOT NULL AND position IS NOT NULL AND position >= 0))
 );
 --> statement-breakpoint

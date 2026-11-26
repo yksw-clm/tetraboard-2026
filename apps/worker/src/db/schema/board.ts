@@ -24,8 +24,8 @@ export const boardPosts = sqliteTable(
     deletionReason: text("deletion_reason", { enum: ["author", "moderator", "withdrawn"] }),
     matchId: text("match_id"),
     position: integer("position"),
-    requestId: text("request_id").notNull(),
-    bodyHash: text("body_hash").notNull(),
+    requestId: text("request_id"),
+    bodyHash: text("body_hash"),
   },
   (t) => [
     uniqueIndex("board_posts_account_request").on(t.accountId, t.requestId),
@@ -45,6 +45,10 @@ export const boardPosts = sqliteTable(
     check(
       "board_posts_deletion_reason",
       sql`deletion_reason IN ('author', 'moderator', 'withdrawn')`,
+    ),
+    check(
+      "board_posts_replay",
+      sql`deletion_reason IS 'withdrawn' OR (request_id IS NOT NULL AND body_hash IS NOT NULL)`,
     ),
     check(
       "board_posts_attachment",

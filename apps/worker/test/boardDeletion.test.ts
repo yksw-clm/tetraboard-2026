@@ -40,7 +40,7 @@ async function finishDeletion(accountId: string) {
   expect(deletion?.completed_at_ms).toBeGreaterThan(0);
 }
 
-test("退会受付で投稿と返信の本文・添付を消していいねを除き、完了で本人参照を外す", async () => {
+test("退会受付で投稿と返信の本文・添付・再送情報を消していいねを除き、完了で本人参照を外す", async () => {
   await openBoard();
   const departing = await accountFixture();
   const remaining = await accountFixture();
@@ -82,6 +82,11 @@ test("退会受付で投稿と返信の本文・添付を消していいねを�
       })
     ).status,
   ).toBe(204);
+  const removedAt = await db
+    .prepare("SELECT deleted_at_ms FROM board_posts WHERE id=?")
+    .bind(alreadyRemoved.id)
+    .first<number>("deleted_at_ms");
+  expect(removedAt).toEqual(expect.any(Number));
   await putLike(survives.id, departing.headers);
   await putLike(survives.id, remaining.headers);
   expect((await detail(survives.id)).post).toMatchObject({ replyCount: 1, likeCount: 2 });
@@ -94,21 +99,29 @@ test("退会受付で投稿と返信の本文・添付を消していいねを�
   expect(
     await db
       .prepare(
-        "SELECT body,match_id,position,deletion_reason,deleted_at_ms,typeof(deleted_at_ms) AS deleted_at_type FROM board_posts WHERE account_id=? ORDER BY deletion_reason",
+        "SELECT body,match_id,position,request_id,body_hash,deletion_reason,deleted_at_ms,typeof(deleted_at_ms) AS deleted_at_type FROM board_posts WHERE account_id=?",
       )
       .bind(departing.id)
       .all()
       .then(({ results }) => results),
   ).toEqual(
-    ["author", "withdrawn", "withdrawn", "withdrawn"].map((deletion_reason) => ({
+    Array.from({ length: 4 }, () => ({
       body: null,
       match_id: null,
       position: null,
-      deletion_reason,
+      request_id: null,
+      body_hash: null,
+      deletion_reason: "withdrawn",
       deleted_at_ms: expect.any(Number),
       deleted_at_type: "integer",
     })),
   );
+  expect(
+    await db
+      .prepare("SELECT deleted_at_ms FROM board_posts WHERE id=?")
+      .bind(alreadyRemoved.id)
+      .first<number>("deleted_at_ms"),
+  ).toBe(removedAt);
   expect(
     await db.prepare("SELECT 1 FROM board_likes WHERE account_id=?").bind(departing.id).first(),
   ).toBeNull();
@@ -198,7 +211,7 @@ test("退会受付で投稿と返信の本文・添付を消していいねを�
   ).toBeNull();
 });
 
-test("退会台帳だけが復元された場合も読み取りで隠し、毎時の再処理が本文といいねを消す", async () => {
+test("退会台帳だけが復元された場合も読み取りで隠し、毎時の再処理が本文・再送情報・いいねを消す", async () => {
   const departing = await accountFixture();
   const remaining = await accountFixture();
   const post = boardPostFixture({ accountId: departing.id, text: "復元された投稿" });
@@ -235,12 +248,25 @@ test("退会台帳だけが復元された場合も読み取りで隠し、毎�
   expect((await boardRequest(postPath(hidden.id))).status).toBe(404);
 
   await finishDeletion(departing.id);
+  const withdrawnIds = [post.id, hidden.id, withdrawnReply.id].sort();
   expect(
     await db
-      .prepare("SELECT account_id,body,deletion_reason FROM board_posts WHERE id=?")
-      .bind(withdrawnReply.id)
-      .first(),
-  ).toEqual({ account_id: null, body: null, deletion_reason: "withdrawn" });
+      .prepare(
+        "SELECT id,account_id,body,request_id,body_hash,deletion_reason FROM board_posts WHERE id IN (?,?,?) ORDER BY id",
+      )
+      .bind(...withdrawnIds)
+      .all()
+      .then(({ results }) => results),
+  ).toEqual(
+    withdrawnIds.map((id) => ({
+      id,
+      account_id: null,
+      body: null,
+      request_id: null,
+      body_hash: null,
+      deletion_reason: "withdrawn",
+    })),
+  );
   expect(
     await db.prepare("SELECT 1 FROM board_likes WHERE account_id=?").bind(departing.id).first(),
   ).toBeNull();

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "66ccbde6-d84b-44b9-a321-b81b0653ef59",
+  "id": "4cd4af10-d6e4-45f3-a559-34dc0adf7dbf",
   "prevId": "cfcd6b78-8d63-4ede-ad43-c5142e205a27",
   "tables": {
     "account": {
@@ -878,14 +878,14 @@
           "name": "request_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "body_hash": {
           "name": "body_hash",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         }
       },
@@ -954,6 +954,10 @@
         "board_posts_deletion_reason": {
           "name": "board_posts_deletion_reason",
           "value": "deletion_reason IN ('author', 'moderator', 'withdrawn')"
+        },
+        "board_posts_replay": {
+          "name": "board_posts_replay",
+          "value": "deletion_reason IS 'withdrawn' OR (request_id IS NOT NULL AND body_hash IS NOT NULL)"
         },
         "board_posts_attachment": {
           "name": "board_posts_attachment",

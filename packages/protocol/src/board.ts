@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { gameIdSchema } from "./gameSchemas";
-import { playerProfileTargetSchema } from "./playerProfiles";
+import { playerProfileReferenceSchema } from "./playerProfiles";
 import { countCharacters } from "./rooms";
+
+export { scanBoardLinks, type BoardLink, type BoardLinkOccurrence } from "./boardLinks";
 
 export const boardTextSchema = z
   .string()
@@ -14,7 +16,7 @@ export const boardPostInputSchema = z.strictObject({ requestId: z.uuid(), text: 
 export const boardAuthorSchema = z.strictObject({
   name: z.string(),
   avatarUrl: z.string().nullable(),
-  profileTarget: playerProfileTargetSchema.options[2].nullable(),
+  profileTarget: playerProfileReferenceSchema.nullable(),
 });
 
 const timestampSchema = z.int().nonnegative();

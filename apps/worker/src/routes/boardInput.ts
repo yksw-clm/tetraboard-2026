@@ -1,10 +1,8 @@
 import {
-  getPublicMatchContract,
-  roomCodeSchema,
-  roomSocketContract,
-  tournamentIdSchema,
-} from "@tetraboard/protocol";
-import { boardCursorSchema, boardPostInputSchema } from "@tetraboard/protocol/board";
+  boardCursorSchema,
+  boardPostInputSchema,
+  scanBoardLinks,
+} from "@tetraboard/protocol/board";
 import { z } from "zod";
 import { readLimitedBody } from "./readLimitedBody";
 
@@ -20,28 +18,6 @@ export const boardTimelineQuery = z.strictObject({
 });
 export const boardRepliesQuery = z.strictObject({ after: boardPageCursor.optional() });
 
-// 公開チャットと同じ URL の目印を使い、http(s) URL はパスとクエリまで照合します。
-const urlLike = /https?:\/\/[\x21-\x7E]*|www\.|\b[a-z0-9-]+\.[a-z]{2,}\b/gi;
-
-function isBoardLink(url: string, origin: string) {
-  if (!url.startsWith(origin + "/")) return false;
-  const path = url.slice(origin.length);
-  const match = /^\/matches\/([0-9a-fA-F-]+)(?:\?position=(\d+))?$/.exec(path);
-  if (match)
-    return (
-      getPublicMatchContract.params.safeParse({ matchId: match[1] }).success &&
-      (match[2] === undefined || Number.isSafeInteger(Number(match[2])))
-    );
-  const tournament = /^\/tournaments\/(\d+)$/.exec(path);
-  if (tournament) return tournamentIdSchema.safeParse(tournament[1]).success;
-  const room = /^\/rooms\/(\d+)(?:\?invite=([0-9a-fA-F-]+))?$/.exec(path);
-  return (
-    room !== null &&
-    roomCodeSchema.safeParse(room[1]).success &&
-    roomSocketContract.query.safeParse({ instanceId: room[2] }).success
-  );
-}
-
 export async function readBoardInput(request: Request, origin: string) {
   const bytes = await readLimitedBody(request, 64 * 1024);
   if (!bytes) return { status: "invalidBody" } as const;
@@ -53,7 +29,7 @@ export async function readBoardInput(request: Request, origin: string) {
   }
   const input = boardPostInputSchema.safeParse(body);
   if (!input.success) return { status: "invalidBody" } as const;
-  for (const [url] of input.data.text.matchAll(urlLike))
-    if (!isBoardLink(url, origin)) return { status: "invalidLink" } as const;
+  if (scanBoardLinks(input.data.text, origin).some(({ link }) => link === null))
+    return { status: "invalidLink" } as const;
   return { status: "valid", input: input.data } as const;
 }

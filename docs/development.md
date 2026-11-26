@@ -488,10 +488,10 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 - `apps/worker/src/routes/`: `announcementRoutes.ts`、`notificationRoutes.ts`、`feedbackRoutes.ts`、`feedbackAdminRoutes.ts`、`roomReportRoutes.ts` などの HTTP の入口。本文の大きさの上限つきの読み取りは `readLimitedBody.ts` です。
 - 通知のイベントは、書き込みと同じ D1 の batch で作ります（TB-145）。お知らせは `adapters/community/announcements.ts`、バッジは `adapters/community/badgeEvents.ts` の文を、対局の保存と引き継ぎの flow（`flows/matchSave/badges.ts`、`claims.ts`）が record のバッジの通知の INSERT の直後に足します。同じ働きの古いトリガー（`notification_badge`、`notification_announcement_*`、チャットの `lobby_chat_accept`）は、TB-146（migration 0055）で消しました。書き込みの場所と、イベントの文を伴うことは `test-bun/communityWriteBoundaries.test.ts` が確かめます。
 - お知らせの日付は、`date` から `published_on` の列へ移しています（TB-145、migration 0053）。TB-146（migration 0055）で表を作り直し、`published_on` を NOT NULL にしました。アプリは `published_on` だけを読み書きします。`date` の列は TB-162（migration 0057）で消しました。API の項目名は `date` のままです。
-- 掲示板（仕様は [docs/specs/board.md](specs/board.md)、TB-215）: 投稿が公開されているか（通常、削除された枠だけ、見つからない）と index するかの判定は、`domain/board.ts` の `boardPostVisibility` と `shouldIndexBoardPost` だけで決めます。API、検索向けの HTML、サイトマップはこの 2 つを使い、条件を別の場所に書き足しません。SQL で同じ条件を書く場合（タイムラインで返信のない削除済みの投稿を除くなど）は、結果が関数と食い違わないことを Worker のテストで確かめます。
+- 掲示板（仕様は [docs/specs/board.md](specs/board.md)、TB-215）: 投稿が公開されているか（通常、削除された枠だけ、見つからない）と index するかの判定は、`domain/board.ts` の `boardPostVisibility` と `shouldIndexBoardPost` だけで決めます。API、検索向けの HTML、サイトマップはこの 2 つを使い、条件を別の場所に書き足しません。本文中の TetraBoard の URL の切り出しと種類の判定は、Worker の受け付けと Web のカード表示が同じ `scanBoardLinks`（`@tetraboard/protocol/board`）を使います。SQL で同じ条件を書く場合（タイムラインで返信のない削除済みの投稿を除くなど）は、結果が関数と食い違わないことを Worker のテストで確かめます。
   - D1 は `board_posts`（返信も同じ表で、`parent_id` は必ず元の投稿）、`board_likes`、`board_senders`（投稿間隔と投稿停止。公開チャットの `lobby_chat_senders` とは別）、`board_settings`（投稿受付。migration 0059 の初期値は停止）です。投稿は論理削除で、本文と添付を NULL にします。返信の数といいねの数は集計列を持たず、読むときに数えます。添付の列（`match_id`、`position`）は TB-218 まで書き込みません。
   - 投稿と返信は、公開チャットと同じく条件つきの INSERT 1 文で、資格、受付、停止、30 秒の間隔、退会、再送の重複を確定し、同じ batch で最後に投稿した時刻を更新します（`adapters/community/boardPosting.ts`）。
-  - 退会の受付と毎時の再処理は `boardDeletion.ts` の `withdrawBoardStatements`（本人の投稿と返信の削除、本人のいいねの削除）、退会の完了は `deleteAccountBoardStatements`（アカウント参照を NULL）です。読み取りでも `deleted_accounts` の投稿者を削除扱いにします。
+  - 退会の受付と毎時の再処理は `boardDeletion.ts` の `withdrawBoardStatements`（本人の投稿と返信の削除と、再送識別子・本文のハッシュの消去、本人のいいねの削除）、退会の完了は `deleteAccountBoardStatements`（アカウント参照を NULL）です。読み取りでも `deleted_accounts` の投稿者を削除扱いにします。
 
 ## マッチングの入口
 

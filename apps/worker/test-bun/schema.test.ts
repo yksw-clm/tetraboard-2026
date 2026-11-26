@@ -65,6 +65,34 @@ test("掲示板の投稿受付は migration の適用直後に停止していま
   ]);
 });
 
+test("掲示板の再送情報は退会済みの行だけ省略でき、空でない識別子はアカウント内で一意です", () => {
+  const db = new Database(":memory:");
+  try {
+    applyMigrations(db);
+    const insert = db.query(
+      "INSERT INTO board_posts(id,game_id,account_id,body,posted_at_ms,deleted_at_ms,deletion_reason,request_id,body_hash) VALUES(?,'reversi','account',?,0,?,?,?,?)",
+    );
+    for (const reason of [null, "author", "moderator"]) {
+      const body = reason === null ? "投稿" : null;
+      const deletedAt = reason === null ? null : 1;
+      expect(() => insert.run("missing-request", body, deletedAt, reason, null, "hash")).toThrow(
+        "board_posts_replay",
+      );
+      expect(() => insert.run("missing-hash", body, deletedAt, reason, "request", null)).toThrow(
+        "board_posts_replay",
+      );
+    }
+    insert.run("withdrawn-1", null, 1, "withdrawn", null, null);
+    insert.run("withdrawn-2", null, 1, "withdrawn", null, null);
+    insert.run("post-1", "投稿", null, null, "request", "hash");
+    expect(() => insert.run("post-2", "再送", null, null, "request", "hash")).toThrow(
+      "UNIQUE constraint failed",
+    );
+  } finally {
+    db.close();
+  }
+});
+
 test("初期のお知らせの公開日を全 migration 適用後も保持します", () => {
   expect(
     migrated.query("SELECT published_on FROM announcements WHERE id='feedback'").get(),
