@@ -111,8 +111,20 @@ export class SoundPlayer {
   }
 
   play(sounds: readonly SoundEffect[]): void {
+    this.playBuffers(sounds);
+  }
+
+  playMatchNotification(): void {
+    try {
+      if (this.options.available()) this.playBuffers(["join"], true);
+    } catch {
+      // 音声の失敗で入室を止めません。
+    }
+  }
+
+  private playBuffers(sounds: readonly SoundEffect[], allowHidden = false): void {
     const context = this.context;
-    if (!this.enabled || context === null || context.state !== "running" || !this.options.visible())
+    if (!this.enabled || context?.state !== "running" || (!allowHidden && !this.options.visible()))
       return;
     let at = context.currentTime;
     for (const sound of sounds) {

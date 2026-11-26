@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { SoundPlayer } from "./soundPlayer";
 import { browserSettings } from "./browserSettings";
 
@@ -25,11 +25,15 @@ roomSounds.setEnabled(browserSettings.getSnapshot().soundEnabled);
 browserSettings.subscribe(() => roomSounds.setEnabled(browserSettings.getSnapshot().soundEnabled));
 
 /** captureで非同期の参加処理・着手処理より先に音声を有効化します。 */
-export function useSoundEffects(): void {
+export function useSoundEffects() {
+  const activatedOnPage = useRef(false);
   useEffect(() => {
     roomSounds.prepare();
     const activate = (event: Event) => {
-      if (event.isTrusted) roomSounds.activate();
+      if (!event.isTrusted) return;
+      roomSounds.activate();
+      if (browserSettings.getSnapshot().soundEnabled && document.visibilityState === "visible")
+        activatedOnPage.current = true;
     };
     const visibilityChanged = () => {
       if (document.visibilityState !== "visible") roomSounds.stop();
@@ -45,4 +49,5 @@ export function useSoundEffects(): void {
       document.removeEventListener("visibilitychange", visibilityChanged);
     };
   }, []);
+  return activatedOnPage;
 }

@@ -17,6 +17,7 @@ import { TournamentPage } from "../src/features/tournaments/TournamentPage";
 import { TournamentEntrance } from "../src/features/tournaments/TournamentEntrance";
 import { readRegistrationReturn } from "../src/features/account/registrationReturn";
 import { readRoomMembershipToken } from "../src/shared/roomMembership";
+import { browserSettings } from "../src/shared/browserSettings";
 import { lastLobbyGame } from "../src/shared/lastLobbyGame";
 import {
   createTournamentQueue,
@@ -568,6 +569,7 @@ test("対戦成立dialogを表示し、同じmatchedの再取得で遅延せず5
     operationId: credential.operationId,
     token: credential.token,
     controllerVersion: 1,
+    hasEnteredRoom: true,
   });
   expect(view.querySelector("[data-path]")?.textContent).toBe("/rooms/12345");
   expect(requests.some((request) => request.url.endsWith("/confirmation"))).toBe(false);
@@ -600,6 +602,7 @@ test("接続不成立で待機へ戻っても同じ操作・資格で継続し�
     operationId: credential.operationId,
     token: credential.token,
     controllerVersion: 1,
+    hasEnteredRoom: true,
   });
   act(() => view.querySelector<HTMLAnchorElement>('a[href="/tournaments/1"]')!.click());
   await flush();
@@ -635,6 +638,7 @@ test("接続不成立で待機へ戻っても同じ操作・資格で継続し�
     operationId: credential.operationId,
     token: credential.token,
     controllerVersion: 1,
+    hasEnteredRoom: true,
   });
   await completeRoomClaim(credential.token);
   expect(view.querySelector("[data-path]")?.textContent).toBe("/rooms/23456");
@@ -772,6 +776,337 @@ test("表示は5秒ごとに更新し、非表示では停止、再表示で取�
     else Reflect.deleteProperty(document, "visibilityState");
   }
 });
+
+const expiredQueueMessage =
+  "待機が切れました。対局するには、もう一度「対局する」を押してください。";
+const waitingNotice =
+  "このページを開いたままお待ちください。4人そろうと自動で入室します。スマートフォンでほかのアプリに切り替えたり、画面を消したりすると、待機が切れることがあります。";
+const matchTitlePrefix = "【対戦相手が集まりました】";
+
+function setVisibility(value: DocumentVisibilityState) {
+  Object.defineProperty(document, "visibilityState", { configurable: true, value });
+  act(() => document.dispatchEvent(new Event("visibilitychange")));
+}
+
+function restoreVisibility(original: PropertyDescriptor | undefined) {
+  if (original) Object.defineProperty(document, "visibilityState", original);
+  else Reflect.deleteProperty(document, "visibilityState");
+}
+
+function participationRequests() {
+  return requests.filter((request) => request.url === "/api/tournaments/1/participation");
+}
+
+function queueExpiryAlert(view: HTMLElement) {
+  return [...view.querySelectorAll('[role="alert"]')].find(
+    (alert) => alert.textContent === expiredQueueMessage,
+  );
+}
+
+async function startWaiting(view: HTMLElement) {
+  const credential = await startQueue(view);
+  await respond(detail("active"), {
+    entered: true,
+    status: "waiting",
+    operationId: credential.operationId,
+  });
+  return credential;
+}
+
+test("非表示の操作元も5秒ごとに待機状態を取得し、成立から5秒で入室する", async () => {
+  const original = Object.getOwnPropertyDescriptor(document, "visibilityState");
+  const view = page();
+  clock.advance(0);
+  await respond(detail("active"));
+  const credential = await startWaiting(view);
+  const matched = { ...roomParticipation(credential.operationId), controller: "self" as const };
+  const initialCount = participationRequests().length;
+  const title = document.title;
+  try {
+    setVisibility("hidden");
+    clock.advance(4999);
+    expect(participationRequests()).toHaveLength(initialCount);
+    clock.advance(1);
+    expect(participationRequests()).toHaveLength(initialCount + 1);
+    await respond(detail("active"), {
+      entered: true,
+      status: "waiting",
+      operationId: credential.operationId,
+    });
+    clock.advance(5000);
+    expect(participationRequests()).toHaveLength(initialCount + 2);
+    await respond(detail("active"), matched);
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+      "5秒後に自動で入室します。",
+    );
+    clock.advance(4999);
+    expect(controllerRequest()).toBeUndefined();
+    clock.advance(1);
+    expect(JSON.parse(controllerRequest().init.body as string)).toEqual({
+      operationId: credential.operationId,
+      controllerId: credential.controllerId,
+      takeover: false,
+      expectedControllerVersion: 1,
+    });
+    await completeRoomClaim(credential.token);
+    expect(view.querySelector("[data-path]")?.textContent).toBe("/rooms/12345");
+    expect(document.title).toBe(title);
+    act(() => view.querySelector<HTMLAnchorElement>('a[href="/tournaments/1"]')!.click());
+    clock.advance(0);
+    await respond(detail("active"));
+    expect(queueExpiryAlert(view)).toBeUndefined();
+  } finally {
+    restoreVisibility(original);
+  }
+});
+
+test.each(["visible", "cancelled"] as const)(
+  "非表示で知った成立をタイトルに表示し、再取得後も維持して %s で戻す",
+  async (clearBy) => {
+    const original = Object.getOwnPropertyDescriptor(document, "visibilityState");
+    const view = page();
+    clock.advance(0);
+    await respond(detail("active"));
+    const title = document.title;
+    const credential = await startQueue(view);
+    const matched = { ...roomParticipation(credential.operationId), controller: "self" as const };
+    try {
+      setVisibility("hidden");
+      clock.advance(1000);
+      await respond(detail("active"), matched);
+      expect(document.title).toBe(matchTitlePrefix + title);
+      const refreshed = detail("active");
+      refreshed.tournament.name = "名前を更新した大会";
+      clock.advance(4000);
+      requests
+        .filter((request) => request.url === "/api/tournaments/1?includeProfiles=1")
+        .at(-1)!
+        .respond(refreshed);
+      await flush();
+      const refreshedTitle = document.title.slice(matchTitlePrefix.length);
+      expect(refreshedTitle).toContain("名前を更新した大会");
+      expect(document.title).toBe(matchTitlePrefix + refreshedTitle);
+      expect(refreshedTitle).not.toContain(matchTitlePrefix);
+      if (clearBy === "visible") {
+        setVisibility("visible");
+      } else {
+        participationRequests().at(-1)!.respond({
+          entered: true,
+          status: "waiting",
+          operationId: credential.operationId,
+          controller: "self",
+          controllerVersion: 1,
+        });
+        await flush();
+        expect(document.querySelector('[role="dialog"]')).toBeNull();
+      }
+      expect(document.title).toBe(refreshedTitle);
+    } finally {
+      restoreVisibility(original);
+    }
+  },
+);
+
+test.each(["other", "self"] as const)(
+  "操作世代がこのタブにない待機（%s）は非表示で取得しない",
+  async (controller) => {
+    const original = Object.getOwnPropertyDescriptor(document, "visibilityState");
+    const view = page();
+    clock.advance(0);
+    await respond(detail("active"), {
+      entered: true,
+      status: "waiting",
+      operationId: "00000000-0000-4000-8000-000000000011",
+      controller,
+    });
+    try {
+      const count = participationRequests().length;
+      setVisibility("hidden");
+      clock.advance(10000);
+      expect(participationRequests()).toHaveLength(count);
+      expect(view.textContent).not.toContain(waitingNotice);
+      setVisibility("visible");
+      await respond(detail("active"));
+      expect(queueExpiryAlert(view)).toBeUndefined();
+    } finally {
+      restoreVisibility(original);
+    }
+  },
+);
+
+test("待機中だけ注意書きを表示し、待機切れを対局するボタンを押すまで案内する", async () => {
+  const original = Object.getOwnPropertyDescriptor(document, "visibilityState");
+  const view = page();
+  clock.advance(0);
+  await respond(detail("active"));
+  expect(view.textContent).not.toContain(waitingNotice);
+  await startWaiting(view);
+  expect(view.textContent).toContain(waitingNotice);
+  try {
+    setVisibility("hidden");
+    clock.advance(5000);
+    await respond(detail("active"));
+    setVisibility("visible");
+    await respond(detail("active"));
+    expect(queueExpiryAlert(view)?.parentElement?.textContent).toContain("大会対局");
+    expect(view.textContent).not.toContain(waitingNotice);
+    clock.advance(5000);
+    await respond(detail("active"));
+    expect(queueExpiryAlert(view)).toBeDefined();
+    press(view, "対局する");
+    expect(queueExpiryAlert(view)).toBeUndefined();
+  } finally {
+    restoreVisibility(original);
+  }
+});
+
+test("明示的に待機を取り消した場合は待機切れを表示しない", async () => {
+  const view = page();
+  clock.advance(0);
+  await respond(detail("active"));
+  await startWaiting(view);
+  press(view, "取り消す");
+  requests.find((request) => request.init.method === "DELETE")!.respond({});
+  await flush();
+  await respond(detail("active"));
+  expect(queueExpiryAlert(view)).toBeUndefined();
+  expect(view.textContent).not.toContain(waitingNotice);
+});
+
+test.each(["self", "other"] as const)(
+  "入室前の成立が解除された場合は操作元だったタブにだけ待機切れを表示する（%s）",
+  async (controller) => {
+    const view = page();
+    clock.advance(0);
+    await respond(detail("active"));
+    const credential = await startWaiting(view);
+    clock.advance(5000);
+    await respond(detail("active"), { ...roomParticipation(credential.operationId), controller });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await respond(detail("active"));
+    expect(Boolean(queueExpiryAlert(view))).toBe(controller === "self");
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    clock.advance(5000);
+    await respond(detail("settling"));
+    expect(queueExpiryAlert(view)).toBeUndefined();
+  },
+);
+
+test.each(["waiting", "entered", "legacy"] as const)(
+  "リロード後のidleでは未入室と記録した待機だけを案内する（%s）",
+  async (savedState) => {
+    const view = page();
+    clock.advance(0);
+    await respond(detail("active"));
+    const credential = await startWaiting(view);
+    if (savedState === "entered") {
+      await respondBeforeRoomEntry(credential.operationId);
+      press(document.body, "入室する");
+      await completeRoomClaim(credential.token);
+      expect(view.querySelector("[data-path]")?.textContent).toBe("/rooms/12345");
+    } else if (savedState === "legacy") {
+      saveTournamentQueue(1, profile.username!, {
+        operationId: credential.operationId,
+        token: credential.token,
+        controllerVersion: 1,
+      });
+    }
+    rerender(view, null);
+    const reloaded = page(profile, "/tournaments/1", documentPair()());
+    clock.advance(0);
+    await respond(detail("active"));
+    expect(Boolean(queueExpiryAlert(reloaded))).toBe(savedState === "waiting");
+  },
+);
+
+async function respondBeforeRoomEntry(operationId: string) {
+  clock.advance(5000);
+  await respond(detail("active"), { ...roomParticipation(operationId), controller: "self" });
+}
+
+test("別タブが操作元のidleでも保存済みの待機資格を消し、待機切れを表示しない", async () => {
+  const credential = createTournamentQueue(1, profile.username!);
+  saveTournamentQueue(1, profile.username!, {
+    ...credential,
+    controllerVersion: 1,
+    hasEnteredRoom: false,
+  });
+  const view = page();
+  clock.advance(0);
+  await respond(detail("active"), { entered: true, status: "idle", controller: "other" });
+  expect(readTournamentQueue(1, profile.username!)).toBeNull();
+  expect(queueExpiryAlert(view)).toBeUndefined();
+});
+
+test("大会ページで有効にした参加音を非表示の成立につき一度だけ鳴らす", async () => {
+  const originalVisibility = Object.getOwnPropertyDescriptor(document, "visibilityState");
+  const originalAudio = Object.getOwnPropertyDescriptor(window, "AudioContext");
+  const started: AudioBuffer[] = [];
+  const join = { duration: 0.1 } as AudioBuffer;
+  const otherSound = { duration: 0.2 } as AudioBuffer;
+  class TestAudioContext {
+    state: AudioContextState = "suspended";
+    currentTime = 0;
+    destination = {};
+    async resume() {
+      this.state = "running";
+    }
+    async decodeAudioData(bytes: ArrayBuffer) {
+      return new TextDecoder().decode(bytes) === '"join"' ? join : otherSound;
+    }
+    createBufferSource() {
+      return {
+        buffer: null as AudioBuffer | null,
+        connect() {},
+        disconnect() {},
+        stop() {},
+        start() {
+          started.push(this.buffer!);
+        },
+      };
+    }
+  }
+  Object.defineProperty(window, "AudioContext", { configurable: true, value: TestAudioContext });
+  try {
+    for (const scenario of ["hidden", "visible", "disabled", "no gesture"] as const) {
+      setVisibility("visible");
+      const view = page(profile, "/tournaments/1", documentPair()(false));
+      clock.advance(0);
+      await respond(detail("active"));
+      for (const request of requests.filter((request) => request.url.endsWith(".mp3")))
+        request.respond(request.url.endsWith("/join.mp3") ? "join" : "other");
+      if (scenario !== "no gesture") {
+        const event = new KeyboardEvent("keydown", { key: "Tab" });
+        Object.defineProperty(event, "isTrusted", { value: true });
+        act(() => document.dispatchEvent(event));
+        await flush();
+      }
+      if (scenario === "disabled") act(() => browserSettings.update({ soundEnabled: false }));
+      const credential = await startQueue(view);
+      const matched = { ...roomParticipation(credential.operationId), controller: "self" as const };
+      clock.advance(1000);
+      if (scenario !== "visible") setVisibility("hidden");
+      await respond(detail("active"), matched);
+      expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+      expect(started).toEqual(scenario === "hidden" ? [join] : []);
+      if (scenario === "visible") setVisibility("hidden");
+      const count = participationRequests().length;
+      clock.advance(4000);
+      expect(participationRequests()).toHaveLength(count + 1);
+      await respond(detail("active"), matched);
+      expect(started).toEqual(scenario === "hidden" ? [join] : []);
+      rerender(view, null);
+      started.length = 0;
+      act(() => browserSettings.update({ soundEnabled: true }));
+    }
+  } finally {
+    act(() => browserSettings.update({ soundEnabled: true }));
+    restoreVisibility(originalVisibility);
+    if (originalAudio) Object.defineProperty(window, "AudioContext", originalAudio);
+    else Reflect.deleteProperty(window, "AudioContext");
+  }
+});
+
 test("待機継続は10秒で送信し、pagehideでは再読み込みに備え待機を解除しない", async () => {
   const view = page();
   clock.advance(0);
@@ -1159,6 +1494,7 @@ test.each(["matched", "playing"] as const)(
     await flush();
     expect(view.querySelector("[data-path]")?.textContent).toBe("/rooms/12345");
     expect(readRoomMembershipToken("12345")).toBe("c".repeat(64));
+    expect(readTournamentQueue(1, profile.username!)?.hasEnteredRoom).toBe(true);
   },
 );
 
