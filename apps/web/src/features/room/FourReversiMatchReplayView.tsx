@@ -10,7 +10,13 @@ import { matchSeats } from "./roomPresentation";
 import { seatPositions } from "./roomCommonPresentation";
 import { useRoundReplay } from "./useRoomReplay";
 import { SavedMatchReplayView } from "./SavedMatchReplayView";
-export default function FourReversiMatchReplayView({ match }: { match: ReplayFourReversiMatch }) {
+export default function FourReversiMatchReplayView({
+  match,
+  initialPosition,
+}: {
+  match: ReplayFourReversiMatch;
+  initialPosition?: string | null;
+}) {
   const { rotation, rotate } = useBoardRotation();
   const lastRound = {
     game: match.game,
@@ -20,7 +26,7 @@ export default function FourReversiMatchReplayView({ match }: { match: ReplayFou
     })),
     replay: match.replay,
   };
-  const replay = useRoundReplay(lastRound);
+  const replay = useRoundReplay(lastRound, initialPosition);
   const game = replay.frame?.game ?? match.game;
   const board = (
     <RoomBoardLayout>

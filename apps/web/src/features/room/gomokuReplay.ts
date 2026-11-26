@@ -2,6 +2,7 @@ import { replayV1, sameState } from "@tetraboard/gomoku/replay";
 import type { GomokuLastRound } from "@tetraboard/protocol";
 import type { GomokuState } from "@tetraboard/gomoku";
 import { useMemo, useState } from "react";
+import { initialReplayIndex } from "./initialReplayIndex";
 const names = { black: "黒", white: "白" };
 const reasons = { resigned: "投了", left: "退室", timeout: "時間切れ", disconnected: "通信切れ" };
 export function gomokuReplayFrames(lastRound: GomokuLastRound) {
@@ -20,10 +21,16 @@ export function gomokuReplayFrames(lastRound: GomokuLastRound) {
     });
   return frames;
 }
-export function useGomokuReplay(lastRound: GomokuLastRound | null) {
+export function useGomokuReplay(
+  lastRound: GomokuLastRound | null,
+  initialPosition: string | null = null,
+) {
   const id = lastRound?.replay.id ?? null;
   const frames = useMemo(() => (lastRound ? gomokuReplayFrames(lastRound) : []), [lastRound]);
-  const [selection, setSelection] = useState({ id, index: frames.length - 1 });
+  const [selection, setSelection] = useState(() => ({
+    id,
+    index: initialReplayIndex(initialPosition, frames.length),
+  }));
   if (selection.id !== id) setSelection({ id, index: frames.length - 1 });
   const index = selection.id === id ? selection.index : frames.length - 1;
   return {

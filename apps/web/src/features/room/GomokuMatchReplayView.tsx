@@ -8,7 +8,13 @@ import { GomokuPlayerCard } from "./GomokuPlayerCard";
 import { GomokuResult } from "./GomokuResult";
 import { useGomokuReplay } from "./gomokuReplay";
 import { SavedMatchReplayView } from "./SavedMatchReplayView";
-export default function GomokuMatchReplayView({ match }: { match: ReplayGomokuMatch }) {
+export default function GomokuMatchReplayView({
+  match,
+  initialPosition,
+}: {
+  match: ReplayGomokuMatch;
+  initialPosition?: string | null;
+}) {
   const [rotation, setRotation] = useState<QuarterTurn>(0);
   const lastRound = {
     settings: match.settings,
@@ -16,7 +22,7 @@ export default function GomokuMatchReplayView({ match }: { match: ReplayGomokuMa
     replay: match.replay,
     players: match.participants.map((p) => ({ ...p, appearance: playerAppearance(p) })),
   };
-  const replay = useGomokuReplay(lastRound);
+  const replay = useGomokuReplay(lastRound, initialPosition);
   const game = replay.frame?.game ?? match.game;
   const anchor =
     match.participants.find((p) => p.id === match.selfPlayerId) ??

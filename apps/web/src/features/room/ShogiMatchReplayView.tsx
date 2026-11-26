@@ -10,15 +10,18 @@ import { FourShogiBoardLayout as ShogiBoardLayout } from "./FourShogiBoardLayout
 import { ShogiResult } from "./ShogiResult";
 import type { ShogiReplayFrame } from "./standardShogiReplay";
 import { SavedMatchReplayView } from "./SavedMatchReplayView";
+import { initialReplayIndex } from "./initialReplayIndex";
 export default function ShogiMatchReplayView({
   match,
   frames,
+  initialPosition = null,
 }: {
   match: ReplayShogiMatch;
   frames: ShogiReplayFrame[];
+  initialPosition?: string | null;
 }) {
   const { rotation, rotate } = useBoardRotation();
-  const [index, setIndex] = useState(frames.length - 1);
+  const [index, setIndex] = useState(() => initialReplayIndex(initialPosition, frames.length));
   const frame = frames[index]!;
   const base =
     match.selfPlayerId && match.game.players.north === match.selfPlayerId ? "north" : "south";
