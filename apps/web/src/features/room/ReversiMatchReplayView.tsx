@@ -8,14 +8,20 @@ import { ReversiPlayerCard } from "./ReversiPlayerCard";
 import { ReversiResult } from "./ReversiResult";
 import { useReversiReplay } from "./reversiReplay";
 import { SavedMatchReplayView } from "./SavedMatchReplayView";
-export default function ReversiMatchReplayView({ match }: { match: ReplayReversiMatch }) {
+export default function ReversiMatchReplayView({
+  match,
+  initialPosition,
+}: {
+  match: ReplayReversiMatch;
+  initialPosition?: string | null;
+}) {
   const [rotation, setRotation] = useState<QuarterTurn>(0);
   const lastRound = {
     game: match.game,
     replay: match.replay,
     players: match.participants.map((p) => ({ ...p, appearance: playerAppearance(p) })),
   };
-  const replay = useReversiReplay(lastRound);
+  const replay = useReversiReplay(lastRound, initialPosition);
   const game = replay.frame?.game ?? match.game;
   const anchor =
     match.participants.find((p) => p.id === match.selfPlayerId) ??

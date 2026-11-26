@@ -1,6 +1,7 @@
 import type { ReversiLastRound } from "@tetraboard/protocol";
 import type { ReversiState } from "@tetraboard/reversi";
 import { useState } from "react";
+import { initialReplayIndex } from "./initialReplayIndex";
 const names = { black: "黒", white: "白" };
 const reasons = { resigned: "投了", left: "退室", timeout: "時間切れ", disconnected: "通信切れ" };
 export function reversiReplayFrames(lastRound: ReversiLastRound) {
@@ -31,10 +32,16 @@ export function reversiReplayFrames(lastRound: ReversiLastRound) {
   }
   return frames;
 }
-export function useReversiReplay(lastRound: ReversiLastRound | null) {
+export function useReversiReplay(
+  lastRound: ReversiLastRound | null,
+  initialPosition: string | null = null,
+) {
   const id = lastRound?.replay.id ?? null;
   const frames = lastRound ? reversiReplayFrames(lastRound) : [];
-  const [selection, setSelection] = useState({ id, index: frames.length - 1 });
+  const [selection, setSelection] = useState(() => ({
+    id,
+    index: initialReplayIndex(initialPosition, frames.length),
+  }));
   if (selection.id !== id) setSelection({ id, index: frames.length - 1 });
   const index = selection.id === id ? selection.index : frames.length - 1;
   return {

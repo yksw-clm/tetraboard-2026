@@ -10,7 +10,13 @@ import { FourGomokuPlayerCard } from "./FourGomokuPlayerCard";
 import { FourGomokuResult } from "./FourGomokuResult";
 import { useFourGomokuReplay } from "./fourGomokuReplay";
 import { SavedMatchReplayView } from "./SavedMatchReplayView";
-export default function FourGomokuMatchReplayView({ match }: { match: ReplayFourGomokuMatch }) {
+export default function FourGomokuMatchReplayView({
+  match,
+  initialPosition,
+}: {
+  match: ReplayFourGomokuMatch;
+  initialPosition?: string | null;
+}) {
   const { rotation, rotate } = useBoardRotation();
   const lastRound = {
     settings: match.settings,
@@ -18,7 +24,7 @@ export default function FourGomokuMatchReplayView({ match }: { match: ReplayFour
     replay: match.replay,
     players: match.participants.map((p) => ({ ...p, appearance: playerAppearance(p) })),
   };
-  const replay = useFourGomokuReplay(lastRound);
+  const replay = useFourGomokuReplay(lastRound, initialPosition);
   const game = replay.frame?.game ?? match.game;
   const seats = colorSeats(match.participants, match.selfPlayerId);
   const board = (

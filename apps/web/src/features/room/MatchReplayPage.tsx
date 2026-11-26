@@ -13,36 +13,37 @@ import {
   useNavigate,
   useNavigation,
   useRouteError,
+  useSearchParams,
 } from "react-router";
 import { AccountReplayRecovery } from "../account/AccountReplayRecovery";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { FeedbackEntry } from "../feedback/FeedbackEntry";
 import type { MatchReplayData } from "./matchReplayLoader";
-function Replay({ data }: { data: MatchReplayData }) {
+function Replay({ data, position }: { data: MatchReplayData; position: string | null }) {
   switch (data.game) {
     case "shogi": {
       const View = replayViews.shogi;
-      return <View key={data.match.id} match={data.match} frames={data.frames} />;
+      return <View match={data.match} frames={data.frames} initialPosition={position} />;
     }
     case "four-gomoku": {
       const View = replayViews["four-gomoku"];
-      return <View key={data.match.id} match={data.match} />;
+      return <View match={data.match} initialPosition={position} />;
     }
     case "gomoku": {
       const View = replayViews.gomoku;
-      return <View key={data.match.id} match={data.match} />;
+      return <View match={data.match} initialPosition={position} />;
     }
     case "reversi": {
       const View = replayViews.reversi;
-      return <View key={data.match.id} match={data.match} />;
+      return <View match={data.match} initialPosition={position} />;
     }
     case "four-reversi": {
       const View = replayViews["four-reversi"];
-      return <View key={data.match.id} match={data.match} />;
+      return <View match={data.match} initialPosition={position} />;
     }
     case "four-shogi": {
       const View = replayViews["four-shogi"];
-      return <View key={data.match.id} match={data.match} frames={data.frames} />;
+      return <View match={data.match} frames={data.frames} initialPosition={position} />;
     }
     default:
       return assertNever(data);
@@ -50,11 +51,13 @@ function Replay({ data }: { data: MatchReplayData }) {
 }
 export function MatchReplayPage() {
   const data = useLoaderData<MatchReplayData>();
+  const [searchParams] = useSearchParams();
+  const position = searchParams.get("position");
   return (
     <Suspense
       fallback={<AppPageLoading message="棋譜を読み込んでいます…" theme={gameThemes[data.game]} />}
     >
-      <Replay data={data} />
+      <Replay key={JSON.stringify([data.match.id, position])} data={data} position={position} />
     </Suspense>
   );
 }
