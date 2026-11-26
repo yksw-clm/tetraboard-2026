@@ -1,9 +1,13 @@
 import { legalHtml } from "./routes/legalHtml";
-import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { fourShogiRulesPath, gameCatalog, gameIds, isGameId } from "@tetraboard/protocol/games";
 import { serveRoomShareHtml } from "./roomShareHtml";
 import { serveMatchShareHtml } from "./matchSharing/html";
 import { withVisitHtml } from "./usageEvents/visit";
 import { serveTournamentHtml, serveTournamentSitemap } from "./tournamentPages";
+import { serveBoardHtml } from "./boardPages";
+
+const boardTimelinePath = /^\/games\/([^/]+)\/posts\/?$/;
+const boardDetailPath = /^\/posts\/([^/]+)\/?$/;
 
 const publicPagePaths = [
   ...gameIds.map((game) => gameCatalog[game].lobbyPath),
@@ -76,6 +80,21 @@ async function serveSpaAsset(request: Request, assets: Fetcher, path: string, en
   return withoutIndexing(await assets.fetch(new Request(url, request)));
 }
 
+function rejectAssetRequest(request: Request, board: boolean) {
+  const upgrade = request.headers.has("Upgrade");
+  if (!upgrade && (request.method === "GET" || request.method === "HEAD")) return null;
+  const headers = new Headers({ "Content-Type": "text/plain;charset=UTF-8" });
+  if (board) headers.set("Cache-Control", "no-store");
+  if (!upgrade) headers.set("Allow", "GET, HEAD");
+  const message = upgrade ? "Not Found" : "Method Not Allowed";
+  return withoutIndexing(
+    new Response(request.method === "HEAD" ? null : message, {
+      status: upgrade ? 404 : 405,
+      headers,
+    }),
+  );
+}
+
 export async function servePublicAssets(
   request: Request,
   assets: Fetcher,
@@ -84,12 +103,15 @@ export async function servePublicAssets(
 ): Promise<Response> {
   const url = new URL(request.url);
   const html = (response: Response) => withVisitHtml(request, response, path);
-  if (request.headers.get("Upgrade"))
-    return withoutIndexing(new Response("Not Found", { status: 404 }));
-  if (request.method !== "GET" && request.method !== "HEAD")
-    return withoutIndexing(
-      new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } }),
-    );
+  const boardTimeline = boardTimelinePath.exec(path);
+  const boardDetail = boardDetailPath.exec(path);
+  const rejection = rejectAssetRequest(request, Boolean(boardTimeline || boardDetail));
+  if (rejection) return rejection;
+  if (boardTimeline)
+    return isGameId(boardTimeline[1])
+      ? html(await serveBoardHtml(request, assets, env))
+      : serveNotFoundAsset(request, url, assets);
+  if (boardDetail) return html(await serveBoardHtml(request, assets, env, boardDetail[1]));
   if (path === "/privacy" || path === "/terms")
     return legalHtml(request, assets, path.slice(1) as "privacy" | "terms");
   if (path === "/" || path === "/index.html") {

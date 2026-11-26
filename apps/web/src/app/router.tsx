@@ -2,6 +2,7 @@ import { matchReplayLoader, publicMatchReplayLoader } from "../features/room/mat
 import { PlayerProfileProvider } from "../features/players/PlayerProfileProvider";
 import { ActiveTournamentProvider } from "../features/tournaments/ActiveTournamentProvider";
 import { AccountLayout } from "../features/account/AccountSession";
+import { BoardTimelineLoading } from "../features/board/BoardTimelineLoading";
 import { createBrowserRouter, Link, replace } from "react-router";
 import { matchmakingPath } from "../features/matchmaking/paths";
 import { roomLoader } from "../features/room/roomLoader";
@@ -64,6 +65,8 @@ const lazyMatchReplayPage = () => ({
 // 一覧と詳細の遅延読み込み先を共用し、既存画面が読む共通チャンクの細分化を抑えます。
 const loadTournamentPages = () => import("../features/tournaments/tournamentRoutes");
 
+const loadBoardPages = () => import("../features/board/BoardPages");
+
 export const router = createBrowserRouter([
   {
     path: "/tournaments",
@@ -121,6 +124,20 @@ export const router = createBrowserRouter([
           Component: (await import("../features/feedback/FeedbackPage")).FeedbackPage,
         }),
         hydrateFallbackElement: <AppPageLoading message="フィードバックを読み込んでいます…" />,
+      },
+      {
+        path: "/games/:gameId/posts",
+        lazy: async () => ({
+          Component: (await loadBoardPages()).BoardTimelinePage,
+        }),
+        hydrateFallbackElement: <BoardTimelineLoading />,
+      },
+      {
+        path: "/posts/:id",
+        lazy: async () => ({
+          Component: (await loadBoardPages()).BoardDetailPage,
+        }),
+        hydrateFallbackElement: <AppPageLoading message="投稿を読み込んでいます…" />,
       },
       {
         path: "/updates",
