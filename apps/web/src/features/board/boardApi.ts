@@ -3,14 +3,16 @@ import {
   boardDetailSchema,
   boardRepliesSchema,
 } from "@tetraboard/protocol/board";
+import { boardPostPath } from "@tetraboard/protocol/board-pages";
 import type { GameId } from "@tetraboard/protocol/games";
+
+export { boardPostPath };
 
 export const boardLoadError = "投稿を取得できませんでした。";
 export const boardMissing =
   "投稿が見つかりません。削除されたか、URL が間違っている可能性があります。";
 
 export const boardTimelinePath = (game: GameId) => `/games/${game}/posts`;
-export const boardPostPath = (id: string) => `/posts/${encodeURIComponent(id)}`;
 
 export class BoardRequestError extends Error {
   readonly status: number;
@@ -52,7 +54,8 @@ export async function readTimeline(game: GameId, signal: AbortSignal, before?: s
 }
 
 export async function readDetail(id: string, signal: AbortSignal) {
-  const response = await boardRequest(boardPostPath(id), { signal }, boardLoadError);
+  const path = `${boardPostPath(id)}?includeIndexable=1`;
+  const response = await boardRequest(path, { signal }, boardLoadError);
   return boardDetailSchema.parse(await response.json());
 }
 

@@ -5,8 +5,9 @@ import {
   type BoardReply,
 } from "@tetraboard/protocol/board";
 import { gameCatalog, isGameId, type GameId } from "@tetraboard/protocol/games";
-import { useCallback, useRef, type ReactNode } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { updatePageMetadata } from "../../seo/pageMetadata";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { AppPageLoading, AppPageState } from "../../shared/ui/AppPageState";
@@ -248,11 +249,20 @@ export function BoardDetailPage() {
 
 function BoardDetail({ id }: { id: string }) {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const path = boardPostPath(id);
   const readFirst = useCallback((signal: AbortSignal) => readDetail(id, signal), [id]);
   const board = useBoardData(readFirst);
   const { data, pending, failure } = board;
   const busy = pending !== null;
+  const metadataPost =
+    failure && (failure.notFound || failure.source !== "more") ? undefined : data?.post;
+  const indexable = data?.indexable ?? false;
+  useEffect(() => {
+    if (pathname.replace(/\/$/, "") !== path) return;
+    const page = metadataPost && { post: metadataPost, indexable };
+    updatePageMetadata(pathname, undefined, undefined, undefined, undefined, page);
+  }, [pathname, path, metadataPost, indexable]);
   // 同期に失敗した場合も、再試行で除外する返信 ID を保持します。
   const removedReplies = useRef(new Set<string>());
 

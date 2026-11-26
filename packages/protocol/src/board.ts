@@ -87,6 +87,7 @@ export const boardRepliesSchema = z.strictObject({
 export const boardDetailSchema = boardRepliesSchema.extend({
   ...boardPostingStateSchema.shape,
   post: boardPostSchema,
+  indexable: z.boolean().optional(),
 });
 
 export const boardPostResultSchema = z.strictObject({

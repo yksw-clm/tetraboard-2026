@@ -1,4 +1,13 @@
-import { boardPage, boardPostingState, type BoardCursor } from "@tetraboard/context-community";
+import {
+  boardIndexAgeMs,
+  boardIndexReplyCount,
+  boardIndexTextLength,
+  boardPage,
+  boardPostingState,
+  boardPostVisibility,
+  shouldIndexBoardPost,
+  type BoardCursor,
+} from "@tetraboard/context-community";
 import type { GameId } from "@tetraboard/protocol/games";
 import {
   boardLiveRepliesSql,
@@ -18,6 +27,10 @@ export const boardPostingStateColumns = `
 export const boardSenderJoin = "FROM (SELECT 1) LEFT JOIN board_senders s ON s.account_id=?1";
 
 type PostingStateRow = Parameters<typeof boardPostingState>[0];
+type SitemapRow = Pick<BoardRow, "id" | "postedAtMs" | "deletedAtMs" | "replyCount"> & {
+  text: string;
+  lastModifiedAtMs: number;
+};
 
 function postingStateStatement(db: D1Database, viewer: string | null) {
   return db.prepare(`SELECT ${boardPostingStateColumns} ${boardSenderJoin}`).bind(viewer);
@@ -50,18 +63,55 @@ export class D1BoardReader {
     };
   }
 
-  async detail(id: string, viewer: string | null) {
+  async detail(id: string, viewer: string | null, production: boolean) {
     const [parent, replies, state] = await this.db.batch([
       ...this.threadStatements(id, viewer),
       postingStateStatement(this.db, viewer),
     ]);
     const post = this.readParent(parent!, viewer);
     if (!post) return null;
+    const postingState = boardPostingState(state!.results[0] as PostingStateRow, Date.now);
     return {
       post,
+      indexable:
+        post.status === "published" &&
+        shouldIndexBoardPost({
+          production,
+          deletedAtMs: null,
+          postedAtMs: post.postedAtMs,
+          replyCount: post.replyCount,
+          text: post.text,
+          now: postingState.serverTimeMs,
+        }),
       ...this.replyPage(replies!, viewer),
-      ...boardPostingState(state!.results[0] as PostingStateRow, Date.now),
+      ...postingState,
     };
+  }
+
+  async sitemapPosts(production: boolean) {
+    const now = Date.now();
+    // SQLite の length は NUL で止まるため、NUL を含む本文も候補に残します。
+    const { results } = await this.db
+      .prepare(`SELECT p.id,p.body AS text,p.posted_at_ms AS postedAtMs,
+ COALESCE(p.deleted_at_ms,d.requested_at_ms) AS deletedAtMs,
+ (SELECT COUNT(*) ${boardLiveRepliesSql}) AS replyCount,
+ MAX(p.posted_at_ms,COALESCE((
+   SELECT MAX(MAX(r.posted_at_ms,COALESCE(r.deleted_at_ms,rd.requested_at_ms,0)))
+   FROM board_posts r LEFT JOIN deleted_accounts rd ON rd.id=r.account_id WHERE r.parent_id=p.id
+ ),0)) AS lastModifiedAtMs
+ FROM board_posts p LEFT JOIN deleted_accounts d ON d.id=p.account_id
+ WHERE p.parent_id IS NULL AND ${boardPublishedSql("p")}
+ AND p.posted_at_ms<=?1
+ AND (replyCount>=?2 OR length(p.body)>=?3 OR instr(p.body,char(0))>0)
+ ORDER BY p.posted_at_ms DESC,p.id DESC`)
+      .bind(now - boardIndexAgeMs, boardIndexReplyCount, boardIndexTextLength)
+      .all<SitemapRow>();
+    return results.flatMap(({ id, lastModifiedAtMs, ...post }) =>
+      boardPostVisibility(post.deletedAtMs, post.replyCount) === "published" &&
+      shouldIndexBoardPost({ ...post, production, now })
+        ? [{ id, lastModifiedAtMs }]
+        : [],
+    );
   }
 
   async replies(id: string, viewer: string | null, after?: BoardCursor) {

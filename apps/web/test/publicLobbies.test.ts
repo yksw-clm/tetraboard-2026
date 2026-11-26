@@ -364,7 +364,9 @@ test("サイトマップは総合と6ゲームのロビー、四人将棋のル�
   }
   expect(xml).toContain("https://tetraboard.net/games/four-shogi</loc>");
   expect(xml).toContain("https://tetraboard.net/games/four-reversi</loc>");
-  expect(robotsText).toContain("Allow: /\nSitemap: https://tetraboard.net/sitemap.xml");
+  expect(robotsText).toBe(
+    "User-agent: *\nAllow: /\nSitemap: https://tetraboard.net/sitemap.xml\nSitemap: https://tetraboard.net/sitemap-posts.xml\n",
+  );
   const html = renderNotFound(template);
   expect(html).toContain("ページが見つかりません。");
   expect(html).toContain('content="noindex,follow"');

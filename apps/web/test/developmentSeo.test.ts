@@ -59,10 +59,15 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
     pages.push(document.head.innerHTML);
     stop();
     router.dispose();
+    updatePageMetadata("/posts/example", undefined, undefined, undefined, undefined, {
+      post: { id: "example", status: "published", gameId: "shogi", text: "開発の投稿" },
+      indexable: true,
+    });
+    const boardHead = document.head.innerHTML;
     const helpHtml = renderHowToPlay(template, lobbyBoardSources, helpScreenshots);
     updatePageMetadata("/how-to-play");
     const helpHead = document.head.innerHTML;
-    console.log(JSON.stringify({ home, lobbies, rulesHtml, helpHtml, helpHead, sitemap: renderSitemap(), robotsText, pages }));
+    console.log(JSON.stringify({ home, lobbies, rulesHtml, helpHtml, helpHead, boardHead, sitemap: renderSitemap(), robotsText, pages }));
   `,
     ],
     {
@@ -107,14 +112,16 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
   }
   expect(output.sitemap).not.toContain("<loc>");
   expect(output.sitemap).not.toContain("<lastmod>");
-  expect(output.robotsText).toContain("Allow: /");
-  expect(output.robotsText).not.toContain("Sitemap:");
+  expect(output.robotsText).toBe("User-agent: *\nAllow: /\n");
+  expect(output.boardHead).toContain(`href="${developmentOrigin}/posts/example"`);
+  expect(output.boardHead).toContain(`content="${developmentOrigin}/assets/ogp/shogi.png"`);
   for (const page of [
     output.home,
     ...Object.values(output.lobbies),
     output.rulesHtml,
     output.helpHtml,
     output.helpHead,
+    output.boardHead,
     ...output.pages,
   ]) {
     expect(page).toContain('content="noindex,follow"');
