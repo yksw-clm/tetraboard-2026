@@ -3,6 +3,7 @@ export * from "./matchKinds";
 export * from "./avatarPresets";
 export * from "./profileDetails";
 export * from "./gameSchemas";
+export { boardPostIdSchema } from "./boardIds";
 export { healthzContract } from "./healthz";
 export {
   getFourReversiRankingsContract,

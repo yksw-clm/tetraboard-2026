@@ -1,5 +1,6 @@
-import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { gameCatalog, gameIds, isGameId } from "@tetraboard/protocol/games";
 import {
+  boardPostIdSchema,
   roomSocketContract,
   ratedMatchmakingGameIds,
   roomTimeControlSchema,
@@ -7,6 +8,7 @@ import {
   type RoomMode,
   type CpuLevel,
 } from "@tetraboard/protocol";
+import { boardPagePathPattern } from "../../shared/siteNavigation";
 
 export const registrationReturnKey = "tetraboard:registration-return";
 const lifetimeMs = 60 * 60 * 1000;
@@ -38,6 +40,11 @@ export type RegistrationReturn = RegistrationDestination & {
 export function registrationPath(path: unknown): string | null {
   if (typeof path !== "string") return null;
   if (path === "/") return path;
+  const board = boardPagePathPattern.exec(path);
+  if (board) {
+    const [, gameId, postId] = board;
+    return (gameId ? isGameId(gameId) : boardPostIdSchema.safeParse(postId).success) ? path : null;
+  }
   if (/^\/tournaments\/[1-9]\d*$/.test(path)) {
     const id = Number(path.split("/").at(-1));
     if (Number.isSafeInteger(id)) return path;

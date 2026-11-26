@@ -26,7 +26,12 @@ import {
   publicTournament,
   publicTournamentPages,
 } from "./adapters/tournament/store";
-import { dynamicAssetHeaders, escapeShareHtml, fetchUnconditionalAsset } from "./htmlAssets";
+import {
+  dynamicAssetHeaders,
+  escapeShareHtml,
+  fetchUnconditionalAsset,
+  readWithinDeadline,
+} from "./htmlAssets";
 
 type TournamentPage = ReturnType<typeof tournamentListMetadata> & {
   body: string;
@@ -35,22 +40,6 @@ type TournamentPage = ReturnType<typeof tournamentListMetadata> & {
 };
 type TournamentPages = Awaited<ReturnType<typeof publicTournamentPages>>;
 type FinalStandings = Awaited<ReturnType<typeof publicFinalStandings>>;
-
-async function readWithinDeadline<T>(read: () => Promise<T>): Promise<T | undefined> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      read(),
-      new Promise<undefined>((resolve) => {
-        timer = setTimeout(() => resolve(undefined), 1500);
-      }),
-    ]);
-  } catch {
-    console.error("Published tournament data unavailable");
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
-}
 
 function renderStandings(standings: FinalStandings): string {
   const rows = standings.map(
@@ -196,7 +185,7 @@ export async function serveTournamentHtml(
 ) {
   const [asset, page] = await Promise.all([
     fetchUnconditionalAsset(request, assets, "/app.html"),
-    readWithinDeadline(() => readTournamentPage(env, id)),
+    readWithinDeadline(() => readTournamentPage(env, id), "Published tournament data unavailable"),
   ]);
   const headers = dynamicAssetHeaders(asset);
   const indexable = !!page && asset.ok && env.APP_ORIGIN === "https://tetraboard.net";
@@ -220,7 +209,10 @@ function sitemapEntry(origin: string, path: string, lastModifiedAtMs: number | n
 
 export async function serveTournamentSitemap(request: Request, assets: Fetcher, env: Env) {
   if (env.APP_ORIGIN !== "https://tetraboard.net") return assets.fetch(request);
-  const tournaments = await readWithinDeadline(() => publicTournamentPages(env.APP_DB));
+  const tournaments = await readWithinDeadline(
+    () => publicTournamentPages(env.APP_DB),
+    "Published tournament data unavailable",
+  );
   if (!tournaments) return assets.fetch(request);
 
   const asset = await fetchUnconditionalAsset(request, assets, "/sitemap.xml");

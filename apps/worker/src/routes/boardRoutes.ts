@@ -6,6 +6,7 @@ import {
 import {
   boardDetailSchema,
   boardLikeResultSchema,
+  boardPostIdSchema,
   boardPostResultSchema,
   boardRepliesSchema,
   boardReplyResultSchema,
@@ -40,7 +41,6 @@ boardRoutes.onError((_error, c) =>
 );
 
 const gameSchema = z.enum(gameIds);
-const postIdSchema = z.uuid();
 
 function invalidQuery(c: Context<BoardEnv>) {
   return c.json({ message: "取得条件が正しくありません。" }, 400);
@@ -66,14 +66,14 @@ boardRoutes.get(gamePath, async (c) => {
 });
 
 boardRoutes.get("/posts/:id", async (c) => {
-  const id = postIdSchema.safeParse(c.req.param("id"));
+  const id = boardPostIdSchema.safeParse(c.req.param("id"));
   if (!id.success) return c.notFound();
   const page = await new D1BoardReader(c.env.APP_DB).detail(id.data, c.get("user")?.id ?? null);
   return page ? c.json(boardDetailSchema.parse(page)) : c.notFound();
 });
 
 boardRoutes.get("/posts/:id/replies", async (c) => {
-  const id = postIdSchema.safeParse(c.req.param("id"));
+  const id = boardPostIdSchema.safeParse(c.req.param("id"));
   if (!id.success) return c.notFound();
   const query = boardRepliesQuery.safeParse(c.req.query());
   if (!query.success || hasRepeatedQuery(c)) return invalidQuery(c);
@@ -156,14 +156,14 @@ boardRoutes.post(gamePath, (c) => {
 });
 
 boardRoutes.post("/posts/:id/replies", (c) => {
-  const id = postIdSchema.safeParse(c.req.param("id"));
+  const id = boardPostIdSchema.safeParse(c.req.param("id"));
   return id.success ? submitPost(c, { gameId: null, parentId: id.data }) : c.notFound();
 });
 
 boardRoutes.delete("/posts/:id", async (c) => {
   const user = c.get("user");
   if (!user) return loginRequired(c);
-  const id = postIdSchema.safeParse(c.req.param("id"));
+  const id = boardPostIdSchema.safeParse(c.req.param("id"));
   if (!id.success || !(await deleteOwnBoardPost(c.env.APP_DB, user.id, id.data, Date.now())))
     return c.notFound();
   return c.body(null, 204);
@@ -174,7 +174,7 @@ boardRoutes.on(["PUT", "DELETE"], "/posts/:id/like", async (c) => {
   if (!user) return loginRequired(c);
   const rejected = profileRejection(c, user);
   if (rejected) return rejected;
-  const id = postIdSchema.safeParse(c.req.param("id"));
+  const id = boardPostIdSchema.safeParse(c.req.param("id"));
   if (!id.success) return c.notFound();
   const result = await setBoardLike(
     c.env.APP_DB,

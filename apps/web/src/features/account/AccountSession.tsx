@@ -15,7 +15,7 @@ import { readAccount } from "./accountApi";
 import { RegistrationCompletion } from "./RegistrationCompletion";
 import { BadgeNotificationProvider } from "../badges/BadgeNotificationProvider";
 import { LastLobbyGameTracker } from "../../shared/ui/AppNavigation";
-import { isGameViewPath } from "../../shared/siteNavigation";
+import { boardPagePathPattern, isGameViewPath } from "../../shared/siteNavigation";
 function accountIdentity(user: AccountProfile | null) {
   return user?.profileId ?? user?.username ?? null;
 }
@@ -202,6 +202,7 @@ export function AccountLayout() {
             location.pathname !== "/feedback" &&
             location.pathname.replace(/\/$/, "") !== fourShogiRulesPath &&
             !/^\/tournaments\/[1-9]\d*\/?$/.test(location.pathname) &&
+            !boardPagePathPattern.test(location.pathname) &&
             !/^\/updates(?:\/[^/]+)?\/?$/.test(location.pathname) &&
             !/^\/matches\/[^/]+\/?$/.test(location.pathname) &&
             !(
