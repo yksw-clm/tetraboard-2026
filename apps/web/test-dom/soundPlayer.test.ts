@@ -125,6 +125,39 @@ test("準備前・非表示・中断中の音は捨て、復帰操作から新�
   a.player.play(["put"]);
   expect(a.nodes).toHaveLength(1);
 });
+
+test("成立通知の参加音は有効化済みなら非表示でも鳴り、通常の音は鳴らない", async () => {
+  const a = audio();
+  a.state.visible = false;
+  a.player.playMatchNotification();
+  expect(a.nodes).toHaveLength(0);
+  a.state.visible = true;
+  a.player.activate();
+  await flush();
+  a.state.visible = false;
+  a.player.play(["join"]);
+  expect(a.nodes).toHaveLength(0);
+  a.player.playMatchNotification();
+  expect(a.nodes).toHaveLength(1);
+  expect(a.nodes[0]?.buffer?.duration).toBe(0.1);
+  expect(a.nodes[0]?.at).toBe(10);
+  a.player.setEnabled(false);
+  a.player.playMatchNotification();
+  expect(a.nodes).toHaveLength(1);
+  a.player.setEnabled(true);
+  a.context.state = "suspended";
+  a.player.playMatchNotification();
+  expect(a.nodes).toHaveLength(1);
+  a.context.state = "running";
+  a.state.available = false;
+  a.player.playMatchNotification();
+  expect(a.nodes).toHaveLength(1);
+  a.state.available = true;
+  a.state.failStart = true;
+  expect(() => a.player.playMatchNotification()).not.toThrow();
+  expect(a.nodes.at(-1)?.at).toBeNull();
+});
+
 test("最終手のputの終了後にendを予約し、本人の送信時putも待って、非表示時に予約を破棄", async () => {
   const a = audio();
   a.player.activate();

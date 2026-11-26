@@ -4,6 +4,7 @@ export type TournamentQueueCredential = {
   operationId: string;
   token: string;
   controllerVersion?: number;
+  hasEnteredRoom?: boolean;
 };
 const keyFor = (id: number, identity: string) => `tetraboard:tournament:${id}:${identity}:queue`;
 export function readTournamentQueue(
@@ -30,6 +31,9 @@ export function readTournamentQueue(
           token: value.token,
           ...(Number.isSafeInteger(value.controllerVersion) && value.controllerVersion > 0
             ? { controllerVersion: value.controllerVersion }
+            : {}),
+          ...(typeof value.hasEnteredRoom === "boolean"
+            ? { hasEnteredRoom: value.hasEnteredRoom }
             : {}),
         }
       : null;
