@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
 import type { AccountProfile } from "@tetraboard/protocol";
 import type { BoardPost, BoardPublishedPost, BoardReply } from "@tetraboard/protocol/board";
+import {
+  boardPostMetadata,
+  renderDiscussionForumPostingJsonLd,
+} from "@tetraboard/protocol/board-pages";
 import { gameIds } from "@tetraboard/protocol/games";
 import {
   createMemoryRouter,
@@ -213,34 +217,144 @@ test("画面内で投稿の詳細を開くと投稿ごとのメタ情報に更�
   }
 });
 
-test("投稿を直接開くとWorkerのメタ情報とJSON-LDを保持し、別の画面に移ったときに消す", async () => {
+function initialBoardMetadata(parent: BoardPublishedPost, replies: BoardReply[]) {
   const previousHead = document.head.innerHTML;
   const router = boardMetadataRouter(`${postPath}/`);
-  document.head.innerHTML = `<title>Workerの投稿タイトル</title><meta name="description" content="Workerの抜粋"><meta name="robots" content="index,follow"><link rel="canonical" href="https://tetraboard.net${postPath}"><meta property="og:image" content="https://tetraboard.net/assets/ogp/four-shogi.png"><script type="application/ld+json">{"@type":"DiscussionForumPosting"}</script>`;
-  const initialHead = document.head.innerHTML;
+  const { title, description, canonical } = boardPostMetadata("https://tetraboard.net", parent);
+  document.head.innerHTML = `<title>${title}</title><meta name="description" content="${description}"><meta name="robots" content="index,follow"><link rel="canonical" href="${canonical}"><meta property="og:image" content="https://tetraboard.net/assets/ogp/four-shogi.png">${renderDiscussionForumPostingJsonLd(canonical, parent, replies)}`;
   const stop = startPageMetadata(router);
+  return {
+    router,
+    dispose() {
+      stop();
+      router.dispose();
+      document.head.innerHTML = previousHead;
+    },
+  };
+}
+
+function readBoardHead() {
+  return {
+    title: document.title,
+    description: document.head.querySelector('meta[name="description"]')?.getAttribute("content"),
+    canonical: document.head.querySelector('link[rel="canonical"]')?.getAttribute("href"),
+    robots: document.head.querySelector('meta[name="robots"]')?.getAttribute("content"),
+    jsonLd: document.head.querySelector('script[type="application/ld+json"]')?.textContent,
+  };
+}
+
+test("直接開いた投稿が初期HTMLと同じならメタ情報とJSON-LDの内容が変わらない", async () => {
+  const parent = post(1, "投稿の本文", { replyCount: 2 });
+  const first = reply(2, "最初の返信", { own: true });
+  const next = reply(3, "追加取得した返信");
+  const { router, dispose } = initialBoardMetadata(parent, [first]);
+  const initialHead = document.head.innerHTML;
+  const initialContent = readBoardHead();
   try {
     const view = render(<RouterProvider router={router} />);
     expect(document.head.innerHTML).toBe(initialHead);
-    await respond(thread(post(1, "起動後の本文")));
-    expect(view.textContent).toContain("起動後の本文");
-    expect(document.head.innerHTML).toBe(initialHead);
+    await respond(thread(parent, [first], cursor(first), true));
+    expect(view.textContent).toContain(parent.text);
+    expect(readBoardHead()).toEqual(initialContent);
+
+    press(view, "もっと見る");
+    await respond({ replies: [next], nextCursor: null });
+    expect(view.textContent).toContain(next.text);
+    expect(readBoardHead()).toEqual(initialContent);
+
+    press(articles(view)[1]!, "削除");
+    press(dialog(), "削除する");
+    await respond(null, 204);
+    expect(latest().url).toBe(detailUrl);
+    const newFirst = reply(4, "再取得の最初のページにある返信");
+    await respond(thread(parent, [newFirst], null, true));
+    expect(view.textContent).toContain(next.text);
+    const updated = readBoardHead();
+    expect(JSON.parse(updated.jsonLd!).comment.map(({ text }: { text: string }) => text)).toEqual([
+      newFirst.text,
+    ]);
+
     await act(async () => {
       await router.navigate(`${postPath}?source=board`);
     });
-    expect(document.head.innerHTML).toBe(initialHead);
+    expect(readBoardHead()).toEqual(updated);
     await act(async () => {
       await router.navigate(timelinePath);
     });
-    expect(document.head.querySelector('script[type="application/ld+json"]')).toBeNull();
-    expect(document.head.querySelector('meta[name="description"]')).toBeNull();
-    expect(document.head.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
-      "noindex,follow",
-    );
+    expect(readBoardHead().jsonLd).toBeUndefined();
+    expect(readBoardHead().description).toBeUndefined();
+    expect(readBoardHead().robots).toBe("noindex,follow");
   } finally {
-    stop();
-    router.dispose();
-    document.head.innerHTML = previousHead;
+    dispose();
+  }
+});
+
+test("直接開いた投稿の詳細APIが削除枠を返すとheadから元の内容を取り除く", async () => {
+  const parent = post(1, "削除された元の本文", { replyCount: 1 });
+  const remaining = reply(2, "残った返信");
+  const { router, dispose } = initialBoardMetadata(parent, [remaining]);
+  try {
+    render(<RouterProvider router={router} />);
+    await respond(thread(deleted(parent), [remaining], null, false));
+    expect(readBoardHead()).toEqual({
+      title: "削除された投稿｜四人将棋の掲示板 | TetraBoard",
+      description: "四人将棋の掲示板の削除された投稿です。返信 1 件を読めます。",
+      canonical: `https://tetraboard.net${postPath}`,
+      robots: "noindex,follow",
+      jsonLd: undefined,
+    });
+    expect(document.head.innerHTML).not.toContain(parent.text);
+  } finally {
+    dispose();
+  }
+});
+
+test("直接開いた投稿の詳細APIで返信が減ったときはJSON-LDにも反映する", async () => {
+  const parent = post(1, "投稿の本文", { replyCount: 2 });
+  const removed = reply(2, "削除された元の返信");
+  const remaining = reply(3, "残った返信");
+  const { router, dispose } = initialBoardMetadata(parent, [removed, remaining]);
+  const initialContent = readBoardHead();
+  try {
+    render(<RouterProvider router={router} />);
+    await respond(thread({ ...parent, replyCount: 1 }, [remaining], null, true));
+    const { jsonLd, ...updated } = readBoardHead();
+    expect(updated).toEqual({
+      title: initialContent.title,
+      description: initialContent.description,
+      canonical: initialContent.canonical,
+      robots: "index,follow",
+    });
+    expect(JSON.parse(jsonLd!)).toMatchObject({
+      "@type": "DiscussionForumPosting",
+      url: updated.canonical,
+      text: parent.text,
+      comment: [{ "@type": "Comment", text: remaining.text }],
+    });
+    expect(jsonLd).not.toContain(removed.text);
+  } finally {
+    dispose();
+  }
+});
+
+test("直接開いた投稿の詳細APIが404を返すとnoindexにしてJSON-LDを取り除く", async () => {
+  const parent = post(1, "削除された元の本文");
+  const { router, dispose } = initialBoardMetadata(parent, []);
+  try {
+    const view = render(<RouterProvider router={router} />);
+    await respond({}, 404);
+    expect(view.textContent).toContain("投稿が見つかりません。");
+    expect(readBoardHead()).toEqual({
+      title: "TetraBoard",
+      description: undefined,
+      canonical: undefined,
+      robots: "noindex,follow",
+      jsonLd: undefined,
+    });
+    expect(document.head.querySelector('meta[property="og:image"]')).toBeNull();
+    expect(document.head.innerHTML).not.toContain(parent.text);
+  } finally {
+    dispose();
   }
 });
 

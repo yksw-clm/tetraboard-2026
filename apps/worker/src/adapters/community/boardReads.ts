@@ -20,6 +20,9 @@ import {
 } from "./boardRows";
 
 const replyLimit = 50;
+const sitemapPageSize = 1_000;
+const sitemapPageTextBytes = 4 * 1024 * 1024;
+const sitemapUrlLimit = 50_000;
 
 export const boardPostingStateColumns = `
  COALESCE((SELECT accepting FROM board_settings WHERE id=1),0) AS accepting,
@@ -90,9 +93,32 @@ export class D1BoardReader {
 
   async sitemapPosts(production: boolean) {
     const now = Date.now();
+    const posts: Pick<SitemapRow, "id" | "lastModifiedAtMs">[] = [];
+    let before: BoardCursor | undefined;
+    while (true) {
+      const candidates = await this.sitemapCandidates(now - boardIndexAgeMs, before);
+      const last = candidates.at(-1);
+      if (!last) return posts;
+      for (const { id, lastModifiedAtMs, ...post } of candidates) {
+        if (
+          boardPostVisibility(post.deletedAtMs, post.replyCount) === "published" &&
+          shouldIndexBoardPost({ ...post, production, now })
+        ) {
+          posts.push({ id, lastModifiedAtMs });
+          if (posts.length === sitemapUrlLimit) return posts;
+        }
+      }
+      before = { id: last.id, postedAtMs: last.postedAtMs };
+    }
+  }
+
+  private async sitemapCandidates(cutoff: number, before?: BoardCursor) {
+    // 最大 1,000 件かつ JSON 化した本文は計 4 MiB 以下に絞るため、1 回の結果は数 MB に収まります。
     // SQLite の length は NUL で止まるため、NUL を含む本文も候補に残します。
     const { results } = await this.db
-      .prepare(`SELECT p.id,p.body AS text,p.posted_at_ms AS postedAtMs,
+      .prepare(`WITH candidates AS (
+ SELECT p.id,p.posted_at_ms AS postedAtMs,
+ CASE WHEN EXISTS(SELECT 1 ${boardLiveRepliesSql}) THEN '' ELSE p.body END AS text,
  COALESCE(p.deleted_at_ms,d.requested_at_ms) AS deletedAtMs,
  (SELECT COUNT(*) ${boardLiveRepliesSql}) AS replyCount,
  MAX(p.posted_at_ms,COALESCE((
@@ -101,17 +127,24 @@ export class D1BoardReader {
  ),0)) AS lastModifiedAtMs
  FROM board_posts p LEFT JOIN deleted_accounts d ON d.id=p.account_id
  WHERE p.parent_id IS NULL AND ${boardPublishedSql("p")}
- AND p.posted_at_ms<=?1
- AND (replyCount>=?2 OR length(p.body)>=?3 OR instr(p.body,char(0))>0)
- ORDER BY p.posted_at_ms DESC,p.id DESC`)
-      .bind(now - boardIndexAgeMs, boardIndexReplyCount, boardIndexTextLength)
+ AND ${before ? "(p.posted_at_ms,p.id)<(?,?)" : "p.posted_at_ms<=?"}
+ AND CASE WHEN replyCount>=? THEN 1 ELSE length(p.body)>=? OR instr(p.body,char(0))>0 END
+ ORDER BY p.posted_at_ms DESC,p.id DESC LIMIT ?
+ ), sized AS (
+ SELECT *, SUM(length(CAST(json_quote(text) AS BLOB))) OVER (ORDER BY postedAtMs DESC,id DESC) AS textBytes
+ FROM candidates
+ )
+ SELECT id,postedAtMs,text,deletedAtMs,replyCount,lastModifiedAtMs FROM sized
+ WHERE textBytes<=? ORDER BY postedAtMs DESC,id DESC`)
+      .bind(
+        ...(before ? [before.postedAtMs, before.id] : [cutoff]),
+        boardIndexReplyCount,
+        boardIndexTextLength,
+        sitemapPageSize,
+        sitemapPageTextBytes,
+      )
       .all<SitemapRow>();
-    return results.flatMap(({ id, lastModifiedAtMs, ...post }) =>
-      boardPostVisibility(post.deletedAtMs, post.replyCount) === "published" &&
-      shouldIndexBoardPost({ ...post, production, now })
-        ? [{ id, lastModifiedAtMs }]
-        : [],
-    );
+    return results;
   }
 
   async replies(id: string, viewer: string | null, after?: BoardCursor) {

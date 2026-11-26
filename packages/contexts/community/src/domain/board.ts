@@ -25,10 +25,13 @@ export function shouldIndexBoardPost({
   now: number;
 }) {
   if (!production || deletedAtMs !== null || now - postedAtMs < boardIndexAgeMs) return false;
-  return (
-    replyCount >= boardIndexReplyCount ||
-    Array.from(segmenter.segment(text)).length >= boardIndexTextLength
-  );
+  if (replyCount >= boardIndexReplyCount) return true;
+  let length = 0;
+  for (const _ of segmenter.segment(text)) {
+    length++;
+    if (length === boardIndexTextLength) return true;
+  }
+  return false;
 }
 
 export function boardProfileRejection(user: {

@@ -1,6 +1,10 @@
 import { fourShogiRulesPath } from "@tetraboard/protocol/games";
-import type { BoardPost } from "@tetraboard/protocol/board";
-import { boardPostMetadata, boardPostPath } from "@tetraboard/protocol/board-pages";
+import type { BoardPost, BoardReply } from "@tetraboard/protocol/board";
+import {
+  boardPostMetadata,
+  boardPostPath,
+  renderDiscussionForumPostingJsonLd,
+} from "@tetraboard/protocol/board-pages";
 import type { DataRouter } from "react-router";
 import type { RoomLoaderData } from "../features/room/roomLoader";
 import type { MatchReplayData } from "../features/room/matchReplayLoader";
@@ -29,7 +33,7 @@ import {
 } from "@tetraboard/protocol/tournament-pages";
 
 type PublicPageMetadata = { title: string; description: string };
-type BoardPageInfo = { post: BoardPost; indexable: boolean };
+type BoardPageInfo = { post: BoardPost; replies: BoardReply[]; indexable?: boolean };
 
 const tournamentDetailPattern = /^\/tournaments\/[1-9]\d*$/;
 let initialServerPagePath: string | undefined;
@@ -87,11 +91,13 @@ export function updatePageMetadata(
   match?: ShareMatch,
   tournament?: TournamentPageInfo,
   publicPage?: PublicPageMetadata,
-  board?: BoardPageInfo,
+  board?: BoardPageInfo | null,
 ): void {
   const currentPath = path.replace(/\/$/, "");
-  if (currentPath === initialServerPagePath) return;
   const boardPage = board && currentPath === boardPostPath(board.post.id) ? board : undefined;
+  const initial = currentPath === initialServerPagePath;
+  if (initial && !boardPage && board !== null) return;
+  if (initial) document.head.querySelector('script[type="application/ld+json"]')?.remove();
   const boardMetadata = boardPage && boardPostMetadata(publicOrigin, boardPage.post);
   const isDetail = tournamentDetailPattern.test(currentPath);
   const isList = currentPath === tournamentListPath;
@@ -121,7 +127,7 @@ export function updatePageMetadata(
     element.remove();
   const robots = document.createElement("meta");
   robots.name = "robots";
-  const indexable = boardPage ? boardPage.indexable : !!metadata;
+  const indexable = boardPage ? (boardPage.indexable ?? false) : !!metadata;
   robots.content = indexable && searchIndexable ? "index,follow" : "noindex,follow";
   document.head.append(robots);
   if (
@@ -159,6 +165,12 @@ export function updatePageMetadata(
     game ??
     (currentPath === fourShogiRulesPath ? "four-shogi" : isDetail ? tournament?.game : undefined);
   for (const tag of openGraphTags(metadata, canonicalUrl, imageGame)) appendMetaTag(tag);
+  if (initial && boardPage?.post.status === "published") {
+    document.head.insertAdjacentHTML(
+      "beforeend",
+      renderDiscussionForumPostingJsonLd(canonicalUrl, boardPage.post, boardPage.replies),
+    );
+  }
 }
 
 function appendMetaTag({

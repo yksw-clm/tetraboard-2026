@@ -61,6 +61,7 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
     router.dispose();
     updatePageMetadata("/posts/example", undefined, undefined, undefined, undefined, {
       post: { id: "example", status: "published", gameId: "shogi", text: "開発の投稿" },
+      replies: [],
       indexable: true,
     });
     const boardHead = document.head.innerHTML;
