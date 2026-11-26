@@ -1,4 +1,6 @@
-const indexAgeMs = 24 * 60 * 60 * 1000;
+export const boardIndexAgeMs = 24 * 60 * 60 * 1000;
+export const boardIndexReplyCount = 1;
+export const boardIndexTextLength = 50;
 export const boardPostIntervalMs = 30_000;
 const segmenter = new Intl.Segmenter("ja", { granularity: "grapheme" });
 
@@ -22,8 +24,14 @@ export function shouldIndexBoardPost({
   text: string;
   now: number;
 }) {
-  if (!production || deletedAtMs !== null || now - postedAtMs < indexAgeMs) return false;
-  return replyCount >= 1 || Array.from(segmenter.segment(text)).length >= 50;
+  if (!production || deletedAtMs !== null || now - postedAtMs < boardIndexAgeMs) return false;
+  if (replyCount >= boardIndexReplyCount) return true;
+  let length = 0;
+  for (const _ of segmenter.segment(text)) {
+    length++;
+    if (length === boardIndexTextLength) return true;
+  }
+  return false;
 }
 
 export function boardProfileRejection(user: {

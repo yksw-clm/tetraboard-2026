@@ -32,6 +32,7 @@ import {
   fetchUnconditionalAsset,
   readWithinDeadline,
 } from "./htmlAssets";
+import { sitemapEntry } from "./sitemap";
 
 type TournamentPage = ReturnType<typeof tournamentListMetadata> & {
   body: string;
@@ -198,13 +199,6 @@ export async function serveTournamentHtml(
   }
   const response = new Response(asset.body, { status, headers });
   return page && asset.ok ? rewriteTournamentHtml(response, page, indexable) : response;
-}
-
-function sitemapEntry(origin: string, path: string, lastModifiedAtMs: number | null): string {
-  const url = new URL(path, origin).href;
-  const date =
-    lastModifiedAtMs === null ? "" : new Date(lastModifiedAtMs).toISOString().slice(0, 10);
-  return `<url><loc>${escapeShareHtml(url)}</loc>${date ? `<lastmod>${escapeShareHtml(date)}</lastmod>` : ""}</url>`;
 }
 
 export async function serveTournamentSitemap(request: Request, assets: Fetcher, env: Env) {
