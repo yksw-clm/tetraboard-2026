@@ -1005,7 +1005,7 @@ test("ゲストが詳細の投稿・返信を通報でき、失敗時は選ん�
   press(root!, "通報");
   act(() => dialog().querySelector<HTMLInputElement>('input[value="other"]')!.click());
   press(dialog(), "通報する");
-  expect(latest().url).toBe(detailUrl + "/reports");
+  expect(latest().url).toBe(postUrl + "/reports");
   await respond({ message: "通報を受け付けています。" }, 200);
   expect(root!.querySelector('[role="status"]')?.textContent).toBe("通報を受け付けています。");
 });
