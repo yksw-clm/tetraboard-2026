@@ -14,6 +14,7 @@ import { announcementRoutes, announcementAdminRoutes } from "./routes/announceme
 import { adminRoutes } from "./admin/routes";
 import { adminIdentity, type AdminEnv } from "./admin/auth";
 import { clientErrorRoutes } from "./usageEvents/clientErrors";
+import { boardPreviewViewRoutes } from "./usageEvents/boardPreviewViews";
 import { visitRoutes } from "./usageEvents/visit";
 import { healthzContract } from "@tetraboard/protocol";
 import { accountRoutes } from "./routes/accountRoutes";
@@ -61,6 +62,7 @@ api.route("/", feedbackRoutes);
 api.route("/", registrationEntryRoutes);
 api.route("/", clientErrorRoutes);
 api.route("/", visitRoutes);
+api.route("/", boardPreviewViewRoutes);
 api.route("/", matchRoutes);
 api.route("/", publicMatchRoutes);
 api.route("/", statsRoutes);

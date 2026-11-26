@@ -174,7 +174,7 @@ test.each([1, 2])(
   },
 );
 
-test("ロビーは幅に関わらず公開ルーム・ランキング・最近の対局・大会一覧の順と詳細の選択を保持", async () => {
+test("ロビーは幅に関わらず公開ルーム・ランキング・最近の対局・みんなの投稿・大会一覧の順と詳細の選択を保持", async () => {
   const media = new window.EventTarget();
   let mobile = false;
   const matchMedia = spyOn(window, "matchMedia").mockImplementation(
@@ -217,16 +217,22 @@ test("ロビーは幅に関わらず公開ルーム・ランキング・最近�
     )!;
     const roomSection = view.querySelector('section[aria-label="公開部屋"]')!.parentElement!;
     const recentSection = view.querySelector('section[aria-labelledby="recent-matches-title"]')!;
+    const previewSection = [...view.querySelectorAll("h2")]
+      .find((heading) => heading.textContent === "みんなの投稿")!
+      .closest("section")!;
     const tournamentSection = view.querySelector(
       'section[aria-labelledby="tournament-list-four-shogi-title"]',
     )!.parentElement!;
     const sectionOrder = () => [...ranking.parentElement!.children];
     function expectSectionOrder() {
       const sections = sectionOrder();
-      expect(sections).toHaveLength(4);
-      [roomSection, ranking, recentSection, tournamentSection].forEach((section, index) => {
-        expect(sections[index]).toBe(section);
-      });
+      expect(sections).toEqual([
+        roomSection,
+        ranking,
+        recentSection,
+        previewSection,
+        tournamentSection,
+      ]);
     }
     expectSectionOrder();
     press(ranking, "もっと見る");

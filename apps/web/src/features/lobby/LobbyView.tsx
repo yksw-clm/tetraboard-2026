@@ -4,6 +4,7 @@ import { TournamentList } from "../tournaments/TournamentList";
 import { LobbyFooter } from "./LobbyFooter";
 import { RecentMatches } from "../matches/RecentMatches";
 import { LobbyBoardPreview } from "./LobbyBoardPreview";
+import { LobbyPostPreview } from "./LobbyPostPreview";
 import { AppButton } from "../../shared/ui/AppButton";
 
 import {
@@ -154,16 +155,17 @@ export function LobbyView(props: Props) {
     ),
     matches: <RecentMatches key={`matches:${props.game}`} game={props.game} />,
     rankings: props.rankings && <Fragment key="rankings">{props.rankings}</Fragment>,
+    posts: <LobbyPostPreview key={`posts:${props.game}`} game={props.game} />,
     tournaments: (
       <div
         key={`tournaments:${props.game}`}
-        className="min-w-0 [@media(min-width:768px)]:col-span-2 [@media(min-width:768px)]:col-start-1 [@media(min-width:768px)]:row-start-3"
+        className="min-w-0 [@media(min-width:768px)]:col-span-2 [@media(min-width:768px)]:col-start-1 [@media(min-width:768px)]:row-start-4"
       >
         <TournamentList game={props.game} />
       </div>
     ),
   };
-  const order = ["rooms", "rankings", "matches", "tournaments"] as const;
+  const order = ["rooms", "rankings", "matches", "posts", "tournaments"] as const;
 
   return (
     <div className="app-theme min-h-dvh text-ink text-[15px] leading-[1.6]">
