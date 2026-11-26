@@ -4,7 +4,8 @@ import {
   tournamentTimeDescription,
   type TournamentSettings,
 } from "@tetraboard/protocol";
-import { gameCatalog } from "@tetraboard/protocol/games";
+import { fourShogiRulesPath, gameCatalog } from "@tetraboard/protocol/games";
+import { Link } from "react-router";
 import { AppCard } from "../../shared/ui/AppCard";
 export function TournamentRules({
   description,
@@ -90,6 +91,15 @@ export function TournamentRules({
           </li>
         </ul>
       </details>
+      {settings.game === "four-shogi" && (
+        <Link
+          to={fourShogiRulesPath}
+          state={{ scrollToTop: true }}
+          className="self-start text-sm font-semibold text-brand underline"
+        >
+          四人将棋のルールを見る
+        </Link>
+      )}
     </AppCard>
   );
 }

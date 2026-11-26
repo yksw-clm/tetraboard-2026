@@ -1,5 +1,8 @@
 import type { RulesDiagramAssetResolver } from "../src/features/lobby/FourShogiRuleDiagrams";
 import { fourShogiRulesMetadata } from "../src/seo/fourShogiRulesMetadata";
+import { howToPlayMetadata, howToPlayPath } from "../src/seo/howToPlayMetadata";
+import { HowToPlayPage } from "../src/features/help/HowToPlayPage";
+import type { helpScreenshots } from "../src/features/help/helpScreenshots";
 import { appThemeClasses, gameThemes } from "../src/shared/ui/appTheme";
 import { renderToStaticMarkup } from "react-dom/server";
 import { renderBreadcrumbJsonLd, renderWebSiteJsonLd } from "@tetraboard/protocol";
@@ -126,6 +129,30 @@ export function renderFourShogiRules(
   );
 }
 
+export function renderHowToPlay(
+  template: string,
+  boardSources: LobbyBoardSources,
+  screenshots: typeof helpScreenshots,
+): string {
+  const body = renderToStaticMarkup(
+    <StaticRouter location={howToPlayPath}>
+      <HowToPlayPage
+        header={<InitialNavigation current="how-to-play" boardSrc={boardSources[defaultGameId]} />}
+        screenshots={screenshots}
+      />
+    </StaticRouter>,
+  );
+  const canonical = `${publicOrigin}${howToPlayPath}`;
+  return renderPublicPage(
+    template,
+    howToPlayMetadata,
+    canonical,
+    "how-to-play",
+    body,
+    renderBreadcrumbJsonLd(`${publicOrigin}/`, { name: "遊び方ガイド", url: canonical }),
+  );
+}
+
 export function renderNotFound(template: string): string {
   return template
     .replace(
@@ -203,6 +230,7 @@ export function renderSitemap(): string {
           url: `${publicOrigin}${fourShogiRulesPath}`,
           lastModified: fourShogiRulesMetadata.lastModified,
         },
+        { url: `${publicOrigin}${howToPlayPath}`, lastModified: howToPlayMetadata.lastModified },
       ]
     : [];
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${pages.map(({ url, lastModified }) => `<url><loc>${escapeHtml(url)}</loc><lastmod>${escapeHtml(lastModified)}</lastmod></url>`).join("")}</urlset>\n`;

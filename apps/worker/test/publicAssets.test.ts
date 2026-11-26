@@ -1,11 +1,77 @@
 import { expect, test } from "vitest";
 import { gameIds } from "@tetraboard/protocol/games";
 import { formationCatalog } from "@tetraboard/four-shogi/formation-catalog";
-import { assetFixture } from "./publicAssetFixtures";
+import { assetFixture, visitMetaTag } from "./publicAssetFixtures";
+import { recordUsageEvents } from "./usageEventsRecorder";
 
-test("公開ロビーと四人将棋のルールは通常UAとGooglebotへ同じHTMLを返し、HEAD・304・キャッシュを保持", async () => {
+const analyticsCookie = "tetraboard-2026.analytics";
+const conditionalHeaders = { "User-Agent": "Mozilla/5.0", "If-None-Match": '"fixture"' };
+
+test.each([true, false])(
+  "Cookieのないブラウザへの304で計測用Cookieを発行する（Content-Typeあり: %s）",
+  async (hasContentType) => {
+    const events = recordUsageEvents();
+    const assets = hasContentType
+      ? assetFixture()
+      : assetFixture({
+          ASSETS: {
+            async fetch(request: Request) {
+              expect(request.headers.get("If-None-Match")).toBe('"fixture"');
+              return new Response(null, {
+                status: 304,
+                headers: {
+                  ETag: '"fixture"',
+                  "Cache-Control": "public, max-age=0, must-revalidate",
+                },
+              });
+            },
+          } as Fetcher,
+        });
+    const response = await assets.fetch("/games/four-shogi", { headers: conditionalHeaders });
+    expect(response.status).toBe(304);
+    expect(response.body).toBeNull();
+    expect(response.headers.get("Content-Type")).toBe(
+      hasContentType ? "text/html; charset=utf-8" : null,
+    );
+    expect(response.headers.get("ETag")).toBe('"fixture"');
+    expect(response.headers.getSetCookie()).toEqual([
+      expect.stringMatching(
+        /^tetraboard-2026\.analytics=[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}; Path=\/; Max-Age=31536000; SameSite=Lax; Secure$/i,
+      ),
+    ]);
+    expect(response.headers.get("Cache-Control")).toBe("private, max-age=0, must-revalidate");
+    expect(events).toEqual([]);
+  },
+);
+
+test.each([
+  { method: "GET", cookie: `${analyticsCookie}=01234567-89ab-4cde-8fab-0123456789ab` },
+  { method: "HEAD", cookie: null },
+])(
+  "有効なCookie付きのGETとHEADへの304ではCookieを発行しない: $method",
+  async ({ method, cookie }) => {
+    const events = recordUsageEvents();
+    const requestHeaders = new Headers(conditionalHeaders);
+    if (cookie) requestHeaders.set("Cookie", cookie);
+    const response = await assetFixture().fetch("/games/four-shogi", {
+      method,
+      headers: requestHeaders,
+    });
+    expect(response.status).toBe(304);
+    expect(response.body).toBeNull();
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=0, must-revalidate");
+    expect(events).toEqual([]);
+  },
+);
+
+test("公開ロビー・四人将棋のルール・利用ガイドは通常UAとGooglebotへ同じHTMLを返し、HEAD・304・キャッシュを保持", async () => {
   const assets = assetFixture();
-  for (const path of [...gameIds.map((game) => `/games/${game}`), "/games/four-shogi/rules"]) {
+  for (const path of [
+    ...gameIds.map((game) => `/games/${game}`),
+    "/games/four-shogi/rules",
+    "/how-to-play",
+  ]) {
     const user = await assets.fetch(path, { headers: { "User-Agent": "Mozilla/5.0" } });
     const bot = await assets.fetch(path, { headers: { "User-Agent": "Googlebot" } });
     expect(user.status).toBe(200);
@@ -13,7 +79,9 @@ test("公開ロビーと四人将棋のルールは通常UAとGooglebotへ同じ
     expect(user.headers.get("X-Robots-Tag")).toBeNull();
     const body = await user.text();
     expect(body).toBe(await bot.text());
+    expect(body.match(/<head>([\s\S]*?)<\/head>/)?.[1]).toContain(visitMetaTag);
     if (path === "/games/four-shogi/rules") expect(body).toContain("<h1>四人将棋のルール</h1>");
+    if (path === "/how-to-play") expect(body).toContain("<h1>TetraBoardの使い方</h1>");
     const head = await assets.fetch(path, { method: "HEAD" });
     expect(head.status).toBe(200);
     expect(await head.text()).toBe("");
@@ -32,6 +100,8 @@ test("トップと公開URLの別表記はクエリを保持した恒久転送�
       ["/index.html", "/"],
       ["/games/four-shogi/rules/", "/games/four-shogi/rules"],
       ["/games/four-shogi/rules/index.html", "/games/four-shogi/rules"],
+      ["/how-to-play/", "/how-to-play"],
+      ["/how-to-play/index.html", "/how-to-play"],
       ...gameIds.flatMap((game) => [
         [`/games/${game}/`, `/games/${game}`],
         [`/games/${game}/index.html`, `/games/${game}`],
@@ -83,13 +153,13 @@ test("既知SPA画面はnoindexで配信し、未知画面と欠落資産は本�
     "/updates/",
     "/updates/feedback",
     "/updates/feedback/",
-    "/how-to-play",
-    "/how-to-play/",
   ]) {
     const response = await assets.fetch(path);
     expect(response.status).toBe(200);
     expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
-    expect(await response.text()).toContain('content="noindex,follow"');
+    const body = await response.text();
+    expect(body).toContain('content="noindex,follow"');
+    expect(body).toContain(`${visitMetaTag}</head>`);
     const head = await assets.fetch(path, { method: "HEAD" });
     expect(head.status).toBe(200);
     expect(head.headers.get("X-Robots-Tag")).toBe("noindex, follow");
@@ -99,6 +169,7 @@ test("既知SPA画面はnoindexで配信し、未知画面と欠落資産は本�
     expect(conditional.headers.get("X-Robots-Tag")).toBe("noindex, follow");
   }
   for (const path of [
+    "/404.html",
     "/unknown",
     "/updates/feedback/unknown",
     "/games/unknown",
@@ -112,11 +183,20 @@ test("既知SPA画面はnoindexで配信し、未知画面と欠落資産は本�
     expect(response.status).toBe(404);
     expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(await response.text()).toContain('href="/games/four-reversi"');
+    const body = await response.text();
+    expect(body).toContain('href="/games/four-reversi"');
+    expect(body).not.toContain(visitMetaTag);
     const head = await assets.fetch(path, { method: "HEAD" });
     expect(head.status).toBe(404);
     expect(await head.text()).toBe("");
   }
+});
+
+test.each(["/privacy", "/terms"])("%s のHTMLには訪問の目印を付けない", async (path) => {
+  const response = await assetFixture().fetch(path, { headers: { "User-Agent": "Mozilla/5.0" } });
+  expect(response.status).toBe(200);
+  expect(response.headers.get("Content-Type")).toContain("text/html");
+  expect(await response.text()).not.toContain(visitMetaTag);
 });
 
 test("robots・sitemap・資産のContent-Typeを保持し、画面のPOST・WebSocketを拒否", async () => {

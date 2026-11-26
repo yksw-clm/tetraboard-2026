@@ -10,23 +10,13 @@ function hostname(value: string) {
     : null;
 }
 
-export function referrerHostname(referrer: string, ownHostname: string): string | null {
-  if (!referrer) return "direct";
-  try {
-    const url = new URL(referrer);
-    if (!["http:", "https:"].includes(url.protocol)) return null;
-    if (url.hostname.toLowerCase() === ownHostname.toLowerCase()) return "internal";
-    return hostname(url.hostname);
-  } catch {
-    return null;
-  }
-}
-
 export function classifyReferrer(value: string | null, ownHostname: string) {
-  if (value === "direct" || value === "internal") return { host: value, category: value };
-  if (value?.toLowerCase() === ownHostname.toLowerCase())
+  if (value === null) return { host: null, category: null };
+  if (value === "") return { host: "direct", category: "direct" };
+  const ownHost = ownHostname.toLowerCase();
+  const host = hostname(value);
+  if (value.toLowerCase() === ownHost || host === ownHost)
     return { host: "internal", category: "internal" };
-  const host = value && hostname(value);
   if (!host) return { host: null, category: null };
   const matches = (domains: string[]) =>
     domains.some((domain) => host === domain || host === `www.${domain}`);

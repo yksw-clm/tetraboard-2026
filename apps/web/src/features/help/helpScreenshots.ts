@@ -22,4 +22,4 @@ export const helpScreenshots = {
   settings: { src: settings, width: 716, height: 576 },
   desktopNavigation: { src: desktopNavigation, width: 1280, height: 69 },
   desktopRoom: { src: desktopRoom, width: 1280, height: 900 },
-} as const;
+};

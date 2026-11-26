@@ -573,7 +573,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 
 D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳・証拠・全体設定とトリガー、ルーム索引、計測集計列を追加します。既存棋譜の書換えと外部依存の追加はありません。ローカルは `bun run dev` のmigrationで適用します。公開は開発環境のmigration適用と実認証・運営操作・削除処理の確認後、リリース承認を得て本番にも適用します。必要なSecretsは既存の認証・管理者設定を利用し、新しい外部サービス設定は不要です。OAuthのホームページ設定は公開時にトップURLへ整合させます。
 
-トップの初期紹介HTMLは `renderGeneralLobby` で生成します。通常のSPA用の空root・noindexを持つ `app.html` を別に生成し、ログイン・ルーム共有・規約にはこちらを配信します。`index.html` の直接アクセスはトップへクエリを保持して308、トップ自体は200です。公開チャット本文をHTMLへ埋め込まず、サイトマップの静的URLはトップ、6ゲームロビー、四人将棋のルールです。開発は検索対象外です。
+トップの初期紹介HTMLは `renderGeneralLobby` で生成します。通常のSPA用の空root・noindexを持つ `app.html` を別に生成し、ログイン・ルーム共有・規約にはこちらを配信します。`index.html` の直接アクセスはトップへクエリを保持して308、トップ自体は200です。公開チャット本文をHTMLへ埋め込まず、サイトマップの静的URLはトップ、6ゲームロビー、四人将棋のルール、サイトの利用ガイドです。開発は検索対象外です。
 
 ## 共通ロビーと四人将棋UI
 
@@ -595,7 +595,7 @@ D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳
 
 旧ゲームバーは廃止し、`AppHeader` と共通ナビゲーションを使います。PCはホーム・遊び方・直近ゲーム、スマートフォンは上部にロゴと設定、下部にアカウントも含む4タブを固定表示します。アカウントタブはContextのゲスト・登録者の実効画像を `AppAvatar` に渡し、画像更新・本人切替へ追従します。未ログイン・画像読み込み失敗では既存の人型アイコンを使います。`AccountLayout` で対象ページの下余白とゲームロビー・四人将棋のルールページの訪問記録を扱い、対局・観戦・棋譜を対象外にします。直近GameIdは `tetraboard:last-lobby-game` に保存し、未保存／破損時は四人リバーシ、保存失敗時はメモリ保持、別タブの `storage` イベントも反映します。ナビの表示だけでは保存しません。大会ページの新ナビも既存の待機取消を通し、取消失敗時は移動せず、成功後に選んだページへ進みます。
 
-共通の `/how-to-play` は[スクリーンショット付きのサイト利用ガイド](#サイトの利用ガイド)を表示します。既存のルーター・WorkerのSPA配信許可・ページtitleを使い、noindexとサイトマップ対象外を維持します。ゲーム別のルールダイアログとは分けます。初期配信HTMLは保存値を読まず、ゲームロビーではそのゲーム、ホームでは四人リバーシを直近枠へ表示し、React起動後に保存値へ同期します。大会一覧と最近の対局には横スクロールの補助ボタンがあります。
+共通の `/how-to-play` は[スクリーンショット付きのサイト利用ガイド](#サイトの利用ガイド)を表示します。Workerはビルド時に生成したHTMLを配信します。ゲーム別のルールダイアログとは分けます。初期配信HTMLは保存値を読まず、ゲームロビーではそのゲーム、ホームでは四人リバーシを直近枠へ表示し、React起動後に保存値へ同期します。大会一覧と最近の対局には横スクロールの補助ボタンがあります。
 
 既定の共通テーマは緑です。将棋の本文には `game-theme-four-shogi` を付け、Portalの入力・遊び方・ランキングのダイアログには `AppDialog` の `theme="four-shogi"` を渡します。`primary`／`primary-hover` は主要ボタンの塗り、`primary-foreground` は文字、`brand` は文字アクセントとして分けます。HeroUIの `--accent` と `--accent-foreground` も同じ範囲で設定します。共通ヘッダー・アカウントメニューをゲームのテーマ範囲に含めず、グローバルなテーマ切り替えは行いません。意味を持つdanger・focusの色は上書きしません。
 
@@ -606,6 +606,8 @@ D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳
 利用者向けの正本は[README](../README.md#サイトの利用ガイド)です。[HowToPlayPage.tsx](../apps/web/src/features/help/HowToPlayPage.tsx) が「TetraBoardの使い方」の見出し、目次、ゲーム選択・CPU・友達の招待・公開参加と観戦・対局画面・棋譜と記録・大会・アカウントと設定の8章を表示します。スマートフォンを中心にPCの配置を補足し、既存の共通ナビゲーションと未認証での閲覧を維持します。ゲーム固有のルール説明は既存ダイアログへ案内します。
 
 画像はローカル環境の実UIを通常の操作で開いて撮影し、四人リバーシを基本例、大会は四人将棋を使います。撮影時のviewportはスマートフォン390×844・DPR2を9枚、PC1280×900を2枚とします。PNG原本と一時撮影スクリプトは `/tmp` に置き、採用するWebP11枚を `apps/web/src/assets/help/` に保存します。[helpScreenshots.ts](../apps/web/src/features/help/helpScreenshots.ts) に画像importと `{ src, width, height }` をまとめ、寸法は変換後の画像に合わせます。ページでは代替テキスト・説明とともに縦横比を保って表示し、PC例は「PCの画面例」を開いて確認できる形にします。先頭画像は通常読込み、ほかの画像は遅延読込みにします。
+
+初期HTMLは `HowToPlayPage` のヘッダーを `InitialNavigation` に差し替えて生成します。スクリーンショットの配信URLはViteのmanifestから解決し、ビルド時に実ファイルの存在を確認します。初期HTMLと画面内遷移で `src/seo/howToPlayMetadata.ts` のメタ情報を共用し、本番のサイトマップに更新日付きで掲載します。
 
 本文の操作名は実装と照合します。ゲストも記録を保存できること、友達用も全ルーム公開であること、通常ルームは全員準備後にホストが開始し、大会は入室後に自動開始することを区別します。新API・依存・DBスキーマは追加しません。画像撮影は利用ガイドの資料作成に限り、テスト・CI・常設の撮影コマンドには組み込みません。DOMと実画像の確認範囲は[テスト文書](testing.md#サイトの利用ガイドの確認)に従います。
 
@@ -628,7 +630,7 @@ D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳
 
 ## ロビーのSEO生成と成果確認
 
-トップと6ゲームロビーの紹介HTML、四人将棋のルールのHTMLと各ページのメタ情報をビルド時に生成します。[確定仕様](../README.md#検索向け配信と効果の確認)に従います。
+トップと6ゲームロビーの紹介HTML、四人将棋のルールとサイトの利用ガイドのHTML、各ページのメタ情報をビルド時に生成します。[確定仕様](../README.md#検索向け配信と効果の確認)に従います。
 
 `src/seo/lobbyMetadata.ts` はWeb側のゲーム別title・description・紹介の正本です。ゲーム名・ロビーパスは軽量ゲームカタログを参照します。紹介は `GameIntroduction` で通常ロビーと初期HTMLが共用し、ルール正本に合わせて同じ変更で更新します。ロビーの静的生成にはエンジン・認証・API・動的一覧を使いません。
 
@@ -638,17 +640,17 @@ D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳
 
 トップとゲームロビーのtitleの語順と検索向け別表記は[README](../README.md#ゲームロビーの検索向け紹介と配信)に従います。静的生成・大会HTML・画面内遷移は、ルーム・棋譜の共有と同じ `protocol/room-sharing` の `openGraphTags` でOGPとXのカードを生成します。canonicalと同じオリジンの画像URLを使い、公開ページの `og:site_name` は1件にそろえます。画面内遷移では前の画面の共有タグを取り除きます。
 
-総合ロビー・各ゲームロビー・四人将棋のルールの `lastModified` は、title・description・紹介・主要ルールなどページの内容を更新した日に `YYYY-MM-DD` で更新します。静的URLの `lastmod` はこの値から生成し、再ビルドや動的一覧の更新だけで日付を進めません。[Googleのlastmodの説明](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap#additional-notes-about-xml-sitemaps)を参照します。
+総合ロビー・各ゲームロビー・四人将棋のルール・サイトの利用ガイドの `lastModified` は、title・description・紹介・主要ルールなどページの内容を更新した日に `YYYY-MM-DD` で更新します。静的URLの `lastmod` はこの値から生成し、再ビルドや動的一覧の更新だけで日付を進めません。[Googleのlastmodの説明](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap#additional-notes-about-xml-sitemaps)を参照します。
 
-WebのbuildはVite出力後に `build/generatePublicLobbies.ts` を実行し、ハッシュ付きJS・CSSの参照を保持した6ゲームロビーと四人将棋のルールのHTML、robots.txt、静的URL 8件のsitemap.xml、404.html、トップのindex.htmlと検索対象外のapp.htmlを生成します。生成コードと関連Bunテストは `tsconfig.build.json` でも型検査します。ルートのbuildが既存の `scripts/buildAssets.ts` でこれらをWorker資産へコピーします。生成物はGit管理しません。Viteの開発画面は従来のCSRを使い、初期HTML・HTTPヘッダーの確認には `bun run build` 後の本番相当ローカルWorkerを使います。
+WebのbuildはVite出力後に `build/generatePublicLobbies.ts` を実行し、ハッシュ付きJS・CSSの参照を保持した6ゲームロビー・四人将棋のルール・サイトの利用ガイドのHTML、robots.txt、静的URL 9件のsitemap.xml、404.html、トップのindex.htmlと検索対象外のapp.htmlを生成します。生成コードと関連Bunテストは `tsconfig.build.json` でも型検査します。ルートのbuildが既存の `scripts/buildAssets.ts` でこれらをWorker資産へコピーします。生成物はGit管理しません。Viteの開発画面は従来のCSRを使い、初期HTML・HTTPヘッダーの確認には `bun run build` 後の本番相当ローカルWorkerを使います。
 
-Worker の `tournamentPages.ts` は `app.html` に大会一覧と公開済み大会詳細の本文・メタ情報を挿入します。本番のサイトマップには静的8 URLへ大会一覧と公開済み大会のURLを追記します。D1の読み取りに失敗した場合、HTMLは `noindex` の `app.html`、サイトマップは静的な資産を配信します。
+Worker の `tournamentPages.ts` は `app.html` に大会一覧と公開済み大会詳細の本文・メタ情報を挿入します。本番のサイトマップには静的9 URLへ大会一覧と公開済み大会のURLを追記します。D1の読み取りに失敗した場合、HTMLは `noindex` の `app.html`、サイトマップは静的な資産を配信します。
 
 `renderPublicLobby.tsx` と Worker の `tournamentPages.ts` は `protocol/src/structuredData.ts` のJSON-LD生成を共用します。URLのオリジンは静的HTMLでは `publicOrigin`、大会HTMLでは `APP_ORIGIN` です。`pageMetadata` は表示中のパスが変わったときに初期HTMLのJSON-LDを取り除きます。
 
-`startPublicLobby` は初期本文のあるロビー・四人将棋のルール・大会ページでルーターの初期化完了を待ちます。成功時に既存createRootへ渡し、遅延ルートの失敗時には初期本文と通常リンクを残します。四人将棋のルールは初期HTMLのメタ情報も保持します。他画面の初回loader・fallbackは従来どおりです。`pageMetadata` は初期表示とルーターのlocation変更でtitle・description・canonical・robotsを同期し、公開棋譜独自のrobots操作は行いません。`/terms`・`/privacy` のtitleはWorkerの `legalHtml.ts` と同じ `protocol/privacy` の `legalDocuments` を参照し、文書名とサービス名を保ちます。
+`startPublicLobby` は初期本文のあるロビー・四人将棋のルール・サイトの利用ガイド・大会ページでルーターの初期化完了を待ちます。成功時に既存createRootへ渡し、遅延ルートの失敗時には初期本文と通常リンクを残します。四人将棋のルールとサイトの利用ガイドは初期HTMLのメタ情報も保持します。他画面の初回loader・fallbackは従来どおりです。`pageMetadata` は初期表示とルーターのlocation変更でtitle・description・canonical・robotsを同期し、公開棋譜独自のrobots操作は行いません。`/terms`・`/privacy` のtitleはWorkerの `legalHtml.ts` と同じ `protocol/privacy` の `legalDocuments` を参照し、文書名とサービス名を保ちます。
 
-本番の資産配信はWorkerが公開ロビー・四人将棋のルール・既知SPA経路・静的資産を明示し、Wranglerの無条件SPAフォールバックを使いません。`worker.ts` の入口で、本番設定の `tetraboard.net` へのHTTPと旧Workerホストを本番HTTPSへ308転送し、パス・クエリを保持します。資産・API・認証・WebSocketの処理前に転送し、ローカル・開発環境には適用しません。HTTPSの `/` は200、`/index.html` と公開URLの別表記は308、未知URL・欠落資産は404、既知の非検索画面はnoindexです。公開ロビーと四人将棋のルールはGET／HEAD・ETag／304に対応し、404本文の取得では条件付きヘッダーを除去します。`scripts/checkDeployment.ts` はトップ配信、全ロビーと四人将棋のルールの初期本文・メタ情報、robots／sitemapと既存APIを確認します。本番URLを指定した場合だけ、HTTPのトップ・ロビー・APIの308とクエリを含むHTTPS転送先も確認します。
+本番の資産配信はWorkerが公開ロビー・四人将棋のルール・サイトの利用ガイド・既知SPA経路・静的資産を明示し、Wranglerの無条件SPAフォールバックを使いません。`worker.ts` の入口で、本番設定の `tetraboard.net` へのHTTPと旧Workerホストを本番HTTPSへ308転送し、パス・クエリを保持します。資産・API・認証・WebSocketの処理前に転送し、ローカル・開発環境には適用しません。HTTPSの `/` は200、`/index.html` と公開URLの別表記は308、未知URL・欠落資産は404、既知の非検索画面はnoindexです。公開ロビー・四人将棋のルール・サイトの利用ガイドはGET／HEAD・ETag／304に対応し、404本文の取得では条件付きヘッダーを除去します。`scripts/checkDeployment.ts` はトップ配信、全ロビーと四人将棋のルールの初期本文・メタ情報、robots／sitemapと既存APIを確認します。本番URLを指定した場合だけ、HTTPのトップ・ロビー・APIの308とクエリを含むHTTPS転送先も確認します。
 
 公開後のロビーHTML検査は `scripts/deploymentLobbyHtml.ts` の副作用のない関数を使い、メタ情報・本文と、メインナビ内のホーム・遊び方・当該ゲームへのリンクを確認します。本文の再読み込みリンクだけではナビの欠落を補えません。本番の全6ゲームと開発環境の実生成HTMLをBunテストでも同じ関数へ渡し、URLと検索設定を確認します。
 
@@ -910,6 +912,7 @@ PCでは盤面領域右下、タブレット・スマートフォンでは状況
 
 - 軽量な `@tetraboard/protocol/room-sharing` に共有URL・募集文・募集可否・メタ情報を集約します。エンジン・Zod・Reactへ依存しません。
 - `useRoomEntry` は通常作成の成功時だけ `roomShareIntent` を作成してルーターのstateへ渡します。nonceをメモリに保持し、作成者・世代・ホスト資格を照合します。`useRoomInvitation` の初期表示後に意図を消費するため、StrictMode・履歴stateの複製でも初回表示を保ち、戻り・再読み込みでは再演しません。共有URLにはこの意図を含めません。
+- CPU戦の後の「友達と遊ぶ」（TB-201）は、`InviteAfterCpuButton` から `handleLeaveClick("friend-room")` で退室し、`shared/friendRoomIntent.ts` のnonceをルーターのstateでロビーへ渡します。依頼（設定、押したときの `profileId` と同意版）はメモリにだけ置き、`useFriendRoomEntry` が最初に表示したロビーの履歴項目に結び付けて、nonceを消してから1回だけ作成します。再読み込み・戻り・ロビーを離れた後は作成も自動の入室もせず、`useRoomEntry` は作成直前の認証が押したときの本人と一致するときだけ送ります。DOMテストは `autoGameResult.test.tsx` です。
 - `RoomShareDialog` は既存 `AppDialog`、入力欄・ボタン・toastを使用し、コピー失敗の案内、再試行、閉鎖後やunmount後の遅い完了の破棄、最新ルーム状態によるX募集の無効化へ対応します。`RoomInfo` の既存ボタンの寸法・配置のクラスは維持し、文言と操作を置き換えます。
 - Workerの `roomShareHtml` はルームHTMLをHTMLRewriterで処理します。`GameRoom.getShareMetadata` は保存状態を読み、世代・24時間の閉鎖期限・人間の復帰期限を照合します。normalize・期限処理・CPU・保存・索引更新は呼びません。情報の取得失敗または1500msの期限では共通カードを返します。
 - ルームHTMLは生成元のETag・更新時刻・Content-Length・Content-Encodingを引き継がず、条件付き取得にも新しいHTMLを200・no-storeで返します。HEADは本文なしです。静的画像7枚は `/assets/ogp/` のPNGで既存の資産配信・HEAD・304を使用します。ゲーム名・画像・URLは同じメタ情報生成関数を使い、Webのルーターから確定したloaderデータで更新して、画面間の残存を防ぎます。

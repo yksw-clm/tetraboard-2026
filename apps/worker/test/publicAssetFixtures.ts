@@ -1,22 +1,27 @@
 import { env } from "cloudflare:workers";
 import { gameIds, gameCatalog } from "@tetraboard/protocol/games";
+import { visitContract } from "@tetraboard/protocol/visits";
 import { formationCatalog } from "@tetraboard/four-shogi/formation-catalog";
 import worker from "../src/worker";
+
+export const visitMetaTag = `<meta name="${visitContract.meta.name}" content="${visitContract.meta.content}">`;
+
+function page(body: string, robots = "index,follow") {
+  return {
+    body: `<html><head><meta name="robots" content="${robots}"></head><body>${body}</body></html>`,
+    type: "text/html; charset=utf-8",
+  };
+}
 
 export const files: Record<string, { body: string; type: string }> = {
   ...Object.fromEntries(
     gameIds.map((game) => [
       `/games/${game}/index.html`,
-      {
-        body: `<h1>${gameCatalog[game].name}</h1><meta name="robots" content="index,follow">`,
-        type: "text/html; charset=utf-8",
-      },
+      page(`<h1>${gameCatalog[game].name}</h1>`),
     ]),
   ),
-  "/games/four-shogi/rules/index.html": {
-    body: '<h1>四人将棋のルール</h1><meta name="robots" content="index,follow">',
-    type: "text/html; charset=utf-8",
-  },
+  "/games/four-shogi/rules/index.html": page("<h1>四人将棋のルール</h1>"),
+  "/how-to-play/index.html": page("<h1>TetraBoardの使い方</h1>"),
   "/app.html": {
     body: '<html><head><title>TetraBoard</title><meta property="og:site_name" content="TetraBoard"><meta name="robots" content="noindex,follow"></head><body><div id="root"></div></body></html>',
     type: "text/html; charset=utf-8",
@@ -25,10 +30,10 @@ export const files: Record<string, { body: string; type: string }> = {
     body: '<html><head><title>TetraBoard</title><meta name="robots" content="noindex,follow"></head><body><div id="root"></div></body></html>',
     type: "text/html; charset=utf-8",
   },
-  "/404.html": {
-    body: '<h1>ページが見つかりません。</h1><a href="/games/four-shogi">四人将棋</a><a href="/games/four-reversi">四人リバーシ</a>',
-    type: "text/html; charset=utf-8",
-  },
+  "/404.html": page(
+    '<h1>ページが見つかりません。</h1><a href="/games/four-shogi">四人将棋</a><a href="/games/four-reversi">四人リバーシ</a>',
+    "noindex,follow",
+  ),
   "/robots.txt": {
     body: "User-agent: *\nAllow: /\nSitemap: https://tetraboard.net/sitemap.xml",
     type: "text/plain; charset=utf-8",
@@ -41,7 +46,7 @@ export const files: Record<string, { body: string; type: string }> = {
       )
       .join(
         "",
-      )}<url><loc>https://tetraboard.net/games/four-shogi/rules</loc><lastmod>2026-11-21</lastmod></url></urlset>`,
+      )}<url><loc>https://tetraboard.net/games/four-shogi/rules</loc><lastmod>2026-11-21</lastmod></url><url><loc>https://tetraboard.net/how-to-play</loc><lastmod>2026-11-24</lastmod></url></urlset>`,
     type: "application/xml",
   },
   "/assets/app.js": { body: "export {};", type: "application/javascript" },

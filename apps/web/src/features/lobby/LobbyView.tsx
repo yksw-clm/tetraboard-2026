@@ -21,6 +21,7 @@ import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { HowToPlayDialog } from "./HowToPlayDialog";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { RoomEntryDialog } from "./RoomEntryDialog";
+import { RoomEntryMessage } from "./RoomEntryMessage";
 import { type RoomEntryIntent } from "./useRoomEntry";
 import type { RegistrationEntryDraft } from "../account/registrationReturn";
 import { FeedbackEntry } from "../feedback/FeedbackEntry";
@@ -43,6 +44,7 @@ type Props = {
   onForbiddenRulesChange?: (enabled: boolean) => void;
   isSubmitting: RoomEntryIntent | null;
   message: string | null;
+  entryFromResult?: boolean;
   renderRooms: (
     onJoin: (roomId: string, humanOnly?: boolean, instanceId?: string) => void,
   ) => ReactNode;
@@ -109,6 +111,7 @@ export function LobbyView(props: Props) {
     theme: gameThemes[props.game],
   };
   const ratedMatch = isRatedMatchmakingGame(props.game) && props.showRatedMatchmaking !== false;
+  const creatingFromResult = props.entryFromResult && props.isSubmitting === "create";
 
   function openMatchmaking(): void {
     const search = new URLSearchParams(location.search);
@@ -129,6 +132,7 @@ export function LobbyView(props: Props) {
     humanOnly?: boolean,
     instanceId?: string,
   ): void {
+    if (creatingFromResult) return;
     props.onClearMessage();
     setDialog({ type: "entry", intent, roomId, humanOnly, instanceId });
   }
@@ -207,6 +211,7 @@ export function LobbyView(props: Props) {
               <AppButton
                 className="w-full min-w-0 min-h-12 gap-2 px-3 whitespace-normal"
                 appearance="secondary"
+                isPending={creatingFromResult}
                 onPress={() => openEntry("create")}
               >
                 <AppIcon name="plus" />
@@ -221,6 +226,9 @@ export function LobbyView(props: Props) {
             </section>
           </div>
 
+          {dialog === null && props.entryFromResult && props.message && (
+            <RoomEntryMessage message={props.message} />
+          )}
           <LobbyAnnouncement game={props.game} />
           <TournamentEntrance game={props.game} />
           <div className="grid grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] items-start gap-5 [@media(max-width:767px)]:grid-cols-1 [@media(max-width:767px)]:gap-[18px]">
@@ -235,7 +243,13 @@ export function LobbyView(props: Props) {
       {isRatedMatchmakingGame(props.game) && (
         <RatedLaunchAnnouncement
           game={props.game}
-          blocked={dialog !== null || Boolean(props.registrationDraft) || createRequested}
+          blocked={
+            dialog !== null ||
+            Boolean(props.registrationDraft) ||
+            createRequested ||
+            Boolean(location.state?.friendRoomNonce) ||
+            creatingFromResult
+          }
         />
       )}
       {dialog?.type === "entry" && (

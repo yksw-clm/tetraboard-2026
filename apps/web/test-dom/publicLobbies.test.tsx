@@ -4,10 +4,12 @@ import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { GameIntroduction } from "../src/seo/GameIntroduction";
 import { startPageMetadata, updatePageMetadata } from "../src/seo/pageMetadata";
 import { startPublicLobby } from "../src/seo/startPublicLobby";
+import { helpScreenshots } from "../src/features/help/helpScreenshots";
 import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import {
   renderFourShogiRules,
   renderGeneralLobby,
+  renderHowToPlay,
   renderPublicLobby,
 } from "../build/renderPublicLobby";
 import { lobbyBoardSources, resolveRulesDiagramAsset } from "../test/fixtures/lobbyBoardSources";
@@ -19,6 +21,52 @@ import { createInitialState } from "@tetraboard/four-shogi";
 import { HowToPlayDialog } from "../src/features/lobby/HowToPlayDialog";
 
 const jsonLdSelector = 'script[type="application/ld+json"]';
+const publicPageTemplate =
+  '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>';
+
+test("画面内遷移で利用ガイドを開くと初期HTMLと同じメタ情報を設定する", async () => {
+  const initial = document.implementation.createHTMLDocument();
+  initial.documentElement.innerHTML = renderHowToPlay(
+    publicPageTemplate,
+    lobbyBoardSources,
+    helpScreenshots,
+  );
+  const router = createMemoryRouter([
+    { path: "/" },
+    {
+      path: "/how-to-play",
+      lazy: async () => ({
+        Component: (await import("../src/features/help/HowToPlayPage")).HowToPlayPage,
+      }),
+    },
+    { path: "/login" },
+  ]);
+  const previousHead = document.head.innerHTML;
+  const stop = startPageMetadata(router);
+  try {
+    await router.navigate("/how-to-play/?source=home#cpu");
+    expect(document.title).toBe(initial.title);
+    for (const [selector, attribute] of [
+      ['meta[name="description"]', "content"],
+      ['meta[name="robots"]', "content"],
+      ['link[rel="canonical"]', "href"],
+    ] as const) {
+      expect(document.head.querySelector(selector)!.getAttribute(attribute)).toBe(
+        initial.head.querySelector(selector)!.getAttribute(attribute),
+      );
+    }
+    expect(readSocialTags(document.head.innerHTML)).toEqual(readSocialTags(initial.head.innerHTML));
+    await router.navigate("/login");
+    expect(document.head.querySelector('meta[name="robots"]')!.getAttribute("content")).toBe(
+      "noindex,follow",
+    );
+    expect(document.head.querySelector('meta[property="og:title"]')).toBeNull();
+  } finally {
+    stop();
+    router.dispose();
+    document.head.innerHTML = previousHead;
+  }
+});
 
 test.each([
   ["/tournaments/", true, "大会一覧｜TetraBoard"],
@@ -149,20 +197,30 @@ test("四人五目並べの紹介は3項目を表示する", () => {
   expect(view.querySelector("h3")).toBeNull();
 });
 
-test("四人将棋のロビーだけがルールページへのリンクを持つ", () => {
+test("四人将棋のロビーだけが紹介にルールと大会一覧へのリンクを持つ", () => {
   const template =
     '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>';
   for (const game of gameIds) {
-    const view = render(<GameIntroduction game={game} />);
+    const view = render(
+      <MemoryRouter>
+        <GameIntroduction game={game} />
+      </MemoryRouter>,
+    );
     const initial = document.implementation.createHTMLDocument();
     initial.documentElement.innerHTML = renderPublicLobby(template, game, lobbyBoardSources);
-    for (const content of [view, initial.querySelector("main")!]) {
+    for (const content of [
+      view,
+      initial.querySelector(`section[aria-label="${gameCatalog[game].name}の紹介"]`)!,
+    ]) {
       const link = content.querySelector(`a[href="${fourShogiRulesPath}"]`);
+      const tournamentLink = content.querySelector('a[href="/tournaments"]');
       if (game === "four-shogi") {
         expect(link?.textContent).toBe("ルールを詳しく見る");
+        expect(tournamentLink?.textContent).toBe("大会の日程と結果");
         expect(content.textContent).not.toContain("詳しいルールはロビー上部");
       } else {
         expect(link).toBeNull();
+        expect(tournamentLink).toBeNull();
         expect(content.textContent).toContain(
           "詳しいルールはロビー上部の「遊び方」で確認できます。",
         );
@@ -266,13 +324,12 @@ test("四人将棋の遊び方ダイアログは従来どおりh3と説明文を
     lobbyBoardSources,
     resolveRulesDiagramAsset,
   );
+  const rulesHeadings = [...initial.querySelectorAll("main section h2")].slice(3, -2);
+  expect(rulesHeadings.map((heading) => heading.textContent)).toEqual(headings);
   expect(
-    [...initial.querySelectorAll("main section h2")].slice(3).map((heading) => heading.textContent),
-  ).toEqual(headings);
-  expect(
-    [...initial.querySelectorAll("main section p")]
-      .slice(3)
-      .map((paragraph) => paragraph.textContent),
+    rulesHeadings.flatMap((heading) =>
+      [...heading.parentElement!.querySelectorAll("p")].map((paragraph) => paragraph.textContent),
+    ),
   ).toEqual(
     [...dialog.querySelectorAll("section h3")].flatMap((heading) =>
       [...heading.parentElement!.querySelectorAll("p")].map((paragraph) => paragraph.textContent),
@@ -292,6 +349,7 @@ test("ロビーとルールを往復すると先頭へ戻り、共通ナビと�
             path: fourShogiRulesPath,
             lazy: () => import("../src/features/lobby/fourShogiRulesRoute"),
           },
+          { path: "/tournaments", element: <div /> },
           { path: "/terms", element: <div /> },
         ],
       },
@@ -306,9 +364,19 @@ test("ロビーとルールを往復すると先頭へ戻り、共通ナビと�
     expect(scrollTo).toHaveBeenCalledTimes(0);
     requests.find((request) => request.url === "/api/account/session")!.respond({ user: profile });
     await flush();
-    await act(async () =>
-      view.querySelector<HTMLAnchorElement>(`a[href="${fourShogiRulesPath}"]`)!.click(),
-    );
+    const rulesLink = view.querySelector<HTMLAnchorElement>(`a[href="${fourShogiRulesPath}"]`)!;
+    await act(async () => {
+      const navigationComplete = new Promise<void>((resolve) => {
+        const unsubscribe = router.subscribe(({ navigation, location }) => {
+          if (navigation.state === "idle" && location.pathname === fourShogiRulesPath) {
+            unsubscribe();
+            resolve();
+          }
+        });
+      });
+      rulesLink.click();
+      await navigationComplete;
+    });
     expect(router.state.location.pathname).toBe(fourShogiRulesPath);
     expect(view.querySelector("h1")?.textContent).toBe("四人将棋のルール");
     expect(scrollTo).toHaveBeenCalledTimes(1);
@@ -324,6 +392,19 @@ test("ロビーとルールを往復すると先頭へ戻り、共通ナビと�
       '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>',
       lobbyBoardSources,
       resolveRulesDiagramAsset,
+    );
+    const sections = [...view.querySelectorAll("main > section")].slice(-2);
+    expect(sections.map((section) => section.querySelector("h2")?.textContent)).toEqual([
+      "勝ち方のコツ",
+      "よくある質問",
+    ]);
+    expect(sections.map((section) => section.outerHTML)).toEqual(
+      [...initial.querySelectorAll("main > section")].slice(-2).map((section) => section.outerHTML),
+    );
+    const tournamentLink = view.querySelector<HTMLAnchorElement>('main a[href="/tournaments"]')!;
+    expect(tournamentLink.textContent).toBe("大会の日程と結果");
+    expect(tournamentLink.outerHTML).toBe(
+      initial.querySelector('main a[href="/tournaments"]')!.outerHTML,
     );
     expect(document.title).toBe(initial.title);
     expect(readSocialTags(document.head.innerHTML)).toEqual(readSocialTags(initial.head.innerHTML));
@@ -347,6 +428,12 @@ test("ロビーとルールを往復すると先頭へ戻り、共通ナビと�
     await act(async () => router.navigate(-1));
     await act(async () => router.navigate("/terms"));
     expect(scrollTo).toHaveBeenCalledTimes(2);
+    await act(async () => router.navigate(-1));
+    expect(router.state.location.pathname).toBe(fourShogiRulesPath);
+    await act(async () =>
+      view.querySelector<HTMLAnchorElement>('main a[href="/tournaments"]')!.click(),
+    );
+    expect(router.state.location.pathname).toBe("/tournaments");
   } finally {
     scrollTo.mockRestore();
     stop();
@@ -509,6 +596,7 @@ test.each([
   ["/games/four-shogi", "four-shogi", "四人将棋"],
   ["/tournaments", "tournaments", "大会一覧"],
   [fourShogiRulesPath, "four-shogi-rules", "四人将棋のルール"],
+  ["/how-to-play", "how-to-play", "TetraBoardの使い方"],
 ] as const)(
   "初期HTMLは遅延ルートの準備後に一度だけ置き換わる %s",
   async (path, marker, heading) => {
@@ -577,48 +665,53 @@ test("遅延読み込み失敗は紹介とリンクを保持して再読み込�
   router.dispose();
 });
 
-test("ルールの初回チャンク取得が失敗しても初期HTMLとメタ情報を保持する", async () => {
-  let reject!: (reason: Error) => void;
-  const router = createMemoryRouter(
-    [
-      {
-        path: fourShogiRulesPath,
-        lazy: () =>
-          new Promise((_, r) => {
-            reject = r;
-          }),
-      },
-    ],
-    { initialEntries: [fourShogiRulesPath] },
-  );
-  const initial = document.implementation.createHTMLDocument();
-  initial.documentElement.innerHTML = renderFourShogiRules(
-    '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>',
-    lobbyBoardSources,
-    resolveRulesDiagramAsset,
-  );
-  const root = initial.getElementById("root")!;
-  const previousHead = document.head.innerHTML;
-  document.head.innerHTML = initial.head.innerHTML;
-  const deliveredHead = document.head.innerHTML;
-  const deliveredBody = root.innerHTML;
-  const stop = startPageMetadata(router, root);
-  try {
-    let mounted = false;
-    startPublicLobby(root, router, () => {
-      mounted = true;
-    });
-    expect(document.head.innerHTML).toBe(deliveredHead);
-    reject(new Error("chunk unavailable"));
-    await flush();
-    expect(router.state.initialized).toBe(true);
-    expect(Boolean(router.state.errors)).toBe(true);
-    expect(mounted).toBe(false);
-    expect(root.innerHTML).toBe(deliveredBody);
-    expect(document.head.innerHTML).toBe(deliveredHead);
-  } finally {
-    stop();
-    router.dispose();
-    document.head.innerHTML = previousHead;
-  }
-});
+test.each([
+  [
+    fourShogiRulesPath,
+    () => renderFourShogiRules(publicPageTemplate, lobbyBoardSources, resolveRulesDiagramAsset),
+  ],
+  ["/how-to-play", () => renderHowToPlay(publicPageTemplate, lobbyBoardSources, helpScreenshots)],
+] as const)(
+  "%s の初回チャンク取得が失敗しても初期HTMLとメタ情報を保持する",
+  async (path, renderInitialPage) => {
+    let reject!: (reason: Error) => void;
+    const router = createMemoryRouter(
+      [
+        {
+          path,
+          lazy: () =>
+            new Promise((_, r) => {
+              reject = r;
+            }),
+        },
+      ],
+      { initialEntries: [path] },
+    );
+    const initial = document.implementation.createHTMLDocument();
+    initial.documentElement.innerHTML = renderInitialPage();
+    const root = initial.getElementById("root")!;
+    const previousHead = document.head.innerHTML;
+    document.head.innerHTML = initial.head.innerHTML;
+    const deliveredHead = document.head.innerHTML;
+    const deliveredBody = root.innerHTML;
+    const stop = startPageMetadata(router, root);
+    try {
+      let mounted = false;
+      startPublicLobby(root, router, () => {
+        mounted = true;
+      });
+      expect(document.head.innerHTML).toBe(deliveredHead);
+      reject(new Error("chunk unavailable"));
+      await flush();
+      expect(router.state.initialized).toBe(true);
+      expect(Boolean(router.state.errors)).toBe(true);
+      expect(mounted).toBe(false);
+      expect(root.innerHTML).toBe(deliveredBody);
+      expect(document.head.innerHTML).toBe(deliveredHead);
+    } finally {
+      stop();
+      router.dispose();
+      document.head.innerHTML = previousHead;
+    }
+  },
+);

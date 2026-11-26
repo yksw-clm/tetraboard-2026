@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { tournamentSettingsSchema } from "@tetraboard/protocol";
 import { afterEach, expect, test, vi } from "vitest";
 import { accountFixture } from "./accountFixtures";
-import { assetFixture, files } from "./publicAssetFixtures";
+import { assetFixture, files, visitMetaTag } from "./publicAssetFixtures";
 import { useTournamentApiFixtures } from "./tournamentApiFixtures";
 
 useTournamentApiFixtures();
@@ -61,6 +61,7 @@ function expectTournamentHead(
   imageName = "tetraboard",
   alt = "TetraBoardのロゴとボードゲームの盤面",
 ) {
+  expect(body).toContain(`${visitMetaTag}</head>`);
   expect(body).toContain(`<title>${title}</title>`);
   expect(body).toContain(`<meta name="description" content="${description}">`);
   expect(body).toContain(`<link rel="canonical" href="${canonical}">`);
@@ -289,7 +290,9 @@ test("大会詳細は開催前の名前を公開せず、確定後は匿名化�
     expect(body).toContain('content="index,follow"');
     expect(body).toContain(label);
     expect(body).toContain(`<dt>エントリー人数</dt><dd>${id === 1 || id === 4 ? 1 : 0}人</dd>`);
-    expect(body).toContain('href="/tournaments"');
+    expect(body).toMatch(
+      /<h2>大会ルール<\/h2>[\s\S]*?<a href="\/games\/four-shogi\/rules">四人将棋のルールを見る<\/a>\s*<a href="\/games\/four-shogi">四人将棋で遊ぶ<\/a>[\s\S]*?<a href="\/tournaments">大会一覧へ<\/a>/,
+    );
     expect(body).toContain('href="/terms"');
     expect(body).toContain('href="/privacy"');
     expect(body).toContain("大会の案内 &lt;script&gt;説明&lt;/script&gt;");
@@ -350,12 +353,15 @@ test("開発の大会HTMLは検索除外と開発のcanonical・OGPを使い、�
         "四人リバーシの盤面とTetraBoardのロゴ",
       );
       expectTournamentBreadcrumbs(body, origin, { id: 1, name: "開発の大会" });
+      expect(body).toContain('<a href="/tournaments">大会一覧へ</a>');
+      expect(body).not.toContain('href="/games/four-shogi/rules"');
+      expect(body).not.toContain('href="/games/four-shogi"');
     }
   }
   expect(await (await assets.fetch("/sitemap.xml")).text()).toBe(files["/sitemap.xml"]!.body);
 });
 
-test("存在しない大会と非公開大会はnoindexのapp.htmlで404になる", async () => {
+test("存在しない大会と非公開大会は訪問の目印がないnoindexのapp.htmlで404になる", async () => {
   await seedTournament(12, "非公開の大会", Date.now() + hour, { published: false });
   const assets = assetFixture();
   for (const path of ["/tournaments/1", "/tournaments/12/"]) {
@@ -382,7 +388,7 @@ test("D1の読み取り失敗時は大会のapp.htmlと静的サイトマップ�
     expect(response.status).toBe(200);
     expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
     const body = await response.text();
-    expect(body).toBe(files["/app.html"]!.body);
+    expect(body).toBe(files["/app.html"]!.body.replace("</head>", `${visitMetaTag}</head>`));
     expect(body).not.toContain("application/ld+json");
   }
   expect(await (await assets.fetch("/sitemap.xml")).text()).toBe(files["/sitemap.xml"]!.body);
@@ -403,7 +409,9 @@ test("D1が応答しない場合は1.5秒でnoindexのapp.htmlを返す", async 
     const response = await page;
     expect(response.status).toBe(200);
     expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
-    expect(await response.text()).toBe(files["/app.html"]!.body);
+    expect(await response.text()).toBe(
+      files["/app.html"]!.body.replace("</head>", `${visitMetaTag}</head>`),
+    );
   } finally {
     vi.useRealTimers();
   }

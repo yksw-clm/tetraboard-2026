@@ -2,10 +2,14 @@ import { legalHtml } from "./routes/legalHtml";
 import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { serveRoomShareHtml } from "./roomShareHtml";
 import { serveMatchShareHtml } from "./matchSharing/html";
-import { withVisitStarted } from "./usageEvents/visit";
+import { withVisitHtml } from "./usageEvents/visit";
 import { serveTournamentHtml, serveTournamentSitemap } from "./tournamentPages";
 
-const publicPagePaths = [...gameIds.map((game) => gameCatalog[game].lobbyPath), fourShogiRulesPath];
+const publicPagePaths = [
+  ...gameIds.map((game) => gameCatalog[game].lobbyPath),
+  fourShogiRulesPath,
+  "/how-to-play",
+];
 const tournamentDetailPath = /^\/tournaments\/([1-9]\d*)\/?$/;
 
 export function withoutIndexing(response: Response): Response {
@@ -29,7 +33,6 @@ function isSpaPath(path: string) {
       "/feedback",
       "/updates",
       "/tournaments",
-      "/how-to-play",
       "/games/four-reversi/matchmaking",
       "/games/shogi/matchmaking",
     ].includes(path.replace(/\/$/, "")) ||
@@ -80,7 +83,7 @@ export async function servePublicAssets(
   env?: Env,
 ): Promise<Response> {
   const url = new URL(request.url);
-  const html = (response: Response) => withVisitStarted(request, response, path, env);
+  const html = (response: Response) => withVisitHtml(request, response, path);
   if (request.headers.get("Upgrade"))
     return withoutIndexing(new Response("Not Found", { status: 404 }));
   if (request.method !== "GET" && request.method !== "HEAD")

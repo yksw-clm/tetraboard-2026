@@ -4,20 +4,94 @@ import {
   fourReversiMatchDetailSchema,
   fourShogiMatchDetailSchema,
   matchSummarySchema,
+  publicMatchDetailSchema,
 } from "@tetraboard/protocol";
+import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { matchPostText } from "@tetraboard/protocol/match-sharing";
 import { reversiArchives, shogiArchives } from "../../../test-fixtures/matches";
+import fourGomokuArchive from "../../../test-fixtures/matches/four-gomoku-singles-ranked.json";
+import gomokuArchive from "../../../test-fixtures/matches/gomoku-on-five.json";
+import reversiArchive from "../../../test-fixtures/matches/reversi-standard-draw.json";
 import FourReversiMatchReplayView from "../src/features/room/FourReversiMatchReplayView";
 import FourShogiMatchReplayView from "../src/features/room/FourShogiMatchReplayView";
 import { MatchReplayErrorPage } from "../src/features/room/MatchReplayPage";
+import { SavedMatchReplayView } from "../src/features/room/SavedMatchReplayView";
 import { matchReplayLoader } from "../src/features/room/matchReplayLoader";
 import { fetchFourShogiMatchReplay } from "../src/features/room/fourShogiMatchReplay";
 import { MatchHistoryCard } from "../src/features/matches/MatchHistoryCard";
 import { simultaneousMateFrames } from "../test/fixtures/shogiKnockouts";
 import { shogiRoundWithoutHumans } from "../test/fixtures/fourShogiFixtures";
+import { standardSavedRound } from "../test/fixtures/standardShogiFixtures";
 import { token } from "../test/fixtures/rooms";
 import { AccountContext } from "../src/features/account/useAccount";
 import { act, clock, flush, press, render, requests, wrap } from "./harness";
+
+const publicReplayCases = {
+  "four-reversi": { detail: reversiArchives[1]!.detail, title: "四人リバーシ（オセロ）" },
+  "four-shogi": { detail: shogiArchives[0]!.detail, title: "四人将棋" },
+  reversi: { detail: reversiArchive.detail, title: "リバーシ（オセロ）" },
+  shogi: { detail: standardSavedRound().match, title: "将棋" },
+  gomoku: { detail: gomokuArchive.detail, title: "五目並べ" },
+  "four-gomoku": { detail: fourGomokuArchive.detail, title: "四人五目並べ" },
+};
+
+for (const game of gameIds) {
+  test(`${game}の公開棋譜はゲームを案内し、遊ぶリンクからロビーへ移動する`, async () => {
+    const { detail, title } = publicReplayCases[game];
+    const publicDetail = { ...detail };
+    Reflect.deleteProperty(publicDetail, "selfPlayerId");
+    const match = publicMatchDetailSchema.parse(publicDetail);
+    const { name, lobbyPath } = gameCatalog[game];
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/matches/:matchId",
+          element: (
+            <SavedMatchReplayView
+              match={match}
+              board={<div>盤面</div>}
+              replay={{ frames: [{ label: "最終局面" }], index: 0, select: () => {} }}
+              result={null}
+              onRotate={() => {}}
+            />
+          ),
+        },
+        { path: lobbyPath, element: <h1>{name}のロビー</h1> },
+      ],
+      { initialEntries: [`/matches/${match.id}`] },
+    );
+    const view = render(<RouterProvider router={router} />);
+    const banner = view.querySelector('main section[aria-label="このゲームを遊ぶ"]')!;
+    expect(banner.querySelector("p")?.textContent).toBe(
+      `${title}は登録なしで、ブラウザからすぐ遊べます。`,
+    );
+    const link = banner.querySelector("a")!;
+    expect(link.textContent).toBe(`${name}を遊ぶ`);
+    expect(link.getAttribute("href")).toBe(lobbyPath);
+    act(() => link.click());
+    await flush();
+    expect(router.state.location.pathname).toBe(lobbyPath);
+    expect(view.querySelector("h1")?.textContent).toBe(`${name}のロビー`);
+    act(() => router.dispose());
+  });
+}
+
+test("本人の棋譜には遊ぶ帯を出さず、ルーム情報からマイページへ戻れる", async () => {
+  const match = fourReversiMatchDetailSchema.parse(reversiArchives[0]!.detail);
+  const view = render(
+    wrap(null, `/account/matches/${match.id}`)(<FourReversiMatchReplayView match={match} />),
+  );
+  expect(view.querySelector('[aria-label="このゲームを遊ぶ"]')).toBeNull();
+  const roomTab = [...view.querySelectorAll<HTMLElement>('[role="tab"]')].find(
+    (tab) => tab.textContent === "ルーム",
+  )!;
+  act(() => roomTab.click());
+  await flush();
+  expect(roomTab.getAttribute("aria-selected")).toBe("true");
+  expect(view.querySelector('[role="tabpanel"] a[href="/account"]')?.textContent).toBe(
+    "マイページへ戻る",
+  );
+});
 
 test("PCの保存棋譜は結果・回転を盤面下の状況カードに置き、局面操作を分ける", () => {
   const matchMedia = spyOn(window, "matchMedia").mockImplementation(

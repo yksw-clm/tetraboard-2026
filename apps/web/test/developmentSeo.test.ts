@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { fourShogiRulesMetadata } from "../src/seo/fourShogiRulesMetadata";
+import { howToPlayMetadata } from "../src/seo/howToPlayMetadata";
 import { generalLobbyMetadata, lobbyMetadata } from "../src/seo/lobbyMetadata";
 import { expectPublicPageSocialTags } from "./fixtures/publicPageSocialTags";
 import { expectPublicPageStructuredData } from "./fixtures/publicPageStructuredData";
@@ -16,7 +17,8 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
     import { createMemoryRouter } from "react-router";
     import { Window } from "happy-dom";
     import { gameIds } from "@tetraboard/protocol/games";
-    import { renderFourShogiRules, renderGeneralLobby, renderPublicLobby, renderSitemap, robotsText } from "./build/renderPublicLobby";
+    import { renderFourShogiRules, renderGeneralLobby, renderHowToPlay, renderPublicLobby, renderSitemap, robotsText } from "./build/renderPublicLobby";
+    import { helpScreenshots } from "./src/features/help/helpScreenshots";
     import { lobbyBoardSources, resolveRulesDiagramAsset } from "./test/fixtures/lobbyBoardSources";
     import { startPageMetadata, updatePageMetadata } from "./src/seo/pageMetadata";
     import { validateDeploymentLobbyHtml } from "../../scripts/deploymentLobbyHtml";
@@ -57,7 +59,10 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
     pages.push(document.head.innerHTML);
     stop();
     router.dispose();
-    console.log(JSON.stringify({ home, lobbies, rulesHtml, sitemap: renderSitemap(), robotsText, pages }));
+    const helpHtml = renderHowToPlay(template, lobbyBoardSources, helpScreenshots);
+    updatePageMetadata("/how-to-play");
+    const helpHead = document.head.innerHTML;
+    console.log(JSON.stringify({ home, lobbies, rulesHtml, helpHtml, helpHead, sitemap: renderSitemap(), robotsText, pages }));
   `,
     ],
     {
@@ -96,6 +101,10 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
   expect(output.pages[5]).toContain(
     'href="https://tetraboard-dev.chaossi-lab.workers.dev/games/four-shogi/rules"',
   );
+  for (const page of [output.helpHtml, output.helpHead]) {
+    expect(page).toContain(`href="${developmentOrigin}/how-to-play"`);
+    expectPublicPageSocialTags(page, howToPlayMetadata, `${developmentOrigin}/how-to-play`);
+  }
   expect(output.sitemap).not.toContain("<loc>");
   expect(output.sitemap).not.toContain("<lastmod>");
   expect(output.robotsText).toContain("Allow: /");
@@ -104,6 +113,8 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
     output.home,
     ...Object.values(output.lobbies),
     output.rulesHtml,
+    output.helpHtml,
+    output.helpHead,
     ...output.pages,
   ]) {
     expect(page).toContain('content="noindex,follow"');
