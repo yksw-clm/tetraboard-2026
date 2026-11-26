@@ -108,6 +108,26 @@ test("設定前・未認証で規約全文と連絡先を読め、常時計測�
   }
 });
 
+test("プライバシーポリシーと利用規約に掲示板の説明と現在版を表示する", async () => {
+  for (const kind of ["privacy", "terms"] as const) {
+    const view = render(wrap(null, `/${kind}`)(<LegalPage kind={kind} />));
+    await flush();
+    const headings = Array.from(view.querySelectorAll("section h2"));
+    const board = headings.find((heading) => heading.textContent === "掲示板");
+    const boardBody = board?.closest("section")?.querySelector("p")?.textContent;
+    expect(boardBody).toContain("検索エンジン");
+    expect(boardBody).toContain("期限を設けず");
+    expect(view.textContent).toContain(`改定日・文書版：${legalVersion}`);
+    if (kind === "terms") {
+      const prohibited = headings.find((heading) => heading.textContent === "禁止行為");
+      expect(prohibited?.closest("section")?.querySelector("p")?.textContent).toContain(
+        "晒し・嫌がらせ",
+      );
+    }
+    rerender(view, null);
+  }
+});
+
 test("退会は確認なしに送信せず、受付・失敗・完了を区別して復帰できる", async () => {
   const view = render(wrap(profile)(<DeletionPage />));
   await flush();
