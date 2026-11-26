@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BoardRequestError } from "./boardApi";
 
 type ReadAction = "initial" | "refresh" | "more";
-type ReadFailure = { source: ReadAction; notFound: boolean };
+type ReadFailure = { source: ReadAction | "sync"; notFound: boolean };
 type Pending = ReadAction | "retry" | "write";
 
 function readFailure(source: ReadAction, error: unknown): ReadFailure {
@@ -76,11 +76,24 @@ export function useBoardData<T>(readFirst: (signal: AbortSignal) => Promise<T>) 
           const merge = await load(signal);
           signal.throwIfAborted();
           setData((current) => (current ? merge(current) : current));
-          setFailure(null);
+          setFailure((previous) => (previous?.source === "sync" ? previous : null));
         } catch (error) {
-          if (signal.reason?.name !== "AbortError") setFailure(readFailure("more", error));
+          if (signal.reason?.name === "AbortError") return;
+          const next = readFailure("more", error);
+          setFailure((previous) =>
+            previous?.source === "sync" && !next.notFound ? previous : next,
+          );
         }
       });
+    },
+    syncFailed() {
+      setFailure({ source: "sync", notFound: false });
+    },
+    clearSyncFailure() {
+      setFailure((previous) => (previous?.source === "sync" ? null : previous));
+    },
+    retrySync(operation: (signal: AbortSignal) => Promise<void>) {
+      return run("retry", operation);
     },
     write(operation: (signal: AbortSignal) => Promise<void>) {
       return run("write", operation);

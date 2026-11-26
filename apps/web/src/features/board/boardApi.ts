@@ -56,6 +56,15 @@ export async function readDetail(id: string, signal: AbortSignal) {
   return boardDetailSchema.parse(await response.json());
 }
 
+export async function readDetailOrMissing(id: string, signal: AbortSignal) {
+  try {
+    return await readDetail(id, signal);
+  } catch (error) {
+    if (error instanceof BoardRequestError && error.status === 404) return null;
+    throw error;
+  }
+}
+
 export async function readReplies(id: string, signal: AbortSignal, after: string) {
   const path = `${boardPostPath(id)}/replies?after=${encodeURIComponent(after)}`;
   const response = await boardRequest(path, { signal }, boardLoadError);

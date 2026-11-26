@@ -248,6 +248,54 @@ test("投稿の失敗と再送で下書きとrequestIdを保持し、本文変�
   expect(articles(view)).toHaveLength(1);
 });
 
+test("投稿欄は前後の空白を除いて1,000字まで送信できる", async () => {
+  const view = show();
+  await respond(timeline([]));
+  const submit = view.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  enter(input(view), " \n　");
+  expect(view.textContent).toContain("0/1000");
+  expect(submit.disabled).toBe(true);
+  enter(input(view), "あ".repeat(1001));
+  expect(view.textContent).toContain("1001/1000");
+  expect(submit.disabled).toBe(true);
+  const text = "\n" + "あ".repeat(1000) + "\n";
+  enter(input(view), text);
+  expect(view.textContent).toContain("1000/1000");
+  expect(submit.disabled).toBe(false);
+  press(view, "投稿する");
+  expect(requestInput(latest()).text).toBe(text);
+});
+
+test.each([true, false])(
+  "古い投稿の再送成功は表示位置を維持するか先頭から取り直す（取得済み: %s）",
+  async (loaded) => {
+    const view = show();
+    const newest = post(3, "最新の投稿");
+    const old = post(1, "保存済みの本文", { own: true });
+    await respond(timeline(loaded ? [newest, old] : [newest], cursor(newest)));
+    enter(input(view), old.text);
+    press(view, "投稿する");
+    const original = requestInput(latest());
+    latest().reject();
+    await flush();
+    press(view, "投稿する");
+    expect(requestInput(latest())).toEqual(original);
+    const replayed = { ...old, likeCount: 17 };
+    await respond({ post: replayed, availableAtMs: 0 });
+    if (!loaded) {
+      expect(latest().url).toBe(timelineUrl);
+      expect(latest().init.method).toBeUndefined();
+      expect(articles(view)).toHaveLength(1);
+      await respond(timeline([newest, replayed]));
+    }
+    expect(articles(view)).toHaveLength(2);
+    expect(articles(view)[0]?.textContent).toContain(newest.text);
+    expect(articles(view)[1]?.textContent).toContain(old.text);
+    expect(like(articles(view)[1]!).textContent).toContain("17");
+    expect(input(view).value).toBe("");
+  },
+);
+
 test("Enterは送信せず、変換中のCtrlまたは⌘+Enterも送信しない", async () => {
   const view = show();
   await respond(timeline([]));
@@ -295,8 +343,15 @@ test("詳細は全文と正確な日時を表示し、返信の追加取得と�
   expect(latest().url).toBe(repliesUrl);
   expect(latest().init.method).toBe("POST");
   await respond({ reply: newReply, availableAtMs: 0 });
+  expect(latest().url).toBe(detailUrl);
+  expect(latest().init.method).toBeUndefined();
+  await respond(
+    thread({ ...parent, replyCount: 7, liked: true, likeCount: 14 }, [first], cursor(newReply)),
+  );
   expect(articles(view)[2]?.textContent).toContain(newReply.text);
-  expect(main.textContent).toContain("返信 3");
+  expect(main.textContent).toContain("返信 7");
+  expect(like(main).textContent).toContain("14");
+  expect(like(main).getAttribute("aria-pressed")).toBe("true");
   press(view, "もっと見る");
   expect(latest().url).toBe(`${repliesUrl}?after=${encodeURIComponent(cursor(first))}`);
   await respond({ replies: [second, newReply], nextCursor: null });
@@ -304,6 +359,62 @@ test("詳細は全文と正確な日時を表示し、返信の追加取得と�
   expect(articles(view)[1]?.textContent).toContain(first.text);
   expect(articles(view)[2]?.textContent).toContain(second.text);
   expect(articles(view)[3]?.textContent).toContain(newReply.text);
+  expect(main.textContent).toContain("返信 7");
+});
+
+test("返信送信後に同期が失敗しても返信を表示し、再試行で返信数を同期する", async () => {
+  const view = show(postPath);
+  const parent = post(1, "本文", { replyCount: 1 });
+  const original = reply(2, "既存の返信");
+  const sent = reply(3, "送信した返信");
+  await respond(thread(parent, [original]));
+  enter(input(view), sent.text);
+  press(view, "返信する");
+  await respond({ reply: sent, availableAtMs: 0 });
+  expect(latest().url).toBe(detailUrl);
+  await respond(null, 503);
+  expect(input(view).value).toBe("");
+  expect(articles(view)).toHaveLength(3);
+  expect(articles(view)[2]?.textContent).toContain(sent.text);
+  expect(articles(view)[0]?.textContent).toContain("返信 1");
+  expect(view.textContent).toContain("投稿を取得できませんでした。");
+  press(view, "再試行");
+  await respond({
+    ...thread({ ...parent, replyCount: 8 }, [original, sent], cursor(sent)),
+    acceptingPosts: false,
+  });
+  expect(articles(view)).toHaveLength(3);
+  expect(articles(view)[0]?.textContent).toContain("返信 8");
+  expect(view.textContent).toContain("現在、掲示板への投稿を受け付けていません。");
+  expect(view.textContent).not.toContain("もっと見る");
+  expect(view.textContent).not.toContain("再試行");
+});
+
+test("返信の再送成功は一覧にある返信も重複させず、返信がnullでも再取得する", async () => {
+  const view = show(postPath);
+  const parent = post(1, "本文", { replyCount: 1 });
+  const saved = reply(2, "保存済みの返信");
+  await respond(thread(parent, [saved]));
+  enter(input(view), saved.text);
+  press(view, "返信する");
+  const original = requestInput(latest());
+  latest().reject();
+  await flush();
+  press(view, "返信する");
+  expect(requestInput(latest())).toEqual(original);
+  await respond({ reply: saved, availableAtMs: 0 });
+  expect(latest().url).toBe(detailUrl);
+  await respond(thread({ ...parent, replyCount: 3 }, [saved]));
+  expect(articles(view)).toHaveLength(2);
+  expect(articles(view)[0]?.textContent).toContain("返信 3");
+
+  enter(input(view), "別の返信");
+  press(view, "返信する");
+  await respond({ reply: null, availableAtMs: 0 });
+  expect(latest().url).toBe(detailUrl);
+  await respond(thread({ ...parent, replyCount: 4 }, [saved, reply(3, "別の返信")]));
+  expect(articles(view)).toHaveLength(3);
+  expect(articles(view)[0]?.textContent).toContain("返信 4");
 });
 
 test.each([503, 200])("詳細の障害・不正な応答では再試行できる（HTTP %s）", async (status) => {
@@ -324,6 +435,17 @@ test("詳細の404では見つからない案内と総合ロビーへの導線�
   );
   expect(view.querySelector('a[href="/"]')?.textContent).toBe("総合ロビーへ");
   expect(view.textContent).not.toContain("再試行");
+});
+
+test("返信の追加取得が404なら見つからない案内を表示する", async () => {
+  const view = show(postPath);
+  const first = reply(2, "最初の返信");
+  await respond(thread(post(1, "本文", { replyCount: 2 }), [first], cursor(first)));
+  press(view, "もっと見る");
+  expect(latest().url).toBe(`${repliesUrl}?after=${encodeURIComponent(cursor(first))}`);
+  await respond(null, 404);
+  expect(view.textContent).toContain("投稿が見つかりません。");
+  expect(view.querySelector('a[href="/"]')?.textContent).toBe("総合ロビーへ");
 });
 
 test("自分の投稿と返信にもいいねできる。即時反映し、応答に合わせ、失敗は元に戻す", async () => {
@@ -482,62 +604,126 @@ test.each([
   },
 );
 
-test("投稿削除のキャンセルと失敗では一覧を保ち、成功で返信のない投稿だけを消す", async () => {
+test("タイムラインの削除は詳細の404で消し、200なら返信の枠に置き換える", async () => {
   const view = show();
-  await respond(
-    timeline([
-      post(2, "返信あり", { own: true, replyCount: 2 }),
-      post(1, "返信なし", { own: true }),
-    ]),
-  );
+  const gainsReply = post(3, "返信が増えた投稿", { own: true });
+  const losesReplies = post(2, "返信が減った投稿", { own: true, replyCount: 4 });
+  const older = post(1, "追加取得済みの投稿");
+  await respond(timeline([gainsReply, losesReplies], cursor(losesReplies)));
+  press(view, "もっと見る");
+  await respond(timeline([older], cursor(older)));
+
   const [existing, empty] = articles(view);
   press(empty!, "削除");
   expect(dialog().textContent).toContain("投稿を削除しますか？");
   expect(dialog().textContent).toContain("削除すると元に戻せません。");
   press(dialog(), "キャンセル");
-  expect(requests).toHaveLength(1);
-  expect(articles(view)).toHaveLength(2);
+  expect(requests).toHaveLength(2);
+  expect(articles(view)).toHaveLength(3);
   press(empty!, "削除");
   press(dialog(), "削除する");
-  expect(latest().url).toBe(detailUrl);
+  expect(latest().url).toBe(`/api/posts/${losesReplies.id}`);
   expect(latest().init.method).toBe("DELETE");
   await respond({ message: "削除の失敗理由" }, 503);
   expect(dialog().textContent).toContain("削除の失敗理由");
-  expect(articles(view)).toHaveLength(2);
+  expect(articles(view)).toHaveLength(3);
   press(dialog(), "削除する");
   await respond(null, 204);
-  expect(articles(view)).toHaveLength(1);
-  expect(view.textContent).not.toContain("返信なし");
+  expect(latest().url).toBe(`/api/posts/${losesReplies.id}`);
+  expect(latest().init.method).toBeUndefined();
+  expect(articles(view)).toHaveLength(3);
+  await respond(null, 404);
+  expect(articles(view)).toHaveLength(2);
+  expect(view.textContent).not.toContain(losesReplies.text);
 
   press(existing!, "削除");
   press(dialog(), "削除する");
   await respond(null, 204);
-  const placeholder = articles(view)[0]!;
-  expect(placeholder.textContent).toContain("削除された投稿");
-  expect(placeholder.textContent).not.toContain("返信あり");
-  expect(placeholder.textContent).not.toContain("投稿者");
-  expect(placeholder.querySelector("button")).toBeNull();
-  expect(placeholder.querySelector("a")?.textContent).toBe("返信 2");
+  expect(latest().url).toBe(`/api/posts/${gainsReply.id}`);
+  await respond(thread(deleted({ ...gainsReply, replyCount: 2 })));
+  const [placeholder, preserved] = articles(view);
+  expect(placeholder?.textContent).toContain("削除された投稿");
+  expect(placeholder?.textContent).not.toContain(gainsReply.text);
+  expect(placeholder?.textContent).not.toContain(gainsReply.author.name);
+  expect(placeholder?.querySelector("button")).toBeNull();
+  expect(placeholder?.querySelector("a")?.textContent).toBe("返信 2");
+  expect(preserved?.textContent).toContain(older.text);
+  press(view, "もっと見る");
+  expect(latest().url).toBe(`${timelineUrl}?before=${encodeURIComponent(cursor(older))}`);
+  await respond(timeline([]));
 });
 
-test("詳細で返信を削除すると一覧から消えて返信数が減り、返信0の投稿削除は掲示板へ戻る", async () => {
+test("タイムラインの削除後に詳細の取得が失敗すると表示を保ち、先頭から再試行できる", async () => {
+  const view = show();
+  const parent = post(1, "表示を保つ投稿", { own: true });
+  await respond(timeline([parent]));
+  press(articles(view)[0]!, "削除");
+  press(dialog(), "削除する");
+  await respond(null, 204);
+  expect(latest().url).toBe(detailUrl);
+  expect(latest().init.method).toBeUndefined();
+  await respond(null, 503);
+  expect(articles(view)[0]?.textContent).toContain(parent.text);
+  expect(view.textContent).toContain("投稿を取得できませんでした。");
+  press(view, "再試行");
+  expect(latest().url).toBe(timelineUrl);
+  await respond(timeline([]));
+  expect(articles(view)).toHaveLength(0);
+});
+
+test("詳細で返信を削除すると読み直した数になり、投稿の再取得が404なら掲示板へ戻る", async () => {
   const view = show(postPath);
-  await respond(
-    thread(post(1, "本文", { own: true, replyCount: 1 }), [reply(2, "本人の返信", { own: true })]),
-  );
+  const parent = post(1, "本文", { own: true, replyCount: 1 });
+  const remaining = reply(3, "別ページの返信");
+  await respond(thread(parent, [reply(2, "本人の返信", { own: true })], cursor(remaining)));
+  press(view, "もっと見る");
+  await respond({ replies: [remaining], nextCursor: null });
   press(articles(view)[1]!, "削除");
   expect(dialog().textContent).toContain("返信を削除しますか？");
   press(dialog(), "削除する");
   expect(latest().url).toBe(`/api/posts/${uuid(2)}`);
   await respond(null, 204);
-  expect(articles(view)).toHaveLength(1);
-  expect(articles(view)[0]?.textContent).toContain("返信 0");
+  expect(latest().url).toBe(detailUrl);
+  expect(latest().init.method).toBeUndefined();
+  await respond(thread({ ...parent, replyCount: 5 }, [reply(4, "新しい返信")], cursor(remaining)));
+  expect(articles(view)).toHaveLength(3);
+  expect(articles(view)[0]?.textContent).toContain("返信 5");
+  expect(articles(view)[1]?.textContent).toContain(remaining.text);
+  expect(view.textContent).not.toContain("本人の返信");
+  expect(view.textContent).not.toContain("もっと見る");
   press(articles(view)[0]!, "削除");
   press(dialog(), "削除する");
   await respond(null, 204);
+  expect(latest().url).toBe(detailUrl);
+  await respond(null, 404);
   expect(latest().url).toBe(timelineUrl);
   await respond(timeline([]));
   expect(view.querySelector("h1")?.textContent).toBe("四人将棋の掲示板");
+});
+
+test("返信削除後の同期に失敗しても表示を保ち、再試行で削除済みの返信と数を同期する", async () => {
+  const view = show(postPath);
+  const parent = post(1, "本文", { replyCount: 2 });
+  const removed = reply(3, "削除する本人の返信", { own: true });
+  const remaining = reply(2, "残る返信");
+  await respond(thread(parent, [remaining], cursor(remaining)));
+  press(view, "もっと見る");
+  await respond({ replies: [removed], nextCursor: null });
+  press(articles(view)[2]!, "削除");
+  press(dialog(), "削除する");
+  await respond(null, 204);
+  expect(latest().url).toBe(detailUrl);
+  await respond(null, 503);
+  expect(articles(view)[2]?.textContent).toContain(removed.text);
+  expect(articles(view)[0]?.textContent).toContain("返信 2");
+  press(view, "再試行");
+  expect(latest().url).toBe(detailUrl);
+  expect(latest().init.method).toBeUndefined();
+  await respond(thread({ ...parent, replyCount: 1 }, [remaining], cursor(remaining)));
+  expect(articles(view)).toHaveLength(2);
+  expect(articles(view)[1]?.textContent).toContain(remaining.text);
+  expect(articles(view)[0]?.textContent).toContain("返信 1");
+  expect(view.textContent).not.toContain("もっと見る");
 });
 
 test.each([false, true])(
@@ -545,11 +731,16 @@ test.each([false, true])(
   async (remove) => {
     const view = show(postPath);
     const parent = post(1, "削除する本文", { own: true, replyCount: 1 });
-    await respond(thread(remove ? parent : deleted(parent), [reply(2, "残る返信")]));
+    const survivingReply = reply(2, "残る返信");
+    await respond(
+      remove ? thread({ ...parent, replyCount: 0 }) : thread(deleted(parent), [survivingReply]),
+    );
     if (remove) {
       press(articles(view)[0]!, "削除");
       press(dialog(), "削除する");
       await respond(null, 204);
+      expect(latest().url).toBe(detailUrl);
+      await respond(thread(deleted(parent), [survivingReply]));
     }
     const [placeholder, child] = articles(view);
     expect(placeholder?.textContent).toContain("削除された投稿");
@@ -573,6 +764,8 @@ test("削除された投稿の最後の返信を消すと掲示板へ戻る", as
   press(articles(view)[1]!, "削除");
   press(dialog(), "削除する");
   await respond(null, 204);
+  expect(latest().url).toBe(detailUrl);
+  await respond(null, 404);
   expect(latest().url).toBe(timelineUrl);
   await respond(timeline([]));
   expect(view.textContent).toContain("まだ投稿はありません。");

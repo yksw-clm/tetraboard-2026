@@ -1,4 +1,4 @@
-import { countCharacters } from "@tetraboard/protocol";
+import { boardTextLength, boardTextLimit } from "@tetraboard/protocol/board";
 import { useId, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { createUuid } from "../../shared/createUuid";
@@ -19,8 +19,6 @@ type Props = {
   onSubmit: (input: { text: string; requestId: string }, signal: AbortSignal) => Promise<void>;
 };
 
-const textLimit = 1000;
-
 export function BoardComposer({
   posting,
   returnTo,
@@ -40,7 +38,8 @@ export function BoardComposer({
   const [error, setError] = useState<string | null>(null);
   const requestId = useRef<string | null>(null);
   const composing = useRef(false);
-  const count = countCharacters(text);
+  const count = boardTextLength(text);
+  const canSubmit = count > 0 && count <= boardTextLimit;
   const submitLabel = reply ? "返信する" : "投稿する";
 
   function signIn() {
@@ -50,7 +49,7 @@ export function BoardComposer({
 
   function submit(event?: FormEvent) {
     event?.preventDefault();
-    if (busy || pending || composing.current || !text.trim() || count > textLimit) return;
+    if (busy || pending || composing.current || !canSubmit) return;
     void write(async (signal) => {
       setPending(true);
       setError(null);
@@ -149,14 +148,10 @@ export function BoardComposer({
           </p>
         )}
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <span id={description} className={count > textLimit ? "text-danger" : "text-muted"}>
-            {count}/{textLimit}
+          <span id={description} className={count > boardTextLimit ? "text-danger" : "text-muted"}>
+            {count}/{boardTextLimit}
           </span>
-          <AppButton
-            type="submit"
-            isPending={pending}
-            isDisabled={busy || !text.trim() || count > textLimit}
-          >
+          <AppButton type="submit" isPending={pending} isDisabled={busy || !canSubmit}>
             {submitLabel}
           </AppButton>
         </div>

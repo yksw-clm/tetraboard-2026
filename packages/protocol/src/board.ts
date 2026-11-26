@@ -1,15 +1,23 @@
 import { z } from "zod";
+import { boardPostIdSchema } from "./boardIds";
 import { gameIdSchema } from "./gameSchemas";
 import { playerProfileReferenceSchema } from "./playerProfiles";
 import { countCharacters } from "./rooms";
 
 export { scanBoardLinks, type BoardLink, type BoardLinkOccurrence } from "./boardLinks";
+export { boardPostIdSchema } from "./boardIds";
+
+export const boardTextLimit = 1000;
+
+export function boardTextLength(text: string): number {
+  return countCharacters(text.trim());
+}
 
 export const boardTextSchema = z
   .string()
   .trim()
   .min(1)
-  .refine((text) => countCharacters(text) <= 1000);
+  .refine((text) => boardTextLength(text) <= boardTextLimit);
 
 export const boardPostInputSchema = z.strictObject({ requestId: z.uuid(), text: boardTextSchema });
 
@@ -23,7 +31,7 @@ const timestampSchema = z.int().nonnegative();
 const countSchema = z.int().nonnegative();
 
 export const boardReplySchema = z.strictObject({
-  id: z.uuid(),
+  id: boardPostIdSchema,
   text: z.string(),
   author: boardAuthorSchema,
   postedAtMs: timestampSchema,
@@ -40,7 +48,7 @@ export const boardPublishedPostSchema = boardReplySchema.extend({
 
 export const boardDeletedPostSchema = z.strictObject({
   status: z.literal("deleted"),
-  id: z.uuid(),
+  id: boardPostIdSchema,
   gameId: gameIdSchema,
   postedAtMs: timestampSchema,
   replyCount: countSchema,
@@ -63,7 +71,7 @@ export const boardCursorSchema = z
   .regex(/^\d{1,16}:[0-9a-f-]{36}$/)
   .refine((value) => {
     const [time, id] = value.split(":");
-    return Number.isSafeInteger(Number(time)) && z.uuid().safeParse(id).success;
+    return Number.isSafeInteger(Number(time)) && boardPostIdSchema.safeParse(id).success;
   });
 
 export const boardTimelineSchema = boardPostingStateSchema.extend({

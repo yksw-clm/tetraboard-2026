@@ -1,5 +1,6 @@
 import { gameCatalog, gameIds, isGameId } from "@tetraboard/protocol/games";
 import {
+  boardPostIdSchema,
   roomSocketContract,
   ratedMatchmakingGameIds,
   roomTimeControlSchema,
@@ -36,9 +37,6 @@ export type RegistrationReturn = RegistrationDestination & {
 
 const boardTimelinePath = /^\/games\/([^/]+)\/posts\/?$/;
 const boardPostPath = /^\/posts\/([^/]+)\/?$/;
-// Worker の UUID 検査に合わせ、通常の UUID と Nil・Max を受け付けます。
-const boardPostUuid =
-  /^(?:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[1-8][a-fA-F0-9]{3}-[89aAbB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/;
 
 export function isBoardPagePath(path: string): boolean {
   return boardTimelinePath.test(path) || boardPostPath.test(path);
@@ -51,7 +49,7 @@ export function registrationPath(path: unknown): string | null {
   const timeline = boardTimelinePath.exec(path);
   if (timeline && isGameId(timeline[1])) return path;
   const post = boardPostPath.exec(path);
-  if (post?.[1] && boardPostUuid.test(post[1])) return path;
+  if (post && boardPostIdSchema.safeParse(post[1]).success) return path;
   if (/^\/tournaments\/[1-9]\d*$/.test(path)) {
     const id = Number(path.split("/").at(-1));
     if (Number.isSafeInteger(id)) return path;

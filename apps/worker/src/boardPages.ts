@@ -1,11 +1,9 @@
-import { z } from "zod";
+import { boardPostIdSchema } from "@tetraboard/protocol";
 import { D1BoardReader } from "./adapters/community/boardReads";
 import { dynamicAssetHeaders, fetchUnconditionalAsset, readWithinDeadline } from "./htmlAssets";
 
-const postIdSchema = z.uuid();
-
 async function boardDetailStatus(env: Env | undefined, id: string): Promise<number> {
-  if (!postIdSchema.safeParse(id).success) return 404;
+  if (!boardPostIdSchema.safeParse(id).success) return 404;
   if (!env) return 503;
   const detail = await readWithinDeadline(
     () => new D1BoardReader(env.APP_DB).detail(id, null),

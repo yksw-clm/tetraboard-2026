@@ -5,7 +5,7 @@ import {
   type BoardReply,
 } from "@tetraboard/protocol/board";
 import { gameCatalog, isGameId, type GameId } from "@tetraboard/protocol/games";
-import { useCallback, type ReactNode } from "react";
+import { useCallback, useRef, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppHeader } from "../../shared/ui/AppHeader";
@@ -23,6 +23,7 @@ import {
   boardRequest,
   boardTimelinePath,
   readDetail,
+  readDetailOrMissing,
   readReplies,
   readTimeline,
 } from "./boardApi";
@@ -80,8 +81,10 @@ function appendDistinct<T extends { id: string }>(current: T[], next: T[]) {
   ];
 }
 
-function deletedPost({ id, gameId, postedAtMs, replyCount }: BoardPost): BoardPost {
-  return { id, gameId, postedAtMs, replyCount, status: "deleted" };
+function mergeReplies(current: BoardReply[], next: BoardReply[]) {
+  return appendDistinct(current, next).sort(
+    (a, b) => a.postedAtMs - b.postedAtMs || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  );
 }
 
 function likePost(post: BoardPost, id: string, like: Pick<BoardReply, "liked" | "likeCount">) {
@@ -116,6 +119,21 @@ function BoardTimeline({ game }: { game: GameId }) {
       return (current) => ({ ...next, posts: appendDistinct(current.posts, next.posts) });
     }, retry);
   };
+
+  async function syncRemovedPost(id: string, signal: AbortSignal) {
+    try {
+      const next = await readDetailOrMissing(id, signal);
+      signal.throwIfAborted();
+      board.change((current) => ({
+        ...current,
+        posts: current.posts.flatMap((post) =>
+          post.id === id ? (next ? [next.post] : []) : [post],
+        ),
+      }));
+    } catch {
+      if (signal.reason?.name !== "AbortError") board.syncFailed();
+    }
+  }
 
   if (!data && pending === "initial") {
     return <AppPageLoading message="掲示板を読み込んでいます…" theme={gameThemes[game]} />;
@@ -162,13 +180,19 @@ function BoardTimeline({ game }: { game: GameId }) {
               );
               const { post } = boardPostResultSchema.parse(await response.json());
               signal.throwIfAborted();
-              if (post) {
-                board.change((current) => ({
-                  ...current,
-                  serverTimeMs: Math.max(current.serverTimeMs, post.postedAtMs),
-                  posts: [post, ...current.posts.filter(({ id }) => id !== post.id)],
-                }));
-              } else await board.replace(signal);
+              const exists = post && data.posts.some(({ id }) => id === post.id);
+              const first = data.posts[0];
+              if (!post || (!exists && first && post.postedAtMs < first.postedAtMs)) {
+                await board.replace(signal);
+                return;
+              }
+              board.change((current) => ({
+                ...current,
+                serverTimeMs: Math.max(current.serverTimeMs, post.postedAtMs),
+                posts: exists
+                  ? current.posts.map((item) => (item.id === post.id ? post : item))
+                  : [post, ...current.posts],
+              }));
             }}
           />
           {data.posts.length === 0 && <p className="text-muted">まだ投稿はありません。</p>}
@@ -188,15 +212,7 @@ function BoardTimeline({ game }: { game: GameId }) {
                     posts: current.posts.map((post) => likePost(post, id, like)),
                   }))
                 }
-                onRemove={(id) =>
-                  board.change((current) => ({
-                    ...current,
-                    posts: current.posts.flatMap((post) => {
-                      if (post.id !== id) return [post];
-                      return post.replyCount ? [deletedPost(post)] : [];
-                    }),
-                  }))
-                }
+                onRemove={syncRemovedPost}
               />
             ))}
           </div>
@@ -237,6 +253,8 @@ function BoardDetail({ id }: { id: string }) {
   const board = useBoardData(readFirst);
   const { data, pending, failure } = board;
   const busy = pending !== null;
+  // 同期に失敗した場合も、再試行で除外する返信 ID を保持します。
+  const removedReplies = useRef(new Set<string>());
 
   const more = (retry = false) => {
     const after = data?.nextCursor;
@@ -246,19 +264,55 @@ function BoardDetail({ id }: { id: string }) {
       return (current) => ({
         ...current,
         nextCursor: next.nextCursor,
-        replies: appendDistinct(current.replies, next.replies).sort(
-          (a, b) => a.postedAtMs - b.postedAtMs || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
-        ),
+        replies: mergeReplies(current.replies, next.replies),
       });
     }, retry);
   };
-  const retry = (
-    <Retry
-      action={() => (failure?.source === "more" ? more(true) : void board.refresh(true))}
-      pending={pending === "retry"}
-      disabled={busy}
-    />
-  );
+
+  async function syncDetail(
+    signal: AbortSignal,
+    change: { removedId?: string; reply?: BoardReply | null } = {},
+  ) {
+    if (!data) return;
+    const { removedId, reply } = change;
+    if (removedId && removedId !== id) removedReplies.current.add(removedId);
+    try {
+      const next = await readDetailOrMissing(id, signal);
+      signal.throwIfAborted();
+      if (!next) {
+        void navigate(boardTimelinePath(data.post.gameId), { replace: true });
+        return;
+      }
+      const removed = removedReplies.current;
+      removedReplies.current = new Set();
+      board.change((current) => ({
+        ...next,
+        nextCursor: current.nextCursor,
+        replies: mergeReplies(
+          next.replies,
+          reply ? [...current.replies, reply] : current.replies,
+        ).filter(({ id }) => !removed.has(id)),
+      }));
+      board.clearSyncFailure();
+    } catch {
+      if (signal.reason?.name === "AbortError") return;
+      if (reply) {
+        board.change((current) => ({
+          ...current,
+          replies: mergeReplies(current.replies, [reply]),
+        }));
+      }
+      board.syncFailed();
+    }
+  }
+
+  function retryRead() {
+    if (failure?.source === "sync") void board.retrySync(syncDetail);
+    else if (failure?.source === "more") more(true);
+    else void board.refresh(true);
+  }
+
+  const retry = <Retry action={retryRead} pending={pending === "retry"} disabled={busy} />;
 
   if (failure?.notFound) return <Missing />;
   if (!data) {
@@ -275,24 +329,6 @@ function BoardDetail({ id }: { id: string }) {
   const game = post.gameId;
   const timeline = boardTimelinePath(game);
   const catalog = gameCatalog[game];
-  const returnToTimeline = () => void navigate(timeline, { replace: true });
-
-  function remove(removedId: string) {
-    if (post.id === removedId) {
-      if (post.replyCount === 0) returnToTimeline();
-      else board.change((current) => ({ ...current, post: deletedPost(current.post) }));
-      return;
-    }
-    if (post.status === "deleted" && post.replyCount === 1) {
-      returnToTimeline();
-      return;
-    }
-    board.change((current) => ({
-      ...current,
-      post: { ...current.post, replyCount: Math.max(0, current.post.replyCount - 1) },
-      replies: current.replies.filter(({ id }) => id !== removedId),
-    }));
-  }
 
   function updateLike(likedId: string, like: Pick<BoardReply, "liked" | "likeCount">) {
     board.change((current) => ({
@@ -304,7 +340,12 @@ function BoardDetail({ id }: { id: string }) {
     }));
   }
 
-  const actions = { busy, write: board.write, onLike: updateLike, onRemove: remove };
+  const actions = {
+    busy,
+    write: board.write,
+    onLike: updateLike,
+    onRemove: (removedId: string, signal: AbortSignal) => syncDetail(signal, { removedId }),
+  };
   return (
     <BoardLayout game={game}>
       <nav aria-label="掲示板の移動" className="flex flex-wrap gap-x-4 gap-y-2">
@@ -365,18 +406,7 @@ function BoardDetail({ id }: { id: string }) {
             );
             const { reply } = boardReplyResultSchema.parse(await response.json());
             signal.throwIfAborted();
-            if (reply) {
-              board.change((current) =>
-                current.replies.some(({ id }) => id === reply.id)
-                  ? current
-                  : {
-                      ...current,
-                      post: { ...current.post, replyCount: current.post.replyCount + 1 },
-                      serverTimeMs: Math.max(current.serverTimeMs, reply.postedAtMs),
-                      replies: [...current.replies, reply],
-                    },
-              );
-            } else await board.replace(signal);
+            await syncDetail(signal, { reply });
           }}
         />
       )}

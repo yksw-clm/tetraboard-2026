@@ -41,7 +41,7 @@ type EntryActions = {
   busy: boolean;
   write: BoardWrite;
   onLike: (id: string, like: Like) => void;
-  onRemove: (id: string) => void;
+  onRemove: (id: string, signal: AbortSignal) => Promise<void>;
 };
 
 function BoardEntryActions({
@@ -105,8 +105,8 @@ function BoardEntryActions({
       try {
         await boardRequest(path, { method: "DELETE", signal }, fallback);
         signal.throwIfAborted();
+        await onRemove(item.id, signal);
         setConfirm(false);
-        onRemove(item.id);
       } catch (error) {
         setDeleteError(mutationError(error, fallback));
       } finally {
