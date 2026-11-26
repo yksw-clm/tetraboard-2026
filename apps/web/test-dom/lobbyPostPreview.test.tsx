@@ -67,6 +67,7 @@ function post(index: number): BoardPublishedPost {
   return {
     id: `aaaaaaaa-aaaa-4aaa-8aaa-${String(index).padStart(12, "0")}`,
     status: "published",
+    attachment: null,
     gameId: game,
     author: { name: `投稿者${index}`, avatarUrl: null, profileTarget: null },
     postedAtMs: Date.now() - index * 60_000,
@@ -115,6 +116,8 @@ test("読み込み中は3枠と1つの案内を出し、削除枠を除いて新
   expect(section.querySelectorAll('.card[aria-hidden="true"]')).toHaveLength(3);
 
   const [first, third, fourth, fifth] = [post(1), post(3), post(4), post(5)];
+  first.attachment = { matchId: first.id, position: 0 };
+  first.text = `投稿1\n${window.location.origin}/rooms/12345`;
   const { id, postedAtMs, gameId, replyCount } = post(2);
   timelineRequests(game)[0]!.respond(
     timeline([
@@ -139,6 +142,9 @@ test("読み込み中は3枠と1つの案内を出し、削除枠を除いて新
   expect(links[0]!.querySelector("time")?.textContent).toBe("1分前");
   expect(links[0]!.querySelector("time")?.dateTime).toBe(new Date(first.postedAtMs).toISOString());
   expect(links[0]!.querySelector("a, button")).toBeNull();
+  expect(section.querySelector('[aria-label*="盤面"]')).toBeNull();
+  expect(section.textContent).not.toContain("ルーム 12345");
+  expect(requests.some(({ url }) => url.startsWith("/api/matches/"))).toBe(false);
   expect(section.textContent).not.toContain("削除された投稿");
 });
 

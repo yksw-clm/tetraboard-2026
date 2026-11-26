@@ -1,6 +1,7 @@
 import { scanBoardLinks } from "@tetraboard/protocol/board";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
+import { BoardLinkCard } from "./BoardLinkCard";
 
 export const boardLinkClasses = "text-brand underline underline-offset-2 wrap-anywhere";
 
@@ -35,16 +36,19 @@ export function BoardBody({ text, detailPath }: { text: string; detailPath?: str
   const { ref, overflow } = useClampedBody(text, clamp);
   const origin = window.location.origin;
   const parts: ReactNode[] = [];
+  const cards: ReactNode[] = [];
   let end = 0;
   for (const occurrence of scanBoardLinks(text, origin)) {
     if (!occurrence.link) continue;
-    const { start, end: linkEnd, url } = occurrence;
+    const { start, end: linkEnd, url, link } = occurrence;
+    const to = url.slice(origin.length);
     parts.push(text.slice(end, start));
     parts.push(
-      <Link key={start} to={url.slice(origin.length)} className={boardLinkClasses}>
+      <Link key={start} to={to} className={boardLinkClasses}>
         {url}
       </Link>,
     );
+    cards.push(<BoardLinkCard key={start} link={link} to={to} />);
     end = linkEnd;
   }
   parts.push(text.slice(end));
@@ -61,6 +65,7 @@ export function BoardBody({ text, detailPath }: { text: string; detailPath?: str
           続きを読む
         </Link>
       )}
+      {cards.length > 0 && <div className="grid gap-2 empty:hidden">{cards}</div>}
     </>
   );
 }

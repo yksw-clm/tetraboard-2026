@@ -1,4 +1,9 @@
-import { boardTextLength, boardTextLimit } from "@tetraboard/protocol/board";
+import {
+  boardTextLength,
+  boardTextLimit,
+  type BoardAttachment as Attachment,
+  type BoardPostInput,
+} from "@tetraboard/protocol/board";
 import { useId, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { createUuid } from "../../shared/createUuid";
@@ -7,6 +12,7 @@ import { AppCard } from "../../shared/ui/AppCard";
 import { saveRegistrationReturn } from "../account/registrationReturn";
 import { useAccount } from "../account/useAccount";
 import { mutationError } from "./boardApi";
+import { BoardAttachment } from "./BoardAttachment";
 import type { BoardWrite } from "./useBoardData";
 
 type Props = {
@@ -16,7 +22,9 @@ type Props = {
   reply?: boolean;
   busy: boolean;
   write: BoardWrite;
-  onSubmit: (input: { text: string; requestId: string }, signal: AbortSignal) => Promise<void>;
+  attachment?: Attachment | null;
+  onClearAttachment?: () => void;
+  onSubmit: (input: BoardPostInput, signal: AbortSignal) => Promise<void>;
 };
 
 export function BoardComposer({
@@ -26,6 +34,8 @@ export function BoardComposer({
   reply,
   busy,
   write,
+  attachment,
+  onClearAttachment,
   onSubmit,
 }: Props) {
   const account = useAccount();
@@ -36,7 +46,7 @@ export function BoardComposer({
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const requestId = useRef<string | null>(null);
+  const request = useRef<{ id: string; attachmentKey: string } | null>(null);
   const composing = useRef(false);
   const count = boardTextLength(text);
   const canSubmit = count > 0 && count <= boardTextLimit;
@@ -54,10 +64,16 @@ export function BoardComposer({
       setPending(true);
       setError(null);
       try {
-        requestId.current ??= createUuid();
-        await onSubmit({ text, requestId: requestId.current }, signal);
+        const attachmentKey = JSON.stringify(attachment ?? null);
+        if (request.current?.attachmentKey !== attachmentKey)
+          request.current = { attachmentKey, id: createUuid() };
+        await onSubmit(
+          { text, requestId: request.current.id, ...(attachment ? { attachment } : {}) },
+          signal,
+        );
         setText("");
-        requestId.current = null;
+        request.current = null;
+        if (attachment) onClearAttachment?.();
       } catch (error) {
         setError(mutationError(error, `${reply ? "返信" : "投稿"}を送信できませんでした。`));
       } finally {
@@ -120,7 +136,7 @@ export function BoardComposer({
           value={text}
           readOnly={pending}
           onChange={(event) => {
-            requestId.current = null;
+            request.current = null;
             setText(event.currentTarget.value);
           }}
           onCompositionStart={() => {
@@ -142,6 +158,22 @@ export function BoardComposer({
             submit();
           }}
         />
+        {attachment && (
+          <div className="grid justify-items-start gap-2">
+            <BoardAttachment {...attachment} />
+            <AppButton
+              appearance="quiet"
+              size="compact"
+              isDisabled={busy || pending}
+              onPress={() => {
+                request.current = null;
+                onClearAttachment?.();
+              }}
+            >
+              添付を外す
+            </AppButton>
+          </div>
+        )}
         {error && (
           <p role="alert" className="text-danger">
             {error}

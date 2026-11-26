@@ -23,6 +23,7 @@ import { D1BoardWriter } from "../adapters/community/boardPosting";
 import { D1BoardReader } from "../adapters/community/boardReads";
 import { D1BoardReports } from "../adapters/community/boardReports";
 import { digest } from "../crypto";
+import { canAttachPosition } from "../flows/boardAttachment";
 import { boardRepliesQuery, boardTimelineQuery, readBoardInput, readBoardJson } from "./boardInput";
 
 type BoardEnv = { Bindings: Env; Variables: { user: StoredProfile | null } };
@@ -107,6 +108,10 @@ function ineligible(c: Context<BoardEnv>) {
   return c.json({ message: "掲示板を利用できるアカウントでログインしてください。" }, 403);
 }
 
+function invalidAttachment(c: Context<BoardEnv>) {
+  return c.json({ message: "添付した棋譜の局面が見つかりません。" }, 400);
+}
+
 async function submitPost(c: Context<BoardEnv>, destination: BoardDestination) {
   const user = c.get("user");
   if (!user) return loginRequired(c);
@@ -115,11 +120,13 @@ async function submitPost(c: Context<BoardEnv>, destination: BoardDestination) {
   const body = await readBoardInput(c.req.raw, c.env.APP_ORIGIN);
   if (body.status === "invalidBody")
     return c.json({ message: "本文は1,000文字以内で入力してください。" }, 400);
+  if (body.status === "invalidAttachment") return invalidAttachment(c);
   if (body.status === "invalidLink")
     return c.json({ message: "URLはTetraBoard内の公開棋譜、大会、ルームのみ投稿できます。" }, 400);
 
+  const db = c.env.APP_DB;
   const result = await postToBoard(
-    new D1BoardWriter(c.env.APP_DB),
+    new D1BoardWriter(db, (game, attachment) => canAttachPosition(db, game, attachment)),
     { ...destination, ...body.input, accountId: user.id },
     Date.now,
     digest,
@@ -133,9 +140,14 @@ async function submitPost(c: Context<BoardEnv>, destination: BoardDestination) {
     }
     case "changedReplay":
       return c.json(
-        { message: "再送する本文か投稿先が変更されています。新しい投稿として送信してください。" },
+        {
+          message:
+            "再送する本文、添付、投稿先のいずれかが変更されています。新しい投稿として送信してください。",
+        },
         409,
       );
+    case "invalidAttachment":
+      return invalidAttachment(c);
     case "stopped":
       return c.json({ message: "現在、掲示板への投稿は停止されています。" }, 403);
     case "rateLimited":

@@ -30,7 +30,11 @@ export async function readBoardJson(request: Request, limit: number): Promise<un
 
 export async function readBoardInput(request: Request, origin: string) {
   const input = boardPostInputSchema.safeParse(await readBoardJson(request, 64 * 1024));
-  if (!input.success) return { status: "invalidBody" } as const;
+  if (!input.success) {
+    if (input.error.issues.every(({ path }) => path[0] === "attachment"))
+      return { status: "invalidAttachment" } as const;
+    return { status: "invalidBody" } as const;
+  }
   if (scanBoardLinks(input.data.text, origin).some(({ link }) => link === null))
     return { status: "invalidLink" } as const;
   return { status: "valid", input: input.data } as const;

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { boardPostIdSchema } from "./boardIds";
 import { gameIdSchema } from "./gameSchemas";
+import { getPublicMatchContract } from "./matches";
 import { playerProfileReferenceSchema } from "./playerProfiles";
 import { countCharacters } from "./rooms";
 
@@ -19,7 +20,16 @@ export const boardTextSchema = z
   .min(1)
   .refine((text) => boardTextLength(text) <= boardTextLimit);
 
-export const boardPostInputSchema = z.strictObject({ requestId: z.uuid(), text: boardTextSchema });
+export const boardAttachmentSchema = z.strictObject({
+  matchId: getPublicMatchContract.params.shape.matchId,
+  position: z.int().nonnegative(),
+});
+
+export const boardPostInputSchema = z.strictObject({
+  requestId: z.uuid(),
+  text: boardTextSchema,
+  attachment: boardAttachmentSchema.optional(),
+});
 
 export const boardAuthorSchema = z.strictObject({
   name: z.string(),
@@ -33,6 +43,7 @@ const countSchema = z.int().nonnegative();
 export const boardReplySchema = z.strictObject({
   id: boardPostIdSchema,
   text: z.string(),
+  attachment: boardAttachmentSchema.nullable(),
   author: boardAuthorSchema,
   postedAtMs: timestampSchema,
   likeCount: countSchema,
@@ -154,6 +165,8 @@ export const boardModerationSchema = z.discriminatedUnion("action", [
 export type BoardAdminReport = z.infer<typeof boardAdminReportSchema>;
 export type BoardModeration = z.infer<typeof boardModerationSchema>;
 export type BoardAuthor = z.infer<typeof boardAuthorSchema>;
+export type BoardAttachment = z.infer<typeof boardAttachmentSchema>;
+export type BoardPostInput = z.infer<typeof boardPostInputSchema>;
 export type BoardPost = z.infer<typeof boardPostSchema>;
 export type BoardPublishedPost = z.infer<typeof boardPublishedPostSchema>;
 export type BoardReply = z.infer<typeof boardReplySchema>;

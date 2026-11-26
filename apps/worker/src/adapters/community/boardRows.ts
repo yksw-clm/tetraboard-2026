@@ -17,6 +17,8 @@ export const boardLikeColumns = `
 export const boardPostColumns = `p.id,p.game_id AS gameId,p.parent_id AS parentId,
  p.posted_at_ms AS postedAtMs,COALESCE(p.deleted_at_ms,d.requested_at_ms) AS deletedAtMs,
  CASE WHEN u.id IS NOT NULL THEN p.body END AS text,
+ CASE WHEN u.id IS NOT NULL THEN p.match_id END AS matchId,
+ CASE WHEN u.id IS NOT NULL THEN p.position END AS position,
  u.id AS accountId,u.name,u.avatarKey,u.avatarPresetId,u.publicProfileId,
  (SELECT COUNT(*) ${boardLiveRepliesSql}) AS replyCount,${boardLikeColumns}`;
 
@@ -31,6 +33,8 @@ export type BoardRow = {
   deletedAtMs: number | null;
   replyCount: number;
   text: string | null;
+  matchId: string | null;
+  position: number | null;
   accountId: string | null;
   name: string | null;
   avatarKey: string | null;
@@ -47,6 +51,10 @@ export function boardReply(row: BoardRow, viewer: string | null): BoardReply {
     id,
     postedAtMs,
     text,
+    attachment:
+      row.matchId !== null && row.position !== null
+        ? { matchId: row.matchId, position: row.position }
+        : null,
     author: {
       name,
       avatarUrl: accountAvatarUrl({ id: accountId, avatarKey, avatarPresetId }),

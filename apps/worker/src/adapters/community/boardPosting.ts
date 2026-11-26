@@ -3,6 +3,8 @@ import type {
   BoardWriteResult,
   BoardWriter,
 } from "@tetraboard/context-community";
+import type { BoardAttachment } from "@tetraboard/protocol/board";
+import type { GameId } from "@tetraboard/protocol/games";
 import { accountNotDeletedSql } from "../../db/deletionGuard";
 import { boardPostingStateColumns, boardSenderJoin } from "./boardReads";
 import {
@@ -32,8 +34,8 @@ function ensureBoardSender(db: D1Database, accountId: string) {
 
 function insertPost(db: D1Database, attempt: BoardWriteAttempt, id: string, lastPostByMs: number) {
   return db
-    .prepare(`INSERT INTO board_posts(id,game_id,parent_id,account_id,body,posted_at_ms,request_id,body_hash)
- SELECT ?2,COALESCE(?3,parent.game_id),?4,u.id,?5,?6,?7,?8
+    .prepare(`INSERT INTO board_posts(id,game_id,parent_id,account_id,body,posted_at_ms,request_id,body_hash,match_id,position)
+ SELECT ?2,COALESCE(?3,parent.game_id),?4,u.id,?5,?6,?7,?8,?10,?11
  FROM user u JOIN board_senders s ON s.account_id=u.id
  LEFT JOIN board_posts parent ON parent.id=?4 AND ${liveParentSql}
  WHERE u.id=?1 AND ${boardAccountEligibleSql} AND ${accountNotDeletedSql("u.id")}
@@ -50,6 +52,8 @@ function insertPost(db: D1Database, attempt: BoardWriteAttempt, id: string, last
       attempt.requestId,
       attempt.bodyHash,
       lastPostByMs,
+      attempt.attachment?.matchId ?? null,
+      attempt.attachment?.position ?? null,
     );
 }
 
@@ -69,14 +73,38 @@ function rejectionStatement(db: D1Database, accountId: string, parentId: string 
 }
 
 export class D1BoardWriter implements BoardWriter {
-  constructor(private readonly db: D1Database) {}
+  constructor(
+    private readonly db: D1Database,
+    private readonly canAttach: (game: GameId, attachment: BoardAttachment) => Promise<boolean>,
+  ) {}
+
+  private async attachmentAvailable(attempt: BoardWriteAttempt, attachment: BoardAttachment) {
+    const game =
+      attempt.gameId ??
+      (await this.db
+        .prepare(`SELECT game_id FROM board_posts parent WHERE id=? AND ${liveParentSql}`)
+        .bind(attempt.parentId)
+        .first<GameId>("game_id"));
+    return game !== null && this.canAttach(game, attachment);
+  }
 
   async insertEligiblePost(
     attempt: BoardWriteAttempt,
     lastPostByMs: number,
   ): Promise<BoardWriteResult> {
     const { db } = this;
-    const { accountId, requestId, parentId, postedAtMs } = attempt;
+    const { accountId, requestId, parentId, postedAtMs, attachment } = attempt;
+    const replayQuery = replayStatement(db, accountId, requestId);
+    const rejectionQuery = rejectionStatement(db, accountId, parentId);
+    if (attachment) {
+      // 受付済みの再送には、いまの棋譜の読み取り結果を使いません。
+      const existing = await replayQuery.first<BoardRow & { bodyHash: string }>();
+      if (existing) return { accepted: acceptedPost(existing, accountId) };
+      if (!(await this.attachmentAvailable(attempt, attachment))) {
+        const [replay, rejection] = await db.batch([replayQuery, rejectionQuery]);
+        return writeResult(replay!, rejection!, accountId, true);
+      }
+    }
     const id = crypto.randomUUID();
     // 投稿と投稿時刻を同じ batch で確定し、再送の内容もその時点の状態から返します。
     const [, , , replay, rejection] = await db.batch([
@@ -86,15 +114,30 @@ export class D1BoardWriter implements BoardWriter {
         .prepare(`UPDATE board_senders SET last_posted_at_ms=? WHERE account_id=?
  AND EXISTS(SELECT 1 FROM board_posts WHERE id=?)`)
         .bind(postedAtMs, accountId, id),
-      replayStatement(db, accountId, requestId),
-      rejectionStatement(db, accountId, parentId),
+      replayQuery,
+      rejectionQuery,
     ]);
-    const row = replay!.results[0] as (BoardRow & { bodyHash: string }) | undefined;
-    return {
-      accepted: row ? acceptedPost(row, accountId) : null,
-      rejection: rejection!.results[0] as BoardWriteResult["rejection"],
-    };
+    return writeResult(replay!, rejection!, accountId, false);
   }
+}
+
+function writeResult(
+  replay: D1Result,
+  rejection: D1Result,
+  accountId: string,
+  invalidAttachment: boolean,
+): BoardWriteResult {
+  const row = replay.results[0] as (BoardRow & { bodyHash: string }) | undefined;
+  return row
+    ? { accepted: acceptedPost(row, accountId) }
+    : {
+        accepted: null,
+        rejection: rejection.results[0] as Extract<
+          BoardWriteResult,
+          { accepted: null }
+        >["rejection"],
+        invalidAttachment,
+      };
 }
 
 function acceptedPost(row: BoardRow & { bodyHash: string }, viewer: string) {

@@ -1,27 +1,27 @@
 import { replayV1, sameState } from "@tetraboard/four-gomoku/replay";
 import type { FourGomokuLastRound } from "@tetraboard/protocol";
-import type { FourGomokuState } from "@tetraboard/four-gomoku";
+import { snapshotReplayPositions } from "@tetraboard/protocol/replay-positions";
 import { useMemo, useState } from "react";
 import { initialReplayIndex } from "./initialReplayIndex";
 const names = { black: "黒", white: "白", red: "赤", blue: "青" };
 const reasons = { resigned: "投了", left: "退室", timeout: "時間切れ", disconnected: "通信切れ" };
-export function fourGomokuReplayFrames(lastRound: FourGomokuLastRound) {
+export function fourGomokuReplayFrames<T extends Pick<FourGomokuLastRound, "game" | "replay">>(
+  lastRound: T,
+) {
   const states = replayV1(lastRound.replay);
   if (!sameState(states.at(-1)!, lastRound.game)) throw new Error("Invalid FourGomoku final state");
-  const frames: { label: string; game: FourGomokuState }[] = [
-    { label: "開始局面", game: states[0] },
-  ];
-  for (const [index, { action }] of lastRound.replay.steps.entries()) {
-    const game = states[index + 1];
-    frames.push({
+  return snapshotReplayPositions(lastRound.replay).map((position) => {
+    if (position.kind !== "step") return { label: "開始局面", game: states[0] };
+    const { action } = lastRound.replay.steps[position.stepIndex];
+    const game = states[position.stepIndex + 1];
+    return {
       label:
         action.type === "place"
           ? `${game.moveNumber}: ${names[action.color]} ${"ABCDEFGHIJKLMNO"[action.position.x]}${action.position.y + 1}`
           : `${names[action.color]} ${reasons[action.reason]}`,
       game,
-    });
-  }
-  return frames;
+    };
+  });
 }
 export function useFourGomokuReplay(
   lastRound: FourGomokuLastRound | null,
