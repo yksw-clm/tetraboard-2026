@@ -106,9 +106,10 @@ export const boardReports = sqliteTable(
     status: text("status", { enum: ["open", "resolved"] })
       .notNull()
       .default("open"),
+    moderatorDeletedAtMs: integer("moderator_deleted_at_ms"),
   },
   (t) => [
-    uniqueIndex("board_reports_post_reporter").on(t.postId, t.reporterAccountId),
+    index("board_reports_post_reporter").on(t.postId, t.reporterAccountId),
     index("board_reports_reported").on(sql`${t.reportedAtMs} DESC`, sql`${t.id} DESC`),
     index("board_reports_reporter_reported").on(t.reporterAccountId, t.reportedAtMs),
     index("board_reports_author").on(t.authorAccountId),

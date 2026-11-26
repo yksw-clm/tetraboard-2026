@@ -88,22 +88,6 @@ for (const [key, expected] of Object.entries(boundaries)) {
         const updates = updateClauses(write);
         if (write.file === "adapters/community/boardModeration.ts") {
           expect(updates.map(({ columns }) => columns)).toEqual([["stopped"]]);
-        } else if (key === "INSERT board_reports") {
-          expect(updates.map(({ columns }) => columns)).toEqual([
-            [
-              "id",
-              "game_id",
-              "parent_id",
-              "author_account_id",
-              "author_name",
-              "body",
-              "posted_at_ms",
-              "reason",
-              "reported_at_ms",
-              "status",
-            ],
-          ]);
-          expect(write.sql).toMatch(/WHERE board_reports\.reported_at_ms<=\?8$/);
         } else {
           expect(updates).toEqual([]);
         }

@@ -16,7 +16,9 @@ export async function readBoardModeration(db: D1Database, now: number) {
       .prepare(`SELECT r.id,r.post_id AS postId,r.parent_id AS parentId,r.game_id AS gameId,r.reason,
  CASE WHEN d.id IS NOT NULL THEN '退会したプレイヤー' ELSE r.author_name END AS authorName,
  r.body AS text,r.posted_at_ms AS postedAtMs,r.reported_at_ms AS reportedAtMs,r.status,
- (SELECT COUNT(*) FROM board_reports other WHERE other.post_id=r.post_id AND other.reported_at_ms>?1) AS reportCount,
+ r.moderator_deleted_at_ms AS moderatorDeletedAtMs,
+ (SELECT COUNT(DISTINCT other.reporter_account_id) + COUNT(*) FILTER (WHERE other.reporter_account_id IS NULL)
+ FROM board_reports other WHERE other.post_id=r.post_id AND other.reported_at_ms>?1) AS reportCount,
  (p.id IS NULL OR NOT (${boardPublishedSql("p")})) AS postDeleted,
  (d.id IS NULL AND COALESCE(s.stopped,0)=1) AS authorStopped,
  (d.id IS NOT NULL OR r.author_account_id IS NULL) AS authorWithdrawn
@@ -42,11 +44,16 @@ export async function readBoardModeration(db: D1Database, now: number) {
 }
 
 async function deleteBoardPost(db: D1Database, postId: string, now: number) {
-  const [, existing] = await db.batch([
+  const [, , existing] = await db.batch([
     db
       .prepare(`UPDATE board_posts SET body=NULL,match_id=NULL,position=NULL,deleted_at_ms=?,
- deletion_reason='moderator' WHERE id=? AND deleted_at_ms IS NULL`)
+ deletion_reason='moderator' WHERE id=? AND ${boardPublishedSql("board_posts")}`)
       .bind(now, postId),
+    db
+      .prepare(`UPDATE board_reports SET moderator_deleted_at_ms=?1
+ WHERE changes()=1 AND post_id=?2 AND reported_at_ms>?3 AND moderator_deleted_at_ms IS NULL
+ AND EXISTS(SELECT 1 FROM board_posts WHERE id=?2 AND deletion_reason='moderator' AND deleted_at_ms=?1)`)
+      .bind(now, postId, boardReportRetentionCutoff(now)),
     db.prepare("SELECT id FROM board_posts WHERE id=?").bind(postId),
   ]);
   return existing!.results.length === 1;

@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import type { BoardModeration } from "@tetraboard/protocol/board";
 import { lobbyChatSchema } from "@tetraboard/protocol/general-lobby";
 import { afterEach, expect, test } from "vitest";
+import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { accountFixture, origin } from "./accountFixtures";
 import {
   boardAdminPage,
@@ -17,6 +18,8 @@ import {
   sendBoardPost,
   timeline,
 } from "./boardFixtures";
+import { fixTestTime } from "./fixedTimeFixture";
+import { processFixtureDeletion } from "./privacyFixtures";
 
 const db = env.APP_DB;
 type Account = Awaited<ReturnType<typeof accountFixture>>;
@@ -140,6 +143,104 @@ test("運営削除を次の取得に反映し、返信のある枠と再送情�
   expect((await boardRequest(repliesPath(root.id))).status).toBe(404);
   expect((await timeline()).posts).toEqual([]);
 });
+
+test("運営削除を期限内の通報に記録し、投稿者が退会しても証拠に残す", async () => {
+  fixTestTime();
+  const now = Date.now();
+  const admin = await accountFixture();
+  const author = await accountFixture();
+  const other = await accountFixture();
+  const post = boardPostFixture({ accountId: author.id });
+  await post.statement.run();
+
+  expect((await reportPost(post.id, admin.headers, { reason: "spam" })).status).toBe(201);
+  const expired = (await boardAdminPage(admin)).reports[0]!;
+  await db
+    .prepare("UPDATE board_reports SET reported_at_ms=? WHERE id=?")
+    .bind(now - 7 * 86400000, expired.id)
+    .run();
+  expect((await reportPost(post.id, admin.headers)).status).toBe(201);
+  expect((await reportPost(post.id, other.headers, { reason: "personalInfo" })).status).toBe(201);
+  const resolved = (await boardAdminPage(admin)).reports.find(
+    ({ reason }) => reason === "personalInfo",
+  )!;
+  await change(admin, { action: "resolve", reportId: resolved.id });
+  await change(admin, { action: "delete", postId: post.id });
+
+  const readReports = async () => (await boardAdminPage(admin)).reports;
+  const reports = await readReports();
+  expect(reports).toHaveLength(2);
+  expect(reports).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ reason: "abuse", status: "open", moderatorDeletedAtMs: now }),
+      expect.objectContaining({
+        reason: "personalInfo",
+        status: "resolved",
+        moderatorDeletedAtMs: now,
+      }),
+    ]),
+  );
+  expect(
+    await db
+      .prepare("SELECT moderator_deleted_at_ms FROM board_reports WHERE id=?")
+      .bind(expired.id)
+      .first(),
+  ).toEqual({ moderator_deleted_at_ms: null });
+
+  expect(await requestDeletion(env, author.id, crypto.randomUUID())).toBe(true);
+  await processFixtureDeletion(author.id);
+  expect(
+    await db
+      .prepare("SELECT deletion_reason,account_id FROM board_posts WHERE id=?")
+      .bind(post.id)
+      .first(),
+  ).toEqual({ deletion_reason: "withdrawn", account_id: null });
+  expect(await readReports()).toEqual(
+    reports.map((report) => ({
+      ...report,
+      authorName: "退会したプレイヤー",
+      authorWithdrawn: true,
+    })),
+  );
+});
+
+test.each(["author", "withdrawn", "moderator"] as const)(
+  "既に削除済みの投稿（%s）には今回の運営操作の時刻を記録しない",
+  async (reason) => {
+    fixTestTime();
+    const admin = await accountFixture();
+    const author = await accountFixture();
+    const post = boardPostFixture({ accountId: author.id });
+    await post.statement.run();
+    expect((await reportPost(post.id, admin.headers)).status).toBe(201);
+
+    if (reason === "author") {
+      const response = await boardRequest(postPath(post.id), {
+        method: "DELETE",
+        headers: author.headers,
+      });
+      expect(response.status).toBe(204);
+    } else if (reason === "withdrawn") {
+      expect(await requestDeletion(env, author.id, crypto.randomUUID())).toBe(true);
+    } else {
+      // 同じ時刻の再送でも、今回の UPDATE で変更した行だけに記録します。
+      await db
+        .prepare(
+          "UPDATE board_posts SET body=NULL,deleted_at_ms=?,deletion_reason='moderator' WHERE id=?",
+        )
+        .bind(Date.now(), post.id)
+        .run();
+    }
+
+    await change(admin, { action: "delete", postId: post.id });
+    expect((await boardAdminPage(admin)).reports[0]).toMatchObject({
+      postId: post.id,
+      postDeleted: true,
+      status: "open",
+      moderatorDeletedAtMs: null,
+    });
+  },
+);
 
 test("掲示板の投稿停止・解除と全体の受付設定は投稿と返信に反映し、公開チャットと独立する", async () => {
   const admin = await accountFixture();

@@ -84,7 +84,8 @@ function ReportRow({
   disabled: boolean;
   operate: Operate;
 }) {
-  const { postId, parentId, authorStopped, authorWithdrawn, postDeleted } = report;
+  const { postId, parentId, authorStopped, authorWithdrawn, postDeleted, moderatorDeletedAtMs } =
+    report;
   const stopLabel = authorStopped ? "投稿停止を解除" : "投稿者を投稿停止";
   return (
     <article className="grid min-w-0 gap-2 border-b border-border py-3">
@@ -97,6 +98,8 @@ function ReportRow({
         {gameCatalog[report.gameId].name} · {parentId ? "返信" : "投稿"} · {report.authorName} ·
         投稿日時 {new Date(report.postedAtMs).toLocaleString("ja")}
         {postDeleted && " · 削除済み"}
+        {moderatorDeletedAtMs !== null &&
+          ` · 運営が削除 ${new Date(moderatorDeletedAtMs).toLocaleString("ja")}`}
       </p>
       <p className="whitespace-pre-wrap wrap-anywhere">{report.text}</p>
       <a

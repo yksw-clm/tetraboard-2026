@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6827656d-cdbc-4ab0-932e-d80104ce280c",
+  "id": "bc9bda2d-1f19-4787-b5e7-4bde6e76167c",
   "prevId": "4cd4af10-d6e4-45f3-a559-34dc0adf7dbf",
   "tables": {
     "account": {
@@ -1052,6 +1052,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'open'"
+        },
+        "moderator_deleted_at_ms": {
+          "name": "moderator_deleted_at_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -1061,7 +1068,7 @@
             "post_id",
             "reporter_account_id"
           ],
-          "isUnique": true
+          "isUnique": false
         },
         "board_reports_reported": {
           "name": "board_reports_reported",

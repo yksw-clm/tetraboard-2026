@@ -132,6 +132,7 @@ const boardAdminReportSchema = z.strictObject({
   status: z.enum(["open", "resolved"]),
   reportCount: countSchema,
   postDeleted: z.boolean(),
+  moderatorDeletedAtMs: timestampSchema.nullable(),
   authorStopped: z.boolean(),
   authorWithdrawn: z.boolean(),
 });

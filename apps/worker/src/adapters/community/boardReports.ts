@@ -18,12 +18,8 @@ export class D1BoardReports implements BoardReportStore {
  SELECT ?3,p.id,p.game_id,p.parent_id,p.account_id,u.name,p.body,p.posted_at_ms,?4,?1,?5
  FROM board_posts p JOIN user u ON u.id=p.account_id
  WHERE p.id=?2 AND ${boardPublishedSql("p")} AND ${accountNotDeletedSql("?1")} AND ${reporterNotMerged}
- AND (SELECT COUNT(*) FROM board_reports WHERE reporter_account_id=?1 AND reported_at_ms>?6)<?7
- ON CONFLICT(post_id,reporter_account_id) DO UPDATE SET
- id=excluded.id,game_id=excluded.game_id,parent_id=excluded.parent_id,
- author_account_id=excluded.author_account_id,author_name=excluded.author_name,body=excluded.body,
- posted_at_ms=excluded.posted_at_ms,reason=excluded.reason,reported_at_ms=excluded.reported_at_ms,status='open'
- WHERE board_reports.reported_at_ms<=?8`)
+ AND NOT EXISTS(SELECT 1 FROM board_reports WHERE post_id=?2 AND reporter_account_id=?1 AND reported_at_ms>?8)
+ AND (SELECT COUNT(DISTINCT post_id) FROM board_reports WHERE reporter_account_id=?1 AND reported_at_ms>?6)<?7`)
       .bind(
         attempt.accountId,
         attempt.postId,

@@ -179,20 +179,21 @@ test("毎時処理が期限切れの掲示板通報を削除し、期限内の�
       [recent, cutoff + 1],
     ].map(([id, time]) =>
       env.APP_DB.prepare(`INSERT INTO board_reports(id,post_id,game_id,author_account_id,author_name,
-        body,posted_at_ms,reason,reporter_account_id,reported_at_ms)
-        VALUES(?,?,'reversi',?,'退会前の名前','保存される本文',?,'abuse',?,?)`).bind(
+        body,posted_at_ms,reason,reporter_account_id,reported_at_ms,moderator_deleted_at_ms)
+        VALUES(?,?,'reversi',?,'退会前の名前','保存される本文',?,'abuse',?,?,?)`).bind(
         id,
         crypto.randomUUID(),
         departed,
         cutoff,
         departed,
         time,
+        now,
       ),
     ),
   ]);
   await worker.scheduled({} as ScheduledController, env);
   const evidence = await env.APP_DB.prepare(
-    "SELECT id,author_account_id,author_name,reporter_account_id,body FROM board_reports WHERE id IN (?,?)",
+    "SELECT id,author_account_id,author_name,reporter_account_id,body,moderator_deleted_at_ms FROM board_reports WHERE id IN (?,?)",
   )
     .bind(expired, recent)
     .all();
@@ -203,6 +204,7 @@ test("毎時処理が期限切れの掲示板通報を削除し、期限内の�
       author_name: "退会したプレイヤー",
       reporter_account_id: null,
       body: "保存される本文",
+      moderator_deleted_at_ms: now,
     },
   ]);
 });

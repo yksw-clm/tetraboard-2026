@@ -6,6 +6,7 @@ import { enter, flush, press, render, requests } from "../../web/test-dom/suppor
 const postId = "11111111-1111-4111-8111-111111111111";
 const replyId = "22222222-2222-4222-8222-222222222222";
 const accountId = "internal-account-id";
+const moderatorDeletedAtMs = Date.UTC(2026, 10, 27, 1, 2, 3);
 const report: BoardAdminReport = {
   id: "33333333-3333-4333-8333-333333333333",
   postId,
@@ -19,6 +20,7 @@ const report: BoardAdminReport = {
   status: "open",
   reportCount: 3,
   postDeleted: false,
+  moderatorDeletedAtMs: null,
   authorStopped: false,
   authorWithdrawn: false,
 };
@@ -34,6 +36,7 @@ const initial = {
       authorName: "退会したプレイヤー",
       authorWithdrawn: true,
       postDeleted: true,
+      moderatorDeletedAtMs,
       status: "resolved",
       reason: "personalInfo",
     },
@@ -78,9 +81,13 @@ test("証拠と停止中の名前を表示し、各操作を確認後に送信�
   expect(row?.textContent).toContain("晒し・嫌がらせ · 3 件 · 未対応");
   expect(row?.textContent).toContain("リバーシ · 投稿 · 投稿者");
   expect(row?.textContent).toContain("通報された本文");
+  expect(row?.textContent).not.toContain("運営が削除");
   expect(withdrawn?.textContent).toContain("退会したプレイヤー");
   expect(withdrawn?.textContent).toContain("個人情報");
   expect(withdrawn?.textContent).toContain("削除済み");
+  expect(withdrawn?.textContent).toContain(
+    `運営が削除 ${new Date(moderatorDeletedAtMs).toLocaleString("ja")}`,
+  );
   expect(withdrawn?.textContent).toContain("対応済み");
   expect(withdrawn?.querySelector("a")?.getAttribute("href")).toBe(`/posts/${postId}`);
   expect(button(withdrawn!, "投稿を削除")).toBeUndefined();

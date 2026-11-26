@@ -126,6 +126,7 @@ test("閉じた掲示板でも返信を通報でき、削除済み・退会者�
     reporter_account_id: reporter.id,
     reported_at_ms: expect.any(Number),
     status: "open",
+    moderator_deleted_at_ms: null,
   });
 });
 
@@ -158,57 +159,69 @@ test("並行する通報も1時間に5件までで、再通報は時間と理由
   expect(await db.prepare("SELECT COUNT(*) AS count FROM board_reports").first("count")).toBe(6);
 });
 
-test("ゲスト統合では掲示板の通報を統合先へ移し、重複と直近1時間の上限を引き継ぐ", async () => {
+test("ゲスト統合は同じ投稿への証拠をすべて残し、上限と通報件数は投稿ごとに集計する", async () => {
   const clock = fixTestTime();
   const now = Date.now();
   const reporter = await guest();
   const author = await accountFixture();
-  const reported = Array.from({ length: 5 }, () => boardPostFixture({ accountId: author.id }));
+  const reported = Array.from({ length: 4 }, () => boardPostFixture({ accountId: author.id }));
   const duplicate = reported[0]!;
   const extra = boardPostFixture({ accountId: author.id });
-  await db.batch([...reported.map(({ statement }) => statement), extra.statement]);
+  const blocked = boardPostFixture({ accountId: author.id });
+  await db.batch([
+    ...reported.map(({ statement }) => statement),
+    extra.statement,
+    blocked.statement,
+  ]);
   for (const { id } of reported) expect((await reportPost(id, reporter.headers)).status).toBe(201);
 
   const { target, headers } = await link(reporter);
+  clock.mockReturnValue(now + 1);
   expect((await reportPost(duplicate.id, target.headers, { reason: "spam" })).status).toBe(201);
-  const targetReport = db
-    .prepare(
-      "SELECT id,reported_at_ms,reason,author_account_id FROM board_reports WHERE post_id=? AND reporter_account_id=?",
-    )
-    .bind(duplicate.id, target.id);
-  const original = await targetReport.first();
-  await db
-    .prepare("UPDATE board_reports SET reported_at_ms=? WHERE post_id=? AND reporter_account_id=?")
-    .bind(now - 3_600_000, duplicate.id, target.id)
-    .run();
+  const toResolve = (await boardAdminPage(target)).reports.find(
+    ({ postId, reason }) => postId === duplicate.id && reason === "spam",
+  )!;
+  const resolved = await boardAdminRequest(target.id, {
+    method: "POST",
+    headers: target.headers,
+    body: JSON.stringify({ action: "resolve", reportId: toResolve.id }),
+  });
+  expect(resolved.status).toBe(200);
+  const evidence = db
+    .prepare("SELECT * FROM board_reports WHERE post_id=? ORDER BY reported_at_ms")
+    .bind(duplicate.id);
+  const { results: original } = await evidence.all();
+  expect(original).toMatchObject([
+    { reason: "abuse", status: "open", reported_at_ms: now, reporter_account_id: reporter.id },
+    { reason: "spam", status: "resolved", reported_at_ms: now + 1, reporter_account_id: target.id },
+  ]);
   expect((await request("/account/guest-merge", { method: "POST", headers })).status).toBe(200);
 
-  expect(await targetReport.first()).toEqual({
-    ...original,
-    reported_at_ms: now,
-    reason: "spam",
-    author_account_id: author.id,
-  });
+  for (const { id } of reported) expect((await reportPost(id, target.headers)).status).toBe(200);
+  expect((await evidence.all()).results).toEqual(
+    original.map((row) => ({ ...row, reporter_account_id: target.id })),
+  );
   expect(
     await db
       .prepare("SELECT id FROM board_reports WHERE reporter_account_id=?")
       .bind(reporter.id)
       .first(),
   ).toBeNull();
+  const forDuplicate = async () =>
+    (await boardAdminPage(author)).reports.filter(({ postId }) => postId === duplicate.id);
+  expect((await forDuplicate()).map(({ reportCount }) => reportCount)).toEqual([1, 1]);
 
-  for (const { id } of reported) expect((await reportPost(id, target.headers)).status).toBe(200);
-  expect(
-    await db
-      .prepare("SELECT COUNT(*) AS count FROM board_reports WHERE reporter_account_id=?")
-      .bind(target.id)
-      .first("count"),
-  ).toBe(5);
-  expect((await reportPost(extra.id, target.headers)).status).toBe(429);
-  clock.mockReturnValue(now + 3_600_000);
   expect((await reportPost(extra.id, target.headers)).status).toBe(201);
+  expect((await reportPost(blocked.id, target.headers)).status).toBe(429);
+  clock.mockReturnValue(now + 3_600_000);
+  expect((await reportPost(blocked.id, target.headers)).status).toBe(201);
+
+  expect(await requestDeletion(env, target.id, crypto.randomUUID())).toBe(true);
+  await processFixtureDeletion(target.id);
+  expect((await forDuplicate()).map(({ reportCount }) => reportCount)).toEqual([2, 2]);
 });
 
-test("本人削除後も管理者の証拠を7日保持し、期限後は残っている行を新しい通報で置換できる", async () => {
+test("本人削除後も管理者の証拠を7日保持し、期限切れの行が残っていても新しい通報を追加する", async () => {
   const now = Date.now();
   const cutoff = now - 7 * 86400000;
   const clock = fixTestTime(now);
@@ -249,6 +262,25 @@ test("本人削除後も管理者の証拠を7日保持し、期限後は残っ�
   const fresh = (await boardAdminPage(admin)).reports[0]!;
   expect(fresh).toMatchObject({ postId: live.id, reason: "spam", reportCount: 2, status: "open" });
   expect(fresh.id).not.toBe(old.id);
+  expect(
+    await db
+      .prepare("SELECT reason,reported_at_ms FROM board_reports WHERE id=?")
+      .bind(old.id)
+      .first(),
+  ).toEqual({ reason: old.reason, reported_at_ms: cutoff + 1 });
+});
+
+test("同じ対象への並行通報は1行だけ保存する", async () => {
+  const author = await accountFixture();
+  const reporter = await accountFixture();
+  const post = boardPostFixture({ accountId: author.id });
+  await post.statement.run();
+  const responses = await Promise.all([
+    reportPost(post.id, reporter.headers),
+    reportPost(post.id, reporter.headers),
+  ]);
+  expect(responses.map(({ status }) => status).sort()).toEqual([200, 201]);
+  expect((await boardAdminPage(author)).reports).toHaveLength(1);
 });
 
 test("退会の受付で証拠の名前を隠し、完了で識別子を除き本文を保持する", async () => {
