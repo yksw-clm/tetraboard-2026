@@ -38,3 +38,15 @@ export function guestChatMergeStatements(db: D1Database, guestId: string, accoun
       .bind(accountId, guestId),
   ];
 }
+
+export function guestBoardReportMergeStatements(
+  db: D1Database,
+  guestId: string,
+  accountId: string,
+) {
+  return [
+    db
+      .prepare("UPDATE board_reports SET reporter_account_id=? WHERE reporter_account_id=?")
+      .bind(accountId, guestId),
+  ];
+}

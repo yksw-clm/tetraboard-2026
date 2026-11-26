@@ -20,5 +20,13 @@ export function deleteAccountBoardStatements(db: D1Database, accountId: string) 
     db.prepare("UPDATE board_posts SET account_id=NULL WHERE account_id=?1").bind(accountId),
     db.prepare("DELETE FROM board_senders WHERE account_id=?1").bind(accountId),
     db.prepare("DELETE FROM board_likes WHERE account_id=?1").bind(accountId),
+    db
+      .prepare(
+        "UPDATE board_reports SET author_account_id=NULL,author_name='退会したプレイヤー' WHERE author_account_id=?1",
+      )
+      .bind(accountId),
+    db
+      .prepare("UPDATE board_reports SET reporter_account_id=NULL WHERE reporter_account_id=?1")
+      .bind(accountId),
   ];
 }

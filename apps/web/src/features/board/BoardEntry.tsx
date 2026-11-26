@@ -1,6 +1,6 @@
 import { boardLikeResultSchema, type BoardPost, type BoardReply } from "@tetraboard/protocol/board";
 import type { GameId } from "@tetraboard/protocol/games";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Link } from "react-router";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton } from "../../shared/ui/AppButton";
@@ -13,6 +13,8 @@ import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { BoardBody, boardLinkClasses } from "./BoardBody";
 import type { BoardWrite } from "./useBoardData";
 import { boardPostPath, boardRequest, mutationError } from "./boardApi";
+
+const BoardReportDialog = lazy(() => import("./BoardReportDialog"));
 
 type Like = Pick<BoardReply, "liked" | "likeCount">;
 
@@ -59,9 +61,18 @@ function BoardEntryActions({
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportNotice, setReportNotice] = useState<string | null>(null);
   const { liked, likeCount } = optimistic ?? item;
   const path = boardPostPath(item.id);
   const type = reply ? "返信" : "投稿";
+
+  function openReport() {
+    const reason = account.error ?? (!account.user ? "通報するにはログインしてください。" : null);
+    setError(reason);
+    setReportNotice(null);
+    if (!reason) setReportOpen(true);
+  }
 
   function toggleLike() {
     if (busy || optimistic) return;
@@ -142,7 +153,17 @@ function BoardEntryActions({
             削除
           </AppButton>
         )}
+        {!item.own && (
+          <AppButton appearance="quiet" size="compact" isDisabled={busy} onPress={openReport}>
+            通報
+          </AppButton>
+        )}
       </div>
+      {reportNotice && (
+        <p className="text-sm" role="status">
+          {reportNotice}
+        </p>
+      )}
       {error && (
         <p className="text-sm text-danger" role="alert">
           {error}
@@ -182,6 +203,22 @@ function BoardEntryActions({
             </p>
           )}
         </AppDialog>
+      )}
+      {reportOpen && (
+        <Suspense fallback={<p role="status">通報画面を読み込んでいます…</p>}>
+          <BoardReportDialog
+            path={path}
+            type={type}
+            theme={gameThemes[game]}
+            busy={busy}
+            write={write}
+            onClose={() => setReportOpen(false)}
+            onReported={(message) => {
+              setReportNotice(message);
+              setReportOpen(false);
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

@@ -160,3 +160,51 @@ test("退会対象と横断棋譜一覧は検索順に対応する索引を使�
   expect(matches.results.some((row) => row.detail.includes("matches_recent"))).toBe(true);
   expect(matches.results.some((row) => row.detail.includes("TEMP B-TREE"))).toBe(false);
 });
+
+test("毎時処理が期限切れの掲示板通報を削除し、期限内の退会者の証拠を匿名化する", async () => {
+  const now = Date.now();
+  const cutoff = now - 7 * 86400000;
+  vi.spyOn(Date, "now").mockReturnValue(now);
+  vi.spyOn(monthlyKpi, "savePreviousMonthKpi").mockResolvedValue();
+  vi.spyOn(console, "info").mockImplementation(() => {});
+  const departed = crypto.randomUUID();
+  const expired = crypto.randomUUID();
+  const recent = crypto.randomUUID();
+  await env.APP_DB.batch([
+    env.APP_DB.prepare(
+      "INSERT INTO deleted_accounts(id,requested_at_ms,receipt_hash,completed_at_ms) VALUES(?,?,?,?)",
+    ).bind(departed, now, crypto.randomUUID(), now),
+    ...[
+      [expired, cutoff],
+      [recent, cutoff + 1],
+    ].map(([id, time]) =>
+      env.APP_DB.prepare(`INSERT INTO board_reports(id,post_id,game_id,author_account_id,author_name,
+        body,posted_at_ms,reason,reporter_account_id,reported_at_ms,moderator_deleted_at_ms)
+        VALUES(?,?,'reversi',?,'退会前の名前','保存される本文',?,'abuse',?,?,?)`).bind(
+        id,
+        crypto.randomUUID(),
+        departed,
+        cutoff,
+        departed,
+        time,
+        now,
+      ),
+    ),
+  ]);
+  await worker.scheduled({} as ScheduledController, env);
+  const evidence = await env.APP_DB.prepare(
+    "SELECT id,author_account_id,author_name,reporter_account_id,body,moderator_deleted_at_ms FROM board_reports WHERE id IN (?,?)",
+  )
+    .bind(expired, recent)
+    .all();
+  expect(evidence.results).toEqual([
+    {
+      id: recent,
+      author_account_id: null,
+      author_name: "退会したプレイヤー",
+      reporter_account_id: null,
+      body: "保存される本文",
+      moderator_deleted_at_ms: now,
+    },
+  ]);
+});

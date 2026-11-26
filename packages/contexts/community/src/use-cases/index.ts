@@ -7,3 +7,4 @@ export * from "./submitFeedback";
 export * from "./chat";
 export * from "./chatReports";
 export * from "./board";
+export * from "./boardReports";
