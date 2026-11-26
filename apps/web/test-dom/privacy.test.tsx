@@ -119,6 +119,8 @@ test("プライバシーポリシーと利用規約に掲示板の説明と現�
     expect(boardBody).toContain("期限を設けず");
     expect(view.textContent).toContain(`改定日・文書版：${legalVersion}`);
     if (kind === "terms") {
+      expect(boardBody).toContain("名前設定済みのゲスト");
+      expect(boardBody).not.toContain("投稿・返信・いいね・通報は");
       const prohibited = headings.find((heading) => heading.textContent === "禁止行為");
       expect(prohibited?.closest("section")?.querySelector("p")?.textContent).toContain(
         "晒し・嫌がらせ",
