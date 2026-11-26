@@ -1,6 +1,7 @@
 import {
   boardProfileRejection,
   postToBoard,
+  reportBoardPost,
   type BoardDestination,
 } from "@tetraboard/context-community";
 import {
@@ -10,6 +11,7 @@ import {
   boardPostResultSchema,
   boardRepliesSchema,
   boardReplyResultSchema,
+  boardReportInputSchema,
   boardTimelineSchema,
 } from "@tetraboard/protocol/board";
 import { gameIds } from "@tetraboard/protocol/games";
@@ -19,8 +21,9 @@ import { accountIdentity, type StoredProfile } from "../adapters/account/auth";
 import { deleteOwnBoardPost, setBoardLike } from "../adapters/community/boardActions";
 import { D1BoardWriter } from "../adapters/community/boardPosting";
 import { D1BoardReader } from "../adapters/community/boardReads";
+import { D1BoardReports } from "../adapters/community/boardReports";
 import { digest } from "../crypto";
-import { boardRepliesQuery, boardTimelineQuery, readBoardInput } from "./boardInput";
+import { boardRepliesQuery, boardTimelineQuery, readBoardInput, readBoardJson } from "./boardInput";
 
 type BoardEnv = { Bindings: Env; Variables: { user: StoredProfile | null } };
 
@@ -158,6 +161,24 @@ boardRoutes.post(gamePath, (c) => {
 boardRoutes.post("/posts/:id/replies", (c) => {
   const id = boardPostIdSchema.safeParse(c.req.param("id"));
   return id.success ? submitPost(c, { gameId: null, parentId: id.data }) : c.notFound();
+});
+
+boardRoutes.post("/posts/:id/reports", async (c) => {
+  const id = boardPostIdSchema.safeParse(c.req.param("id"));
+  if (!id.success) return c.notFound();
+  const user = c.get("user");
+  if (!user) return loginRequired(c);
+  const input = boardReportInputSchema.safeParse(await readBoardJson(c.req.raw, 4096));
+  if (!input.success) return c.json({ message: "通報の理由を選んでください。" }, 400);
+  const result = await reportBoardPost(
+    new D1BoardReports(c.env.APP_DB),
+    { accountId: user.id, postId: id.data, reason: input.data.reason },
+    Date.now(),
+  );
+  if (result === "created") return c.json({ message: "通報を受け付けました。" }, 201);
+  return result === "existing"
+    ? c.json({ message: "通報を受け付けています。" }, 200)
+    : c.json({ message: "投稿が見つからないか、通報回数の上限に達しています。" }, 429);
 });
 
 boardRoutes.delete("/posts/:id", async (c) => {

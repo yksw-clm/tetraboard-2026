@@ -104,6 +104,54 @@ export const boardLikeResultSchema = z.strictObject({
   likeCount: countSchema,
 });
 
+export const boardReportReasonLabels = {
+  harassment: "晒し・嫌がらせ",
+  abuse: "暴言",
+  spam: "スパム・宣伝",
+  personalInfo: "個人情報",
+  other: "その他",
+} as const;
+
+export type BoardReportReason = keyof typeof boardReportReasonLabels;
+export const boardReportReasons = Object.keys(boardReportReasonLabels) as BoardReportReason[];
+export const boardReportInputSchema = z.strictObject({ reason: z.enum(boardReportReasons) });
+
+const boardReportIdSchema = z.uuid();
+const boardAccountIdSchema = z.string().min(1);
+
+const boardAdminReportSchema = z.strictObject({
+  id: boardReportIdSchema,
+  postId: boardPostIdSchema,
+  parentId: boardPostIdSchema.nullable(),
+  gameId: gameIdSchema,
+  reason: boardReportInputSchema.shape.reason,
+  authorName: z.string(),
+  text: z.string(),
+  postedAtMs: timestampSchema,
+  reportedAtMs: timestampSchema,
+  status: z.enum(["open", "resolved"]),
+  reportCount: countSchema,
+  postDeleted: z.boolean(),
+  authorStopped: z.boolean(),
+  authorWithdrawn: z.boolean(),
+});
+
+export const boardAdminSchema = z.strictObject({
+  acceptingPosts: z.boolean(),
+  reports: z.array(boardAdminReportSchema).max(500),
+  stoppedSenders: z.array(z.strictObject({ accountId: boardAccountIdSchema, name: z.string() })),
+});
+
+export const boardModerationSchema = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("delete"), postId: boardPostIdSchema }),
+  z.strictObject({ action: z.literal("stop"), postId: boardPostIdSchema, stopped: z.boolean() }),
+  z.strictObject({ action: z.literal("unstop"), accountId: boardAccountIdSchema }),
+  z.strictObject({ action: z.literal("accepting"), accepting: z.boolean() }),
+  z.strictObject({ action: z.literal("resolve"), reportId: boardReportIdSchema }),
+]);
+
+export type BoardAdminReport = z.infer<typeof boardAdminReportSchema>;
+export type BoardModeration = z.infer<typeof boardModerationSchema>;
 export type BoardAuthor = z.infer<typeof boardAuthorSchema>;
 export type BoardPost = z.infer<typeof boardPostSchema>;
 export type BoardPublishedPost = z.infer<typeof boardPublishedPostSchema>;

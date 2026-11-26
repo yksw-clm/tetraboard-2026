@@ -18,6 +18,7 @@ import { D1GuestLinks } from "../../adapters/account/guestLinks";
 import { D1GuestLinkWrites, type GuestLinkWrite } from "../../adapters/account/guestLinkWrites";
 import { D1Registrations } from "../../adapters/account/registrations";
 import {
+  guestBoardReportMergeStatements,
   guestChatMergeStatements,
   guestFeedbackTransferStatement,
 } from "../../adapters/community/guestMergeWrites";
@@ -137,6 +138,7 @@ export async function mergeGuestAccounts(env: Env, flow: GuestMergeFlow) {
       guestFeedbackTransferStatement(db, guestId, targetId),
       ...guestReplayTransferStatements(db, guestId, targetId),
       ...guestChatMergeStatements(db, guestId, targetId),
+      ...guestBoardReportMergeStatements(db, guestId, targetId),
       ...mergeNotificationStatements(db, guestId, targetId),
       ...guestMatchAccountTransferStatements(db, guestId, targetId),
       ...guestTournamentTransferStatements(db, guestId, targetId),

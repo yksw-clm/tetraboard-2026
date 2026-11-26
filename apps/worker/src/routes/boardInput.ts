@@ -18,16 +18,18 @@ export const boardTimelineQuery = z.strictObject({
 });
 export const boardRepliesQuery = z.strictObject({ after: boardPageCursor.optional() });
 
-export async function readBoardInput(request: Request, origin: string) {
-  const bytes = await readLimitedBody(request, 64 * 1024);
-  if (!bytes) return { status: "invalidBody" } as const;
-  let body: unknown;
+export async function readBoardJson(request: Request, limit: number): Promise<unknown> {
+  const bytes = await readLimitedBody(request, limit);
+  if (!bytes) return null;
   try {
-    body = JSON.parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes));
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes));
   } catch {
-    return { status: "invalidBody" } as const;
+    return null;
   }
-  const input = boardPostInputSchema.safeParse(body);
+}
+
+export async function readBoardInput(request: Request, origin: string) {
+  const input = boardPostInputSchema.safeParse(await readBoardJson(request, 64 * 1024));
   if (!input.success) return { status: "invalidBody" } as const;
   if (scanBoardLinks(input.data.text, origin).some(({ link }) => link === null))
     return { status: "invalidLink" } as const;

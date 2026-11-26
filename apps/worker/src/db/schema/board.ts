@@ -1,4 +1,5 @@
 import { gameIds } from "@tetraboard/protocol/games";
+import { boardReportReasons } from "@tetraboard/protocol/board";
 import { sql } from "drizzle-orm";
 import {
   check,
@@ -85,4 +86,39 @@ export const boardSettings = sqliteTable(
     accepting: integer("accepting").notNull().default(0),
   },
   () => [check("board_settings_singleton", sql`id=1`)],
+);
+
+export const boardReports = sqliteTable(
+  "board_reports",
+  {
+    id: text("id").primaryKey().notNull(),
+    // 投稿の削除と独立して証拠を7日間保存するため、外部キーは付けません。
+    postId: text("post_id").notNull(),
+    gameId: text("game_id", { enum: gameIds }).notNull(),
+    parentId: text("parent_id"),
+    authorAccountId: text("author_account_id"),
+    authorName: text("author_name").notNull(),
+    body: text("body").notNull(),
+    postedAtMs: integer("posted_at_ms").notNull(),
+    reason: text("reason").notNull(),
+    reporterAccountId: text("reporter_account_id"),
+    reportedAtMs: integer("reported_at_ms").notNull(),
+    status: text("status", { enum: ["open", "resolved"] })
+      .notNull()
+      .default("open"),
+  },
+  (t) => [
+    uniqueIndex("board_reports_post_reporter").on(t.postId, t.reporterAccountId),
+    index("board_reports_reported").on(sql`${t.reportedAtMs} DESC`, sql`${t.id} DESC`),
+    index("board_reports_reporter_reported").on(t.reporterAccountId, t.reportedAtMs),
+    index("board_reports_author").on(t.authorAccountId),
+    check(
+      "board_reports_reason",
+      sql`reason IN (${sql.join(
+        boardReportReasons.map((reason) => sql.raw(`'${reason}'`)),
+        sql`, `,
+      )})`,
+    ),
+    check("board_reports_status", sql`status IN ('open', 'resolved')`),
+  ],
 );

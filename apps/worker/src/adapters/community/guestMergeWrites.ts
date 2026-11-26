@@ -38,3 +38,24 @@ export function guestChatMergeStatements(db: D1Database, guestId: string, accoun
       .bind(accountId, guestId),
   ];
 }
+
+export function guestBoardReportMergeStatements(
+  db: D1Database,
+  guestId: string,
+  accountId: string,
+) {
+  return [
+    db
+      .prepare(`UPDATE board_reports SET reported_at_ms=MAX(reported_at_ms,
+      (SELECT reported_at_ms FROM board_reports g WHERE g.reporter_account_id=? AND g.post_id=board_reports.post_id))
+      WHERE reporter_account_id=? AND EXISTS(SELECT 1 FROM board_reports g WHERE g.reporter_account_id=? AND g.post_id=board_reports.post_id)`)
+      .bind(guestId, accountId, guestId),
+    db
+      .prepare(`DELETE FROM board_reports WHERE reporter_account_id=? AND EXISTS(
+      SELECT 1 FROM board_reports a WHERE a.reporter_account_id=? AND a.post_id=board_reports.post_id)`)
+      .bind(guestId, accountId),
+    db
+      .prepare("UPDATE board_reports SET reporter_account_id=? WHERE reporter_account_id=?")
+      .bind(accountId, guestId),
+  ];
+}
