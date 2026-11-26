@@ -1,7 +1,9 @@
-import type {
-  BoardWriteAttempt,
-  BoardWriteResult,
-  BoardWriter,
+import {
+  boardWriteRejection,
+  type BoardWriteAttempt,
+  type BoardWriteResult,
+  type BoardWriteState,
+  type BoardWriter,
 } from "@tetraboard/context-community";
 import type { BoardAttachment } from "@tetraboard/protocol/board";
 import type { GameId } from "@tetraboard/protocol/games";
@@ -67,26 +69,19 @@ function replayStatement(db: D1Database, accountId: string, requestId: string) {
 function rejectionStatement(db: D1Database, accountId: string, parentId: string | null) {
   return db
     .prepare(`SELECT ${boardPostingStateColumns},${boardEligibleAccountExistsSql} AS eligible,
- (?2 IS NULL OR EXISTS(SELECT 1 FROM board_posts parent WHERE parent.id=?2 AND ${liveParentSql}))
- AS parentAvailable ${boardSenderJoin}`)
+ (?2 IS NULL OR parent.id IS NOT NULL) AS parentAvailable, parent.game_id AS parentGameId
+ ${boardSenderJoin} LEFT JOIN board_posts parent ON parent.id=?2 AND ${liveParentSql}`)
     .bind(accountId, parentId);
 }
+
+type BoardWriteStateRow = BoardWriteState & { parentGameId: GameId | null };
+type BoardReplayRow = BoardRow & { bodyHash: string };
 
 export class D1BoardWriter implements BoardWriter {
   constructor(
     private readonly db: D1Database,
     private readonly canAttach: (game: GameId, attachment: BoardAttachment) => Promise<boolean>,
   ) {}
-
-  private async attachmentAvailable(attempt: BoardWriteAttempt, attachment: BoardAttachment) {
-    const game =
-      attempt.gameId ??
-      (await this.db
-        .prepare(`SELECT game_id FROM board_posts parent WHERE id=? AND ${liveParentSql}`)
-        .bind(attempt.parentId)
-        .first<GameId>("game_id"));
-    return game !== null && this.canAttach(game, attachment);
-  }
 
   async insertEligiblePost(
     attempt: BoardWriteAttempt,
@@ -97,10 +92,16 @@ export class D1BoardWriter implements BoardWriter {
     const replayQuery = replayStatement(db, accountId, requestId);
     const rejectionQuery = rejectionStatement(db, accountId, parentId);
     if (attachment) {
-      // 受付済みの再送には、いまの棋譜の読み取り結果を使いません。
-      const existing = await replayQuery.first<BoardRow & { bodyHash: string }>();
+      // 棋譜を取得する前に再送と既存の拒否条件を確かめます。
+      const [replay, checked] = await db.batch([replayQuery, rejectionQuery]);
+      const existing = replay!.results[0] as BoardReplayRow | undefined;
       if (existing) return { accepted: acceptedPost(existing, accountId) };
-      if (!(await this.attachmentAvailable(attempt, attachment))) {
+      const rejection = checked!.results[0] as BoardWriteStateRow;
+      if (boardWriteRejection(rejection, lastPostByMs))
+        return { accepted: null, rejection, invalidAttachment: false };
+      const game = attempt.gameId ?? rejection.parentGameId;
+      if (game === null) throw new Error("Missing board parent game");
+      if (!(await this.canAttach(game, attachment))) {
         const [replay, rejection] = await db.batch([replayQuery, rejectionQuery]);
         return writeResult(replay!, rejection!, accountId, true);
       }
@@ -127,20 +128,17 @@ function writeResult(
   accountId: string,
   invalidAttachment: boolean,
 ): BoardWriteResult {
-  const row = replay.results[0] as (BoardRow & { bodyHash: string }) | undefined;
+  const row = replay.results[0] as BoardReplayRow | undefined;
   return row
     ? { accepted: acceptedPost(row, accountId) }
     : {
         accepted: null,
-        rejection: rejection.results[0] as Extract<
-          BoardWriteResult,
-          { accepted: null }
-        >["rejection"],
+        rejection: rejection.results[0] as BoardWriteStateRow,
         invalidAttachment,
       };
 }
 
-function acceptedPost(row: BoardRow & { bodyHash: string }, viewer: string) {
+function acceptedPost(row: BoardReplayRow, viewer: string) {
   const { bodyHash, gameId, parentId, postedAtMs } = row;
   const post = parentId === null ? boardPost(row, viewer) : null;
   return {

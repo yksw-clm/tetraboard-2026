@@ -8,7 +8,10 @@ function cacheRequest<K, T>(read: (key: K) => Promise<T>) {
   return (key: K) => {
     const cached = requests.get(key);
     if (cached) return cached;
-    const request = read(key);
+    const request = read(key).catch((error: unknown) => {
+      requests.delete(key);
+      throw error;
+    });
     requests.set(key, request);
     return request;
   };
@@ -56,20 +59,24 @@ export function useBoardMedia() {
 type Resource<T> = { status: "loading" } | { status: "failed" } | { status: "ready"; data: T };
 
 export function useBoardMediaItem<K, T>(id: K, read: (id: K) => Promise<T>): Resource<T> {
-  const [result, setResult] = useState<{ id: K; resource: Resource<T> } | null>(null);
+  const [result, setResult] = useState<{ id: K; read: typeof read; resource: Resource<T> } | null>(
+    null,
+  );
   useEffect(() => {
     let active = true;
     void read(id).then(
       (data) => {
-        if (active) setResult({ id, resource: { status: "ready", data } });
+        if (active) setResult({ id, read, resource: { status: "ready", data } });
       },
       () => {
-        if (active) setResult({ id, resource: { status: "failed" } });
+        if (active) setResult({ id, read, resource: { status: "failed" } });
       },
     );
     return () => {
       active = false;
     };
   }, [id, read]);
-  return result && result.id === id ? result.resource : { status: "loading" };
+  return result && result.id === id && result.read === read
+    ? result.resource
+    : { status: "loading" };
 }

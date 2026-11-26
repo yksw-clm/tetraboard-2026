@@ -35,7 +35,7 @@ export function useBoardData<T>(readFirst: (signal: AbortSignal) => Promise<T>) 
   );
 
   const replace = useCallback(
-    async (signal: AbortSignal, source: ReadAction = "refresh") => {
+    async (signal: AbortSignal, source: ReadAction = "refresh", onSettled?: () => void) => {
       try {
         const next = await readFirst(signal);
         signal.throwIfAborted();
@@ -43,6 +43,8 @@ export function useBoardData<T>(readFirst: (signal: AbortSignal) => Promise<T>) 
         setFailure(null);
       } catch (error) {
         if (signal.reason?.name !== "AbortError") setFailure(readFailure(source, error));
+      } finally {
+        if (signal.reason?.name !== "AbortError") onSettled?.();
       }
     },
     [readFirst],
@@ -65,9 +67,9 @@ export function useBoardData<T>(readFirst: (signal: AbortSignal) => Promise<T>) 
     change(update: (current: T) => T) {
       setData((current) => (current ? update(current) : current));
     },
-    refresh(retry = false) {
+    refresh(retry = false, onSettled?: () => void) {
       return run(retry ? "retry" : "refresh", (signal) =>
-        replace(signal, data ? "refresh" : "initial"),
+        replace(signal, data ? "refresh" : "initial", onSettled),
       );
     },
     more(load: (signal: AbortSignal) => Promise<(current: T) => T>, retry = false) {

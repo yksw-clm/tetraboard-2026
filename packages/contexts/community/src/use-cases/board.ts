@@ -1,6 +1,11 @@
 import type { BoardPostInput, BoardPublishedPost, BoardReply } from "@tetraboard/protocol/board";
 import type { GameId } from "@tetraboard/protocol/games";
-import { boardPostIntervalMs, nextBoardPostAt } from "../domain/board";
+import {
+  boardPostIntervalMs,
+  boardWriteRejection,
+  nextBoardPostAt,
+  type BoardWriteState,
+} from "../domain/board";
 
 export type BoardDestination =
   | { gameId: GameId; parentId: null }
@@ -23,13 +28,7 @@ export type BoardWriteResult =
   | {
       accepted: null;
       invalidAttachment: boolean;
-      rejection: {
-        eligible: number;
-        parentAvailable: number;
-        accepting: number;
-        stopped: number;
-        lastPostedAtMs: number;
-      };
+      rejection: BoardWriteState;
     };
 
 export interface BoardWriter {
@@ -48,10 +47,8 @@ export async function postToBoard(
     ? `attachment:${await hash(JSON.stringify([text, attachment.matchId, attachment.position]))}`
     : await hash(text);
   const postedAtMs = now();
-  const result = await store.insertEligiblePost(
-    { ...input, bodyHash, postedAtMs },
-    postedAtMs - boardPostIntervalMs,
-  );
+  const lastPostByMs = postedAtMs - boardPostIntervalMs;
+  const result = await store.insertEligiblePost({ ...input, bodyHash, postedAtMs }, lastPostByMs);
   const { accepted } = result;
   if (accepted) {
     if (
@@ -68,12 +65,8 @@ export async function postToBoard(
     } as const;
   }
   const { rejection, invalidAttachment } = result;
-  if (!rejection.eligible) return { status: "ineligible" } as const;
-  if (!rejection.parentAvailable) return { status: "notFound" } as const;
+  const rejected = boardWriteRejection(rejection, lastPostByMs);
+  if (rejected) return rejected;
   if (invalidAttachment) return { status: "invalidAttachment" } as const;
-  if (!rejection.accepting || rejection.stopped) return { status: "stopped" } as const;
-  return {
-    status: "rateLimited",
-    availableAtMs: nextBoardPostAt(rejection.lastPostedAtMs),
-  } as const;
+  throw new Error("Board write did not return a post or a rejection");
 }

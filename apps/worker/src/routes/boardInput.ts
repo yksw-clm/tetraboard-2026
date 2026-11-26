@@ -12,11 +12,16 @@ const boardPageCursor = boardCursorSchema.transform((cursor) => ({
 }));
 
 const timelineLimit = z.string().regex(/^\d+$/).transform(Number).pipe(z.int().min(1).max(20));
+const includeAttachments = z.literal("1").optional();
 export const boardTimelineQuery = z.strictObject({
   before: boardPageCursor.optional(),
   limit: timelineLimit.prefault("20"),
+  includeAttachments,
 });
-export const boardRepliesQuery = z.strictObject({ after: boardPageCursor.optional() });
+export const boardRepliesQuery = z.strictObject({
+  after: boardPageCursor.optional(),
+  includeAttachments,
+});
 
 export async function readBoardJson(request: Request, limit: number): Promise<unknown> {
   const bytes = await readLimitedBody(request, limit);

@@ -45,14 +45,28 @@ export function mutationError(error: unknown, fallback: string) {
   return error instanceof BoardRequestError ? error.message : fallback;
 }
 
+export function boardEntriesRequest(
+  path: string,
+  init: RequestInit,
+  fallback: string,
+  query?: { before: string } | { after: string },
+) {
+  const search = new URLSearchParams({ includeAttachments: "1", ...query });
+  return boardRequest(`${path}?${search}`, init, fallback);
+}
+
 export async function readTimeline(game: GameId, signal: AbortSignal, before?: string) {
-  const query = before ? `?before=${encodeURIComponent(before)}` : "";
-  const response = await boardRequest(boardTimelinePath(game) + query, { signal }, boardLoadError);
+  const response = await boardEntriesRequest(
+    boardTimelinePath(game),
+    { signal },
+    boardLoadError,
+    before ? { before } : undefined,
+  );
   return boardTimelineSchema.parse(await response.json());
 }
 
 export async function readDetail(id: string, signal: AbortSignal) {
-  const response = await boardRequest(boardPostPath(id), { signal }, boardLoadError);
+  const response = await boardEntriesRequest(boardPostPath(id), { signal }, boardLoadError);
   return boardDetailSchema.parse(await response.json());
 }
 
@@ -66,7 +80,11 @@ export async function readDetailOrMissing(id: string, signal: AbortSignal) {
 }
 
 export async function readReplies(id: string, signal: AbortSignal, after: string) {
-  const path = `${boardPostPath(id)}/replies?after=${encodeURIComponent(after)}`;
-  const response = await boardRequest(path, { signal }, boardLoadError);
+  const response = await boardEntriesRequest(
+    `${boardPostPath(id)}/replies`,
+    { signal },
+    boardLoadError,
+    { after },
+  );
   return boardRepliesSchema.parse(await response.json());
 }

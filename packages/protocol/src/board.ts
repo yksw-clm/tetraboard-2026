@@ -43,7 +43,7 @@ const countSchema = z.int().nonnegative();
 export const boardReplySchema = z.strictObject({
   id: boardPostIdSchema,
   text: z.string(),
-  attachment: boardAttachmentSchema.nullable(),
+  attachment: boardAttachmentSchema.nullable().optional(),
   author: boardAuthorSchema,
   postedAtMs: timestampSchema,
   likeCount: countSchema,

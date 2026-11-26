@@ -22,7 +22,7 @@ import {
   boardLoadError,
   boardMissing,
   boardPostPath,
-  boardRequest,
+  boardEntriesRequest,
   boardTimelinePath,
   readDetail,
   readDetailOrMissing,
@@ -31,9 +31,16 @@ import {
 } from "./boardApi";
 import { useBoardData } from "./useBoardData";
 
-function BoardLayout({ game, children }: { game: GameId; children: ReactNode }) {
+function BoardLayout({
+  game,
+  media,
+  children,
+}: {
+  game: GameId;
+  media: ReturnType<typeof createBoardMedia>;
+  children: ReactNode;
+}) {
   const theme = gameThemes[game];
-  const [media] = useState(createBoardMedia);
   return (
     <div className={`app-theme ${appThemeClasses[theme]} lobby-background min-h-dvh text-ink`}>
       <AppHeader homeTo="/" homeLabel="総合ロビーへ" theme={theme} />
@@ -120,11 +127,16 @@ function BoardTimeline({ game }: { game: GameId }) {
   const catalog = gameCatalog[game];
   const path = boardTimelinePath(game);
   const [search, setSearch] = useSearchParams();
+  const [media, setMedia] = useState(createBoardMedia);
   const attachment = readAttachment(search);
   const readFirst = useCallback((signal: AbortSignal) => readTimeline(game, signal), [game]);
   const board = useBoardData(readFirst);
   const { data, pending, failure } = board;
   const busy = pending !== null;
+
+  function refresh(retry = false) {
+    void board.refresh(retry, () => setMedia(createBoardMedia()));
+  }
 
   function clearAttachment() {
     const next = new URLSearchParams(search);
@@ -162,7 +174,7 @@ function BoardTimeline({ game }: { game: GameId }) {
   }
 
   return (
-    <BoardLayout game={game}>
+    <BoardLayout game={game} media={media}>
       <div className="grid gap-2">
         <Link to={catalog.lobbyPath} className={boardLinkClasses}>
           {catalog.name}のロビーへ
@@ -172,7 +184,7 @@ function BoardTimeline({ game }: { game: GameId }) {
           {data && (
             <AppButton
               appearance="secondary"
-              onPress={() => void board.refresh()}
+              onPress={() => refresh()}
               isPending={pending === "refresh"}
               isDisabled={busy}
             >
@@ -196,7 +208,7 @@ function BoardTimeline({ game }: { game: GameId }) {
             busy={busy}
             write={board.write}
             onSubmit={async (input, signal) => {
-              const response = await boardRequest(
+              const response = await boardEntriesRequest(
                 path,
                 {
                   method: "POST",
@@ -259,7 +271,7 @@ function BoardTimeline({ game }: { game: GameId }) {
       )}
       {failure && (
         <Retry
-          action={() => (failure.source === "more" ? more(true) : void board.refresh(true))}
+          action={() => (failure.source === "more" ? more(true) : refresh(true))}
           pending={pending === "retry"}
           disabled={busy}
         />
@@ -276,6 +288,7 @@ export function BoardDetailPage() {
 
 function BoardDetail({ id }: { id: string }) {
   const navigate = useNavigate();
+  const [media] = useState(createBoardMedia);
   const path = boardPostPath(id);
   const readFirst = useCallback((signal: AbortSignal) => readDetail(id, signal), [id]);
   const board = useBoardData(readFirst);
@@ -375,7 +388,7 @@ function BoardDetail({ id }: { id: string }) {
     onRemove: (removedId: string, signal: AbortSignal) => syncDetail(signal, { removedId }),
   };
   return (
-    <BoardLayout game={game}>
+    <BoardLayout game={game} media={media}>
       <nav aria-label="掲示板の移動" className="flex flex-wrap gap-x-4 gap-y-2">
         <Link to={timeline} className={boardLinkClasses}>
           {catalog.name}の掲示板へ
@@ -422,7 +435,7 @@ function BoardDetail({ id }: { id: string }) {
           busy={busy}
           write={board.write}
           onSubmit={async (input, signal) => {
-            const response = await boardRequest(
+            const response = await boardEntriesRequest(
               path + "/replies",
               {
                 method: "POST",

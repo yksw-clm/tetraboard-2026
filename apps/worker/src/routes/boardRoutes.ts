@@ -13,6 +13,8 @@ import {
   boardReplyResultSchema,
   boardReportInputSchema,
   boardTimelineSchema,
+  type BoardPost,
+  type BoardReply,
 } from "@tetraboard/protocol/board";
 import { gameIds } from "@tetraboard/protocol/games";
 import { Hono, type Context, type MiddlewareHandler } from "hono";
@@ -54,6 +56,17 @@ function hasRepeatedQuery(c: Context<BoardEnv>) {
   return Object.values(c.req.queries()).some((values) => values.length !== 1);
 }
 
+function wantsAttachments(c: Context<BoardEnv>) {
+  const flags = c.req.queries("includeAttachments");
+  return flags?.length === 1 && flags[0] === "1";
+}
+
+function withoutAttachment(entry: BoardPost | BoardReply | null) {
+  if (!entry || !("attachment" in entry)) return entry;
+  const { attachment: _attachment, ...original } = entry;
+  return original;
+}
+
 boardRoutes.get(gamePath, async (c) => {
   const game = gameSchema.safeParse(c.req.param("gameId"));
   if (!game.success) return c.notFound();
@@ -66,14 +79,29 @@ boardRoutes.get(gamePath, async (c) => {
     limit,
     before,
   );
-  return c.json(boardTimelineSchema.parse(page));
+  return c.json(
+    boardTimelineSchema.parse(
+      query.data.includeAttachments ? page : { ...page, posts: page.posts.map(withoutAttachment) },
+    ),
+  );
 });
 
 boardRoutes.get("/posts/:id", async (c) => {
   const id = boardPostIdSchema.safeParse(c.req.param("id"));
   if (!id.success) return c.notFound();
   const page = await new D1BoardReader(c.env.APP_DB).detail(id.data, c.get("user")?.id ?? null);
-  return page ? c.json(boardDetailSchema.parse(page)) : c.notFound();
+  if (!page) return c.notFound();
+  return c.json(
+    boardDetailSchema.parse(
+      wantsAttachments(c)
+        ? page
+        : {
+            ...page,
+            post: withoutAttachment(page.post),
+            replies: page.replies.map(withoutAttachment),
+          },
+    ),
+  );
 });
 
 boardRoutes.get("/posts/:id/replies", async (c) => {
@@ -86,7 +114,14 @@ boardRoutes.get("/posts/:id/replies", async (c) => {
     c.get("user")?.id ?? null,
     query.data.after,
   );
-  return page ? c.json(boardRepliesSchema.parse(page)) : c.notFound();
+  if (!page) return c.notFound();
+  return c.json(
+    boardRepliesSchema.parse(
+      query.data.includeAttachments
+        ? page
+        : { ...page, replies: page.replies.map(withoutAttachment) },
+    ),
+  );
 });
 
 function loginRequired(c: Context<BoardEnv>) {
@@ -134,9 +169,11 @@ async function submitPost(c: Context<BoardEnv>, destination: BoardDestination) {
   switch (result.status) {
     case "accepted": {
       const { post, reply, availableAtMs } = result;
+      const entry = destination.parentId === null ? post : reply;
+      const response = wantsAttachments(c) ? entry : withoutAttachment(entry);
       return destination.parentId === null
-        ? c.json(boardPostResultSchema.parse({ post, availableAtMs }))
-        : c.json(boardReplyResultSchema.parse({ reply, availableAtMs }));
+        ? c.json(boardPostResultSchema.parse({ post: response, availableAtMs }))
+        : c.json(boardReplyResultSchema.parse({ reply: response, availableAtMs }));
     }
     case "changedReplay":
       return c.json(

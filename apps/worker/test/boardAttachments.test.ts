@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import {
+  boardDetailSchema,
   boardPostResultSchema,
   boardRepliesSchema,
   boardReplyResultSchema,
@@ -8,18 +9,15 @@ import {
 } from "@tetraboard/protocol/board";
 import { afterEach, expect, test } from "vitest";
 import reversi from "../../../test-fixtures/matches/reversi-doubles-normal.json";
+import { D1BoardReader } from "../src/adapters/community/boardReads";
 import { accountFixture } from "./accountFixtures";
-import {
-  boardRequest,
-  detail,
-  openBoard,
-  postPath,
-  repliesPath,
-  resetBoard,
-} from "./boardFixtures";
+import { boardRequest, openBoard, postPath, repliesPath, resetBoard } from "./boardFixtures";
+import { fixTestTime } from "./fixedTimeFixture";
+import { assetFixture } from "./publicAssetFixtures";
 import { prepareStoredMatchFixture } from "./snapshotMatchFixtures";
 
 const path = "/games/four-reversi/posts";
+const includeAttachments = "?includeAttachments=1";
 const matchIds: string[] = [];
 
 async function matchFixture(published = true) {
@@ -88,25 +86,38 @@ test("自動パスを含む局面を投稿・返信に保存し、各読み取�
   const replier = await accountFixture();
   const attachment = { matchId, position: positionCount - 1 };
   expect(attachment.position).toBeGreaterThan(eventCount);
-  const response = await submit(path, author.headers, attachment);
+  const postRequest = crypto.randomUUID();
+  const response = await submit(path + includeAttachments, author.headers, attachment, postRequest);
   expect(response.status).toBe(200);
   const { post } = boardPostResultSchema.parse(await response.json());
   expect(post?.attachment).toEqual(attachment);
   const id = post!.id;
   const replyAttachment = { matchId, position: 0 };
-  const replyResponse = await submit(repliesPath(id), replier.headers, replyAttachment);
+  const replyRequest = crypto.randomUUID();
+  const replyResponse = await submit(
+    repliesPath(id) + includeAttachments,
+    replier.headers,
+    replyAttachment,
+    replyRequest,
+  );
   expect(replyResponse.status).toBe(200);
   const { reply } = boardReplyResultSchema.parse(await replyResponse.json());
   expect(reply?.attachment).toEqual(replyAttachment);
 
-  const page = boardTimelineSchema.parse(await (await boardRequest(path)).json());
+  const page = boardTimelineSchema.parse(
+    await (await boardRequest(path + includeAttachments)).json(),
+  );
   expect(page.posts).toEqual([expect.objectContaining({ id, attachment })]);
-  const thread = await detail(id);
+  const thread = boardDetailSchema.parse(
+    await (await boardRequest(postPath(id) + includeAttachments)).json(),
+  );
   expect(thread.post).toMatchObject({ attachment });
   expect(thread.replies).toEqual([
     expect.objectContaining({ id: reply!.id, attachment: replyAttachment }),
   ]);
-  const replies = boardRepliesSchema.parse(await (await boardRequest(repliesPath(id))).json());
+  const replies = boardRepliesSchema.parse(
+    await (await boardRequest(repliesPath(id) + includeAttachments)).json(),
+  );
   expect(replies.replies).toEqual(thread.replies);
   expect(
     (await env.APP_DB.prepare("SELECT id,match_id AS matchId,position FROM board_posts").all())
@@ -117,6 +128,22 @@ test("自動パスを含む局面を投稿・返信に保存し、各読み取�
       { id: reply!.id, ...replyAttachment },
     ]),
   );
+
+  for (const legacyResponse of [
+    await boardRequest(path),
+    await boardRequest(postPath(id)),
+    await boardRequest(repliesPath(id)),
+    await submit(path, author.headers, attachment, postRequest),
+    await submit(repliesPath(id), replier.headers, replyAttachment, replyRequest),
+  ]) {
+    expect(legacyResponse.status).toBe(200);
+    expect(JSON.stringify(await legacyResponse.json())).not.toContain('"attachment"');
+  }
+  const internal = await new D1BoardReader(env.APP_DB).detail(id, null);
+  expect(internal).toEqual(expect.objectContaining({ post: thread.post, replies: thread.replies }));
+  const html = await assetFixture().fetch(postPath(id));
+  expect(html.status).toBe(200);
+  expect(await html.text()).toContain('id="root"');
 });
 
 test("存在しない、未公開、別ゲーム、または範囲外の添付で投稿を保存しない", async () => {
@@ -148,21 +175,28 @@ test("存在しない、未公開、別ゲーム、または範囲外の添付�
 });
 
 test("読み取り失敗を 503 にし、受付済みの再送では添付の一致を照合する", async () => {
+  const clock = fixTestTime();
+  const now = Date.now();
   await openBoard();
   const { matchId } = await matchFixture();
   const user = await accountFixture();
   const requestId = crypto.randomUUID();
   const attachment = { matchId, position: 0 };
-  const accepted = await submit(path, user.headers, attachment, requestId);
+  const accepted = await submit(path + includeAttachments, user.headers, attachment, requestId);
   expect(accepted.status).toBe(200);
   const initial = await accepted.json();
   await env.APP_DB.prepare("DELETE FROM match_event_chunks WHERE match_id=?").bind(matchId).run();
+  const limited = await submit(path, user.headers, attachment);
+  expect(limited.status).toBe(429);
+  expect(await limited.json()).toMatchObject({ availableAtMs: now + 30_000 });
+  clock.mockReturnValue(now + 30_000);
   const failed = await submit(path, user.headers, attachment);
   expect(failed.status).toBe(503);
   expect(await failed.json()).toEqual({
     message: "掲示板を処理できませんでした。もう一度お試しください。",
   });
-  const same = await submit(path, user.headers, attachment, requestId);
+  await env.APP_DB.prepare("UPDATE board_settings SET accepting=0").run();
+  const same = await submit(path + includeAttachments, user.headers, attachment, requestId);
   expect(same.status).toBe(200);
   expect(await same.json()).toEqual(initial);
   for (const changed of [
@@ -172,6 +206,36 @@ test("読み取り失敗を 503 にし、受付済みの再送では添付の一
   ])
     expect((await submit(path, user.headers, changed, requestId)).status).toBe(409);
   expect(await env.APP_DB.prepare("SELECT COUNT(*) AS n FROM board_posts").first("n")).toBe(1);
+});
+
+test("添付棋譜を読む前に受付停止、投稿停止、資格なし、返信先なしを返す", async () => {
+  const { matchId } = await matchFixture();
+  const user = await accountFixture();
+  const stopped = { message: "現在、掲示板への投稿は停止されています。" };
+  const missing = await submit(path, user.headers, { matchId: crypto.randomUUID(), position: 0 });
+  expect(missing.status).toBe(403);
+  expect(await missing.json()).toEqual(stopped);
+
+  await env.APP_DB.prepare("DELETE FROM match_event_chunks WHERE match_id=?").bind(matchId).run();
+  const attachment = { matchId, position: 0 };
+  const closed = await submit(path, user.headers, attachment);
+  expect(closed.status).toBe(403);
+  expect(await closed.json()).toEqual(stopped);
+
+  await openBoard();
+  await env.APP_DB.prepare("INSERT INTO board_senders(account_id,stopped) VALUES(?,1)")
+    .bind(user.id)
+    .run();
+  const suspended = await submit(path, user.headers, attachment);
+  expect(suspended.status).toBe(403);
+  expect(await suspended.json()).toEqual(stopped);
+  const incomplete = await accountFixture(false);
+  expect((await submit(path, incomplete.headers, attachment)).status).toBe(403);
+  const eligible = await accountFixture();
+  expect(
+    (await submit(repliesPath(crypto.randomUUID()), eligible.headers, attachment)).status,
+  ).toBe(404);
+  expect(await env.APP_DB.prepare("SELECT COUNT(*) AS n FROM board_posts").first("n")).toBe(0);
 });
 
 test("削除された投稿の枠と削除された返信から添付を除く", async () => {
@@ -199,11 +263,15 @@ test("削除された投稿の枠と削除された返信から添付を除く",
         .first(),
     ).toEqual({ match_id: null, position: null });
   }
-  const thread = await detail(post!.id);
+  const thread = boardDetailSchema.parse(
+    await (await boardRequest(postPath(post!.id) + includeAttachments)).json(),
+  );
   expect(thread.post.status).toBe("deleted");
   expect(thread.post).not.toHaveProperty("attachment");
   expect(thread.replies).toHaveLength(1);
   expect(thread.replies[0]).toMatchObject({ attachment: null });
-  const page = boardTimelineSchema.parse(await (await boardRequest(path)).json());
+  const page = boardTimelineSchema.parse(
+    await (await boardRequest(path + includeAttachments)).json(),
+  );
   expect(page.posts[0]).toEqual(thread.post);
 });

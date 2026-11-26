@@ -11,7 +11,7 @@ const game = "four-shogi";
 const firstPostPrompt = "対局の感想や気になる局面を、最初に投稿してみませんか。";
 const timelinePath = (game: GameId) => `/games/${game}/posts`;
 const timelineRequests = (game: GameId) =>
-  requests.filter(({ url }) => url === `/api${timelinePath(game)}`);
+  requests.filter(({ url }) => url === `/api${timelinePath(game)}?includeAttachments=1`);
 
 beforeAll(async () => {
   await previewImport.importLobbyPostPreview();
