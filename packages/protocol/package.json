@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./board": "./src/board.ts",
     "./general-lobby": "./src/generalLobby.ts",
     "./games": "./src/games.ts",
     "./room-sharing": "./src/roomSharing.ts",

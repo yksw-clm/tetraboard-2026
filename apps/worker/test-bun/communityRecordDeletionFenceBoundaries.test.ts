@@ -14,6 +14,11 @@ const replayAccount =
 const deletionGuard = "${guard.sql}";
 
 const boundaries: Record<string, [file: string, ...terms: string[]][]> = {
+  "INSERT board_posts": [["adapters/community/boardPosting.ts", '${accountNotDeletedSql("u.id")}']],
+  "INSERT board_senders": [
+    ["adapters/community/boardPosting.ts", '${accountNotDeletedSql("u.id")}'],
+  ],
+  "INSERT board_likes": [["adapters/community/boardActions.ts", '${accountNotDeletedSql("u.id")}']],
   "INSERT feedback": [["adapters/community/feedbackSubmission.ts", boundAccount]],
   "INSERT account_notification_reads": [
     [notifications, boundAccount],
@@ -70,7 +75,11 @@ for (const [key, expected] of Object.entries(boundaries)) {
       remaining.splice(index, 1);
     }
     // 更新にも退会フェンスがある表は、INSERT の UPSERT で更新を迂回させません。
-    if (key === "INSERT notification_events" || key === "INSERT match_participant_accounts")
+    if (
+      key.startsWith("INSERT board_") ||
+      key === "INSERT notification_events" ||
+      key === "INSERT match_participant_accounts"
+    )
       for (const write of writes) expect(updateClauses(write)).toEqual([]);
   });
 }

@@ -54,9 +54,15 @@ const uniqueNames = new Set(
     .filter((name) => name !== undefined),
 );
 
-test("既存migrationの全67テーブルを適用します", () => {
-  expect(tableNames(migrated)).toHaveLength(67);
+test("全 migration の 71 テーブルを適用します", () => {
+  expect(tableNames(migrated)).toHaveLength(71);
   expect(tableNames(defined)).toEqual(tableNames(migrated));
+});
+
+test("掲示板の投稿受付は migration の適用直後に停止しています", () => {
+  expect(migrated.query("SELECT id,accepting FROM board_settings").all()).toEqual([
+    { id: 1, accepting: 0 },
+  ]);
 });
 
 test("初期のお知らせの公開日を全 migration 適用後も保持します", () => {

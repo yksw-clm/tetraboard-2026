@@ -1,4 +1,5 @@
 import type { AuthEnv } from "../../adapters/account/auth";
+import { deleteAccountBoardStatements } from "../../adapters/community/boardDeletion";
 import { deleteAccountChatStatements } from "../../adapters/community/chatCleanup";
 import { feedbackAccountHash } from "./feedbackAccountHash";
 
@@ -65,6 +66,7 @@ export async function deleteAccountData(env: AuthEnv, accountId: string) {
     env.APP_DB.prepare("DELETE FROM session WHERE userId=?").bind(accountId),
     env.APP_DB.prepare("DELETE FROM account WHERE userId=?").bind(accountId),
     ...deleteAccountChatStatements(env.APP_DB, accountId),
+    ...deleteAccountBoardStatements(env.APP_DB, accountId),
     env.APP_DB.prepare("DELETE FROM user WHERE id=?").bind(accountId),
   ]);
 }
