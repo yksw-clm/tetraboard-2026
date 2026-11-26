@@ -364,9 +364,19 @@ test("ロビーとルールを往復すると先頭へ戻り、共通ナビと�
     expect(scrollTo).toHaveBeenCalledTimes(0);
     requests.find((request) => request.url === "/api/account/session")!.respond({ user: profile });
     await flush();
-    await act(async () =>
-      view.querySelector<HTMLAnchorElement>(`a[href="${fourShogiRulesPath}"]`)!.click(),
-    );
+    const rulesLink = view.querySelector<HTMLAnchorElement>(`a[href="${fourShogiRulesPath}"]`)!;
+    await act(async () => {
+      const navigationComplete = new Promise<void>((resolve) => {
+        const unsubscribe = router.subscribe(({ navigation, location }) => {
+          if (navigation.state === "idle" && location.pathname === fourShogiRulesPath) {
+            unsubscribe();
+            resolve();
+          }
+        });
+      });
+      rulesLink.click();
+      await navigationComplete;
+    });
     expect(router.state.location.pathname).toBe(fourShogiRulesPath);
     expect(view.querySelector("h1")?.textContent).toBe("四人将棋のルール");
     expect(scrollTo).toHaveBeenCalledTimes(1);
