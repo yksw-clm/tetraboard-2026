@@ -2,7 +2,22 @@
 import { expect, test } from "bun:test";
 import { updateClauses, workerSqlWrites } from "./sqlWrites";
 
+const boardPosting = "adapters/community/boardPosting.ts";
+const boardActions = "adapters/community/boardActions.ts";
+const boardDeletion = "adapters/community/boardDeletion.ts";
+
 const boundaries = {
+  "INSERT board_posts": [boardPosting],
+  "UPDATE board_posts": [boardActions, boardDeletion, boardDeletion],
+  "DELETE board_posts": [],
+  "INSERT board_senders": [boardPosting],
+  "UPDATE board_senders": [boardPosting],
+  "DELETE board_senders": [boardDeletion],
+  "INSERT board_likes": [boardActions],
+  "DELETE board_likes": [boardActions, boardDeletion, boardDeletion],
+  "INSERT board_settings": [],
+  "UPDATE board_settings": [],
+  "DELETE board_settings": [],
   "INSERT lobby_chat_messages": ["adapters/community/chatStore.ts"],
   "UPDATE lobby_chat_messages": ["adapters/community/guestMergeWrites.ts"],
   "INSERT announcements": ["adapters/community/announcements.ts"],

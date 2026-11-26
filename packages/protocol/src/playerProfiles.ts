@@ -31,6 +31,11 @@ export type ProfileRating = z.infer<typeof profileRatingSchema>;
 export const profileRatingsSchema = z.record(z.uuid(), profileRatingSchema);
 export type ProfileRatings = z.infer<typeof profileRatingsSchema>;
 
+export const playerProfileReferenceSchema = z.strictObject({
+  source: z.literal("profile"),
+  profileId: z.uuid(),
+});
+
 export const playerProfileTargetSchema = z.discriminatedUnion("source", [
   z.strictObject({
     source: z.literal("room"),
@@ -39,7 +44,7 @@ export const playerProfileTargetSchema = z.discriminatedUnion("source", [
     playerId: z.uuid(),
   }),
   z.strictObject({ source: z.literal("match"), matchId: z.uuid(), playerId: z.uuid() }),
-  z.strictObject({ source: z.literal("profile"), profileId: z.uuid() }),
+  playerProfileReferenceSchema,
 ]);
 export type PlayerProfileTarget = z.infer<typeof playerProfileTargetSchema>;
 export const playerProfileQuerySchema = z.discriminatedUnion("source", [
@@ -61,7 +66,7 @@ export const playerProfileQuerySchema = z.discriminatedUnion("source", [
     includeShogiRating: z.literal("1").optional(),
     includeReversiRating: z.literal("1").optional(),
   }),
-  playerProfileTargetSchema.options[2].extend({
+  playerProfileReferenceSchema.extend({
     game: gameIdSchema,
     includeRating: z.literal("1").optional(),
     includeBadges: z.literal("1").optional(),
