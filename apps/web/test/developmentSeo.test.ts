@@ -18,6 +18,7 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
     import { Window } from "happy-dom";
     import { gameIds } from "@tetraboard/protocol/games";
     import { renderFourShogiRules, renderGeneralLobby, renderHowToPlay, renderPublicLobby, renderSitemap, robotsText } from "./build/renderPublicLobby";
+    import { boardPageMetadata } from "./src/features/board/boardPageMetadata";
     import { helpScreenshots } from "./src/features/help/helpScreenshots";
     import { lobbyBoardSources, resolveRulesDiagramAsset } from "./test/fixtures/lobbyBoardSources";
     import { startPageMetadata, updatePageMetadata } from "./src/seo/pageMetadata";
@@ -59,11 +60,11 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
     pages.push(document.head.innerHTML);
     stop();
     router.dispose();
-    updatePageMetadata("/posts/example", undefined, undefined, undefined, undefined, {
+    updatePageMetadata("/posts/example", undefined, undefined, undefined, undefined, boardPageMetadata({
       post: { id: "example", status: "published", gameId: "shogi", text: "開発の投稿" },
       replies: [],
       indexable: true,
-    });
+    }));
     const boardHead = document.head.innerHTML;
     const helpHtml = renderHowToPlay(template, lobbyBoardSources, helpScreenshots);
     updatePageMetadata("/how-to-play");

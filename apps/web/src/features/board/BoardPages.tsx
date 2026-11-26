@@ -28,6 +28,7 @@ import {
   readReplies,
   readTimeline,
 } from "./boardApi";
+import { boardPageMetadata } from "./boardPageMetadata";
 import { useBoardData } from "./useBoardData";
 
 function BoardLayout({ game, children }: { game: GameId; children: ReactNode }) {
@@ -269,7 +270,8 @@ function BoardDetail({ id }: { id: string }) {
       : undefined;
   useEffect(() => {
     if (pathname.replace(/\/$/, "") !== path) return;
-    updatePageMetadata(pathname, undefined, undefined, undefined, undefined, metadata);
+    const page = metadata ? boardPageMetadata(metadata) : metadata;
+    updatePageMetadata(pathname, undefined, undefined, undefined, undefined, page);
   }, [pathname, path, metadata]);
   // 同期に失敗した場合も、再試行で除外する返信 ID を保持します。
   const removedReplies = useRef(new Set<string>());

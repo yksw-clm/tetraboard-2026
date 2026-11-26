@@ -1,7 +1,6 @@
-import type { BoardPost } from "./board";
+import type { BoardPost, BoardPublishedPost, BoardReply } from "./board";
 import { gameCatalog } from "./games";
-
-export { renderDiscussionForumPostingJsonLd } from "./structuredData";
+import { renderJsonLd } from "./structuredData";
 
 export const boardPostPath = (id: string) => `/posts/${encodeURIComponent(id)}`;
 
@@ -31,4 +30,33 @@ export function boardPostMetadata(origin: string, post: BoardPost) {
     description: excerpt(characters, 120),
     canonical,
   };
+}
+
+function boardEntryData({ author, postedAtMs, text }: BoardReply) {
+  return {
+    author: { "@type": "Person", name: author.name },
+    datePublished: new Date(postedAtMs).toISOString(),
+    text,
+  };
+}
+
+export function renderDiscussionForumPostingJsonLd(
+  canonical: string,
+  post: BoardPublishedPost,
+  replies: BoardReply[],
+): string {
+  return renderJsonLd({
+    "@context": "https://schema.org",
+    "@type": "DiscussionForumPosting",
+    url: canonical,
+    ...boardEntryData(post),
+    interactionStatistic: {
+      "@type": "InteractionCounter",
+      interactionType: "https://schema.org/LikeAction",
+      userInteractionCount: post.likeCount,
+    },
+    ...(replies.length > 0 && {
+      comment: replies.map((reply) => ({ "@type": "Comment", ...boardEntryData(reply) })),
+    }),
+  });
 }

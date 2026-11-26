@@ -1,10 +1,4 @@
-import { fourShogiRulesPath } from "@tetraboard/protocol/games";
-import type { BoardPost, BoardReply } from "@tetraboard/protocol/board";
-import {
-  boardPostMetadata,
-  boardPostPath,
-  renderDiscussionForumPostingJsonLd,
-} from "@tetraboard/protocol/board-pages";
+import { fourShogiRulesPath, type GameId } from "@tetraboard/protocol/games";
 import type { DataRouter } from "react-router";
 import type { RoomLoaderData } from "../features/room/roomLoader";
 import type { MatchReplayData } from "../features/room/matchReplayLoader";
@@ -33,13 +27,23 @@ import {
 } from "@tetraboard/protocol/tournament-pages";
 
 type PublicPageMetadata = { title: string; description: string };
-type BoardPageInfo = { post: BoardPost; replies: BoardReply[]; indexable?: boolean };
+type BoardPageMetadata = PublicPageMetadata & {
+  path: string;
+  canonical: string;
+  indexable: boolean;
+  game: GameId;
+  jsonLd: string | null;
+};
 
 const tournamentDetailPattern = /^\/tournaments\/[1-9]\d*$/;
 let initialServerPagePath: string | undefined;
 
 function isServerPage(path: string): boolean {
   return path === tournamentListPath || /^\/(?:tournaments|posts)\/[^/]+$/.test(path);
+}
+
+export function isInitialServerPage(path: string): boolean {
+  return path === initialServerPagePath;
 }
 
 export function startPageMetadata(router: DataRouter, root?: HTMLElement): () => void {
@@ -91,14 +95,13 @@ export function updatePageMetadata(
   match?: ShareMatch,
   tournament?: TournamentPageInfo,
   publicPage?: PublicPageMetadata,
-  board?: BoardPageInfo | null,
+  board?: BoardPageMetadata | null,
 ): void {
   const currentPath = path.replace(/\/$/, "");
-  const boardPage = board && currentPath === boardPostPath(board.post.id) ? board : undefined;
-  const initial = currentPath === initialServerPagePath;
+  const boardPage = board?.path === currentPath ? board : undefined;
+  const initial = isInitialServerPage(currentPath);
   if (initial && !boardPage && board !== null) return;
   if (initial) document.head.querySelector('script[type="application/ld+json"]')?.remove();
-  const boardMetadata = boardPage && boardPostMetadata(publicOrigin, boardPage.post);
   const isDetail = tournamentDetailPattern.test(currentPath);
   const isList = currentPath === tournamentListPath;
   const tournamentMetadata = isList
@@ -110,7 +113,7 @@ export function updatePageMetadata(
   const staticPage = publicPage ?? (currentPath === howToPlayPath ? howToPlayMetadata : undefined);
   const metadata =
     staticPage ??
-    boardMetadata ??
+    boardPage ??
     tournamentMetadata ??
     (path === "/" ? generalLobbyMetadata : game ? lobbyMetadata[game] : null);
   const legalDocument =
@@ -127,8 +130,8 @@ export function updatePageMetadata(
     element.remove();
   const robots = document.createElement("meta");
   robots.name = "robots";
-  const indexable = boardPage ? (boardPage.indexable ?? false) : !!metadata;
-  robots.content = indexable && searchIndexable ? "index,follow" : "noindex,follow";
+  const indexable = boardPage?.indexable ?? (searchIndexable && Boolean(metadata));
+  robots.content = indexable ? "index,follow" : "noindex,follow";
   document.head.append(robots);
   if (
     match &&
@@ -155,22 +158,17 @@ export function updatePageMetadata(
   const canonical = document.createElement("link");
   canonical.rel = "canonical";
   const canonicalUrl =
-    boardMetadata?.canonical ??
+    boardPage?.canonical ??
     tournamentMetadata?.canonical ??
     (game ? lobbyCanonical(game) : `${publicOrigin}${staticPage ? currentPath : "/"}`);
   canonical.href = canonicalUrl;
   document.head.append(canonical);
   const imageGame =
-    boardPage?.post.gameId ??
+    boardPage?.game ??
     game ??
     (currentPath === fourShogiRulesPath ? "four-shogi" : isDetail ? tournament?.game : undefined);
   for (const tag of openGraphTags(metadata, canonicalUrl, imageGame)) appendMetaTag(tag);
-  if (initial && boardPage?.post.status === "published") {
-    document.head.insertAdjacentHTML(
-      "beforeend",
-      renderDiscussionForumPostingJsonLd(canonicalUrl, boardPage.post, boardPage.replies),
-    );
-  }
+  if (initial && boardPage?.jsonLd) document.head.insertAdjacentHTML("beforeend", boardPage.jsonLd);
 }
 
 function appendMetaTag({
