@@ -64,6 +64,7 @@ export type UsageEvent = Common &
         utmCampaign?: string | null;
         device: "smartphone" | "tablet" | "pc";
       }
+    | { name: "board_preview_viewed" }
     | { name: "client_error"; page: string; kind: string; message: string }
   );
 
@@ -109,6 +110,9 @@ export function usageDataPoint(event: UsageEvent): UsageDataPoint {
         event.utmCampaign,
         event.device,
       ];
+      break;
+    case "board_preview_viewed":
+      details = [];
       break;
     case "client_error":
       details = [event.page, event.kind, truncate(event.message, 200)];
