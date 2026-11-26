@@ -9,7 +9,13 @@ import { roomLoader } from "../features/room/roomLoader";
 import { AppPageLoading } from "../shared/ui/AppPageState";
 import { AppRouteErrorPage } from "../shared/ui/AppErrorPage";
 import { gameThemes } from "../shared/ui/appTheme";
-import { fourShogiRulesPath, gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
+import {
+  fourShogiRulesPath,
+  gameIds,
+  gameCatalog,
+  isGameId,
+  type GameId,
+} from "@tetraboard/protocol/games";
 import type { ComponentType } from "react";
 export const lobbyRoutes = {
   "four-gomoku": {
@@ -65,6 +71,8 @@ const lazyMatchReplayPage = () => ({
 const loadTournamentPages = () => import("../features/tournaments/tournamentRoutes");
 
 const loadBoardPages = () => import("../features/board/BoardPages");
+
+const initialBoardGameId = globalThis.location?.pathname.split("/")[2];
 
 export const router = createBrowserRouter([
   {
@@ -129,7 +137,12 @@ export const router = createBrowserRouter([
         lazy: async () => ({
           Component: (await loadBoardPages()).BoardTimelinePage,
         }),
-        hydrateFallbackElement: <AppPageLoading message="掲示板を読み込んでいます…" />,
+        hydrateFallbackElement: (
+          <AppPageLoading
+            message="掲示板を読み込んでいます…"
+            theme={isGameId(initialBoardGameId) ? gameThemes[initialBoardGameId] : undefined}
+          />
+        ),
       },
       {
         path: "/posts/:id",
