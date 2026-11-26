@@ -2,7 +2,6 @@ import { matchReplayLoader, publicMatchReplayLoader } from "../features/room/mat
 import { PlayerProfileProvider } from "../features/players/PlayerProfileProvider";
 import { ActiveTournamentProvider } from "../features/tournaments/ActiveTournamentProvider";
 import { AccountLayout } from "../features/account/AccountSession";
-import { BoardTimelineLoading } from "../features/board/BoardTimelineLoading";
 import { createBrowserRouter, Link, replace } from "react-router";
 import { matchmakingPath } from "../features/matchmaking/paths";
 import { roomLoader } from "../features/room/roomLoader";
@@ -130,7 +129,7 @@ export const router = createBrowserRouter([
         lazy: async () => ({
           Component: (await loadBoardPages()).BoardTimelinePage,
         }),
-        hydrateFallbackElement: <BoardTimelineLoading />,
+        hydrateFallbackElement: <AppPageLoading message="掲示板を読み込んでいます…" />,
       },
       {
         path: "/posts/:id",

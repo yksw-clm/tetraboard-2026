@@ -8,6 +8,7 @@ import {
   type RoomMode,
   type CpuLevel,
 } from "@tetraboard/protocol";
+import { boardPagePathPattern } from "../../shared/siteNavigation";
 
 export const registrationReturnKey = "tetraboard:registration-return";
 const lifetimeMs = 60 * 60 * 1000;
@@ -35,21 +36,15 @@ export type RegistrationReturn = RegistrationDestination & {
   oauthStarted: boolean;
 };
 
-const boardTimelinePath = /^\/games\/([^/]+)\/posts\/?$/;
-const boardPostPath = /^\/posts\/([^/]+)\/?$/;
-
-export function isBoardPagePath(path: string): boolean {
-  return boardTimelinePath.test(path) || boardPostPath.test(path);
-}
-
 // OAuthの遷移先はサーバーで固定したまま、復帰先だけをアプリ内に限定する。
 export function registrationPath(path: unknown): string | null {
   if (typeof path !== "string") return null;
   if (path === "/") return path;
-  const timeline = boardTimelinePath.exec(path);
-  if (timeline && isGameId(timeline[1])) return path;
-  const post = boardPostPath.exec(path);
-  if (post && boardPostIdSchema.safeParse(post[1]).success) return path;
+  const board = boardPagePathPattern.exec(path);
+  if (board) {
+    const [, gameId, postId] = board;
+    return (gameId ? isGameId(gameId) : boardPostIdSchema.safeParse(postId).success) ? path : null;
+  }
   if (/^\/tournaments\/[1-9]\d*$/.test(path)) {
     const id = Number(path.split("/").at(-1));
     if (Number.isSafeInteger(id)) return path;
