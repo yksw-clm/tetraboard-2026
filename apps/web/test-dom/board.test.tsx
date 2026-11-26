@@ -930,3 +930,82 @@ test("ログイン後の戻り先は6ゲームの掲示板とUUIDの投稿詳細
   ])
     expect(registrationPath(path)).toBeNull();
 });
+
+const reportButton = (scope: HTMLElement, label = "通報") =>
+  [...scope.querySelectorAll("button")].find((button) => button.textContent === label);
+
+test("通報ボタンは本人以外の公開中の投稿に出て、未ログイン時は案内を出す", async () => {
+  const view = show(timelinePath, null);
+  await respond(
+    timeline([
+      post(1, "公開中"),
+      post(2, "自分の投稿", { own: true }),
+      deleted(post(3, "削除済み", { replyCount: 1 })),
+    ]),
+  );
+  const [published, own, placeholder] = articles(view);
+  expect(reportButton(published!)).toBeDefined();
+  expect(reportButton(own!)).toBeUndefined();
+  expect(reportButton(placeholder!)).toBeUndefined();
+  press(published!, "通報");
+  expect(published!.querySelector('[role="alert"]')?.textContent).toBe(
+    "通報するにはログインしてください。",
+  );
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(requests).toHaveLength(1);
+});
+
+test("ゲストが詳細の投稿・返信を通報でき、失敗時は選んだ理由とエラーをダイアログに残す", async () => {
+  const view = show(postPath, { ...user, isGuest: true, profileCompleted: false });
+  const parent = post(1, "本文", { replyCount: 2 });
+  const other = reply(2, "他の人の返信");
+  await respond(thread(parent, [other, reply(3, "自分の返信", { own: true })]));
+  const [root, target, own] = articles(view);
+  expect(reportButton(own!)).toBeUndefined();
+  await act(async () => {
+    reportButton(root!)!.click();
+    await import("../src/features/board/BoardReportDialog");
+  });
+  expect(dialog().textContent).toContain("投稿を通報");
+  expect(dialog().textContent).toContain("この投稿を運営に通報しますか？理由を1つ選んでください。");
+  press(dialog(), "キャンセル");
+  expect(requests).toHaveLength(1);
+
+  press(target!, "通報");
+  expect(dialog().textContent).toContain("返信を通報");
+  expect(dialog().textContent).toContain("この返信を運営に通報しますか？理由を1つ選んでください。");
+  const radios = [...dialog().querySelectorAll<HTMLInputElement>('input[type="radio"]')];
+  expect(radios.map((radio) => radio.labels?.[0]?.textContent)).toEqual([
+    "晒し・嫌がらせ",
+    "暴言",
+    "スパム・宣伝",
+    "個人情報",
+    "その他",
+  ]);
+  expect(radios.some((radio) => radio.checked)).toBe(false);
+  expect(reportButton(dialog(), "通報する")?.disabled).toBe(true);
+  act(() => radios[3]!.click());
+  expect(reportButton(dialog(), "通報する")?.disabled).toBe(false);
+  press(dialog(), "通報する");
+  expect(latest().url).toBe(`/api/posts/${other.id}/reports`);
+  expect(latest().init.method).toBe("POST");
+  expect(JSON.parse(String(latest().init.body))).toEqual({ reason: "personalInfo" });
+  expect(reportButton(dialog(), "通報する")?.disabled).toBe(true);
+  await respond({ message: "通報の上限に達しています。" }, 429);
+  expect(dialog().querySelector('[role="alert"]')?.textContent).toBe("通報の上限に達しています。");
+  expect(radios[3]?.checked).toBe(true);
+  press(dialog(), "通報する");
+  await respond(null, 503);
+  expect(dialog().querySelector('[role="alert"]')?.textContent).toBe("通報できませんでした。");
+  press(dialog(), "通報する");
+  await respond({ message: "通報を受け付けました。" }, 201);
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(target!.querySelector('[role="status"]')?.textContent).toBe("通報を受け付けました。");
+
+  press(root!, "通報");
+  act(() => dialog().querySelector<HTMLInputElement>('input[value="other"]')!.click());
+  press(dialog(), "通報する");
+  expect(latest().url).toBe(detailUrl + "/reports");
+  await respond({ message: "通報を受け付けています。" }, 200);
+  expect(root!.querySelector('[role="status"]')?.textContent).toBe("通報を受け付けています。");
+});

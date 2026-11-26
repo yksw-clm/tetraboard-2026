@@ -6,6 +6,7 @@ import {
   CircleHelpIcon,
   ExternalLinkIcon,
   MessageCircleIcon,
+  MessagesSquareIcon,
   TrophyIcon,
 } from "lucide-react";
 import {
@@ -27,6 +28,7 @@ import { ThemeSelect } from "./components/ThemeProvider";
 const analysis = [{ path: "/kpi", label: "KPI", icon: ActivityIcon }];
 const operations = [
   { path: "/lobby-chat", label: "公開チャット", icon: MessageCircleIcon },
+  { path: "/board", label: "掲示板", icon: MessagesSquareIcon },
   { path: "/feedback", label: "フィードバック", icon: CircleHelpIcon },
   { path: "/announcements", label: "お知らせ", icon: BellIcon },
   { path: "/tournaments", label: "大会", icon: TrophyIcon },

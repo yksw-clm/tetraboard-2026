@@ -5,6 +5,7 @@ import {
 } from "@tetraboard/protocol";
 import type { GameId } from "@tetraboard/protocol/games";
 import { notifyRoomResponseValidation } from "../../shared/roomResponseValidation";
+import { playerProfileApiUrl } from "./playerProfileQuery";
 export type ProfileState = {
   loading: boolean;
   profile: PlayerProfile | null;
@@ -47,15 +48,7 @@ export class PlayerProfileStore {
     this.states.set(key, { ...state, loading: true, error: null });
     this.emit();
     try {
-      const query = new URLSearchParams({
-        ...target,
-        game,
-        includeBadges: "1",
-        includeStats: "1",
-        includeDetails: "1",
-        includeRating: "1",
-      });
-      const response = await fetch(`/api${getPlayerProfileContract.path}?${query}`, {
+      const response = await fetch(playerProfileApiUrl(target, game), {
         cache: "no-store",
         signal: controller.signal,
       });

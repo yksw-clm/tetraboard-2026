@@ -1,7 +1,5 @@
 import { chatRetentionCutoff, type ChatScope } from "../domain/chat";
-
-const reportWindowMs = 3600000;
-const reportLimit = 5;
+import { reportLimit, reportWindowMs } from "./reportLimits";
 
 export type ChatReport = { accountId: string; messageId: string; tournamentId: ChatScope };
 export type ChatReportAttempt = ChatReport & {

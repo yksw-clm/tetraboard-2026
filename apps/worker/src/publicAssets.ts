@@ -40,7 +40,7 @@ function isSpaPath(path: string) {
       "/games/four-reversi/matchmaking",
       "/games/shogi/matchmaking",
     ].includes(path.replace(/\/$/, "")) ||
-    /^\/(?:rooms|matches|updates)\/[^/]+\/?$/.test(path) ||
+    /^\/(?:rooms|matches|players|updates)\/[^/]+\/?$/.test(path) ||
     tournamentDetailPath.test(path) ||
     /^\/account\/matches\/[^/]+\/?$/.test(path)
   );

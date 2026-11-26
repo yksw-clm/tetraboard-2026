@@ -116,24 +116,28 @@ test("公開カードは通常テキストとゲーム名を表示し、未設�
   await pending;
   const state = store.get(JSON.stringify(["four-reversi", target]));
   const view = render(
-    <PlayerProfileCard state={state} game="four-reversi" mode="singles" onRetry={() => {}} />,
+    wrap()(
+      <PlayerProfileCard state={state} game="four-reversi" mode="singles" onRetry={() => {}} />,
+    ),
   );
   expect(view.querySelector('[aria-label="ひとこと"]')!.textContent).toContain("<b>対局しよう</b>");
   expect(view.querySelector("b")).toBeNull();
   expect(view.querySelector('[aria-label="お気に入りゲーム"]')!.textContent).toContain("将棋");
   const empty = render(
-    <PlayerProfileCard
-      state={{
-        ...state,
-        profile:
-          state.profile?.kind === "account"
-            ? { ...state.profile, profileMessage: "", favoriteGames: [] }
-            : null,
-      }}
-      game="four-reversi"
-      mode="singles"
-      onRetry={() => {}}
-    />,
+    wrap()(
+      <PlayerProfileCard
+        state={{
+          ...state,
+          profile:
+            state.profile?.kind === "account"
+              ? { ...state.profile, profileMessage: "", favoriteGames: [] }
+              : null,
+        }}
+        game="four-reversi"
+        mode="singles"
+        onRetry={() => {}}
+      />,
+    ),
   );
   expect(empty.querySelector('[aria-label="ひとこと"]')).toBeNull();
   expect(empty.querySelector('[aria-label="お気に入りゲーム"]')).toBeNull();

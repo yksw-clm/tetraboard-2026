@@ -43,43 +43,42 @@ const unavailable = (): ProfileFailure => ({
   status: 404,
   message: "プロフィールを表示できません。",
 });
-async function resolveSource(
-  r: PlayerProfilePorts,
-  target: PlayerProfileQuery,
-): Promise<ProfileSource> {
-  return target.source === "profile"
-    ? { accountId: await r.profiles.accountId(target.profileId) }
-    : r.source(target);
+type PublicProfileReader = Pick<PlayerProfilePorts, "profiles" | "policy" | "validProfile">;
+
+export async function resolvePublicPlayer(r: PublicProfileReader, profileId: string) {
+  return resolvePublicAccount(r, await r.profiles.accountId(profileId));
 }
+
 export async function readPlayerProfile(
   r: PlayerProfilePorts,
   target: PlayerProfileQuery,
 ): Promise<PlayerProfile | ProfileFailure> {
-  const source = await resolveSource(r, target);
+  if (target.source === "profile") {
+    const resolved = await resolvePublicPlayer(r, target.profileId);
+    return resolved ? readAccountCard(r, target, resolved) : unavailable();
+  }
+  const source = await r.source(target);
   if ("status" in source) return source;
   if (source.appearance?.kind === "cpu") return source.appearance;
   if (source.retired) return { status: 404, message: "退会したプレイヤーです。" };
   if (source.appearance && !source.accountId) return source.appearance;
-  let accountId = source.accountId;
-  if (accountId) accountId = (await r.profiles.mergedAccountId(accountId)) ?? accountId;
-  const profile = accountId
-    ? (await readCurrentProfiles(r.profiles, r.policy, [accountId])).get(accountId)
-    : undefined;
-  if (
-    !accountId ||
-    !profile ||
-    !profile.profileCompleted ||
-    (!profile.isAnonymous && !r.validProfile(profile))
-  )
-    return unavailable();
-  if (!profile.publicProfileId) throw new Error("Public profile ID is missing");
-  return readAccountCard(r, target, accountId, profile, source.rating);
+  const resolved = await resolvePublicAccount(r, source.accountId);
+  return resolved ? readAccountCard(r, target, resolved, source.rating) : unavailable();
 }
+
+async function resolvePublicAccount(r: PublicProfileReader, sourceId: string | null) {
+  if (!sourceId) return null;
+  const accountId = (await r.profiles.mergedAccountId(sourceId)) ?? sourceId;
+  const profile = (await readCurrentProfiles(r.profiles, r.policy, [accountId])).get(accountId);
+  if (!profile?.profileCompleted || (!profile.isAnonymous && !r.validProfile(profile))) return null;
+  if (!profile.publicProfileId) throw new Error("Public profile ID is missing");
+  return { accountId, profile, profileId: profile.publicProfileId };
+}
+
 async function readAccountCard(
   r: PlayerProfilePorts,
   target: PlayerProfileQuery,
-  accountId: string,
-  profile: CurrentProfile,
+  { accountId, profile, profileId }: NonNullable<Awaited<ReturnType<typeof resolvePublicAccount>>>,
   rating?: ProfileRating,
 ): Promise<PlayerProfile> {
   const stats = await r.stats(accountId, target.game);
@@ -97,7 +96,7 @@ async function readAccountCard(
   return {
     kind: "account",
     ...(profile.isAnonymous ? { isGuest: true } : {}),
-    profileId: profile.publicProfileId!,
+    profileId,
     name: profile.name,
     username: profile.username,
     avatarUrl: profile.avatarUrl,
