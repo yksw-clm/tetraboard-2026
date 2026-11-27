@@ -28,7 +28,8 @@ beforeAll(async () => {
 });
 
 function CurrentPath() {
-  return <p aria-label="現在のパス">{useLocation().pathname}</p>;
+  const { pathname, search } = useLocation();
+  return <p aria-label="現在のパス">{pathname + search}</p>;
 }
 
 function lobby(game: GameId, user: AccountProfile | null, loading = false) {
@@ -203,13 +204,14 @@ test("読み込み中は3枠と1つの案内を出し、削除枠を除いて新
   expect(links.map((link) => link.getAttribute("href"))).toEqual(
     [first, third, fourth].map(({ id }) => `/posts/${id}`),
   );
-  expect(links[0]!.textContent).toContain(first.author.name);
   expect(links[0]!.textContent).toContain(first.text);
   const firstCard = links[0]!.closest("li")!;
+  expect(firstCard.querySelector("header")?.textContent).toContain(first.author.name);
+  expect(firstCard.querySelector("header a, header button")).toBeNull();
   expect(firstCard.querySelector(".sr-only")?.textContent).toBe("返信 2 件");
   expectLike(like(firstCard), false, 3);
-  expect(links[0]!.querySelector("time")?.textContent).toBe("1分前");
-  expect(links[0]!.querySelector("time")?.dateTime).toBe(new Date(first.postedAtMs).toISOString());
+  expect(firstCard.querySelector("time")?.textContent).toBe("1分前");
+  expect(firstCard.querySelector("time")?.dateTime).toBe(new Date(first.postedAtMs).toISOString());
   expect(links[0]!.querySelector("a, button")).toBeNull();
   expect(section.querySelector('[aria-label*="盤面"]')).toBeNull();
   expect(section.textContent).not.toContain("ルーム 12345");
@@ -225,6 +227,31 @@ async function showPosts(user: AccountProfile | null, ...posts: BoardPublishedPo
   await flush();
   return { view, cards: [...preview(view).querySelectorAll("li")] };
 }
+
+test("ロビーでアバターと名前を押すと投稿のゲームの公開プレイヤーページに移る", async () => {
+  const first = post(1);
+  first.gameId = "four-reversi";
+  const profileId = post(2).id;
+  first.author.profileTarget = { source: "profile", profileId };
+  const {
+    view,
+    cards: [card],
+  } = await showPosts(viewer, first);
+  const playerPath = `/players/${profileId}?game=four-reversi&mode=singles`;
+  const profile = card!.querySelector<HTMLAnchorElement>(`a[href="${playerPath}"]`)!;
+  const detail = card!.querySelector<HTMLAnchorElement>(`a[href="/posts/${first.id}"]`)!;
+  expect(profile?.textContent).toBe(first.author.name);
+  expect(profile.querySelector("svg")).not.toBeNull();
+  expect(profile.parentElement?.closest("a")).toBeNull();
+  expect(profile.classList.contains("z-10")).toBe(true);
+  expect(detail.textContent).toContain(first.text);
+  expect(detail.classList.contains("before:inset-0")).toBe(true);
+  expect(detail.querySelector("a, button")).toBeNull();
+  const requestCount = requests.length;
+  await act(async () => profile.click());
+  expect(view.querySelector('[aria-label="現在のパス"]')?.textContent).toBe(playerPath);
+  expect(requests).toHaveLength(requestCount);
+});
 
 test("ロビーのいいねは詳細へ移らず、即時表示して応答で数を確定する", async () => {
   const first = post(1);
