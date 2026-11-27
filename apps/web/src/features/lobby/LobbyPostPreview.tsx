@@ -85,16 +85,11 @@ export function LobbyPostPreview({ game }: { game: GameId }) {
         title="みんなの投稿"
         description={`${name}の掲示板の新しい投稿です。`}
       >
-        <div className="flex shrink-0 items-center gap-1">
-          {state.status === "ready" && state.data.acceptingPosts && (
-            <AppButtonLink size="compact" appearance="quiet" className="px-2" to={timelinePath}>
-              投稿する
-            </AppButtonLink>
-          )}
+        {state.status === "ready" && state.data.acceptingPosts && (
           <AppButtonLink size="compact" appearance="quiet" className="px-2" to={timelinePath}>
-            もっと見る
+            投稿する
           </AppButtonLink>
-        </div>
+        )}
       </AppSectionHeading>
       {state.status === "loading" && <PostPreviewSkeleton />}
       {(needsReload || state.status === "api-error") && (
@@ -112,6 +107,9 @@ export function LobbyPostPreview({ game }: { game: GameId }) {
         </div>
       )}
       {state.status === "ready" && <state.Posts {...state.data} />}
+      <AppButtonLink appearance="secondary" className="mt-2 w-full" to={timelinePath}>
+        掲示板をすべて見る
+      </AppButtonLink>
     </section>
   );
 }

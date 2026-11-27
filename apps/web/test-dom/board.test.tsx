@@ -789,7 +789,9 @@ test("省略した投稿ではカードを取得せず、詳細では全文の�
     expect(link?.hasAttribute("target")).toBe(false);
     expect(short?.querySelector('a[href*="example.com"]')).toBeNull();
     expect(short?.textContent).toContain(external);
-    expect(short?.querySelector(`a[href="${postPath}"]`)?.textContent).toBe("返信 0");
+    const replies = short?.querySelector(`a[href="${postPath}"]`);
+    expect(replies?.querySelector(".sr-only")?.textContent).toBe("返信 0 件");
+    expect(replies?.querySelector('[aria-hidden="true"]')?.textContent).toBe("0");
     act(() => more!.click());
     await flush();
     expect(latest().url).toBe(`/api/posts/${uuid(2)}${detailQuery}`);
@@ -959,7 +961,7 @@ test("詳細は全文と正確な日時を表示し、返信の追加取得と�
     thread({ ...parent, replyCount: 7, liked: true, likeCount: 14 }, [first], cursor(newReply)),
   );
   expect(articles(view)[2]?.textContent).toContain(newReply.text);
-  expect(main.textContent).toContain("返信 7");
+  expect(main.textContent).toContain("返信 7 件");
   expect(like(main).textContent).toContain("14");
   expect(like(main).getAttribute("aria-pressed")).toBe("true");
   press(view, "もっと見る");
@@ -969,7 +971,7 @@ test("詳細は全文と正確な日時を表示し、返信の追加取得と�
   expect(articles(view)[1]?.textContent).toContain(first.text);
   expect(articles(view)[2]?.textContent).toContain(second.text);
   expect(articles(view)[3]?.textContent).toContain(newReply.text);
-  expect(main.textContent).toContain("返信 7");
+  expect(main.textContent).toContain("返信 7 件");
 });
 
 test("返信送信後に同期が失敗しても返信を表示し、再試行で返信数を同期する", async () => {
@@ -986,7 +988,7 @@ test("返信送信後に同期が失敗しても返信を表示し、再試行�
   expect(input(view).value).toBe("");
   expect(articles(view)).toHaveLength(3);
   expect(articles(view)[2]?.textContent).toContain(sent.text);
-  expect(articles(view)[0]?.textContent).toContain("返信 1");
+  expect(articles(view)[0]?.textContent).toContain("返信 1 件");
   expect(view.textContent).toContain("投稿を取得できませんでした。");
   press(view, "再試行");
   await respond({
@@ -994,7 +996,7 @@ test("返信送信後に同期が失敗しても返信を表示し、再試行�
     acceptingPosts: false,
   });
   expect(articles(view)).toHaveLength(3);
-  expect(articles(view)[0]?.textContent).toContain("返信 8");
+  expect(articles(view)[0]?.textContent).toContain("返信 8 件");
   expect(view.textContent).toContain("現在、掲示板への投稿を受け付けていません。");
   expect(view.textContent).not.toContain("もっと見る");
   expect(view.textContent).not.toContain("再試行");
@@ -1016,7 +1018,7 @@ test("返信の再送成功は一覧にある返信も重複させず、返信�
   expect(latest().url).toBe(detailUrl);
   await respond(thread({ ...parent, replyCount: 3 }, [saved]));
   expect(articles(view)).toHaveLength(2);
-  expect(articles(view)[0]?.textContent).toContain("返信 3");
+  expect(articles(view)[0]?.textContent).toContain("返信 3 件");
 
   enter(input(view), "別の返信");
   press(view, "返信する");
@@ -1024,7 +1026,7 @@ test("返信の再送成功は一覧にある返信も重複させず、返信�
   expect(latest().url).toBe(detailUrl);
   await respond(thread({ ...parent, replyCount: 4 }, [saved, reply(3, "別の返信")]));
   expect(articles(view)).toHaveLength(3);
-  expect(articles(view)[0]?.textContent).toContain("返信 4");
+  expect(articles(view)[0]?.textContent).toContain("返信 4 件");
 });
 
 test.each([503, 200])("詳細の障害・不正な応答では再試行できる（HTTP %s）", async (status) => {
@@ -1256,7 +1258,9 @@ test("タイムラインの削除は詳細の404で消し、200なら返信の�
   expect(placeholder?.textContent).not.toContain(gainsReply.text);
   expect(placeholder?.textContent).not.toContain(gainsReply.author.name);
   expect(placeholder?.querySelector("button")).toBeNull();
-  expect(placeholder?.querySelector("a")?.textContent).toBe("返信 2");
+  const replies = placeholder?.querySelector("a");
+  expect(replies?.getAttribute("href")).toBe(`/posts/${gainsReply.id}`);
+  expect(replies?.querySelector(".sr-only")?.textContent).toBe("返信 2 件");
   expect(preserved?.textContent).toContain(older.text);
   press(view, "もっと見る");
   expect(latest().url).toBe(`${timelineUrl}&before=${encodeURIComponent(cursor(older))}`);
@@ -1297,7 +1301,7 @@ test("詳細で返信を削除すると読み直した数になり、投稿の�
   expect(latest().init.method).toBeUndefined();
   await respond(thread({ ...parent, replyCount: 5 }, [reply(4, "新しい返信")], cursor(remaining)));
   expect(articles(view)).toHaveLength(3);
-  expect(articles(view)[0]?.textContent).toContain("返信 5");
+  expect(articles(view)[0]?.textContent).toContain("返信 5 件");
   expect(articles(view)[1]?.textContent).toContain(remaining.text);
   expect(view.textContent).not.toContain("本人の返信");
   expect(view.textContent).not.toContain("もっと見る");
@@ -1325,14 +1329,14 @@ test("返信削除後の同期に失敗しても表示を保ち、再試行で�
   expect(latest().url).toBe(detailUrl);
   await respond(null, 503);
   expect(articles(view)[2]?.textContent).toContain(removed.text);
-  expect(articles(view)[0]?.textContent).toContain("返信 2");
+  expect(articles(view)[0]?.textContent).toContain("返信 2 件");
   press(view, "再試行");
   expect(latest().url).toBe(detailUrl);
   expect(latest().init.method).toBeUndefined();
   await respond(thread({ ...parent, replyCount: 1 }, [remaining], cursor(remaining)));
   expect(articles(view)).toHaveLength(2);
   expect(articles(view)[1]?.textContent).toContain(remaining.text);
-  expect(articles(view)[0]?.textContent).toContain("返信 1");
+  expect(articles(view)[0]?.textContent).toContain("返信 1 件");
   expect(view.textContent).not.toContain("もっと見る");
 });
 
@@ -1354,7 +1358,7 @@ test.each([false, true])(
     }
     const [placeholder, child] = articles(view);
     expect(placeholder?.textContent).toContain("削除された投稿");
-    expect(placeholder?.textContent).toContain("返信 1");
+    expect(placeholder?.textContent).toContain("返信 1 件");
     expect(placeholder?.textContent).not.toContain(parent.text);
     expect(placeholder?.textContent).not.toContain(parent.author.name);
     expect(placeholder?.querySelector("button")).toBeNull();
