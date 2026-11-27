@@ -47,6 +47,23 @@ export function nextBoardPostAt(postedAtMs: number) {
   return postedAtMs + boardPostIntervalMs;
 }
 
+export type BoardWriteState = {
+  eligible: number;
+  parentAvailable: number;
+  accepting: number;
+  stopped: number;
+  lastPostedAtMs: number;
+};
+
+export function boardWriteRejection(state: BoardWriteState, lastPostByMs: number) {
+  if (!state.eligible) return { status: "ineligible" } as const;
+  if (!state.parentAvailable) return { status: "notFound" } as const;
+  if (!state.accepting || state.stopped) return { status: "stopped" } as const;
+  if (state.lastPostedAtMs !== 0 && state.lastPostedAtMs > lastPostByMs)
+    return { status: "rateLimited", availableAtMs: nextBoardPostAt(state.lastPostedAtMs) } as const;
+  return null;
+}
+
 export function boardPostingState(
   state: { accepting: number; stopped: number; lastPostedAtMs: number },
   now: () => number,

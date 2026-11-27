@@ -1,12 +1,13 @@
 import {
+  boardAttachmentSchema,
   boardPostResultSchema,
   boardReplyResultSchema,
   type BoardPost,
   type BoardReply,
 } from "@tetraboard/protocol/board";
 import { gameCatalog, isGameId, type GameId } from "@tetraboard/protocol/games";
-import { useCallback, useEffect, useRef, type ReactNode } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { updatePageMetadata } from "../../seo/pageMetadata";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppHeader } from "../../shared/ui/AppHeader";
@@ -17,11 +18,12 @@ import { useAccount } from "../account/useAccount";
 import { boardLinkClasses } from "./BoardBody";
 import { BoardComposer } from "./BoardComposer";
 import { BoardEntry } from "./BoardEntry";
+import { BoardMediaContext, createBoardMedia, refreshBoardMedia } from "./boardMedia";
 import {
   boardLoadError,
   boardMissing,
   boardPostPath,
-  boardRequest,
+  boardEntriesRequest,
   boardTimelinePath,
   readDetail,
   readDetailOrMissing,
@@ -31,13 +33,23 @@ import {
 import { boardPageMetadata } from "./boardPageMetadata";
 import { useBoardData } from "./useBoardData";
 
-function BoardLayout({ game, children }: { game: GameId; children: ReactNode }) {
+function BoardLayout({
+  game,
+  media,
+  children,
+}: {
+  game: GameId;
+  media: ReturnType<typeof createBoardMedia>;
+  children: ReactNode;
+}) {
   const theme = gameThemes[game];
   return (
     <div className={`app-theme ${appThemeClasses[theme]} lobby-background min-h-dvh text-ink`}>
       <AppHeader homeTo="/" homeLabel="総合ロビーへ" theme={theme} />
       <main className={`${appPageWidthClasses} space-y-5 py-6 sm:py-8`}>
-        <div className="mx-auto grid min-w-0 max-w-3xl gap-5">{children}</div>
+        <BoardMediaContext.Provider value={media}>
+          <div className="mx-auto grid min-w-0 max-w-3xl gap-5">{children}</div>
+        </BoardMediaContext.Provider>
       </main>
     </div>
   );
@@ -98,6 +110,14 @@ function useViewerKey() {
   return JSON.stringify([user?.profileId ?? user?.username, user?.isGuest, user?.profileCompleted]);
 }
 
+function readAttachment(search: URLSearchParams) {
+  const [matchId, ...matches] = search.getAll("match");
+  const [position, ...positions] = search.getAll("position");
+  if (!position || !/^\d+$/.test(position) || matches.length || positions.length) return null;
+  const result = boardAttachmentSchema.safeParse({ matchId, position: Number(position) });
+  return result.success ? result.data : null;
+}
+
 export function BoardTimelinePage() {
   const { gameId } = useParams();
   const viewer = useViewerKey();
@@ -108,10 +128,24 @@ export function BoardTimelinePage() {
 function BoardTimeline({ game }: { game: GameId }) {
   const catalog = gameCatalog[game];
   const path = boardTimelinePath(game);
+  const [search, setSearch] = useSearchParams();
+  const [media, setMedia] = useState(createBoardMedia);
+  const attachment = readAttachment(search);
   const readFirst = useCallback((signal: AbortSignal) => readTimeline(game, signal), [game]);
   const board = useBoardData(readFirst);
   const { data, pending, failure } = board;
   const busy = pending !== null;
+
+  function refresh(retry = false) {
+    void board.refresh(retry, () => setMedia(refreshBoardMedia(media)));
+  }
+
+  function clearAttachment() {
+    const next = new URLSearchParams(search);
+    next.delete("match");
+    next.delete("position");
+    setSearch(next, { replace: true });
+  }
 
   const more = (retry = false) => {
     const before = data?.nextCursor;
@@ -142,7 +176,7 @@ function BoardTimeline({ game }: { game: GameId }) {
   }
 
   return (
-    <BoardLayout game={game}>
+    <BoardLayout game={game} media={media}>
       <div className="grid gap-2">
         <Link to={catalog.lobbyPath} className={boardLinkClasses}>
           {catalog.name}のロビーへ
@@ -152,7 +186,7 @@ function BoardTimeline({ game }: { game: GameId }) {
           {data && (
             <AppButton
               appearance="secondary"
-              onPress={() => void board.refresh()}
+              onPress={() => refresh()}
               isPending={pending === "refresh"}
               isDisabled={busy}
             >
@@ -165,12 +199,18 @@ function BoardTimeline({ game }: { game: GameId }) {
         <>
           <BoardComposer
             posting={data}
-            returnTo={path}
+            returnTo={
+              attachment
+                ? `${path}?match=${attachment.matchId}&position=${attachment.position}`
+                : path
+            }
+            attachment={attachment}
+            onClearAttachment={clearAttachment}
             placeholder={`${catalog.name}について投稿する`}
             busy={busy}
             write={board.write}
             onSubmit={async (input, signal) => {
-              const response = await boardRequest(
+              const response = await boardEntriesRequest(
                 path,
                 {
                   method: "POST",
@@ -233,7 +273,7 @@ function BoardTimeline({ game }: { game: GameId }) {
       )}
       {failure && (
         <Retry
-          action={() => (failure.source === "more" ? more(true) : void board.refresh(true))}
+          action={() => (failure.source === "more" ? more(true) : refresh(true))}
           pending={pending === "retry"}
           disabled={busy}
         />
@@ -250,6 +290,7 @@ export function BoardDetailPage() {
 
 function BoardDetail({ id }: { id: string }) {
   const navigate = useNavigate();
+  const [media] = useState(createBoardMedia);
   const { pathname } = useLocation();
   const path = boardPostPath(id);
   const readFirst = useCallback(
@@ -369,7 +410,7 @@ function BoardDetail({ id }: { id: string }) {
     onRemove: (removedId: string, signal: AbortSignal) => syncDetail(signal, { removedId }),
   };
   return (
-    <BoardLayout game={game}>
+    <BoardLayout game={game} media={media}>
       <nav aria-label="掲示板の移動" className="flex flex-wrap gap-x-4 gap-y-2">
         <Link to={timeline} className={boardLinkClasses}>
           {catalog.name}の掲示板へ
@@ -416,7 +457,7 @@ function BoardDetail({ id }: { id: string }) {
           busy={busy}
           write={board.write}
           onSubmit={async (input, signal) => {
-            const response = await boardRequest(
+            const response = await boardEntriesRequest(
               path + "/replies",
               {
                 method: "POST",

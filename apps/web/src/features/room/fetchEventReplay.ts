@@ -1,3 +1,4 @@
+import { eventReplayPositions } from "@tetraboard/protocol/replay-positions";
 import { replayDataEqual } from "./replayDataEqual";
 type EventPage<I, E> = {
   initial: I;
@@ -68,7 +69,11 @@ export async function fetchEventReplay<I, E, S, F extends { game: { status: stri
       frames.push(rules.createFrame(state, { before, event: entry.event }));
       cursor++;
     }
-    if (page.nextCursor === null) break;
+    if (page.nextCursor === null) {
+      if (frames.length !== eventReplayPositions(page.eventCount).length)
+        throw new Error("Replay position count mismatch");
+      break;
+    }
   }
   const final = frames.at(-1)?.game;
   if (!final || final.status !== "finished" || !replayDataEqual(final, finalGame))

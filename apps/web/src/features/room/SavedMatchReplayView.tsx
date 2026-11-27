@@ -79,17 +79,28 @@ export function SavedMatchReplayView({
     <main
       className={`app-theme ${appThemeClasses[theme]} room-background flex flex-col h-dvh overflow-hidden text-ink text-sm leading-normal`}
     >
-      {!match.selfPlayerId && (
-        <section
-          aria-label="このゲームを遊ぶ"
-          className="flex w-full shrink-0 items-center gap-2 border-b border-solid border-line bg-surface-muted px-3 py-1.5"
+      <section
+        aria-label={match.selfPlayerId ? "棋譜の操作" : "このゲームを遊ぶ"}
+        className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 border-b border-solid border-line bg-surface-muted px-3 py-1.5"
+      >
+        {!match.selfPlayerId && (
+          <>
+            <p className="min-w-32 flex-1 text-xs">
+              {title}は登録なしで、ブラウザからすぐ遊べます。
+            </p>
+            <AppButtonLink appearance="primary" size="compact" to={lobbyPath}>
+              {name}を遊ぶ
+            </AppButtonLink>
+          </>
+        )}
+        <AppButtonLink
+          appearance="secondary"
+          size="compact"
+          to={`/games/${game}/posts?match=${match.id}&position=${replay.index}`}
         >
-          <p className="min-w-0 flex-1 text-xs">{title}は登録なしで、ブラウザからすぐ遊べます。</p>
-          <AppButtonLink appearance="primary" size="compact" to={lobbyPath}>
-            {name}を遊ぶ
-          </AppButtonLink>
-        </section>
-      )}
+          この局面で投稿する
+        </AppButtonLink>
+      </section>
       <RoomLayout
         statusBelowBoard
         desktop={desktop}
