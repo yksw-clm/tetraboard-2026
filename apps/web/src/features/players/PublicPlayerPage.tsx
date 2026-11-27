@@ -5,12 +5,15 @@ import {
 } from "@tetraboard/protocol";
 import { defaultGameId, gameCatalog, isGameId, type GameId } from "@tetraboard/protocol/games";
 import { useCallback, useState } from "react";
-import { useParams, useSearchParams } from "react-router";
+import { Navigate, useParams, useSearchParams } from "react-router";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppHeader } from "../../shared/ui/AppHeader";
+import { AppPageLoading } from "../../shared/ui/AppPageState";
 import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { appPageWidthClasses } from "../../shared/ui/pageLayout";
+import { useAccount } from "../account/useAccount";
+import { createAccountSelection } from "../account/useAccountSelection";
 import { MatchHistoryCard } from "../matches/MatchHistoryCard";
 import { PlayerAvatar } from "../room/PlayerAvatar";
 import { PlayerProfileId, PublicPlayerStats, type PublicAccountProfile } from "./PlayerProfileCard";
@@ -22,6 +25,8 @@ import { usePublicPlayerRequest } from "./usePublicPlayerRequest";
 export function PublicPlayerPage() {
   const { profileId = "" } = useParams();
   const [search, setSearch] = useSearchParams();
+  const { user, loading } = useAccount();
+  const [accountChecked, setAccountChecked] = useState(!loading);
   const [unavailableProfiles, setUnavailableProfiles] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -33,6 +38,16 @@ export function PublicPlayerPage() {
   const game = isGameId(selectedGame) ? selectedGame : defaultGameId;
   const mode =
     gameCatalog[game].hasModes && search.get("mode") === "doubles" ? "doubles" : "singles";
+
+  if (!accountChecked && !loading) setAccountChecked(true);
+  if (profileId && user?.profileId === profileId) {
+    const accountSelection = createAccountSelection(game);
+    accountSelection.modes[game] = mode;
+    return <Navigate to="/account" replace state={{ accountSelection }} />;
+  }
+  if (!accountChecked && loading && !user)
+    return <AppPageLoading message="ログイン状態を確認しています…" />;
+
   const theme = gameThemes[game];
 
   return (

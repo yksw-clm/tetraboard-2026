@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createMemoryRouter, RouterProvider } from "react-router";
+import { createMemoryRouter, NavigationType, RouterProvider } from "react-router";
 import { type GameId, gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { type MatchSummary } from "@tetraboard/protocol";
 import { AccountLayout } from "../src/features/account/AccountSession";
@@ -53,6 +53,7 @@ function player(game: GameId, profileId = playerId) {
 }
 const profiles = () => requests.filter((request) => request.url.startsWith("/api/player-profile?"));
 const histories = () => requests.filter((request) => request.url.startsWith("/api/players/"));
+const session = () => requests.findLast((request) => request.url === "/api/account/session")!;
 
 function open(initialEntry = pagePath) {
   const router = createMemoryRouter(
@@ -79,6 +80,7 @@ function open(initialEntry = pagePath) {
           },
           { path: "/players/:profileId", element: <PublicPlayerPage /> },
           { path: "/matches/:matchId", element: <p>公開棋譜の画面</p> },
+          { path: "/account", element: <p>マイページ</p> },
           { path: "/account/setup", element: <p>初回設定の画面</p> },
         ],
       },
@@ -89,9 +91,92 @@ function open(initialEntry = pagePath) {
   return { view, router };
 }
 
+test("本人のカード内の名前リンクは再確認中でもマイページへ移動し、戻るとロビーを開く", async () => {
+  const { view, router } = open("/lobby");
+  session().respond({ user: { ...signedIn, profileId: playerId } });
+  await flush();
+  press(view, "カードの名前");
+  await flush();
+  profiles()[0]!.respond(player("four-shogi"));
+  await flush();
+
+  act(() => window.dispatchEvent(new Event("focus")));
+  act(() => document.querySelector<HTMLAnchorElement>(`a[href^="${pagePath}?"]`)!.click());
+  await flush();
+  expect(router.state.historyAction).toBe(NavigationType.Replace);
+  expect(router.state.location.pathname).toBe("/account");
+  expect(router.state.location.search).toBe("");
+  expect(router.state.location.state.accountSelection).toMatchObject({
+    game: "four-shogi",
+    modes: { "four-shogi": "doubles" },
+  });
+  expect(view.textContent).toContain("マイページ");
+  expect(profiles()).toHaveLength(1);
+  expect(histories()).toHaveLength(0);
+
+  await act(async () => router.navigate(-1));
+  expect(router.state.location.pathname).toBe("/lobby");
+});
+
+test("直アクセスでは本人の確認を待ち、公開プロフィールと棋譜を読み込まずにマイページへ移動する", async () => {
+  const { view, router } = open(`${pagePath}?game=reversi&mode=doubles`);
+  await flush();
+  expect(router.state.location.pathname).toBe(pagePath);
+  expect(view.textContent).toContain("ログイン状態を確認しています…");
+  expect(view.querySelector("h1")).toBeNull();
+  expect(view.querySelector('[aria-labelledby="public-player-matches"]')).toBeNull();
+
+  session().respond({ user: { ...signedIn, profileId: playerId, isGuest: true } });
+  await flush();
+  expect(router.state.historyAction).toBe(NavigationType.Replace);
+  expect(router.state.location.pathname).toBe("/account");
+  expect(router.state.location.state.accountSelection).toMatchObject({
+    game: "reversi",
+    modes: { reversi: "singles" },
+  });
+  expect(view.textContent).toContain("マイページ");
+  expect(profiles()).toHaveLength(0);
+  expect(histories()).toHaveLength(0);
+});
+
+test.each([
+  ["未ログイン", null],
+  ["別アカウント", { ...signedIn, profileId: otherId }],
+] as const)(
+  "%sで再確認中も公開ページを保持し、本人と判明したらマイページへ移動する",
+  async (_, user) => {
+    const { view, router } = open(`${pagePath}?game=reversi`);
+    session().respond({ user });
+    await flush();
+    profiles()[0]!.respond(player("reversi"));
+    histories()[0]!.respond({ matches: [reversiMatch] });
+    await flush();
+
+    act(() => window.dispatchEvent(new Event("focus")));
+    const replayLink = `a[href="/matches/${reversiMatch.id}"]`;
+    expect(view.querySelector("h1")?.textContent).toBe("公開プレイヤー");
+    expect(view.querySelector(replayLink)).not.toBeNull();
+    session().respond({ user });
+    await flush();
+    expect(router.state.location.pathname).toBe(pagePath);
+    expect(view.querySelector(replayLink)).not.toBeNull();
+    expect(profiles()).toHaveLength(1);
+    expect(histories()).toHaveLength(1);
+
+    act(() => window.dispatchEvent(new Event("focus")));
+    session().respond({ user: { ...signedIn, profileId: playerId } });
+    await flush();
+    expect(router.state.historyAction).toBe(NavigationType.Replace);
+    expect(router.state.location.pathname).toBe("/account");
+    expect(view.querySelector(replayLink)).toBeNull();
+    expect(profiles()).toHaveLength(1);
+    expect(histories()).toHaveLength(1);
+  },
+);
+
 test("未ログインでカード内の名前リンクから四人将棋ダブルスを開き、棋譜を往復しても選択と公開IDを保つ", async () => {
   const { view, router } = open("/lobby");
-  requests.find((request) => request.url === "/api/account/session")!.respond({ user: null });
+  session().respond({ user: null });
   press(view, "カードの名前");
   await flush();
   profiles()[0]!.respond({
@@ -156,6 +241,8 @@ test("未ログインでカード内の名前リンクから四人将棋ダブ�
 
 test("ゲームを切り替えてもヘッダーロゴは標準テーマで、本文だけがゲームテーマに切り替わる", async () => {
   const { view } = open();
+  session().respond({ user: null });
+  await flush();
   const logo = view.querySelector('header a[aria-label="TetraBoard ロビー"] .text-brand')!;
   const main = view.querySelector("main")!;
   const gameTheme = '[class*="game-theme-"]';
@@ -180,11 +267,10 @@ test("直リンクの既定、6ゲーム、四人ゲームのモード切替と�
     expect(document.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
       "noindex,follow",
     );
-    requests
-      .find((request) => request.url === "/api/account/session")!
-      .respond({
-        user: { ...signedIn, name: "", username: null, profileCompleted: false },
-      });
+    session().respond({
+      user: { ...signedIn, profileId: otherId, name: "", username: null, profileCompleted: false },
+    });
+    await flush();
     profiles()[0]!.respond(player("four-reversi"));
     histories()[0]!.respond({ matches: [] });
     await flush();
@@ -224,6 +310,8 @@ test("直リンクの既定、6ゲーム、四人ゲームのモード切替と�
 
 test("取得失敗と空一覧を区別し、失敗した欄だけ再試行し、閲覧不可で表示済みの棋譜を消す", async () => {
   const { view } = open();
+  session().respond({}, 503);
+  await flush();
   profiles()[0]!.respond({}, 503);
   histories()[0]!.reject(new Error("オフライン"));
   await flush();
@@ -244,7 +332,7 @@ test("取得失敗と空一覧を区別し、失敗した欄だけ再試行し�
   histories()[2]!.respond({ matches: [saved] });
   await flush();
   expect(view.querySelector(`a[href="/matches/${saved.id}"]`)).not.toBeNull();
-  press(view, "再試行");
+  press(view.querySelector("main")!, "再試行");
   await flush();
   expect(profiles()).toHaveLength(2);
   expect(histories()).toHaveLength(3);
@@ -256,6 +344,8 @@ test("取得失敗と空一覧を区別し、失敗した欄だけ再試行し�
 
 test("棋譜が404になったプレイヤーは別モードへ戻って再取得が失敗しても再表示しない", async () => {
   const { view, router } = open(`${pagePath}?game=four-reversi&mode=singles`);
+  session().respond({ user: null });
+  await flush();
   const saved = match(1);
   profiles()[0]!.respond(player("four-reversi"));
   histories()[0]!.respond({ matches: [saved] });
@@ -297,6 +387,8 @@ test("棋譜が404になったプレイヤーは別モードへ戻って再取�
 
 test("別ゲーム・別人へ移動すると旧応答を破棄し、現行の棋譜側の404でプロフィールを消す", async () => {
   const { view, router } = open();
+  session().respond({ user: null });
+  await flush();
   const firstProfile = profiles()[0]!;
   const firstHistory = histories()[0]!;
   press(view, "リバーシ");
