@@ -93,7 +93,10 @@ export const notificationEvents = sqliteTable(
       t.accountId,
     ),
     index("notification_events_account").on(t.accountId, t.seq),
-    check("notification_events_check_1", sql`kind IN ('announcement','tournament','badge')`),
+    check(
+      "notification_events_check_1",
+      sql`kind IN ('announcement','tournament','badge','reply')`,
+    ),
   ],
 );
 

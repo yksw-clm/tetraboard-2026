@@ -217,7 +217,7 @@ export function renderGeneralLobby(template: string, boardSources: LobbyBoardSou
   );
 }
 
-export const robotsText = `User-agent: *\nAllow: /\n${searchIndexable ? `Sitemap: ${publicOrigin}/sitemap.xml\n` : ""}`;
+export const robotsText = `User-agent: *\nAllow: /\n${searchIndexable ? `Sitemap: ${publicOrigin}/sitemap.xml\nSitemap: ${publicOrigin}/sitemap-posts.xml\n` : ""}`;
 export function renderSitemap(): string {
   const pages = searchIndexable
     ? [

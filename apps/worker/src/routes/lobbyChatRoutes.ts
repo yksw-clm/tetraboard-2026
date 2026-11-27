@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import {
-  lobbyChatSchema,
   lobbyPostSchema,
   lobbyPostResultSchema,
   lobbyReportSchema,
@@ -29,19 +28,11 @@ export const lobbyChatRoutes = new Hono<{
   Bindings: Env;
   Variables: {
     user: StoredProfile | null;
-    tournamentId: number | null;
+    tournamentId: number;
     tournament?: TournamentRow;
     readTournamentInChatBatch?: boolean;
   };
 }>();
-lobbyChatRoutes.use("/lobby/chat*", async (c, next) => {
-  c.header("Cache-Control", "no-store");
-  if (c.req.method !== "GET" && c.req.header("Origin") !== c.env.APP_ORIGIN)
-    return c.json({ message: "操作元を確認できません。" }, 403);
-  c.set("user", await accountIdentity(c.req.raw, c.env));
-  c.set("tournamentId", null);
-  await next();
-});
 lobbyChatRoutes.use("/tournaments/:id/chat*", async (c, next) => {
   c.header("Cache-Control", "no-store");
   if (c.req.method !== "GET" && c.req.header("Origin") !== c.env.APP_ORIGIN)
@@ -78,96 +69,92 @@ async function body(request: Request) {
     return null;
   }
 }
-for (const chatPath of ["/lobby/chat", "/tournaments/:id/chat"]) {
-  lobbyChatRoutes.get(chatPath, async (c) => {
-    const query = chatPageQuery.safeParse(c.req.query());
-    if (!query.success) return c.json({ message: "取得条件が正しくありません。" }, 400);
-    const tournamentId = c.get("tournamentId");
-    const db = c.env.APP_DB;
-    let read;
-    try {
-      read = await readChatPage(
-        new D1ChatStore(db),
-        { ...query.data, viewer: c.get("user")?.id, tournamentId },
-        Date.now,
-      );
-    } catch (error) {
-      // batch失敗時は公開確認の結果に従って、従来のエラー応答を返します。
-      if (tournamentId !== null && c.get("readTournamentInChatBatch")) {
-        let tournament;
-        try {
-          tournament = await publicTournament(db, tournamentId);
-        } catch {
-          return c.json({ message: tournamentUnavailableMessage }, 503);
-        }
-        if (!tournament) return c.notFound();
-      }
-      throw error;
-    }
-    if (!read.published && c.get("readTournamentInChatBatch")) return c.notFound();
-    return c.json(
-      (tournamentId === null ? lobbyChatSchema : tournamentChatSchema).parse(read.page),
-    );
-  });
-
-  lobbyChatRoutes.post(chatPath, async (c) => {
-    const user = c.get("user");
-    if (!user) return c.json({ message: "ログインしてください。" }, 401);
-    const profile = chatProfileRejection(user);
-    if (profile === "profileIncomplete")
-      return c.json({ message: "プロフィールの初回設定を完了してください。" }, 403);
-    if (profile === "guestNameRequired")
-      return c.json({ message: "投稿する名前を設定してください。" }, 403);
-    const input = lobbyPostSchema.safeParse(await body(c.req.raw));
-    if (!input.success)
-      return c.json({ message: "本文は100文字以内で入力してください。URLは投稿できません。" }, 400);
-    const result = await postChatMessage(
-      new D1ChatStore(c.env.APP_DB),
-      { ...input.data, accountId: user.id, tournamentId: c.get("tournamentId") },
+lobbyChatRoutes.get("/tournaments/:id/chat", async (c) => {
+  const query = chatPageQuery.safeParse(c.req.query());
+  if (!query.success) return c.json({ message: "取得条件が正しくありません。" }, 400);
+  const tournamentId = c.get("tournamentId");
+  const db = c.env.APP_DB;
+  let read;
+  try {
+    read = await readChatPage(
+      new D1ChatStore(db),
+      { ...query.data, viewer: c.get("user")?.id, tournamentId },
       Date.now,
-      digest,
     );
-    switch (result.status) {
-      case "accepted":
-        return c.json(lobbyPostResultSchema.parse(result), 200);
-      case "changedReplay":
-        return c.json(
-          { message: "再送する本文が変更されています。新しい投稿として送信してください。" },
-          409,
-        );
-      case "closed":
-        return c.json({ message: "チャットの投稿受付は終了しました。" }, 403);
-      case "entryRequired":
-        return c.json({ message: "投稿にはこの大会へのエントリーが必要です。" }, 403);
-      case "stopped":
-        return c.json({ message: "現在、公開チャットへの投稿は停止されています。" }, 403);
-      case "rateLimited":
-        return c.json(
-          {
-            message: "10秒に1件まで投稿できます。少し待ってから再試行してください。",
-            availableAtMs: result.availableAtMs,
-          },
-          429,
-        );
+  } catch (error) {
+    // batch失敗時は公開確認の結果に従って、従来のエラー応答を返します。
+    if (c.get("readTournamentInChatBatch")) {
+      let tournament;
+      try {
+        tournament = await publicTournament(db, tournamentId);
+      } catch {
+        return c.json({ message: tournamentUnavailableMessage }, 503);
+      }
+      if (!tournament) return c.notFound();
     }
-  });
+    throw error;
+  }
+  if (!read.published && c.get("readTournamentInChatBatch")) return c.notFound();
+  return c.json(tournamentChatSchema.parse(read.page));
+});
 
-  lobbyChatRoutes.post(`${chatPath}/reports`, async (c) => {
-    const user = c.get("user");
-    if (!user) return c.json({ message: "ログインしてください。" }, 401);
-    const input = lobbyReportSchema.safeParse(await body(c.req.raw));
-    if (!input.success) return c.json({ message: "通報する発言が正しくありません。" }, 400);
-    const result = await reportChatMessage(
-      new D1ChatReports(c.env.APP_DB),
-      { accountId: user.id, messageId: input.data.messageId, tournamentId: c.get("tournamentId") },
-      Date.now(),
-    );
-    if (result === "created") return c.json({ message: "通報を受け付けました。" }, 201);
-    return result === "existing"
-      ? c.json({ message: "通報を受け付けています。" }, 200)
-      : c.json({ message: "発言が見つからないか、通報回数の上限に達しています。" }, 429);
-  });
-}
+lobbyChatRoutes.post("/tournaments/:id/chat", async (c) => {
+  const user = c.get("user");
+  if (!user) return c.json({ message: "ログインしてください。" }, 401);
+  const profile = chatProfileRejection(user);
+  if (profile === "profileIncomplete")
+    return c.json({ message: "プロフィールの初回設定を完了してください。" }, 403);
+  if (profile === "guestNameRequired")
+    return c.json({ message: "投稿する名前を設定してください。" }, 403);
+  const input = lobbyPostSchema.safeParse(await body(c.req.raw));
+  if (!input.success)
+    return c.json({ message: "本文は100文字以内で入力してください。URLは投稿できません。" }, 400);
+  const result = await postChatMessage(
+    new D1ChatStore(c.env.APP_DB),
+    { ...input.data, accountId: user.id, tournamentId: c.get("tournamentId") },
+    Date.now,
+    digest,
+  );
+  switch (result.status) {
+    case "accepted":
+      return c.json(lobbyPostResultSchema.parse(result), 200);
+    case "changedReplay":
+      return c.json(
+        { message: "再送する本文が変更されています。新しい投稿として送信してください。" },
+        409,
+      );
+    case "closed":
+      return c.json({ message: "チャットの投稿受付は終了しました。" }, 403);
+    case "entryRequired":
+      return c.json({ message: "投稿にはこの大会へのエントリーが必要です。" }, 403);
+    case "stopped":
+      return c.json({ message: "現在、公開チャットへの投稿は停止されています。" }, 403);
+    case "rateLimited":
+      return c.json(
+        {
+          message: "10秒に1件まで投稿できます。少し待ってから再試行してください。",
+          availableAtMs: result.availableAtMs,
+        },
+        429,
+      );
+  }
+});
+
+lobbyChatRoutes.post("/tournaments/:id/chat/reports", async (c) => {
+  const user = c.get("user");
+  if (!user) return c.json({ message: "ログインしてください。" }, 401);
+  const input = lobbyReportSchema.safeParse(await body(c.req.raw));
+  if (!input.success) return c.json({ message: "通報する発言が正しくありません。" }, 400);
+  const result = await reportChatMessage(
+    new D1ChatReports(c.env.APP_DB),
+    { accountId: user.id, messageId: input.data.messageId, tournamentId: c.get("tournamentId") },
+    Date.now(),
+  );
+  if (result === "created") return c.json({ message: "通報を受け付けました。" }, 201);
+  return result === "existing"
+    ? c.json({ message: "通報を受け付けています。" }, 200)
+    : c.json({ message: "発言が見つからないか、通報回数の上限に達しています。" }, 429);
+});
 
 lobbyChatRoutes.get("/admin/lobby-chat", async (c) => {
   const query = c.req.query("tournamentId");

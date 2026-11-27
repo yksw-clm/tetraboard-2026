@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { badgeNotificationSchema } from "./badgeNotifications";
+import { boardPostNumberSchema } from "./boardIds";
+import { gameIdSchema } from "./gameSchemas";
 
 export const notificationNumberSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const common = {
@@ -30,6 +32,18 @@ export const notificationSchema = z.discriminatedUnion("kind", [
     }),
   }),
   z.object({ ...common, kind: z.literal("badge"), badge: badgeNotificationSchema }),
+  z.object({
+    ...common,
+    kind: z.literal("reply"),
+    reply: z.object({
+      postId: z.string(),
+      postNumber: boardPostNumberSchema,
+      replyId: z.string(),
+      gameId: gameIdSchema,
+      authorName: z.string(),
+      text: z.string(),
+    }),
+  }),
 ]);
 export type Notification = z.infer<typeof notificationSchema>;
 export const notificationListSchema = z.object({

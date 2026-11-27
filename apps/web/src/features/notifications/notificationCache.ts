@@ -1,14 +1,15 @@
-import type { NotificationList } from "@tetraboard/protocol";
+import type { DisplayNotificationList } from "./notificationResponses";
 
 /** 本人ごとの最新20件と、このタブで確定した既読だけをメモリに保持します。 */
 export class NotificationCache {
   readonly owner: string;
-  private page: NotificationList | null = null;
+  private page: DisplayNotificationList | null = null;
   private reads = new Set<number>();
   private readThrough = 0;
   private revision = 0;
   getRevision = () => this.revision;
   private listeners = new Set<() => void>();
+  private latestListeners = new Set<(page: DisplayNotificationList) => void>();
   constructor(owner: string) {
     this.owner = owner;
   }
@@ -17,11 +18,17 @@ export class NotificationCache {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   };
-  private publish(page: NotificationList) {
+  subscribeLatest = (listener: (page: DisplayNotificationList) => void) => {
+    this.latestListeners.add(listener);
+    return () => {
+      this.latestListeners.delete(listener);
+    };
+  };
+  private publish(page: DisplayNotificationList) {
     this.page = page;
     for (const listener of this.listeners) listener();
   }
-  apply(page: NotificationList): NotificationList {
+  apply(page: DisplayNotificationList): DisplayNotificationList {
     // 既読は単調に進め、取得開始後に保存した既読を古い応答で巻き戻しません。
     for (const entry of page.notifications) if (entry.read) this.reads.add(entry.id);
     return {
@@ -32,9 +39,10 @@ export class NotificationCache {
       })),
     };
   }
-  store(page: NotificationList) {
+  store(page: DisplayNotificationList) {
     const result = this.apply(page);
     this.publish(result);
+    for (const listener of this.latestListeners) listener(result);
     return result;
   }
   markRead(id: number) {

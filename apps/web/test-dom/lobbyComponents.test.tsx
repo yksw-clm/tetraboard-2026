@@ -4,7 +4,8 @@ import { LobbyView } from "../src/features/lobby/LobbyView";
 import { RoomEntryDialog } from "../src/features/lobby/RoomEntryDialog";
 import { useRoomInvitation } from "../src/features/room/useRoomInvitation";
 import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
-import { useLocation } from "react-router";
+import { createMemoryRouter, RouterProvider, useLocation } from "react-router";
+import { AccountContext } from "../src/features/account/useAccount";
 import { profile } from "../test/fixtures/account";
 import { waitingRoom } from "../test/fixtures/rooms";
 import {
@@ -13,6 +14,7 @@ import {
   denyStorage,
   flush,
   press,
+  mockMobileLobby,
   render,
   renderHook,
   rerender,
@@ -174,78 +176,138 @@ test.each([1, 2])(
   },
 );
 
-test("ロビーは幅に関わらず公開ルーム・ランキング・最近の対局・大会一覧の順と詳細の選択を保持", async () => {
-  const media = new window.EventTarget();
-  let mobile = false;
-  const matchMedia = spyOn(window, "matchMedia").mockImplementation(
-    (query) =>
-      ({
-        media: query,
-        get matches() {
-          return query === "(max-width: 767px)" && mobile;
-        },
-        addEventListener: media.addEventListener.bind(media),
-        removeEventListener: media.removeEventListener.bind(media),
-      }) as unknown as MediaQueryList,
+function lobbyProps(game: (typeof gameIds)[number]): React.ComponentProps<typeof LobbyView> {
+  return {
+    game,
+    name: "",
+    roomCode: "",
+    mode: "singles" as const,
+    timeControl: { mainTimeMs: 60000, byoyomiMs: 0 },
+    isSubmitting: null,
+    message: null,
+    renderRooms: () => <section aria-label="公開部屋">公開部屋</section>,
+    onNameChange() {},
+    onRoomCodeChange() {},
+    onModeChange() {},
+    cpuLevel: 1 as const,
+    onCpuLevelChange() {},
+    onTimeControlChange() {},
+    onClearMessage() {},
+  };
+}
+
+test("PCの共有ランキングURLは、公開ルーム・順位表・最近の対局・投稿・大会の配置と詳細ダイアログを維持する", async () => {
+  const view = render(
+    wrap(null, "/games/four-shogi?lobbyTab=rankings")(<LobbyView {...lobbyProps("four-shogi")} />),
+  );
+  clock.advance(0);
+  requests.find((r) => r.url.includes("/rankings?profilePreview=1"))!.respond(rankings);
+  await flush();
+  const ranking = view.querySelector<HTMLElement>(
+    'section[aria-labelledby="lobby-rankings-title"]',
+  )!;
+  const rooms = view.querySelector('section[aria-label="公開部屋"]')!;
+  const recent = view.querySelector('section[aria-labelledby="recent-matches-title"]')!;
+  const preview = view.querySelector('section[aria-labelledby="lobby-post-preview-title"]')!;
+  const tournaments = view.querySelector(
+    'section[aria-labelledby="tournament-list-four-shogi-title"]',
+  )!;
+  for (const [a, b] of [
+    [rooms, ranking],
+    [ranking, recent],
+    [recent, preview],
+    [preview, tournaments],
+  ] as const) {
+    expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  }
+  expect(view.querySelector('nav[aria-label="ゲームロビー"]')).toBeNull();
+  press(ranking, "もっと見る");
+  await flush();
+  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+  expect(dialog.textContent).toContain("ランキング");
+  expect(dialog.querySelector('[role="tab"][id$="doubles"]')).not.toBeNull();
+});
+
+test.each([...gameIds])(
+  "%s のスマホロビーは対局から開き、4タブを同じゲームのURLで案内する",
+  async (game) => {
+    const media = mockMobileLobby();
+    try {
+      const path = gameCatalog[game].lobbyPath;
+      const view = render(wrap(null, path)(<LobbyView {...lobbyProps(game)} />));
+      const navigation = view.querySelector('nav[aria-label="ゲームロビー"]')!;
+      const links = [...navigation.querySelectorAll("a")];
+      expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+        ["対局", path],
+        ["ランキング", path + "?lobbyTab=rankings"],
+        ["投稿", path + "/posts"],
+        ["大会", path + "?lobbyTab=tournaments"],
+      ]);
+      expect(navigation.querySelector('[aria-current="page"]')?.textContent).toBe("対局");
+      expect(view.querySelector('section[aria-label="対局を始める"]')).not.toBeNull();
+      expect(view.querySelector('section[aria-labelledby="lobby-post-preview-title"]')).toBeNull();
+      expect(view.querySelector('section[aria-labelledby="recent-matches-title"]')).not.toBeNull();
+      if (game === "four-gomoku") {
+        press(view, "遊び方");
+        expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+          "四人五目並べの遊び方",
+        );
+      }
+    } finally {
+      media.mockRestore();
+    }
+  },
+);
+
+test("スマホのランキングは既存の順位と切替・更新をすぐ使え、ロビー内の切替で再取得しない", async () => {
+  const media = mockMobileLobby();
+  const path = "/games/four-shogi";
+  const router = createMemoryRouter(
+    [{ path, element: <LobbyView {...lobbyProps("four-shogi")} /> }],
+    { initialEntries: [path + "?fixture=1#fixture"] },
   );
   try {
-    const props = {
-      game: "four-shogi" as const,
-      name: "",
-      roomCode: "",
-      mode: "singles" as const,
-      timeControl: { mainTimeMs: 60000, byoyomiMs: 0 } as const,
-      isSubmitting: null,
-      message: null,
-      renderRooms: () => <section aria-label="公開部屋">公開部屋</section>,
-      rankings: <LobbyRankings game="four-shogi" />,
-      onNameChange() {},
-      onRoomCodeChange() {},
-      onModeChange() {},
-      cpuLevel: 1 as const,
-      onCpuLevelChange() {},
-      onTimeControlChange() {},
-      onClearMessage() {},
-    };
-    const view = render(wrap()(<LobbyView {...props} />));
-    clock.advance(0);
-    const request = requests.find((r) => r.url.includes("/rankings?profilePreview=1"))!;
-    request.respond(rankings);
-    await flush();
-    const ranking = view.querySelector<HTMLElement>(
-      'section[aria-labelledby="lobby-rankings-title"]',
-    )!;
-    const roomSection = view.querySelector('section[aria-label="公開部屋"]')!.parentElement!;
-    const recentSection = view.querySelector('section[aria-labelledby="recent-matches-title"]')!;
-    const tournamentSection = view.querySelector(
-      'section[aria-labelledby="tournament-list-four-shogi-title"]',
-    )!.parentElement!;
-    const sectionOrder = () => [...ranking.parentElement!.children];
-    function expectSectionOrder() {
-      const sections = sectionOrder();
-      expect(sections).toHaveLength(4);
-      [roomSection, ranking, recentSection, tournamentSection].forEach((section, index) => {
-        expect(sections[index]).toBe(section);
-      });
-    }
-    expectSectionOrder();
-    press(ranking, "もっと見る");
-    await flush();
-    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
-    act(() => dialog.querySelector<HTMLElement>('[role="tab"][id$="doubles"]')!.click());
-    await flush();
-    const count = requests.length;
-    mobile = true;
-    act(() => media.dispatchEvent(new Event("change")));
-    await flush();
-    expect(requests).toHaveLength(count);
-    expect(view.querySelector('section[aria-labelledby="lobby-rankings-title"]')).toBe(ranking);
-    expect(dialog.querySelector('[role="tab"][id$="doubles"]')!.getAttribute("aria-selected")).toBe(
-      "true",
+    const view = render(
+      <AccountContext
+        value={{ user: null, loading: false, error: null, refresh: async () => {}, update() {} }}
+      >
+        <RouterProvider router={router} />
+      </AccountContext>,
     );
-    expectSectionOrder();
+    const nav = view.querySelector('nav[aria-label="ゲームロビー"]')!;
+    const links = nav.querySelectorAll("a");
+    clock.advance(0);
+    const request = requests.find(
+      ({ url }) => url === "/api/games/four-shogi/rankings?profilePreview=1&includeKnockouts=1",
+    )!;
+    request.respond(rankings);
+    requests
+      .find(({ url }) => url === "/api/games/four-shogi/rankings/rating")!
+      .respond({ entries: [] });
+    await flush();
+    await act(async () => links[1]!.click());
+    expect(router.state.location.search).toBe("?fixture=1&lobbyTab=rankings");
+    expect(router.state.location.hash).toBe("#fixture");
+    expect(nav.querySelector('[aria-current="page"]')?.textContent).toBe("ランキング");
+    expect(view.querySelector('section[aria-label="対局を始める"]')).toBeNull();
+    expect(view.textContent).toContain("まだ認定を完了したプレイヤーがいません。");
+    const tabs = () =>
+      [...view.querySelectorAll<HTMLElement>('[role="tab"]')].map((tab) => tab.textContent);
+    expect(tabs()).toContain("撃破数");
+    act(() => view.querySelector<HTMLElement>('[role="tab"][id$="doubles"]')!.click());
+    await flush();
+    expect(tabs()).not.toContain("レート");
+    expect(view.querySelector('ol[aria-label="勝利数ランキング"]')?.children).toHaveLength(10);
+    await act(async () => links[0]!.click());
+    await act(async () => links[1]!.click());
+    clock.advance(0);
+    expect(requests.filter(({ url }) => url === request.url)).toHaveLength(1);
+    expect(view.querySelector('ol[aria-label="勝利数ランキング"]')?.children).toHaveLength(10);
+    press(view, "更新");
+    expect(requests.filter(({ url }) => url === request.url)).toHaveLength(2);
   } finally {
-    matchMedia.mockRestore();
+    router.dispose();
+    media.mockRestore();
   }
 });
 

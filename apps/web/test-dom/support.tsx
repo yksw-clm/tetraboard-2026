@@ -1,4 +1,4 @@
-import { afterEach, beforeEach } from "bun:test";
+import { afterEach, beforeEach, spyOn } from "bun:test";
 import { act, createElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { browserSettings } from "../src/shared/browserSettings";
@@ -9,6 +9,16 @@ export async function flush() {
   await act(async () => {
     for (let i = 0; i < 20; i++) await Promise.resolve();
   });
+}
+export function mockMobileLobby() {
+  const original = window.matchMedia.bind(window);
+  const list = Object.assign(new EventTarget(), {
+    media: "(max-width: 767px)",
+    matches: true,
+  }) as MediaQueryList;
+  return spyOn(window, "matchMedia").mockImplementation((query) =>
+    query === list.media ? list : original(query),
+  );
 }
 export function renderHook<P, T>(
   hook: (props: P) => T,
@@ -122,8 +132,6 @@ beforeEach(() => {
   requests = [];
   sessionStorage.clear();
   localStorage.clear();
-  // 他機能のテストは開幕案内を確認済みとし、未読のケースは専用テストで明示します。
-  localStorage.setItem("tetraboard:rated-launch:seen", "1");
   browserSettings.sync();
   globalThis.fetch = ((url: string | URL | globalThis.Request, init: RequestInit = {}) =>
     new Promise<Response>((resolve, reject) => {

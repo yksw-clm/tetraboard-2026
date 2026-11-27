@@ -2,7 +2,7 @@ import { GuestAccountControls } from "./GuestAccountControls";
 import { PrivacyLinks } from "../privacy/PrivacyLinks";
 import { RegistrationBenefits } from "./RegistrationBenefits";
 import { SocialSignInButtons } from "./SocialSignInButtons";
-import { gameCatalog, gameIds, defaultGameId, type GameId } from "@tetraboard/protocol/games";
+import { gameCatalog, defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { MatchHistory } from "./MatchHistory";
 import { AccountStats } from "./AccountStats";
 import { useEffect, useId, useState, type ReactNode } from "react";
@@ -14,7 +14,8 @@ import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import type { AccountProfile, RoomMode } from "@tetraboard/protocol";
 import { cn } from "@heroui/react";
-import { LobbyBoardPreview } from "../lobby/LobbyBoardPreview";
+import { ProfileGameButtons } from "../players/ProfileGameButtons";
+import { useLobbyGameRatings } from "../lobby/useLobbyGameRatings";
 import { AppTabs } from "../../shared/ui/AppTabs";
 import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { useAccountSelection } from "./useAccountSelection";
@@ -104,33 +105,6 @@ export function AccountPageShell({
           )}
         </main>
       </div>
-    </div>
-  );
-}
-function AccountGameButtons({
-  game,
-  onChange,
-}: {
-  game: GameId;
-  onChange: (game: GameId) => void;
-}) {
-  return (
-    <div role="group" aria-label="プロフィールのゲーム" className="flex flex-wrap gap-2">
-      {gameIds.map((id) => (
-        <AppButton
-          key={id}
-          appearance={id === game ? "primary" : "secondary"}
-          size="compact"
-          className="min-h-11 px-3 text-sm"
-          aria-pressed={id === game}
-          onPress={() => {
-            if (id !== game) onChange(id);
-          }}
-        >
-          <LobbyBoardPreview game={id} compact className="w-6 rotate-0 shadow-none" />
-          {gameCatalog[id].name}
-        </AppButton>
-      ))}
     </div>
   );
 }
@@ -246,6 +220,8 @@ export function LoginPage() {
 export function ProfilePage({ setup = false }: { setup?: boolean }) {
   const { user, loading, error, sessionLost } = useAccount();
   const { game, mode, setGame, setMode } = useAccountSelection();
+  const showGameRatings = !setup && Boolean(user?.profileCompleted && !user.isGuest);
+  const ratings = useLobbyGameRatings(showGameRatings);
   const panelId = useId();
   // ファイル選択からの復帰による再確認では、編集中のフォームを取り外しません。
   if (!user && (loading || error))
@@ -253,7 +229,7 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
       <AccountPageShell
         layout={setup ? "form" : "profile"}
         game={game}
-        navigation={!setup && <AccountGameButtons game={game} onChange={setGame} />}
+        navigation={!setup && <ProfileGameButtons game={game} onChange={setGame} />}
       >
         <AccountStatus />
       </AccountPageShell>
@@ -274,7 +250,13 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
           profile={
             <AccountProfileCard key={user.profileId ?? user.username} user={user} game={game} />
           }
-          navigation={<AccountGameButtons game={game} onChange={setGame} />}
+          navigation={
+            <ProfileGameButtons
+              game={game}
+              onChange={setGame}
+              ratingForGame={(id) => ratings.games?.[id].summary}
+            />
+          }
           modeTabs={
             <AppTabs.List
               aria-label="プロフィールの対局モード"
@@ -325,7 +307,11 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
               className="grid min-w-0 grid-cols-1 items-start gap-5 [@media(min-width:1024px)]:grid-cols-[560px_minmax(0,1fr)]"
             >
               <AppCard>
-                <AccountStats game={game} mode={mode} registered={!user.isGuest} />
+                <AccountStats
+                  game={game}
+                  mode={mode}
+                  onRefresh={showGameRatings ? ratings.retry : undefined}
+                />
               </AppCard>
               <MatchHistory game={game} mode={mode} />
             </div>

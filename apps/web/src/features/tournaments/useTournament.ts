@@ -63,6 +63,8 @@ export function useTournament(id: number) {
     operationId: string;
     value: string;
   } | null>(null);
+  const [expiredQueueKey, setExpiredQueueKey] = useState<string | null>(null);
+  if (expiredQueueKey !== null && expiredQueueKey !== key) setExpiredQueueKey(null);
   const [entryDialog, setEntryDialog] = useState<{ key: string; open: boolean }>({
     key,
     open: false,
@@ -82,10 +84,11 @@ export function useTournament(id: number) {
     controllerId,
     disposed: false,
     participation: idle,
+    participationObserved: false,
     movingToRoom: false,
   });
   const resumeAttempt = useRef<string | null>(null);
-  const action = useRef<string | null>(null);
+  const action = useRef<{ key: string; label: string } | null>(null);
   const authUnavailable = useRef(false);
   useLayoutEffect(() => {
     authUnavailable.current = account.loading || Boolean(account.error);
@@ -93,6 +96,14 @@ export function useTournament(id: number) {
   const entryReturn = registrationReturnFromState(location.state, `/tournaments/${id}`);
   const resumedEntry = useRef<string | null>(null);
   const requestedEntry = location.state?.tournamentEntryRequested === true;
+  const ownsWaiting = useCallback(
+    (participation: TournamentParticipation) =>
+      (participation.status === "waiting" || participation.status === "matched") &&
+      participation.controller === "self" &&
+      documentController.version(key, participation.operationId) ===
+        participation.controllerVersion,
+    [documentController, key],
+  );
   const refresh = useCallback(async () => {
     const requestControllerId = documentController.getIdentity();
     const requestClaimGeneration = claimGeneration.current;
@@ -108,7 +119,8 @@ export function useTournament(id: number) {
             !current.current.disposed &&
             documentController.getIdentity() === requestControllerId &&
             requestClaimGeneration === claimGeneration.current
-          )
+          ) {
+            if (data.tournament.status !== "active") setExpiredQueueKey(null);
             setState((previous) => ({
               ...(previous.key === key
                 ? previous
@@ -121,6 +133,7 @@ export function useTournament(id: number) {
                   }),
               data,
             }));
+          }
           return data;
         }),
         identity
@@ -138,14 +151,36 @@ export function useTournament(id: number) {
         requestClaimGeneration !== claimGeneration.current
       )
         return;
+      const previous = current.current.participation;
+      const firstParticipation = !current.current.participationObserved;
+      const credential = identity
+        ? readTournamentQueue(id, identity, legacyIdentity.current)
+        : null;
       current.current.participation = participation;
+      current.current.participationObserved = true;
       setHeartbeatWarning(null);
-      if (participation.controller === "other") documentController.forget(key);
-      if (identity && participation.status === "idle" && action.current !== key) {
-        clearTournamentQueue(id, identity, legacyIdentity.current);
+      if (participation.controller === "other") {
         documentController.forget(key);
+        setExpiredQueueKey(null);
       }
-      const credential = identity && readTournamentQueue(id, identity, legacyIdentity.current);
+      if (identity && participation.status === "idle") {
+        const actionLabel = action.current?.key === key ? action.current.label : null;
+        if (
+          participation.controller !== "other" &&
+          data.tournament.status === "active" &&
+          !current.current.movingToRoom &&
+          actionLabel !== "cancel" &&
+          actionLabel !== "queue" &&
+          ((ownsWaiting(previous) &&
+            !(credential?.operationId === previous.operationId && credential?.hasEnteredRoom)) ||
+            (firstParticipation && credential?.hasEnteredRoom === false))
+        )
+          setExpiredQueueKey(key);
+        if (actionLabel === null) {
+          clearTournamentQueue(id, identity, legacyIdentity.current);
+          documentController.forget(key);
+        }
+      }
       const canEnterRoom = Boolean(
         credential &&
         credential.operationId === participation.operationId &&
@@ -169,7 +204,7 @@ export function useTournament(id: number) {
     } finally {
       if (requests.current === controller) requests.current = null;
     }
-  }, [id, identity, key, documentController]);
+  }, [id, identity, key, documentController, ownsWaiting]);
   const enterRoom = useCallback(async () => {
     const participation = current.current.participation;
     if (
@@ -189,10 +224,10 @@ export function useTournament(id: number) {
       !participation.operationId ||
       participation.controller !== "self" ||
       version !== participation.controllerVersion ||
-      action.current === key
+      action.current?.key === key
     )
       return;
-    action.current = key;
+    action.current = { key, label: "room" };
     claimGeneration.current++;
     requests.current?.abort();
     requests.current = null;
@@ -225,11 +260,15 @@ export function useTournament(id: number) {
         await refresh();
         return;
       }
-      saveTournamentQueue(id, identity, {
+      const saved = readTournamentQueue(id, identity, legacyIdentity.current);
+      const credential = {
         operationId: latest.operationId,
         token: result.token,
         controllerVersion: latest.controllerVersion,
-      });
+        hasEnteredRoom:
+          saved?.operationId === latest.operationId ? saved.hasEnteredRoom : undefined,
+      };
+      saveTournamentQueue(id, identity, credential);
       if (
         !saveRoomMembershipToken(latest.roomId, result.token) ||
         !saveTournamentRoom({
@@ -242,6 +281,7 @@ export function useTournament(id: number) {
         })
       )
         throw new Error("ルームの参加資格を保存できません。ブラウザの保存領域を確認してください。");
+      saveTournamentQueue(id, identity, { ...credential, hasEnteredRoom: true });
       documentController.remember(key, latest.operationId, latest.controllerVersion);
       current.current.movingToRoom = true;
       void navigate(`/rooms/${latest.roomId}?invite=${latest.instanceId}`);
@@ -261,7 +301,7 @@ export function useTournament(id: number) {
         await refresh();
       }
     } finally {
-      if (action.current === key) action.current = null;
+      if (action.current?.key === key) action.current = null;
       if (!current.current.disposed && current.current.key === key)
         setPending({ key, value: null });
     }
@@ -282,14 +322,20 @@ export function useTournament(id: number) {
       controllerId: documentController.getIdentity(),
       disposed: false,
       participation: idle,
+      participationObserved: false,
       movingToRoom: false,
     };
     const timeout = window.setTimeout(() => void refresh(), 0);
     const visibleRefresh = () => {
-      if (document.visibilityState === "visible" && action.current !== key) void refresh();
+      if (document.visibilityState === "visible" && action.current?.key !== key) void refresh();
     };
     const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible" && !requests.current && action.current !== key)
+      if (
+        !requests.current &&
+        action.current?.key !== key &&
+        (document.visibilityState === "visible" ||
+          (identity && ownsWaiting(current.current.participation)))
+      )
         void refresh();
     }, 5000);
     document.addEventListener("visibilitychange", visibleRefresh);
@@ -301,7 +347,7 @@ export function useTournament(id: number) {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", visibleRefresh);
     };
-  }, [key, refresh, documentController]);
+  }, [key, refresh, documentController, identity, ownsWaiting]);
   useEffect(() => {
     const interval = window.setInterval(() => {
       const participation = current.current.participation;
@@ -352,7 +398,7 @@ export function useTournament(id: number) {
   useEffect(() => {
     if (current.current.controllerId !== controllerId) {
       current.current.controllerId = controllerId;
-      if (action.current !== key) void refresh();
+      if (action.current?.key !== key) void refresh();
     }
   }, [controllerId, key, refresh]);
   const takeOver = useCallback(
@@ -363,7 +409,7 @@ export function useTournament(id: number) {
         !participation.operationId ||
         account.loading ||
         account.error ||
-        action.current === key
+        action.current?.key === key
       )
         return;
       if (
@@ -382,7 +428,7 @@ export function useTournament(id: number) {
         return;
       if (automatic && !(await documentController.acquire(key))) return;
       if (current.current.disposed || current.current.key !== key) return;
-      action.current = key;
+      action.current = { key, label: "controller" };
       claimGeneration.current++;
       requests.current?.abort();
       requests.current = null;
@@ -406,11 +452,18 @@ export function useTournament(id: number) {
         const latest = result.participation;
         if (latest.controller !== "self" || latest.operationId !== participation.operationId)
           return;
-        saveTournamentQueue(id, identity, {
+        const credential = {
           operationId: latest.operationId,
           token: result.token,
           controllerVersion: latest.controllerVersion,
-        });
+          hasEnteredRoom:
+            saved?.operationId === latest.operationId && saved.hasEnteredRoom
+              ? true
+              : latest.status === "waiting" || latest.status === "matched"
+                ? false
+                : undefined,
+        };
+        saveTournamentQueue(id, identity, credential);
         documentController.remember(key, latest.operationId, latest.controllerVersion);
         await documentController.acquire(key, !automatic);
         if (
@@ -437,6 +490,7 @@ export function useTournament(id: number) {
             throw new Error(
               "ルームの参加資格を保存できません。ブラウザの保存領域を確認してください。",
             );
+          saveTournamentQueue(id, identity, { ...credential, hasEnteredRoom: true });
           current.current.movingToRoom = true;
           void navigate(`/rooms/${latest.roomId}?invite=${latest.instanceId}`);
         } else await refresh();
@@ -456,7 +510,7 @@ export function useTournament(id: number) {
           await refresh();
         }
       } finally {
-        if (action.current === key) action.current = null;
+        if (action.current?.key === key) action.current = null;
         if (!current.current.disposed && current.current.key === key)
           setPending({ key, value: null });
       }
@@ -490,8 +544,8 @@ export function useTournament(id: number) {
   }, [state, key, identity, id, takeOver]);
   const perform = useCallback(
     async (label: string, run: () => Promise<unknown>) => {
-      if (action.current === key || account.loading || account.error) return;
-      action.current = key;
+      if (action.current?.key === key || account.loading || account.error) return;
+      action.current = { key, label };
       setPending({ key, value: label });
       setMessage({ key, value: null });
       try {
@@ -506,7 +560,7 @@ export function useTournament(id: number) {
           await refresh();
         }
       } finally {
-        if (action.current === key) action.current = null;
+        if (action.current?.key === key) action.current = null;
         if (!current.current.disposed && current.current.key === key)
           setPending({ key, value: null });
       }
@@ -580,6 +634,7 @@ export function useTournament(id: number) {
       documentController.version(key, visible.participation.operationId) ===
         visible.participation.controllerVersion,
     pending: pending.key === key ? pending.value : null,
+    queueExpired: expiredQueueKey === key && visible.data?.tournament.status === "active",
     message:
       (message.key === key ? message.value : null) ??
       (heartbeatWarning?.key === key &&
@@ -589,7 +644,7 @@ export function useTournament(id: number) {
         : null),
     takeOver: () => void takeOver(),
     async returnToLobby(to = "/games/four-shogi", navigationState?: unknown) {
-      if (action.current === key) return;
+      if (action.current?.key === key) return;
       const participation = current.current.participation;
       const version = documentController.version(key, participation.operationId);
       if (
@@ -598,7 +653,7 @@ export function useTournament(id: number) {
         participation.operationId &&
         version === participation.controllerVersion
       ) {
-        action.current = key;
+        action.current = { key, label: "cancel" };
         setPending({ key, value: "cancel" });
         try {
           await tournamentOperation(id, "queue", "DELETE", {
@@ -616,7 +671,7 @@ export function useTournament(id: number) {
           await refresh();
           return;
         } finally {
-          if (action.current === key) action.current = null;
+          if (action.current?.key === key) action.current = null;
           if (!current.current.disposed && current.current.key === key)
             setPending({ key, value: null });
         }
@@ -632,7 +687,7 @@ export function useTournament(id: number) {
     setGuestName,
     entryDialog: entryDialog.key === key && entryDialog.open,
     closeEntryDialog() {
-      if (action.current !== key) setEntryDialog({ key, open: false });
+      if (action.current?.key !== key) setEntryDialog({ key, open: false });
     },
     confirmEntry() {
       if (visible.participation.entered) return;
@@ -655,6 +710,7 @@ export function useTournament(id: number) {
     enterRoom,
     queue() {
       if (!identity) return;
+      setExpiredQueueKey(null);
       void perform("queue", async () => {
         const credential =
           readTournamentQueue(id, identity, legacyIdentity.current) ??
@@ -670,7 +726,11 @@ export function useTournament(id: number) {
           documentController.getIdentity() === controllerId
         ) {
           documentController.remember(key, credential.operationId, 1);
-          saveTournamentQueue(id, identity, { ...credential, controllerVersion: 1 });
+          saveTournamentQueue(id, identity, {
+            ...credential,
+            controllerVersion: 1,
+            hasEnteredRoom: false,
+          });
           await documentController.acquire(key, true);
           if (
             !current.current.disposed &&

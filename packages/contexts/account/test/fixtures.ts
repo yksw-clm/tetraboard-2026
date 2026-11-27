@@ -62,6 +62,12 @@ export class MemoryProfiles implements AccountProfiles, ProfileWriter {
   async accountId(profileId: string) {
     return [...this.rows.values()].find((r) => r.publicProfileId === profileId)?.id ?? null;
   }
+  async accountIdByUsername(username: string) {
+    return (
+      [...this.rows.values()].find((r) => !r.isAnonymous && r.username?.toLowerCase() === username)
+        ?.id ?? null
+    );
+  }
   async mergedAccountId(guestId: string) {
     return this.merges.get(guestId) ?? null;
   }

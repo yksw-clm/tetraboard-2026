@@ -1,3 +1,4 @@
+import { AccountMenu } from "../../features/account/AccountMenu";
 import { NotificationBell } from "../../features/notifications/NotificationBell";
 import { type MouseEventHandler, type ReactNode } from "react";
 import { Link } from "react-router";
@@ -89,13 +90,7 @@ export function AppHeader({
                 </span>
               </Link>
             )}
-            <div className="[@media(max-width:767px)]:hidden">
-              {children ?? (
-                <span className="text-xs tracking-[0.06em] text-muted [@media(max-width:650px)]:hidden">
-                  4人の遊びを、もっと気軽に。
-                </span>
-              )}
-            </div>
+            <div className="[@media(max-width:767px)]:hidden">{children ?? <AccountMenu />}</div>
             <NotificationBell />
             <BrowserSettingsButton theme={theme} />
           </div>

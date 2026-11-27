@@ -1,4 +1,3 @@
-import { RatedLaunchAnnouncement } from "../matchmaking/RatedLaunchAnnouncement";
 import { matchmakingPath } from "../matchmaking/paths";
 
 import { useState, useSyncExternalStore } from "react";
@@ -12,7 +11,6 @@ import { LobbyFooter } from "./LobbyFooter";
 import { LobbyGameGrid } from "./LobbyGameGrid";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { GeneralLobbyRooms } from "./GeneralLobbyRooms";
-import { GeneralLobbyChat } from "./GeneralLobbyChat";
 import { useGeneralLobbyRooms } from "./useGeneralLobbyRooms";
 import { useRoomEntry } from "./useRoomEntry";
 import { RoomEntryDialog } from "./RoomEntryDialog";
@@ -47,12 +45,11 @@ export function GeneralLobbyPage() {
     Object.values(ratings.games ?? {}).some(({ summary }) => summary?.status === "error");
   const sections = {
     tournaments: <TournamentList key="tournaments" game="all" />,
-    chat: <GeneralLobbyChat key="chat" />,
     matches: <RecentMatches key="matches" game="all" />,
   };
   const order = mobile
-    ? (["chat", "matches", "tournaments"] as const)
-    : (["tournaments", "chat", "matches"] as const);
+    ? (["matches", "tournaments"] as const)
+    : (["tournaments", "matches"] as const);
   function roomAction(room: LobbyRoomCard, intent: "join" | "watch") {
     if (intent === "watch") {
       void navigate(`/rooms/${room.id}?invite=${room.instanceId}&watch=1`);
@@ -147,7 +144,6 @@ export function GeneralLobbyPage() {
           </LobbyFooter>
         </main>
       </div>
-      <RatedLaunchAnnouncement ratings={ratings} blocked={selectingGame || selected !== null} />
       {selectingGame && (
         <AppDialog title="ゲームを選択" onClose={() => setSelectingGame(false)}>
           <LobbyGameGrid create />

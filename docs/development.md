@@ -65,6 +65,7 @@ mise exec -- bun run --cwd apps/worker db:generate -- <名前>
 
 - 次の migration は 0059 から番号を続けます。消した 0001〜0057 の名前は使い回しません。wrangler は `d1_migrations` に名前のないファイルだけを当てるので、古い名前で中身を変えると、既存の D1 では当たらないまま、テストでは当たって、気づかないままずれます。
 - 消した migration が行ったデータの変換のテストも、同じ PR で消しました。古い形のデータをアプリが扱えることのテストは、データを基準のスキーマへ直接入れる形で残しています。
+- D1 では外部キーを切れません。drizzle-kit が出す `PRAGMA foreign_keys=OFF` は効かないものとして、表を作り直す migration は手で直します。`ON DELETE CASCADE` で参照される表を DROP すると子の行も消えるので、子を外部キーのない一時表へ退避して先に DROP し、親を作り直してから戻します。`AUTOINCREMENT` の表は、削除済みの番号を含む採番の上限も引き継ぎます。例は `0061_board_reply_notifications.sql` と `notificationMigration.test.ts` です。
 
 ## 変更対象別の案内
 
@@ -79,7 +80,8 @@ mise exec -- bun run --cwd apps/worker db:generate -- <名前>
 | プライバシー・規約・退会・計測期限       | [仕様](specs/privacy.md)                                                                                                       | [入口](#プライバシーの入口)、認証・棋譜・ルーム・計測・フィードバックの既存入口                                                                                                                                                                                               | [検証と公開前の確認](testing.md#プライバシー規約退会の確認)                                                                                                                                            |
 | 時計・接続・ルーム進行                   | [投了、通信切れと持ち時間](specs/room.md#投了通信切れと持ち時間)                                                                                                   | [共有transport](#共有transportとゲーム別session)、[ルームの実装の入口](#ルームの実装の入口)、[clockCore.ts](../packages/contexts/room/src/domain/clockCore.ts)、[useRoomTransport.ts](../apps/web/src/features/room/useRoomTransport.ts) | [timeControl.test.ts](../apps/worker/test/timeControl.test.ts)、[roomTransportLifecycle.test.tsx](../apps/web/test-dom/roomTransportLifecycle.test.tsx)                                                |
 | 終局保存・棋譜・互換性                   | [終局保存](../README.md#終局データの保存対局履歴)、[保存棋譜](../README.md#保存済み棋譜の閲覧)、対象ゲームの正本                                                  | [終局保存](#終局保存と本人の対局履歴)、[棋譜互換](#保存データの契約と棋譜互換)、[matchStore.ts](../apps/worker/src/adapters/record/matchStore.ts)、[shogiMatchStore.ts](../apps/worker/src/adapters/record/shogiMatchStore.ts)、[fetchEventReplay.ts](../apps/web/src/features/room/fetchEventReplay.ts)          | [matchCompatibility.test.ts](../apps/worker/test/matchCompatibility.test.ts)、[savedReplay.test.tsx](../apps/web/test-dom/savedReplay.test.tsx)                                                        |
-| 総合ロビー・公開チャット                 | [確定仕様](../README.md#総合ロビーの確定仕様)                                                                                                                     | [実装](#総合ロビーの実装)、既存のルーム索引・公開棋譜・認証・管理・配信                                                                                                                                                                                    | [受入検証](testing.md#総合ロビーの確認)                                                                                                                                                                |
+| 総合ロビー                 | [確定仕様](../README.md#総合ロビーの確定仕様)                                                                                                                     | [実装](#総合ロビーの実装)、既存のルーム索引・公開棋譜・認証・管理・配信                                                                                                                                                                                    | [受入検証](testing.md#総合ロビーの確認)                                                                                                                                                                |
+| 掲示板 | [仕様](specs/board.md)、[ADR 0015](adr/0015-board-post-pages.md) | [コミュニティの入口](#コミュニティの入口)の掲示板、[boardRoutes.ts](../apps/worker/src/routes/boardRoutes.ts)、[board.ts](../packages/contexts/community/src/domain/board.ts)、画面の HTML は [boardPages.ts](../apps/worker/src/boardPages.ts)、画面は [features/board](../apps/web/src/features/board/) | [boardPosts.test.ts](../apps/worker/test/boardPosts.test.ts)、[boardReads.test.ts](../apps/worker/test/boardReads.test.ts)、[boardDeletion.test.ts](../apps/worker/test/boardDeletion.test.ts)、[boardReplyNotifications.test.ts](../apps/worker/test/boardReplyNotifications.test.ts)、[boardPages.test.ts](../apps/worker/test/boardPages.test.ts)、[board.test.tsx](../apps/web/test-dom/board.test.tsx) |
 | 大会・大会管理                   | [確定仕様](specs/tournament.md#四人将棋大会の確定仕様)、[大会対局の例外](rules/four-shogi.md#大会対局の例外)                                                             | [実装計画](specs/tournament.md#維持する契約)、[承認済みモック](#四人将棋大会のuiモック)、[構成方針](architecture.md#四人将棋大会の構成方針)、既存の認証・GameRoom・終局保存・Admin                                                                                                                     | [受入検証](testing.md#大会の確認)                                                                                                                                                              |
 | 画面・ロビー・共通部品                   | READMEの対象画面、[共通UI](../README.md#共通uiとスタイル)                                                                                                         | [Webの編集先](#webの編集先)、[共通ロビー](#共通ロビーと四人将棋ui)、[LobbyView.tsx](../apps/web/src/features/lobby/LobbyView.tsx)、[RoomLayout.tsx](../apps/web/src/features/room/RoomLayout.tsx)、[shared/ui](../apps/web/src/shared/ui/)                                                    | [lobbyComponents.test.tsx](../apps/web/test-dom/lobbyComponents.test.tsx)、[presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)                                                         |
 | ルーム共有                               | [ルーム共有の仕様](specs/room-sharing.md)                                                                                                             | [実装](#ルーム共有の実装)、[useRoomEntry.ts](../apps/web/src/features/lobby/useRoomEntry.ts)、[useRoomInvitation.ts](../apps/web/src/features/room/useRoomInvitation.ts)、[publicAssets.ts](../apps/worker/src/publicAssets.ts)                 | [ルーム共有の確認](testing.md#ルーム共有の確認)                                                                                                                                                        |
@@ -487,6 +489,14 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 - `apps/worker/src/routes/`: `announcementRoutes.ts`、`notificationRoutes.ts`、`feedbackRoutes.ts`、`feedbackAdminRoutes.ts`、`roomReportRoutes.ts` などの HTTP の入口。本文の大きさの上限つきの読み取りは `readLimitedBody.ts` です。
 - 通知のイベントは、書き込みと同じ D1 の batch で作ります（TB-145）。お知らせは `adapters/community/announcements.ts`、バッジは `adapters/community/badgeEvents.ts` の文を、対局の保存と引き継ぎの flow（`flows/matchSave/badges.ts`、`claims.ts`）が record のバッジの通知の INSERT の直後に足します。同じ働きの古いトリガー（`notification_badge`、`notification_announcement_*`、チャットの `lobby_chat_accept`）は、TB-146（migration 0055）で消しました。書き込みの場所と、イベントの文を伴うことは `test-bun/communityWriteBoundaries.test.ts` が確かめます。
 - お知らせの日付は、`date` から `published_on` の列へ移しています（TB-145、migration 0053）。TB-146（migration 0055）で表を作り直し、`published_on` を NOT NULL にしました。アプリは `published_on` だけを読み書きします。`date` の列は TB-162（migration 0057）で消しました。API の項目名は `date` のままです。
+- 掲示板（仕様は [docs/specs/board.md](specs/board.md)、TB-215）: 投稿が公開されているか（通常、削除された枠だけ、見つからない）と index するかの判定は、`domain/board.ts` の `boardPostVisibility` と `shouldIndexBoardPost` だけで決めます。API、検索向けの HTML、サイトマップはこの 2 つを使い、条件を別の場所に書き足しません。本文中の TetraBoard の URL の切り出しと種類の判定は、Worker の受け付けと Web のカード表示が同じ `scanBoardLinks`（`@tetraboard/protocol/board`）を使います。SQL で同じ条件を書く場合（タイムラインで返信のない削除済みの投稿を除くなど）は、結果が関数と食い違わないことを Worker のテストで確かめます。画面の HTML（`boardPages.ts`）は、詳細ページの 404 と 503、index するか、差し込む本文を API と同じ `D1BoardReader.detail` で決めます。投稿のサイトマップ（`/sitemap-posts.xml`）は SQL で候補を絞った後、各行に `shouldIndexBoardPost` を通します。詳細ページの title、description、canonical は Worker の HTML と Web の画面内遷移が同じ `@tetraboard/protocol/board-pages` で作ります。
+  - D1 は `board_posts`（返信も同じ表で、`parent_id` は必ず元の投稿）、`board_likes`、`board_senders`（投稿間隔と投稿停止。公開チャットの `lobby_chat_senders` とは別）、`board_settings`（投稿受付。migration 0059 の初期値は停止）です。投稿は論理削除で、本文と添付を NULL にします。返信の数といいねの数は集計列を持たず、読むときに数えます。添付は同じゲームの公開棋譜で局面番号を検証してから、`match_id` と `position` に保存します。棋譜ビューアと Worker の範囲検証は、`@tetraboard/protocol/replay-positions` の局面一覧を共用します。
+  - 投稿と返信は、公開チャットと同じく条件つきの INSERT 1 文で、資格、受付、停止、30 秒の間隔、退会、再送の重複を確定し、同じ batch で最後に投稿した時刻を更新します（`adapters/community/boardPosting.ts`）。
+  - 添付つきの要求は、受付済みの再送と投稿の拒否条件を先に確認してから棋譜を読みます。掲示板の読み取りと投稿・返信の API 応答では、旧 Web との互換性のため、`includeAttachments=1` の要求にだけ `attachment` を返します。
+  - 退会の受付と毎時の再処理は `boardDeletion.ts` の `withdrawBoardStatements`（本人の投稿と返信の削除と、再送識別子・本文のハッシュの消去、本人のいいねの削除）、退会の完了は `deleteAccountBoardStatements`（アカウント参照を NULL）です。読み取りでも `deleted_accounts` の投稿者を削除扱いにします。
+  - `POST /api/posts/:id/reports` は `boardRoutes.ts` から community の `use-cases/boardReports.ts` を呼び、`board_reports` に証拠を写します。`boardCleanup.ts` が毎時、7 日を過ぎた証拠の削除と退会者の匿名化を行います。
+  - 管理の入口は `routes/boardAdminRoutes.ts`（`/api/admin/board`）と `apps/admin/src/Board.tsx` です。
+  - 初回の公開案内は `features/lobby/BoardLaunchAnnouncement.tsx` が担当します。ゲームロビーの投稿プレビューから受付状態を受け取ります。未連携の利用者が登録を始めると、共通の `useSocialSignIn` にそのゲームの掲示板を復帰先として渡します。画面の文言・導線は [初回の公開案内](specs/board.md#初回の公開案内) に従います。
 
 ## マッチングの入口
 
@@ -513,14 +523,14 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 - ルーターの `ActiveTournamentProvider` がホームと共通ヘッダーの開催中案内用に区分別APIの `game=all` を1回ずつ5秒更新し、本人の参加状態を取得しません。`serverTimeMs` に受信後の単調時計の経過時間を加え、期限タイマーで終了時に除外します。取得失敗時の保持は期限内だけです。非表示時は中断、復帰時は時刻と取得を更新し、対局・観戦・棋譜では停止します。`TournamentStatus` の開催中表示と `AppHeader` の大会リンクに `gameThemes` の対象ゲームテーマを局所的に適用します。区分別・詳細APIは大会の保存設定、大会一覧はゲームと保存設定を参照します。`ActiveTournamentNotice` をホームの説明直後に置き、`AppHeader` では大会ページの既存ナビゲーション制御も引き継ぎます。
 - `TournamentStandings` の上位表示は、結果0件でも列見出しを表示し、その下の空表示自体に最小240pxを確保します。5人未満や結果0件でも架空の行を追加せず、取得済みの本人枠と全参加者表示を維持します。`tournamentPresentation.ts` の残り時間は分単位の切り上げ・0下限を共用し、60分以上を時間と2桁の分で整形します。
 - `TournamentRooms` は大会詳細の開催中・集計中に、対局操作・順位表の下へ置きます。対象ゲームの `useGeneralLobbyRooms(game)` の既存cards API・全ページ取得を共用し、大会番号の一致と `status === "playing"` で絞り込みます。10秒の表示中更新・非表示停止・復帰時更新・全ページ成功時の一括反映を引き継ぎ、更新失敗時も既存カードを保ちます。共通 `LobbyRoomCard` には世代付きの既存観戦URLだけを渡し、参加操作は置きません。新API・migrationは追加しません。
-- 大会チャットは `features/lobby/LobbyChat.tsx` と `useLobbyChat.ts` を総合ロビーと共用し、`TournamentPage` が大会IDと既存エントリー導線を渡します。大会別の下書きは大会IDで分離し、チャットの取得・エラー・5秒更新は成績と独立します。結果確定後も更新を続け、APIのサーバー時刻と締切で投稿欄を閉じます。
+- 大会チャットは `features/lobby/LobbyChat.tsx` と `useLobbyChat.ts` を使い、`TournamentPage` が大会IDと既存エントリー導線を渡します。大会別の下書きは大会IDで分離し、チャットの取得・エラー・5秒更新は成績と独立します。結果確定後も更新を続け、APIのサーバー時刻と締切で投稿欄を閉じます。
 - `0024_tournament_chat.sql` が共用チャットの投稿・再送台帳・通報へ大会番号を追加し、大会定義に受付設定を追加します。既存行は総合ロビーとして保持します。`routes/lobbyChatRoutes.ts`・`adapters/community/chatStore.ts` の `/api/tournaments/:id/chat` と `/reports` が公開大会・本人・有効エントリー・名前設定・24時間の締切を検査し、共通の送信者台帳と、投稿の条件付きINSERTを含む1つのbatchで10秒制限・再送・大会別500件を確定します。大会の待機DOや盤面へチャットを保存しません。
 - 大会管理の公開済み詳細に共用の `apps/admin/src/LobbyChat.tsx` を組み込みます。`/api/admin/lobby-chat?tournamentId=:id` で対象の受付・通報を取得し、受付操作にだけ任意の `tournamentId` を渡します。全体設定・利用者停止・削除・通報証拠・退会・毎時削除は既存の公開チャット基盤を使います。ゲスト統合では大会番号・再送台帳・過去投稿の非表示用識別子を維持します。
 
 - 公開APIは `apps/worker/src/routes/tournaments.ts` と `tournamentsParticipation.ts`、Admin APIは `tournamentsAdmin.ts`、定義・名簿・順位と確定、待機・抽選・入室配信・席移譲・補償は[大会の入口](#大会の入口)の文脈と adapter です。定義は内部UUID、公開URLは公開時の数字連番です。Adminは `/admin/tournaments` から一覧・新規・編集・名簿へ進みます。
 - ロビーの `TournamentEntrance` は全ゲームの共通 `LobbyView` からゲームIDを受け、対局操作とお知らせの後に「大会」「次回の大会」を配置します。対象3ゲームで公開情報の初回取得中に共通のスケルトンを1枚表示します。新UIは `/api/tournaments/lobby?view=sections&game=<GameId>` の `current`・`upcoming`・`serverTimeMs` を使い、公開済みの開催中／終了後24時間未満と開催前を別々に全件表示します。対象なしの見出し・余白は出しません。`TournamentEntranceCard` は開催前の「次回の大会」では `tournamentSettingsDescription` のルール説明を省き、大会名・状態・日時・人数と詳細／エントリー操作を表示します。対象ゲームの保存設定とルールを返し、対象外の2人用ゲームは空一覧にします。旧形式の指定なしAPIは1件の `tournament` を返す既存契約を維持します。分類・状態・件数は同じサーバー時刻を使います。大会設定には0030のmigrationが必要です。
 - 大会カードは5秒更新、非表示停止と復帰時取得、失敗時の取得済み表示保持を使います。参加状態は大会IDと本人を区別し、本人を切り替えた後に古い応答を反映しません。ロビーと大会詳細の見出しでは日時の日本時間ラベルを外し、共有の日付整形の既定表記と次回案内は維持します。ロビーの人数は詳細／結果リンク左へ数字を大きく配置し、開催中は詳細ページとともに「参加中」と表記します。大会詳細は開催前の帯に「開催前です。」を加え、見出しの簡易条件から「人間4人・」を外してルールの記載へ集約します。詳細の人数・参加操作はPCで右寄せ、スマートフォンでは左寄せと全幅ボタンにします。
-- 大会詳細の全状態で `TournamentRules` の直後に大会チャットを置きます。大会用 `LobbyChat` はPC560px／スマートフォン480pxにし、履歴の内部スクロールと下部の投稿操作を保ちます。総合ロビーの公開チャットは既存の600pxです。
+- 大会詳細の全状態で `TournamentRules` の直後に大会チャットを置きます。大会用 `LobbyChat` はPC560px／スマートフォン480pxにし、履歴の内部スクロールと下部の投稿操作を保ちます。
 - 下部の `TournamentList` はホームの全ゲームとゲーム別ロビーで共用します。`GET /api/tournaments?game=all|<GameId>&cursor=...` は公開大会を開始日時降順・公開番号降順の20件で返し、カーソルは同じ2項目を使います。応答は `tournaments`・`nextCursor`・`serverTimeMs`、各行は大会番号・ゲーム・名前・日時・状態・`entryCount` と優勝者の名前・画像・ゲスト表示に絞ります。登録済みエントリー人数は削除済みを除き、一覧と同じSELECT内で取得します。カードの下段は開催前・開催中・結果発表待ちに登録済みエントリー人数を表示し、0人も省略しません。開催中は「開催中」、結果発表待ちは「結果集計中」を人数に添えます。結果確定済みの保存順位1位かつ対局数ありの全員を一括取得し、現在プロフィール・ゲスト統合・退会匿名化の既存方針に従います。未確定で暫定優勝者を出さず、確定後に退会しても次順位を繰り上げません。既存の単一大会・区分別APIとDB形式は維持します。
 - 大会一覧のカードは `LobbyBoardPreview` の軽量画像と `appThemeClasses[gameThemes[game]]` を共用し、ゲーム名・アイコン背景・枠線・リンクを対象ゲームのテーマへそろえます。ルール説明・独立した状態バッジ・優勝者横のゲスト表記は省きます。`tournamentListDate` は日本時間の同日の終了日を省き、複数日は両日、今年以外・年またぎは年も表示します。大会詳細などの既存 `tournamentDate` は維持します。名前と同率優勝者全員を折り返して表示し、カードの高さを固定しません。
 - 大会一覧はPCで本文の全幅（ゲーム別のグリッドは2列分）を使い、カード幅320px・間隔12pxの横一列を一覧内でスクロールします。既存の `AppHorizontalScrollButtons` を共用し、スマートフォンでは矢印を隠してカードを縦に並べます。同じ一覧要素を維持して更新時の横位置を保持し、APIの新しい順を左から表示します。「優勝／同率優勝」と画像・名前は横に並べます。
@@ -549,9 +559,9 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 
 ## 総合ロビーの実装
 
-`features/lobby/GeneralLobbyPage.tsx` がトップ、`GeneralLobbyRooms.tsx`・`useGeneralLobbyRooms.ts` が横断一覧、`GeneralLobbyChat.tsx`・`useLobbyChat.ts` が公開チャットです。架空データ・プレビュー操作・疑似ログイン・DEV限定分岐は撤去し、`/` を両環境のbuildへ含めます。既存の `AccountMenu`・`useRoomEntry`・`RoomEntryDialog`・`RecentMatches` を使い、参加時と観戦URLにルーム世代を渡します。観戦URLは世代確認用の `invite` と `watch=1` を持ち、参加ダイアログを自動表示しません。通常の招待URLは従来どおり参加案内を表示します。登録復帰先に `/` を許可し、チャット下書きはsessionStorage、送信者非表示は公開IDをキーにlocalStorageへ保存します。
+`features/lobby/GeneralLobbyPage.tsx` がトップ、`GeneralLobbyRooms.tsx`・`useGeneralLobbyRooms.ts` が横断一覧です。架空データ・プレビュー操作・疑似ログイン・DEV限定分岐は撤去し、`/` を両環境のbuildへ含めます。既存の `AccountMenu`・`useRoomEntry`・`RoomEntryDialog`・`RecentMatches` を使い、参加時と観戦URLにルーム世代を渡します。観戦URLは世代確認用の `invite` と `watch=1` を持ち、参加ダイアログを自動表示しません。通常の招待URLは従来どおり参加案内を表示します。登録復帰先に `/` を許可し、チャット下書きはsessionStorage、送信者非表示は公開IDをキーにlocalStorageへ保存します。
 
-ホームはブランド見出し・紹介文、6ゲームカード、公開ルーム、大会一覧、公開チャット、最近の対局を縦に並べ、スマートフォンでは大会一覧を最近の対局の下へ移します。幅の購読でkey付きの領域を並べ替え、DOMと表示の順序をそろえつつチャットの下書き・取得済み状態を保持します。ゲームカードはPC6列／スマートフォン3列、公開ルームはPC2列／スマートフォン1列です。2026-10-30の開発者の承認により、スマートフォンのゲームカードの画像を32pxへ縮め、余白を削減しました。`LobbyGameGrid` は既存の優先順の後に未掲載の `gameIds` を追加し、`HomeGameList` は既存の幅購読結果を受け取って初期6件／全件を切り替えます。7件以上のスマートフォンだけに残件数付きの展開・折りたたみボタンを置き、`aria-expanded` と `aria-controls` を付けます。PCは全件、作成ダイアログは従来の全件・画像寸法を維持します。展開状態は幅切替で保持し、ページの再マウントで初期化します。一覧は最大480px／400pxで内部スクロールします。作成入口はゲーム選択後に対象ロビーへ `roomEntryIntent: "create"` を渡し、既存ダイアログを一度だけ開きます。
+ホームはブランド見出し・紹介文、6ゲームカード、公開ルーム、大会一覧、最近の対局を縦に並べ、スマートフォンでは大会一覧を最近の対局の下へ移します。幅の購読でkey付きの領域を並べ替え、DOMと表示の順序をそろえます。ゲームカードはPC6列／スマートフォン3列、公開ルームはPC2列／スマートフォン1列です。2026-10-30の開発者の承認により、スマートフォンのゲームカードの画像を32pxへ縮め、余白を削減しました。`LobbyGameGrid` は既存の優先順の後に未掲載の `gameIds` を追加し、`HomeGameList` は既存の幅購読結果を受け取って初期6件／全件を切り替えます。7件以上のスマートフォンだけに残件数付きの展開・折りたたみボタンを置き、`aria-expanded` と `aria-controls` を付けます。PCは全件、作成ダイアログは従来の全件・画像寸法を維持します。展開状態は幅切替で保持し、ページの再マウントで初期化します。一覧は最大480px／400pxで内部スクロールします。作成入口はゲーム選択後に対象ロビーへ `roomEntryIntent: "create"` を渡し、既存ダイアログを一度だけ開きます。
 
 `GeneralLobbyRooms` は取得済みデータと空表示を自動更新中も保ち、`pendingSource === "refresh"` のときだけ一覧に共通スピナーを重ねます。ゲーム選択後は履歴stateの `roomEntryIntent: "create"` を渡し、共通の `LobbyView` が既存ダイアログを初期表示します。stateの作成意図だけを履歴置換で消費し、他のstateを残して再訪時の自動再表示を防ぎます。
 
@@ -563,33 +573,33 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 
 公開索引には入室時の参加者画像を保存します。保存用schemaは公開cards schemaから独立させ、既存の席IDとappearanceのJSONを維持し、公開プロフィール参照はD1の読取後に組み立てます。旧索引や旧pendingの欠落と実際の空配列を区別し、一覧ページで不足する部屋だけを世代照合して補完します。補完は公開更新日時を変えず索引revisionだけ進め、既存の保存・再送経路へ載せます。匿名化トリガーを通したD1を読み直し、最新条件・件数・カーソルを適用して返します。閉鎖・番号再利用で別世代の画像を混ぜず、遅れた書込みも退会者の画像・プロフィール参照を復活させません。移行は `0025_lobby_room_participants.sql` で行い、プロフィール参照用の追加migration・既存棋譜の書換え・全DOの一括巡回は不要です。
 
-`LobbyChatGuestDialog.tsx` は公開チャットの名前確定時に既存の `ensureGuestAccount` で作成とCookie読戻しを行います。名前確定後に本人を更新し、チャットの認証世代を切り替えて停止・送信間隔を再取得してから投稿欄を使います。本文を自動送信せず、取得・作成失敗では入力を保持します。
+旧総合ロビーの `/api/lobby/chat` と `/api/lobby/chat/reports` は 404 を返します。旧発言と通報証拠は引き続き既存の期限処理と退会処理の対象です。
 
-`/lobby/chat`・`/lobby/chat/reports`・`/admin/lobby-chat` は `routes/lobbyChatRoutes.ts` が受け、送信と取得の判定は community の文脈の `domain/chat.ts`・`use-cases/chat.ts`、D1 の実装は `adapters/community/chatStore.ts`（通報は `chatReports.ts`、運営の操作は `chatModeration.ts`、期限の削除は `chatCleanup.ts`）にあります（TB-144）。取得は、メッセージ、受付の設定、本人の停止状態、大会の状態を 1 回の D1 の batch で読みます。D1の条件付きINSERTが本人・プロフィール・停止・10秒制限・退会・再送IDを検証し、同じbatchの後続の文が、投稿が入ったときだけ送信時刻・再送台帳・最新500件を更新します（TB-145。同じ働きのAFTER INSERTトリガーはTB-146で消しました）。再送台帳は本文のハッシュと投稿IDを持ち、運営削除後の同一再送も本文を復活させません。通常投稿と再送台帳は7日、通報証拠は通報から7日です。期限と退会受付の時点で取得から除外し、毎時削除・削除失敗の再試行へ接続します。退会の完了前に通常投稿と再送台帳を削除し、証拠内の本人識別を除去します。
+`/tournaments/:id/chat`・`/tournaments/:id/chat/reports`・`/admin/lobby-chat` は `routes/lobbyChatRoutes.ts` が受け、送信と取得の判定は community の文脈の `domain/chat.ts`・`use-cases/chat.ts`、D1 の実装は `adapters/community/chatStore.ts`（通報は `chatReports.ts`、運営の操作は `chatModeration.ts`、期限の削除は `chatCleanup.ts`）にあります（TB-144）。取得は、メッセージ、受付の設定、本人の停止状態、大会の状態を 1 回の D1 の batch で読みます。D1の条件付きINSERTが本人・プロフィール・停止・10秒制限・退会・再送IDを検証し、同じbatchの後続の文が、投稿が入ったときだけ送信時刻・再送台帳・最新500件を更新します（TB-145。同じ働きのAFTER INSERTトリガーはTB-146で消しました）。再送台帳は本文のハッシュと投稿IDを持ち、運営削除後の同一再送も本文を復活させません。通常投稿と再送台帳は7日、通報証拠は通報から7日です。期限と退会受付の時点で取得から除外し、毎時削除・削除失敗の再試行へ接続します。退会の完了前に通常投稿と再送台帳を削除し、証拠内の本人識別を除去します。
 
 通報は開発者の明示承認に従い、直近1時間で1アカウント5件までです。同じ発言への再通報は重複登録せず、件数を消費しません。件数の照合と登録を単一の条件付きINSERTで行い、同時要求でも上限を守ります。
 
-管理画面の `LobbyChat.tsx` は通報と現在の投稿、停止中の利用者、全体受付状態を表示します。既存の管理者認証とOrigin検証を使い、実行前に操作内容を確認でき、失敗時は再試行できます。ルームチャットの通報契約・進行処理は変更しません。
+管理画面の大会チャットは全大会の通報、停止中の利用者、全体受付状態を表示します。大会別の管理画面ではその大会の履歴も表示します。既存の管理者認証とOrigin検証を使い、実行前に操作内容を確認でき、失敗時は再試行できます。ルームチャットの通報契約・進行処理は変更しません。
 
 D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳・証拠・全体設定とトリガー、ルーム索引、計測集計列を追加します。既存棋譜の書換えと外部依存の追加はありません。ローカルは `bun run dev` のmigrationで適用します。公開は開発環境のmigration適用と実認証・運営操作・削除処理の確認後、リリース承認を得て本番にも適用します。必要なSecretsは既存の認証・管理者設定を利用し、新しい外部サービス設定は不要です。OAuthのホームページ設定は公開時にトップURLへ整合させます。
 
-トップの初期紹介HTMLは `renderGeneralLobby` で生成します。通常のSPA用の空root・noindexを持つ `app.html` を別に生成し、ログイン・ルーム共有・規約にはこちらを配信します。`index.html` の直接アクセスはトップへクエリを保持して308、トップ自体は200です。公開チャット本文をHTMLへ埋め込まず、サイトマップの静的URLはトップ、6ゲームロビー、四人将棋のルール、サイトの利用ガイドです。開発は検索対象外です。
+トップの初期紹介HTMLは `renderGeneralLobby` で生成します。通常のSPA用の空root・noindexを持つ `app.html` を別に生成し、ログイン・ルーム共有・規約にはこちらを配信します。`index.html` の直接アクセスはトップへクエリを保持して308、トップ自体は200です。サイトマップの静的URLはトップ、6ゲームロビー、四人将棋のルール、サイトの利用ガイドです。開発は検索対象外です。
 
 ## 共通ロビーと四人将棋UI
 
 四人将棋の盤上駒と持ち駒は、PC・スマートフォンとも `shogiPieceDirection(side, viewerSide)` で同じ向きを求めます。`FourShogiBoardLayout` はスマートフォン用の `FourShogiHand` に上2席は `reverseOrder=true`、下2席は `false` を指定して、向きと駒種の並び順を分けます。PCと通常将棋は方向から求めた既定の並び順を使います。対局・観戦・ルーム内棋譜・保存済み棋譜は同じ部品を共用します。表示仕様の正本は [README](../README.md#四人将棋のルーム画面) です。
 
-全6ゲームは `features/lobby/LobbyView` を共用し、タイトル・説明・遊び方・盤面画像をゲームで切り替えます。対局操作の2ボタンは共通のDOMを使い、768px以上はタイトルの右、767px以下は「遊び方」の下にCSSで配置します。PCは左に公開ルーム、右にランキングと最近の対局、スマートフォンは操作・公開ルーム・ランキング・最近の対局の順です。DOM順を共通にし、幅の購読や要素の並べ替えを使いません。公開ルームの更新操作は見出し行へ置きます。空表示はPCで右列全体の下端までCSSで伸ばし、スマートフォンは最小高さ240pxにします。お知らせ・大会入口は対局操作の後、ゲーム紹介は一覧の後に表示します。総合・ゲーム別ロビーの初回一覧には共通の `AppSkeleton` と `AppSkeletonCard` を使います。ゲーム別のランキング・最近の対局は本文に固定3行分を確保し、0件・初回失敗の案内も同じ領域に表示します。
+全6ゲームは `features/lobby/LobbyView` を共用します。スマートフォンのタブ配置は[ロビー仕様](../README.md#四人リバーシのロビー)に従います。投稿タブには既存の掲示板タイムラインを使います。ロビーとタイムラインでゲーム名・遊び方・タブ行を共用し、ロビー初回JSには掲示板全体を含めません。PCの「みんなの投稿」は `LobbyPostPreview` が見出し・スケルトン・計測を受け持ち、取得と一覧は `loadLobbyPostPreview` を動的 import します。チャンクの読み込み失敗は投稿の取得失敗と分け、区画の中の手動の再読み込み（`preloadRecovery.reload`）で扱います。公開ルームの更新操作は見出し行に置きます。総合・ゲーム別ロビーの一覧は `AppSkeleton` と `AppSkeletonCard` を共用します。
 
 全6ゲームのタイトル横と総合ロビーのゲーム一覧は `LobbyBoardPreview` を共用し、`assets/lobby/` の専用WebP画像を1枚の `img` で表示します。五目並べと四人五目並べは同じ空の15路盤画像を使い、画像は計5枚です。実行時にゲームエンジン・対局用の盤面部品・`ShogiPiece` を読み込まず、将棋の盤・駒画像の準備も始めません。`width`／`height` で画像の縦横比を確保し、`aria-hidden`・空のalt・ドラッグ無効の装飾として表示します。入力中のモードや通信状態には連動させません。
 
-画像は既存の初期盤面から傾きと外側の影を除いて書き出し、WebP品質0.86で保存しています。四人将棋と通常将棋は、木目と罫線を描く共有盤面に南を手前にした36枚／40枚の初期配置を載せ、250×250pxへ、それ以外は264×264pxへ出力しています。5枚とも20KB未満です。元画像や初期配置を変更した場合は専用画像も更新します。タイトル横は白い囲みなしで48px、ホームはPC64px／スマートフォン32px、共通ナビ・固定タブは20pxです。タイトルとホームの傾きと影はCSSで付け、将棋とリバーシは左へ7度、五目並べは左へ6度を維持し、ナビ・固定タブは回転と影を外します。初期配信HTMLもビルド済みの同じ画像URLを使います。ゲーム別のページから独自の盤面部品を渡さず、共通ロビーがゲームIDから画像を選びます。
+画像は既存の初期盤面から傾きと外側の影を除いて書き出し、WebP品質0.86で保存しています。四人将棋と通常将棋は、木目と罫線を描く共有盤面に南を手前にした36枚／40枚の初期配置を載せ、250×250pxへ、それ以外は264×264pxへ出力しています。5枚とも20KB未満です。元画像や初期配置を変更した場合は専用画像も更新します。タイトル横は白い囲みなしでPC48px／スマートフォン36px、ホームはPC64px／スマートフォン32px、共通ナビ・固定タブは20pxです。タイトルとホームの傾きと影はCSSで付け、将棋とリバーシは左へ7度、五目並べは左へ6度を維持し、ナビ・固定タブは回転と影を外します。初期配信HTMLもビルド済みの同じ画像URLを使います。ゲーム別のページから独自の盤面部品を渡さず、共通ロビーがゲームIDから画像を選びます。
 
 `GameBadge` は棋譜カードのゲーム名表示に使い、`showGame` で表示を切り替えます。公開ルームカードは常にゲーム名を表示し、総合ロビーでは `gameLink` で各ゲームのロビーへのリンクにします。`LobbyFooter` は総合・各ゲームロビーの規約導線と著作権表記を共用します。
 
 `LobbyRoomCard` は総合・ゲーム別の表示を共用し、盤面、ゲームとモード、時計、ホスト名から作る部屋名、番号、募集状態、実参加者画像と空席、人数、観戦／参加を配置します。ホストと各人間のアイコンは既存の `PlayerProfileTrigger`、CPUは通信不要のlocalProfileを使います。空席・退会者は操作対象にせず、アバター列は操作可能なgroupとして人数も読み上げます。「募集中」は薄いテーマ色と濃い本文色で表示します。参加不可のボタンは無効にし、大会ルームの参加は「大会へ」に接続します。
 
-`LobbyRankings` はシングルス優勝数（二人ゲームは勝利数）の上位3人を固定表示します。自動切替・タイマー・スライドを廃止し、モード・指標切替と更新は詳細ダイアログの `AppTabs` に集約します。詳細は上位10人を表示し、取得結果をプレビューと共有して更新失敗時も保持します。Portalにはゲームのテーマを渡します。
+ランキングの詳細、モード・指標の切り替え、更新は共通の `AppTabs` を使います。PCでは詳細ダイアログ、スマートフォンではランキングタブ内に表示します。取得結果を共有し、更新失敗時は取得済みの値を保持します。
 
 両ゲームで `useLobby` と `useRoomEntry` を使い、ゲーム指定を付けて取得・作成・参加します。省略時はリバーシです。将棋では作成時に三人攻撃禁止を設定できます。ランキングもゲーム別に集計し、リバーシの値を将棋へ流用しません。ダイアログを閉じても入力を保持し、ゲームを切り替えたときは破棄します。
 
@@ -978,7 +988,7 @@ OAuthトークンは認証ライブラリで暗号化して保存し、解除時
 
 ## ゲストアカウント（#234）
 
-利用者向けの正本はREADMEの「ゲストアカウントの確定仕様」です。ゲストの作成と名前変更は account の文脈の `use-cases/guestAccounts.ts`、専用HttpOnly Cookieとルートは `routes/guestRoutes.ts`・`guestSession.ts` が担当し、公開チャットでも名前確定時だけ作成して閲覧では作成しません。`guestNameCustomized` と `isAnonymous` を使います。`guestUsernames.ts` はゲストの表示用IDの生成と衝突判定を担当します。作成時に表示用ID・アカウント・本人資格・同意を同じD1 batchで確定し、IDの一意制約への衝突だけを再生成して再試行します。本人・現在プロフィール・ランキングの取得時には未設定IDを書き込みません。表示用ID、公開カード参照用UUID、内部IDは区別します。Webの `ensureGuestAccount` はCookieの読戻しと同一ブラウザの作成直列化を行い、保存不能・認証障害で参加を続行しません。旧クライアントのアカウントなし参加と終局後の1局取得は互換経路として維持します。
+利用者向けの正本はREADMEの「ゲストアカウントの確定仕様」です。ゲストの作成と名前変更は account の文脈の `use-cases/guestAccounts.ts`、専用HttpOnly Cookieとルートは `routes/guestRoutes.ts`・`guestSession.ts` が担当します。`guestNameCustomized` と `isAnonymous` を使います。`guestUsernames.ts` はゲストの表示用IDの生成と衝突判定を担当します。作成時に表示用ID・アカウント・本人資格・同意を同じD1 batchで確定し、IDの一意制約への衝突だけを再生成して再試行します。本人・現在プロフィール・ランキングの取得時には未設定IDを書き込みません。表示用ID、公開カード参照用UUID、内部IDは区別します。Webの `ensureGuestAccount` はCookieの読戻しと同一ブラウザの作成直列化を行い、保存不能・認証障害で参加を続行しません。旧クライアントのアカウントなし参加と終局後の1局取得は互換経路として維持します。
 
 ゲストの統合と昇格（account の文脈の `use-cases/guestLink.ts`、`guestMerge.ts` と `flows/guestRegistration/guestLink.ts`）は、既存のOAuth stateとゲストCookie・認証後のsessionを結び付けます。新規連携では一時登録者のprovider・sessionを元ゲストへ移し、内部ID・表示用ID・記録を保って初回設定へ進みます。既存登録者への統合は本人の確認後にD1の単一batchで行い、プロフィールは統合先を優先します。マイページから連携する場合は参加中の席を退室し、大会待機を取り消します。終局後の結果からの連携は、同じ席だけを保持する専用の経路を使います。対局・大会の競合と別タブの再参加はDBのfenceで拒否します。
 
@@ -1002,7 +1012,7 @@ migration 0021はゲストセッション、OAuth対応、統合済み内部ID�
 
 ### 自動アイコンとプリセット
 
-ルームの初回名前入力では `RoomEntryDialog` と `RoomInvitationDialogs` の参加ダイアログがプリセットの下書きを持ちます。`RoomIdentityFields` はアイコン・44pxのシャッフル操作・変更結果の読み上げを共有し、`guestAvatar.ts` は現在の画像を除いた候補から選択します。閉鎖時はダイアログとともに下書きを破棄します。全6ゲームの作成・CPU・通常参加と招待／観戦からの参加は、選択IDを `ensureGuestAccount` の作成JSONへ渡します。`prepareRoomGuest` は保存結果を画面へ反映し、下書きと異なるプロフィールを別の操作が先に確定していた場合は入室前に再確認を案内します。大会・公開チャットは既存の名前入力を維持します。
+ルームの初回名前入力では `RoomEntryDialog` と `RoomInvitationDialogs` の参加ダイアログがプリセットの下書きを持ちます。`RoomIdentityFields` はアイコン・44pxのシャッフル操作・変更結果の読み上げを共有し、`guestAvatar.ts` は現在の画像を除いた候補から選択します。閉鎖時はダイアログとともに下書きを破棄します。全6ゲームの作成・CPU・通常参加と招待／観戦からの参加は、選択IDを `ensureGuestAccount` の作成JSONへ渡します。`prepareRoomGuest` は保存結果を画面へ反映し、下書きと異なるプロフィールを別の操作が先に確定していた場合は入室前に再確認を案内します。大会エントリーは既存の名前入力を使います。
 
 `POST /api/account/guest` は任意の `avatarPresetId` を検証し、新規作成では名前・選択ID・本人資格・同意を同じD1 batchで保存します。名前未設定の既存ゲストも名前と選択IDを一つのUPDATEで確定し、設定済みへの変更を条件に含めて遅れた要求による上書きを防ぎます。設定済みの本人には保存済みプロフィールを返し、作成要求での名前・アイコン変更は行いません。選択IDを省略する既存の経路は固定の自動割り当てを維持します。
 
@@ -1188,6 +1198,10 @@ Workerテストで両ゲーム・両モードの人間4人、CPU1〜3人の過�
 
 ## 公開プレイヤー情報
 
+公開ページ `/users/@id` と `/players/:profileId` の入口は Web の [PublicPlayerPage.tsx](../apps/web/src/features/players/PublicPlayerPage.tsx) と Worker の [playerProfileRoutes.ts](../apps/worker/src/routes/playerProfileRoutes.ts) です。前者は公開ID、後者は公開参照UUIDで対象を解決し、取得できた公開UUIDで棋譜と4ゲームのレートを読みます。モード切替は取得済みの戦績を使います。プロフィール・棋譜のどちらかが404を返した場合、開いている公開IDまたは公開参照UUID単位で閲覧不可を保持し、表示データと進行中の取得を破棄します。公開ページ内の履歴移動でも閲覧不可を維持します。ページはSPAで配信し、HTTPヘッダーと画面に `noindex` を指定します。
+
+`GET /api/players/:profileId/matches?game=…&mode=…` は認証不要です。`game` は必須で、`mode` は四人ゲームだけに指定します。account 文脈が公開プロフィールと同じ条件で対象・統合先を解決し、record 文脈の `readMatchHistory` が参加索引と保存済み対局から公開要約を生成します。応答直前に公開可否と解決先を再照合し、読取中の退会や統合で対象が変わった場合は404を返します。応答は `{ matches: MatchSummary[] }` で、全応答が `no-store` です。条件不正は400、閲覧できない対象は404、取得障害は503を返します。
+
 プレイヤー情報のレートは `includeRating=1` で要求します。応答の省略可能な `rating` は時点（current／before／reference）と公開状態（rated／placement／unavailable）を区別します。新Webはこの指定に対応するWorkerと組み合わせ、旧Workerで400となっても指定を外して再取得しません。既存の `includeShogiRating`・`includeReversiRating` の応答は旧Web向けに維持します。
 
 新規レート戦は成立時にGameRoom内部の参加者ID別スナップショットを固定し、4ゲームの内部対局記録の省略可能な `profileRatings` へ引き継ぎます。公開棋譜の形式へは追加せず、プレイヤー情報APIだけが参照します。既存記録は更新前のレート履歴・認定局数とCPU割当記録を使い、現在値を当時の値として返しません。通常対局・大会ではレート情報を返しません。退会の共通匿名化とGameRoom内の消去はスナップショットも対象にします。DB移行や既存記録の一括更新はありません。
@@ -1200,11 +1214,11 @@ Webのキャッシュは対局・部屋世代・参加者の参照元を維持�
 
 `0010_player_profiles.sql` は `user.publicProfileId` の一意UUIDと `room_index` の部屋世代・ホストID列を追加します。内部アカウントIDと変更可能な公開IDから独立した参照キーを既存ユーザーへ付与し、プロフィール保存では未設定の場合だけ生成します。ゲスト作成・プロフィール完了時に公開参照IDを確定し、プロフィール・ランキングGETでは補完UPDATEを行いません。公開対象のID欠落はデータ不整合として503にします。2026-11-06に本番232件・開発12件とも欠落0件を確認しています。
 
-`GET /api/player-profile` はゲームと参照種別を必須にします。`source=room` は `roomId, instanceId, playerId`、`source=match` は `matchId, playerId`、`source=profile` は `profileId` を渡します。GameRoom内部の参加者・アカウント対応、保存記録、公開参照キーをサーバーで照合します。名前や画像で本人を判定せず、内部IDはHTTP・WebSocketへ返しません。省略可能な `includeStats=1` を指定した場合は、平均順位・勝敗分・撃破数の表示に必要な既存 `AccountStats` の全項目を返します。追加指定がない場合、登録者には現在のプロフィールと対象ゲームの `{ singles: { total, first }, doubles: { total, wins } }` だけを返し、既存の `readAccountStats` を呼びます。ゲスト・CPUを区別し、不正400、対象なし404、部屋世代変更410、障害503、全応答no-storeです。対局のWebSocket配信へD1取得を追加しません。
+`GET /api/player-profile` はゲームと参照種別を必須にします。`source=room` は `roomId, instanceId, playerId`、`source=match` は `matchId, playerId`、`source=profile` は `profileId`、`source=username` は `username` を渡します。公開IDからの解決は公開可能な登録者を対象にします。GameRoom内部の参加者・アカウント対応、保存記録、公開参照キーをサーバーで照合します。名前や画像で本人を判定せず、内部IDはHTTP・WebSocketへ返しません。省略可能な `includeStats=1` を指定した場合は、平均順位・勝敗分・撃破数の表示に必要な既存 `AccountStats` の全項目を返します。追加指定がない場合、登録者には現在のプロフィールと対象ゲームの `{ singles: { total, first }, doubles: { total, wins } }` だけを返し、既存の `readAccountStats` を呼びます。ゲスト・CPUを区別し、不正400、対象なし404、部屋世代変更410、障害503、全応答no-storeです。対局のWebSocket配信へD1取得を追加しません。
 
 ロビー・ランキングは `profilePreview=1` の要求にだけ参照情報を追加します。通常の応答は従来の形で、旧Workerの400では通常取得へ戻ります。ロビーの古い索引で参照情報がない行は `getPublicMetadata` で現在の部屋世代とホストへ補完し、閉鎖済みを除外します。参照のない旧応答をゲストと判断しません。
 
-Webのプレイヤー機能は取得store、Provider、表示カード、トリガーに分離します。storeは `includeStats=1`・`includeBadges=1`・`includeDetails=1` を指定し、400時にオプションを除去する自動再取得は行いません。旧応答の不足項目は補完せず、`playerStatsSummary.ts` で取得済み値だけを文章にまとめます。成功結果を60秒再利用し、解決した公開参照キーとゲームで共有します。プロフィール保存・終局・画面遷移で無効化し、abort後や旧要求の完了を採用しません。HeroUIのPopoverは非モーダルで位置・Portalを再利用し、開閉・フォーカスは操作種別に応じて制御します。ランキング内ではPortalを所属ダイアログへ置き、Escapeの伝播を止めて外側を閉じません。
+Webのプレイヤー機能は取得store、Provider、表示カード、トリガーに分離します。storeは `includeStats=1`・`includeBadges=1`・`includeDetails=1` を指定し、400時にオプションを除去する自動再取得は行いません。旧応答の不足項目は補完せず、`playerStatsSummary.ts` で取得済み値だけを文章にまとめます。成功結果を60秒再利用し、解決した公開参照キーとゲームで共有します。プロフィール保存・終局・画面遷移で無効化し、abort後や旧要求の完了を採用しません。ダイアログのスクロール領域でカードやリンクが切れないよう、非モーダルのHeroUI Popoverを既定のPortalに描画します。ダイアログ上でも明示操作でカードへフォーカスを移し、Tabでリンクへ進めます。Escapeはカードだけを閉じ、明示操作で開いていた場合はトリガーへフォーカスを戻します。
 
 Workerの `playerProfiles.test.ts` と既存の公開／本人棋譜・戦績テスト、Webの `playerProfiles.test.tsx` で未ログインでの取得、別人への誤紐付け防止、ゲスト・CPU・参照先なし、旧応答、取得障害、開閉、再試行、キャッシュ期限・無効化・遅延応答を確認します。実寸法・ネイティブ入力・画像デコードは手動確認し、PRへ結果と未確認を記載します。
 
@@ -1235,14 +1249,6 @@ Webの `useMatchHistoryFilter` は本人の公開識別子と選択をブラウ�
 番号は内部予約と公開索引へ保存し、索引のrevision・instanceId照合と通常ルームへの再利用時の消去を維持します。`GET /api/lobby/rooms?view=cards&includeMatchSequence=1` の要求時だけ省略可能な正整数 `matchSequence` を返します。カード以外の指定と不正値は400です。未採番の部屋は省略し、一覧取得で採番しません。旧公開メタ情報RPC、既存APIの省略時応答、WebSocket・保存済み棋譜の形式は維持します。
 
 新Webは `includeMatchKind=1` とともに要求し、共通カードが名前を整形します。新Webには対応Workerが必要で、旧Workerへの自動再取得は行いません。反映順はmigration→Worker→Webとし、Workerを切り戻す場合は対応するWebも戻します。
-
-## レート戦開幕ダイアログ
-
-仕様の正本は[開幕の案内](specs/matchmaking.md#レート戦開幕の案内)です。`RatedLaunchAnnouncement` が総合ロビーと対応4ゲームの共通 `LobbyView` に入り、固定キー `tetraboard:rated-launch:seen` を受付情報の取得前に確認します。`ratedLaunch.ts` に既読確認・表示直前の保存・目的付き遷移の判定を集約します。保存不可では自動表示を見送り、既読は本人の切替やデプロイで消去しません。
-
-総合ロビーは既存 `useLobbyGameRatings` の結果を渡し、ゲーム別は未読かつ目的付き遷移でないときだけ同じAPIを取得します。読み込み・非表示・停止・失敗では既読にしません。表示待ち中のpointerdown・keydown・wheel、別ダイアログの出現、別タブの既読を監視し、利用者の操作を優先します。破棄時に取得・タイマー・イベント・Observerを解除します。
-
-`RatedLaunchDialog` は受付確認済みのゲーム一覧を受け、既存 `AppDialog`・`SocialSignInButtons`・`useSocialSignIn` を使います。選択ゲームを既存の登録復帰先へ保存し、OAuth／初回設定後はそのゲームの `?matchmaking=1` へ戻します。認証開始の計測も既存のrated-matchを利用し、新API・保存テーブル・依存や受付フラグ変更はありません。参加者の検索開始は既存画面の操作に残します。
 
 ## ゲーム別のランキング
 

@@ -4,7 +4,6 @@ import { getRoomContract } from "@tetraboard/protocol";
 import { useNavigate, useNavigation, useSearchParams } from "react-router";
 import { LobbyView } from "./LobbyView";
 import { LobbyList } from "./LobbyList";
-import { LobbyRankings } from "./LobbyRankings";
 import { useLobby } from "./useLobby";
 import { useRoomEntry } from "./useRoomEntry";
 
@@ -60,7 +59,6 @@ export function FourShogiLobbyPage() {
             }
           />
         )}
-        rankings={<LobbyRankings game="four-shogi" theme="four-shogi" />}
       />
       {search.get("matchmaking") === "1" && <RatedMatchmakingDialog game="four-shogi" />}
     </>

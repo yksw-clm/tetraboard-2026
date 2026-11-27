@@ -20,3 +20,22 @@ export function dynamicAssetHeaders(asset: Response): Headers {
     headers.delete(name);
   return headers;
 }
+
+export async function readWithinDeadline<T>(
+  read: () => Promise<T>,
+  errorMessage: string,
+): Promise<T | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      read(),
+      new Promise<undefined>((resolve) => {
+        timer = setTimeout(() => resolve(undefined), 1500);
+      }),
+    ]);
+  } catch {
+    console.error(errorMessage);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}

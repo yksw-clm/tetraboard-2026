@@ -115,6 +115,7 @@ export type FourShogiBoardLayoutProps<A extends FourShogiAction = LegacyAction> 
   onAction(action: A): boolean | void;
   playerCards: Readonly<Partial<Record<Side, ReactNode>>>;
   standard?: boolean;
+  compact?: boolean;
   formationNotice?: string;
   onFormationNoticeDismiss?: () => void;
 };
@@ -124,6 +125,7 @@ export function FourShogiBoardLayout({
   game,
   eliminatedHands = {},
   standard = false,
+  compact = false,
   pendingAction,
   viewerSide,
   interactionSide = viewerSide,
@@ -336,8 +338,11 @@ export function FourShogiBoardLayout({
   function hand(
     side: Side,
     direction: ShogiPieceDirection,
-    vertical = false,
-    reverseOrder?: boolean,
+    {
+      vertical,
+      reverseOrder,
+      compact: compactHand,
+    }: { vertical?: boolean; reverseOrder?: boolean; compact?: boolean } = {},
   ) {
     const availableKinds =
       enabled && side === interactionSide
@@ -353,6 +358,7 @@ export function FourShogiBoardLayout({
             : game.hands[side]) ?? {}
         }
         standard={standard}
+        compact={compactHand}
         label={`${standard ? (side === "south" ? "先手" : "後手") : shogiSideNames[side]}の持ち駒`}
         direction={direction}
         reverseOrder={reverseOrder}
@@ -401,11 +407,21 @@ export function FourShogiBoardLayout({
   });
   // カード2段・持ち駒2段・余白を除いた高さに収めます。
   // 持ち駒の高さも盤の幅に比例するため、盤と駒2段の比率を合わせて計算します。
-  return (
+  const board = (
     <RoomBoardGroup
       ref={layout}
       data-testid="shogi-board-layout"
-      style={{ "--shogi-piece-scale": pieceScale } as CSSProperties}
+      style={
+        {
+          "--shogi-piece-scale": pieceScale,
+          ...(compact && {
+            "--shogi-board-width": "var(--shogi-compact-width, 73cqw)",
+            "--shogi-side-width": "max(0px, calc(13cqw - 8px))",
+            gap: 0,
+            paddingBlock: 0,
+          }),
+        } as CSSProperties
+      }
       className={`${boardSizing} ${standard ? standardLayout : fourPlayerLayout}`}
     >
       {(standard ? (["south", "north"] as const) : shogiSides).map((side) => {
@@ -428,11 +444,11 @@ export function FourShogiBoardLayout({
                   : "hidden shrink-0 min-w-0 [@media(min-width:768px)]:flex justify-center"
               }
             >
-              {hand(side, direction, vertical)}
+              {hand(side, direction, { vertical })}
             </div>
             {!standard && (
               <div className="flex w-full justify-center [@media(min-width:768px)]:hidden">
-                {hand(side, direction, false, reverseMobileHandOrder)}
+                {hand(side, direction, { reverseOrder: reverseMobileHandOrder, compact })}
               </div>
             )}
           </div>
@@ -625,5 +641,12 @@ export function FourShogiBoardLayout({
         />
       )}
     </RoomBoardGroup>
+  );
+  return compact ? (
+    <div className="size-full [container-type:size] [@media(max-width:767px)]:h-auto [@media(max-width:767px)]:[container-type:inline-size] [@media(max-width:767px)]:[--shogi-compact-width:100cqw]">
+      {board}
+    </div>
+  ) : (
+    board
   );
 }

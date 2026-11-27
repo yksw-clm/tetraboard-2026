@@ -8,7 +8,6 @@ import {
   chatRetentionCutoff,
   nextChatPostAt,
   type ChatPage,
-  type ChatScope,
   type ChatSender,
   type ChatTournament,
 } from "../domain/chat";
@@ -17,12 +16,12 @@ type ChatPageRequest = {
   viewer?: string;
   before?: string;
   limit: number;
-  tournamentId: ChatScope;
+  tournamentId: number;
 };
 
 export type ChatPageQuery = ReturnType<typeof chatReadWindow> & {
   viewer?: string;
-  tournamentId: ChatScope;
+  tournamentId: number;
 };
 
 export type ChatPageRows = {
@@ -47,22 +46,22 @@ export async function readChatPage(
     tournamentId,
   });
   return {
-    published: tournamentId === null || tournament !== null,
+    published: tournament !== null,
     page: {
       ...chatMessagePage(messages, limit),
-      ...chatPostingState(tournamentId, accepting, sender, tournament, now),
+      ...chatPostingState(accepting, sender, tournament, now),
       serverTimeMs: now(),
     },
   };
 }
 
-type ChatRequest = { accountId: string; requestId: string; tournamentId: ChatScope };
+type ChatRequest = { accountId: string; requestId: string; tournamentId: number };
 type ChatPost = ChatRequest & { text: string; bodyHash: string; sentAtMs: number };
 type AcceptedPost = {
   messageId: string;
   bodyHash: string;
   sentAtMs: number;
-  tournamentId: ChatScope;
+  tournamentId: number | null;
 };
 
 export interface ChatWriter extends ChatReader {
@@ -73,7 +72,7 @@ export interface ChatWriter extends ChatReader {
   readMessage(
     id: string,
     viewer: string,
-    tournamentId: ChatScope,
+    tournamentId: number,
     afterMs: number,
   ): Promise<LobbyMessage | null>;
 }
@@ -110,7 +109,7 @@ export async function postChatMessage(
     now,
   );
   return {
-    status: chatPostRejection(input.tournamentId, page, sentAtMs),
+    status: chatPostRejection(page, sentAtMs),
     availableAtMs: page.availableAtMs,
   };
 }

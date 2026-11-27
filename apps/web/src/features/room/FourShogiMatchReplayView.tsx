@@ -15,15 +15,18 @@ import {
 } from "./fourShogiRoomPresentation";
 import type { FourShogiReplayFrame } from "./fourShogiReplay";
 import { SavedMatchReplayView } from "./SavedMatchReplayView";
+import { initialReplayIndex } from "./initialReplayIndex";
 export default function FourShogiMatchReplayView({
   match,
   frames,
+  initialPosition = null,
 }: {
   match: ReplayFourShogiMatch;
   frames: FourShogiReplayFrame[];
+  initialPosition?: string | null;
 }) {
   const { rotation, rotate } = useBoardRotation();
-  const [index, setIndex] = useState(frames.length - 1);
+  const [index, setIndex] = useState(() => initialReplayIndex(initialPosition, frames.length));
   const frame = frames[index]!;
   const viewerSide = rotatedShogiViewer(shogiMatchViewerSide(match), rotation);
   const cardFor = (side: Side): ReactNode => {

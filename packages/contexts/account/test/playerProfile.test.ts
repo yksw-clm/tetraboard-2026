@@ -96,6 +96,25 @@ test("ゲストの現在値には登録者の詳細やレートを追加しま�
   expect(result).not.toHaveProperty("rating");
   expect(calls).toEqual(["stats"]);
 });
+test("公開IDの照会後にIDが変わったアカウントや退会したアカウントを返しません", async () => {
+  for (const update of ["rename", "delete"]) {
+    const { r, memory } = ports();
+    const query: PlayerProfileQuery = {
+      source: "username",
+      username: row.username!,
+      game: "four-reversi",
+    };
+    r.stats = async () => {
+      if (update === "rename") memory.rows.set(row.id, { ...row, username: "new_username" });
+      else memory.rows.delete(row.id);
+      return stats;
+    };
+    expect(await readPlayerProfile(r, query)).toEqual({
+      status: 404,
+      message: "プロフィールを表示できません。",
+    });
+  }
+});
 test("未設定・退会・不正プロフィールでは統計を読みません", async () => {
   for (const kind of ["missing", "incomplete", "invalid"]) {
     const { r, memory, calls } = ports();

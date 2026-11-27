@@ -32,6 +32,14 @@ export class D1AccountProfiles implements AccountProfiles {
       )?.id ?? null
     );
   }
+  async accountIdByUsername(username: string) {
+    return (
+      (await this.db
+        .prepare('SELECT id FROM user WHERE LOWER("username") = ? AND COALESCE(isAnonymous, 0) = 0')
+        .bind(username)
+        .first<string>("id")) ?? null
+    );
+  }
   async mergedAccountId(guestId: string) {
     return (
       (

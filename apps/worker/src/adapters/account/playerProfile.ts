@@ -1,7 +1,7 @@
 import { hasProfileRating } from "@tetraboard/context-rating";
 import type {
   PlayerProfilePorts,
-  PlayerProfileQuery,
+  PlayerProfileAppearanceQuery,
   ProfileSource,
 } from "@tetraboard/context-account";
 import {
@@ -34,10 +34,7 @@ export function playerProfilePorts(env: Env): PlayerProfilePorts {
     badges: getEarnedBadges,
   };
 }
-async function readSource(
-  env: Env,
-  target: Exclude<PlayerProfileQuery, { source: "profile" }>,
-): Promise<ProfileSource> {
+async function readSource(env: Env, target: PlayerProfileAppearanceQuery): Promise<ProfileSource> {
   let player, accountId: string | null, rating: ProfileRating | undefined;
   if (target.source === "room") {
     const resolved = await env.GAME_ROOM.getByName(target.roomId).resolvePlayerProfile(

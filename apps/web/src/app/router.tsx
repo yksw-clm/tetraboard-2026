@@ -9,7 +9,13 @@ import { roomLoader } from "../features/room/roomLoader";
 import { AppPageLoading } from "../shared/ui/AppPageState";
 import { AppRouteErrorPage } from "../shared/ui/AppErrorPage";
 import { gameThemes } from "../shared/ui/appTheme";
-import { fourShogiRulesPath, gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
+import {
+  fourShogiRulesPath,
+  gameIds,
+  gameCatalog,
+  isGameId,
+  type GameId,
+} from "@tetraboard/protocol/games";
 import type { ComponentType } from "react";
 export const lobbyRoutes = {
   "four-gomoku": {
@@ -63,6 +69,10 @@ const lazyMatchReplayPage = () => ({
 
 // 一覧と詳細の遅延読み込み先を共用し、既存画面が読む共通チャンクの細分化を抑えます。
 const loadTournamentPages = () => import("../features/tournaments/tournamentRoutes");
+
+const loadBoardPages = () => import("../features/board/BoardPages");
+
+const initialBoardGameId = globalThis.location?.pathname.split("/")[2];
 
 export const router = createBrowserRouter([
   {
@@ -121,6 +131,25 @@ export const router = createBrowserRouter([
           Component: (await import("../features/feedback/FeedbackPage")).FeedbackPage,
         }),
         hydrateFallbackElement: <AppPageLoading message="フィードバックを読み込んでいます…" />,
+      },
+      {
+        path: "/games/:gameId/posts",
+        lazy: async () => ({
+          Component: (await loadBoardPages()).BoardTimelinePage,
+        }),
+        hydrateFallbackElement: (
+          <AppPageLoading
+            message="掲示板を読み込んでいます…"
+            theme={isGameId(initialBoardGameId) ? gameThemes[initialBoardGameId] : undefined}
+          />
+        ),
+      },
+      {
+        path: "/posts/:id",
+        lazy: async () => ({
+          Component: (await loadBoardPages()).BoardDetailPage,
+        }),
+        hydrateFallbackElement: <AppPageLoading message="投稿を読み込んでいます…" />,
       },
       {
         path: "/updates",
@@ -192,6 +221,13 @@ export const router = createBrowserRouter([
         lazy: lazyMatchReplayPage(),
         hydrateFallbackElement: <AppPageLoading message="棋譜を読み込んでいます…" />,
       },
+      ...["/players/:profileId", "/users/:handle"].map((path) => ({
+        path,
+        lazy: async () => ({
+          Component: (await import("../features/players/PublicPlayerPage")).PublicPlayerPage,
+        }),
+        hydrateFallbackElement: <AppPageLoading message="プレイヤー情報を読み込んでいます…" />,
+      })),
       {
         path: "/matches/:matchId",
         id: "public-match",

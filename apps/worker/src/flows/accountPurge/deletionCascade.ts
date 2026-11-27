@@ -2,6 +2,7 @@ import { retiredName } from "@tetraboard/context-privacy";
 import type { AuthEnv } from "../../adapters/account/auth";
 import { deactivateDeletedAccountStatements } from "../../adapters/account/deletionWrites";
 import { avatarKeyPattern } from "../../adapters/account/profilePolicy";
+import { withdrawBoardStatements } from "../../adapters/community/boardDeletion";
 import { hideDeletedFeedbackStatement } from "../../adapters/community/feedbackDeletion";
 import {
   queueDeletionImagesStatements,
@@ -20,6 +21,7 @@ export function deletionCascadeStatements(
 ) {
   return [
     hideDeletedFeedbackStatement(db, deletion, reporterHash),
+    ...withdrawBoardStatements(db, deletion),
     ...hideDeletedRoomPlayersStatements(db, deletion, retiredName),
     ...queueDeletionImagesStatements(db, deletion),
     ...retireDeletedAccountClaimStatements(db, deletion),

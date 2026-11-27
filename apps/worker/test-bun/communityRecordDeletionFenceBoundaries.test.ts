@@ -14,6 +14,15 @@ const replayAccount =
 const deletionGuard = "${guard.sql}";
 
 const boundaries: Record<string, [file: string, ...terms: string[]][]> = {
+  "INSERT board_posts": [["adapters/community/boardPosting.ts", '${accountNotDeletedSql("u.id")}']],
+  "INSERT board_senders": [
+    ["adapters/community/boardPosting.ts", '${accountNotDeletedSql("u.id")}'],
+    ["adapters/community/boardModeration.ts", '${accountNotDeletedSql("p.account_id")}'],
+  ],
+  "INSERT board_likes": [["adapters/community/boardActions.ts", '${accountNotDeletedSql("u.id")}']],
+  "INSERT board_reports": [
+    ["adapters/community/boardReports.ts", '${boardPublishedSql("p")}', boundAccount],
+  ],
   "INSERT feedback": [["adapters/community/feedbackSubmission.ts", boundAccount]],
   "INSERT account_notification_reads": [
     [notifications, boundAccount],
@@ -27,6 +36,7 @@ const boundaries: Record<string, [file: string, ...terms: string[]][]> = {
   "INSERT notification_events": [
     [announcements, "a . published = 1"],
     ["adapters/community/badgeEvents.ts", '${accountNotDeletedSql("awards.account_id")}'],
+    ["adapters/community/boardPosting.ts", "${liveParentSql}"],
     ["adapters/tournament/finalization.ts", '${notificationRecipientAllowedSql("?2")}'],
   ],
   "UPDATE notification_events": [[notifications, '${notificationRecipientAllowedSql("?1")}']],
@@ -69,9 +79,20 @@ for (const [key, expected] of Object.entries(boundaries)) {
       ).not.toBe(-1);
       remaining.splice(index, 1);
     }
-    // 更新にも退会フェンスがある表は、INSERT の UPSERT で更新を迂回させません。
-    if (key === "INSERT notification_events" || key === "INSERT match_participant_accounts")
-      for (const write of writes) expect(updateClauses(write)).toEqual([]);
+    // UPSERT も退会フェンス付きの SELECT で行を選び、指定した列にだけ書き込みます。
+    if (
+      key.startsWith("INSERT board_") ||
+      key === "INSERT notification_events" ||
+      key === "INSERT match_participant_accounts"
+    )
+      for (const write of writes) {
+        const updates = updateClauses(write);
+        if (write.file === "adapters/community/boardModeration.ts") {
+          expect(updates.map(({ columns }) => columns)).toEqual([["stopped"]]);
+        } else {
+          expect(updates).toEqual([]);
+        }
+      }
   });
 }
 

@@ -3,7 +3,8 @@ import type { TournamentPublic } from "@tetraboard/protocol";
 
 export const ActiveTournamentsContext = createContext<{
   tournaments: TournamentPublic[];
+  upcoming: TournamentPublic[];
   serverNowMs: number;
-}>({ tournaments: [], serverNowMs: 0 });
+}>({ tournaments: [], upcoming: [], serverNowMs: 0 });
 
 export const useActiveTournaments = () => useContext(ActiveTournamentsContext);

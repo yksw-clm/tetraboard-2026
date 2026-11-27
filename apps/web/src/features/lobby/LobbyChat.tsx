@@ -1,17 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { chatCharacterLimit, countCharacters } from "@tetraboard/protocol";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
-import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
+import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppIcon } from "../../shared/ui/AppIcon";
-import { AppSectionHeading } from "../../shared/ui/AppSectionHeading";
 import { AppTextField } from "../../shared/ui/AppTextField";
 import { useLobbyChat } from "./useLobbyChat";
 import { useAccount } from "../account/useAccount";
-import { useNavigate } from "react-router";
-import { saveRegistrationReturn } from "../account/registrationReturn";
 import { AppDialog } from "../../shared/ui/AppDialog";
-import { LobbyChatGuestDialog } from "./LobbyChatGuestDialog";
 const hiddenKey = "tetraboard:lobby-chat:hidden";
 function readDraft(draftKey: string) {
   try {
@@ -35,23 +31,17 @@ type TournamentChatOptions = {
   entryAvailable: boolean;
   entryDisabled: boolean;
 };
-export function LobbyChat({ tournament }: { tournament?: TournamentChatOptions }) {
-  const account = useAccount(),
-    navigate = useNavigate();
-  const draftKey = tournament
-    ? `tetraboard:tournament-chat:${tournament.id}:draft`
-    : "tetraboard:lobby-chat:draft";
-  const titleId = tournament ? `tournament-${tournament.id}-chat-title` : "public-chat-title";
-  const title = tournament ? "大会チャット" : "公開チャット（β）";
+export function LobbyChat({ tournament }: { tournament: TournamentChatOptions }) {
+  const account = useAccount();
+  const draftKey = `tetraboard:tournament-chat:${tournament.id}:draft`;
+  const titleId = `tournament-${tournament.id}-chat-title`;
   const page = useLobbyChat(
     account.user?.profileId ?? account.user?.username ?? null,
-    tournament?.id,
+    tournament.id,
   );
   const messages = page.messages;
   const needsGuest = !account.user || Boolean(account.user.isGuest && !account.user.nameCustomized);
-  const hasPostingIdentity =
-    Boolean(account.user?.profileCompleted) && !needsGuest && (!tournament || page.entered);
-  const [guestDialog, setGuestDialog] = useState(false);
+  const hasPostingIdentity = Boolean(account.user?.profileCompleted) && !needsGuest && page.entered;
   const [input, setInput] = useState(() => readDraft(draftKey));
   const [reportId, setReportId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -97,18 +87,12 @@ export function LobbyChat({ tournament }: { tournament?: TournamentChatOptions }
       if (count) setNewCount((n) => n + count);
     }
   }, [page.messages, page.serverTimeMs]);
-  function onSignIn() {
-    saveRegistrationReturn({ path: "/" }, false);
-    void navigate(account.user ? "/account/setup" : "/login");
-  }
   const remaining = Math.max(
     0,
     Math.ceil((page.availableAtMs - (received.server + now - received.local)) / 1000),
   );
   const closed =
-    tournament &&
-    page.closesAtMs !== null &&
-    received.server + now - received.local >= page.closesAtMs;
+    page.closesAtMs !== null && received.server + now - received.local >= page.closesAtMs;
   const blocked =
     page.sending ||
     account.loading ||
@@ -116,7 +100,7 @@ export function LobbyChat({ tournament }: { tournament?: TournamentChatOptions }
     page.loading ||
     !page.acceptingPosts ||
     page.postingStopped ||
-    Boolean(closed) ||
+    closed ||
     remaining > 0;
   const [expanded, setExpanded] = useState<string | null>(null);
   const [hiddenSenders, setHiddenSenders] = useState<string[]>(readHidden);
@@ -124,37 +108,13 @@ export function LobbyChat({ tournament }: { tournament?: TournamentChatOptions }
   const valid = count > 0 && count <= chatCharacterLimit;
 
   return (
-    <section aria-labelledby={titleId} className={tournament ? "min-w-0" : "min-w-0"}>
-      {!tournament && (
-        <div className="flex min-w-0 flex-col justify-between">
-          <AppSectionHeading
-            id="public-chat-title"
-            title="公開チャット（β）"
-            description="現在β版として試験公開しています。"
-          />
-          <AppButtonLink
-            to="/feedback"
-            size="compact"
-            appearance="quiet"
-            className="mb-2.5 self-start px-0 text-xs"
-          >
-            <AppIcon name="chat" className="size-3.5" />
-            使ってみた感想を送る
-          </AppButtonLink>
+    <section aria-labelledby={titleId} className="min-w-0">
+      <AppCard className="h-[480px] min-h-0 gap-3 p-4 md:h-[560px]">
+        <div>
+          <h2 id={titleId} className="text-lg font-bold">
+            大会チャット
+          </h2>
         </div>
-      )}
-      <AppCard
-        className={
-          tournament ? "h-[480px] min-h-0 gap-3 p-4 md:h-[560px]" : "h-[600px] min-h-0 gap-3 p-4"
-        }
-      >
-        {tournament && (
-          <div>
-            <h2 id={titleId} className="text-lg font-bold">
-              {title}
-            </h2>
-          </div>
-        )}
         <ul
           ref={log}
           onScroll={() => {
@@ -170,7 +130,7 @@ export function LobbyChat({ tournament }: { tournament?: TournamentChatOptions }
               follow.current =
                 log.current.scrollHeight - log.current.scrollTop - log.current.clientHeight < 40;
           }}
-          aria-label={tournament ? "大会チャット履歴" : "公開チャット履歴"}
+          aria-label="大会チャット履歴"
           tabIndex={0}
           className="m-0 min-h-0 flex-1 list-none overflow-y-auto overscroll-contain rounded-panel border border-solid border-line p-2.5 [scrollbar-width:thin]"
         >
@@ -203,9 +163,7 @@ export function LobbyChat({ tournament }: { tournament?: TournamentChatOptions }
             <li className="pt-10 text-center text-xs text-muted">
               まだメッセージはありません。
               <br />
-              {tournament
-                ? "挨拶や大会の感想を、気軽に書いてみませんか？"
-                : "次に遊ぶ予定を、気軽に書いてみませんか？"}
+              挨拶や大会の感想を、気軽に書いてみませんか？
             </li>
           )}
 
@@ -334,9 +292,7 @@ export function LobbyChat({ tournament }: { tournament?: TournamentChatOptions }
         ) : (
           (!page.acceptingPosts || page.postingStopped) && (
             <p role="status" className="text-xs text-muted">
-              {tournament
-                ? "現在、大会チャットへの投稿は停止されています。"
-                : "現在、公開チャットへの投稿は停止されています。"}
+              現在、大会チャットへの投稿は停止されています。
             </p>
           )
         )}
@@ -373,9 +329,7 @@ export function LobbyChat({ tournament }: { tournament?: TournamentChatOptions }
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-2">
                 <AppTextField.Input
-                  placeholder={
-                    tournament ? "挨拶や大会の感想をどうぞ" : "何時から、何のゲームで遊びますか？"
-                  }
+                  placeholder="挨拶や大会の感想をどうぞ"
                   autoComplete="off"
                   onCompositionStart={() => {
                     composing.current = true;
@@ -405,7 +359,7 @@ export function LobbyChat({ tournament }: { tournament?: TournamentChatOptions }
               </div>
             </AppTextField>
           </form>
-        ) : tournament ? (
+        ) : (
           <div className="flex shrink-0 flex-col items-center gap-2 rounded-control bg-surface-muted px-3 py-3">
             <p className="text-xs text-muted">
               {page.loading || account.loading
@@ -429,38 +383,8 @@ export function LobbyChat({ tournament }: { tournament?: TournamentChatOptions }
               </AppButton>
             )}
           </div>
-        ) : (
-          <div className="flex shrink-0 flex-col items-center gap-2 rounded-control bg-surface-muted px-3 py-4">
-            <p className="text-xs text-muted">
-              {account.loading
-                ? "アカウントを確認しています…"
-                : needsGuest
-                  ? "ゲストでも名前を設定すると投稿できます。"
-                  : "投稿にはプロフィール設定が必要です。"}
-            </p>
-            {account.error && (
-              <p role="alert" className="text-xs text-danger">
-                {account.error}
-              </p>
-            )}
-            <AppButton
-              size="compact"
-              isDisabled={
-                account.loading ||
-                (!account.error && (page.loading || !page.acceptingPosts || page.postingStopped))
-              }
-              onPress={() => {
-                if (account.error) void account.refresh("chat-identity");
-                else if (needsGuest) setGuestDialog(true);
-                else onSignIn();
-              }}
-            >
-              {account.error ? "再試行" : needsGuest ? "名前を設定して投稿" : "プロフィールを設定"}
-            </AppButton>
-          </div>
         )}
       </AppCard>
-      {guestDialog && needsGuest && <LobbyChatGuestDialog onClose={() => setGuestDialog(false)} />}
       {reportId && (
         <AppDialog
           title="メッセージを通報"

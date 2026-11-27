@@ -255,6 +255,17 @@ export const listMatchesContract = {
     filter: matchHistoryFilterSchema.optional(),
   }),
 } as const;
+
+export const listPlayerMatchesContract = {
+  method: "GET",
+  path: "/players/:profileId/matches",
+  params: z.strictObject({ profileId: z.uuid() }),
+  query: z
+    .strictObject({ game: matchGameSchema, mode: roomModeSchema.optional() })
+    .refine(({ game, mode }) => gameCatalog[game].hasModes === (mode !== undefined)),
+  response: z.strictObject({ matches: z.array(matchSummarySchema).max(20) }),
+} as const;
+
 export type MatchSummary = z.infer<typeof matchSummarySchema>;
 export type FourReversiMatchHistoryParticipant = z.infer<typeof matchParticipantSchema>;
 export type FourShogiMatchHistoryParticipant = z.infer<typeof fourShogiMatchParticipantSchema>;

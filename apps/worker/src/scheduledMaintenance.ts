@@ -1,4 +1,5 @@
 import { cleanupLobbyChat } from "./adapters/community/chatCleanup";
+import { cleanupBoardReports } from "./adapters/community/boardCleanup";
 import { processDeletions } from "./flows/accountPurge/processDeletions";
 import { recoverAccountReservations } from "./flows/accountSeats/reserve";
 import { retryPendingMatchClaims } from "./flows/matchSave/claims";
@@ -41,6 +42,7 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
   await runMaintenanceTasks([
     { name: "account-deletions", run: () => processDeletions(env) },
     { name: "lobby-chat", run: () => cleanupLobbyChat(env.APP_DB) },
+    { name: "board-reports", run: () => cleanupBoardReports(env.APP_DB) },
     { name: "kpi-monthly", run: () => savePreviousMonthKpi(env) },
     { name: "feedback", run: () => cleanupFeedback(env) },
     { name: "reports", run: () => deleteExpiredReports(env.APP_DB) },

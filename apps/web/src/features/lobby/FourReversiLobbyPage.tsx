@@ -2,7 +2,6 @@ import { getRoomContract } from "@tetraboard/protocol";
 import { useNavigate, useNavigation, useSearchParams } from "react-router";
 import { LobbyView } from "./LobbyView";
 import { LobbyList } from "./LobbyList";
-import { LobbyRankings } from "./LobbyRankings";
 import { useLobby } from "./useLobby";
 import { useRoomEntry } from "./useRoomEntry";
 
@@ -49,7 +48,6 @@ export function FourReversiLobbyPage() {
             }
           />
         )}
-        rankings={<LobbyRankings />}
         onNameChange={entry.setName}
         onRoomCodeChange={entry.setRoomCode}
         onModeChange={entry.setMode}

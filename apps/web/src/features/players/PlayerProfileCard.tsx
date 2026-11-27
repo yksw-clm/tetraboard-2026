@@ -8,6 +8,12 @@ import type { ProfileState } from "./playerProfileStore";
 import { PlayerBadges } from "../badges/PlayerBadges";
 import { ProfileDetails } from "./ProfileDetails";
 import { statsScopeLabel } from "../account/statsPresentation";
+import { playerPagePath } from "./playerProfileQuery";
+import { useId } from "react";
+import { Link, useMatch } from "react-router";
+
+export type PublicAccountProfile = Extract<PlayerProfile, { kind: "account" }>;
+
 export function PlayerProfileCard({
   state,
   localProfile,
@@ -45,6 +51,7 @@ export function PlayerProfileCard({
       </div>
     );
   const name = profile.kind === "cpu" ? (profile.name ?? `CPU Lv${profile.level}`) : profile.name;
+  const linkedProfile = state.profile?.kind === "account" ? state.profile : null;
   return (
     <div className="flex flex-col gap-3">
       <div className="flex min-w-0 items-center gap-3 pr-8">
@@ -55,15 +62,12 @@ export function PlayerProfileCard({
           className="size-12"
         />
         <div className="min-w-0">
-          <p className="m-0 font-bold wrap-anywhere">{name}</p>
-          {profile.kind === "account" && (
-            <p className="m-0 text-sm text-muted wrap-anywhere">
-              {profile.username && `@${profile.username}`}
-              {profile.isGuest && (
-                <span className={profile.username ? "ml-2" : undefined}>ゲスト</span>
-              )}
-            </p>
+          {linkedProfile ? (
+            <PlayerNameLink profile={linkedProfile} game={game} mode={mode} />
+          ) : (
+            <p className="m-0 font-bold wrap-anywhere">{name}</p>
           )}
+          {profile.kind === "account" && <PlayerProfileId profile={profile} />}
         </div>
       </div>
       {profile.kind === "cpu" && profile.cpuProfile && (
@@ -79,20 +83,18 @@ export function PlayerProfileCard({
               favoriteGames={profile.favoriteGames}
             />
           )}
-          <div>
-            <p className="m-0 text-xs font-semibold">
-              {gameCatalog[game].name}
-              {gameCatalog[game].hasModes && `・${mode === "singles" ? "シングルス" : "ダブルス"}`}
-            </p>
-            <p className="m-0 text-xs text-muted">{statsScopeLabel(game, mode)}</p>
-          </div>
-          <p className="m-0 text-xs tabular-nums wrap-anywhere">
-            {formatPlayerStatsSummary(profile.stats, mode)}
-          </p>
-          {showRating && profile.rating && <ProfileRatingLabel rating={profile.rating} />}
-          {gameCatalog[game].hasModes && mode === "singles" && (
-            <PlayerBadges game={game} badges={profile.badges} />
-          )}
+          <PublicPlayerStats
+            profile={profile}
+            game={game}
+            mode={mode}
+            showRating={showRating}
+            gameLabel={
+              gameCatalog[game].name +
+              (gameCatalog[game].hasModes
+                ? `・${mode === "singles" ? "シングルス" : "ダブルス"}`
+                : "")
+            }
+          />
         </>
       ) : (
         <>
@@ -118,6 +120,82 @@ export function PlayerProfileCard({
             </div>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+function PlayerNameLink({
+  profile,
+  game,
+  mode,
+}: {
+  profile: PublicAccountProfile;
+  game: GameId;
+  mode: RoomMode;
+}) {
+  const isRoom = Boolean(useMatch("/rooms/:id"));
+  const descriptionId = useId();
+  return (
+    <>
+      <p className="m-0 font-bold wrap-anywhere">
+        <Link
+          to={playerPagePath(
+            { profileId: profile.profileId, username: profile.isGuest ? null : profile.username },
+            game,
+            mode,
+          )}
+          className="rounded-sm text-brand underline underline-offset-2 focus-visible:outline-[3px] focus-visible:outline-focus focus-visible:outline-offset-2"
+          target={isRoom ? "_blank" : undefined}
+          rel={isRoom ? "noopener noreferrer" : undefined}
+          aria-describedby={isRoom ? descriptionId : undefined}
+        >
+          {profile.name}
+        </Link>
+      </p>
+      {isRoom && (
+        <p id={descriptionId} className="m-0 text-xs text-muted">
+          新しいタブで開く
+        </p>
+      )}
+    </>
+  );
+}
+
+export function PlayerProfileId({ profile }: { profile: PublicAccountProfile }) {
+  return (
+    <p className="m-0 text-sm text-muted wrap-anywhere">
+      {profile.username && `@${profile.username}`}
+      {profile.isGuest && <span className={profile.username ? "ml-2" : undefined}>ゲスト</span>}
+    </p>
+  );
+}
+
+export function PublicPlayerStats({
+  profile,
+  game,
+  mode,
+  showRating,
+  gameLabel,
+}: {
+  profile: PublicAccountProfile;
+  game: GameId;
+  mode: RoomMode;
+  showRating: boolean;
+  gameLabel?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        {gameLabel && <p className="m-0 text-xs font-semibold">{gameLabel}</p>}
+        <p className="m-0 text-xs text-muted">{statsScopeLabel(game, mode)}</p>
+      </div>
+      <p className="m-0 text-xs tabular-nums wrap-anywhere">
+        {formatPlayerStatsSummary(profile.stats, mode)}
+      </p>
+      {showRating && profile.rating && <ProfileRatingLabel rating={profile.rating} />}
+      {gameCatalog[game].hasModes && mode === "singles" && (
+        <PlayerBadges game={game} badges={profile.badges} />
       )}
     </div>
   );

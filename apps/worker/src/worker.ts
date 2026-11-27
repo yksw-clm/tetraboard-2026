@@ -5,6 +5,8 @@ import { runScheduledMaintenance } from "./scheduledMaintenance";
 import { guestLinkRoutes } from "./routes/guestLinkRoutes";
 import { guestRoutes } from "./routes/guestRoutes";
 import { generalLobbyRoutes } from "./routes/generalLobbyRoutes";
+import { boardRoutes } from "./routes/boardRoutes";
+import { boardAdminRoutes } from "./routes/boardAdminRoutes";
 import { lobbyChatRoutes } from "./routes/lobbyChatRoutes";
 import { deletionRoutes } from "./routes/deletionRoutes";
 import { legalRoutes } from "./routes/legalRoutes";
@@ -13,6 +15,7 @@ import { announcementRoutes, announcementAdminRoutes } from "./routes/announceme
 import { adminRoutes } from "./admin/routes";
 import { adminIdentity, type AdminEnv } from "./admin/auth";
 import { clientErrorRoutes } from "./usageEvents/clientErrors";
+import { boardPreviewViewRoutes } from "./usageEvents/boardPreviewViews";
 import { visitRoutes } from "./usageEvents/visit";
 import { healthzContract } from "@tetraboard/protocol";
 import { accountRoutes } from "./routes/accountRoutes";
@@ -51,6 +54,8 @@ api.route("/", tournamentRoutes);
 api.route("/", matchmakingRoutes);
 api.route("/", tournamentAdminRoutes);
 api.route("/", lobbyChatRoutes);
+api.route("/", boardRoutes);
+api.route("/", boardAdminRoutes);
 api.route("/", adminRoutes);
 api.route("/", announcementRoutes);
 api.route("/", announcementAdminRoutes);
@@ -59,6 +64,7 @@ api.route("/", feedbackRoutes);
 api.route("/", registrationEntryRoutes);
 api.route("/", clientErrorRoutes);
 api.route("/", visitRoutes);
+api.route("/", boardPreviewViewRoutes);
 api.route("/", matchRoutes);
 api.route("/", publicMatchRoutes);
 api.route("/", statsRoutes);
@@ -92,7 +98,8 @@ const worker = {
     // 画面・画像はアセットへ渡し、APIだけをHonoで処理します。
     if (env.ASSETS && url.pathname !== "/api" && !url.pathname.startsWith("/api/")) {
       const assetPath = normalizePublicAssetPath(url.pathname);
-      if (assetPath === null) {
+      // /api が付かない旧チャットも、アセットのメソッド判定より先に404を返します。
+      if (assetPath === null || /^\/lobby\/chat(?:\/reports)?\/?$/.test(assetPath)) {
         return new Response("Not Found", { status: 404, headers: { "Cache-Control": "no-store" } });
       }
       if (assetPath === "/admin" || assetPath.startsWith("/admin/")) {

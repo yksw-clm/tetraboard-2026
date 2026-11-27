@@ -3,6 +3,7 @@ export * from "./matchKinds";
 export * from "./avatarPresets";
 export * from "./profileDetails";
 export * from "./gameSchemas";
+export { boardPostIdSchema } from "./boardIds";
 export { healthzContract } from "./healthz";
 export {
   getFourReversiRankingsContract,
@@ -38,6 +39,7 @@ export {
   type ReplayFourShogiMatch,
   type ReplayMatch,
   listMatchesContract,
+  listPlayerMatchesContract,
   matchHistoryFilterSchema,
   type MatchHistoryFilter,
   getMatchContract,

@@ -13,6 +13,7 @@ const paths = {
   camera:
     "M4 6h4l2-3h4l2 3h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Zm12 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
   chevronDown: "m6 9 6 6 6-6",
+  ellipsis: "M5 12h.01M12 12h.01M19 12h.01",
   arrow: "M5 12h14m-6-6 6 6-6 6",
   plus: "M12 5v14M5 12h14",
   join: "M14 4h5v16h-5M3 12h11m-4-4 4 4-4 4",
@@ -33,6 +34,7 @@ const paths = {
   robot: "M12 2v3M5 7h14v13H5V7ZM2 11v5m20-5v5M8 11h1m6 0h1m-7 5h6",
   board: "M3 3h18v18H3V3Zm6 0v18m6-18v18M3 9h18M3 15h18",
   chat: "M21 11a8 8 0 0 1-8 8H8l-5 3V11a9 9 0 0 1 18 0ZM7 11h10",
+  heart: "M12 20 4.5 12.5a4.5 4.5 0 0 1 6.4-6.4L12 7.2l1.1-1.1a4.5 4.5 0 0 1 6.4 6.4L12 20Z",
   clock: "M12 8v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0",
   leave: "M9 4H4v16h5M10 12h11m-4-4 4 4-4 4",
   send: "m22 2-7 20-4-9-9-4 20-7ZM11 13 22 2",

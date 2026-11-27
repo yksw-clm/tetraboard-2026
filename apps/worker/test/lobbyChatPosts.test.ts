@@ -4,16 +4,21 @@ import { expect, test } from "vitest";
 import { D1ChatStore } from "../src/adapters/community/chatStore";
 import { accountFixture } from "./accountFixtures";
 
+import { publishedChatTournament } from "./tournamentChatFixtures";
+
 test("本人確認の後に退会を受け付けた場合、新規投稿と受理済みIDの再送を拒否する", async () => {
   const db = env.APP_DB;
   const user = await accountFixture();
+  const tournamentId = 74203;
+  const tournament = await publishedChatTournament(db, tournamentId);
+  await tournament.enroll(user.id);
   const requestId = crypto.randomUUID();
   const now = Date.now();
   const store = new D1ChatStore(db);
   const post = (id: string, at: number) =>
     postChatMessage(
       store,
-      { accountId: user.id, requestId: id, tournamentId: null, text: "発言" },
+      { accountId: user.id, requestId: id, tournamentId, text: "発言" },
       () => at,
       async () => "hash",
     );

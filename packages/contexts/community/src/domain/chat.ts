@@ -4,8 +4,7 @@ export const lobbyRetentionMs = 7 * 86400000;
 const postIntervalMs = 10000;
 const tournamentGraceMs = 86400000;
 
-export type ChatScope = number | null;
-export type ChatPage = LobbyChat & { entered?: boolean; closesAtMs?: number | null };
+export type ChatPage = LobbyChat & { entered: boolean; closesAtMs: number | null };
 
 export function chatRetentionCutoff(now: number) {
   return now - lobbyRetentionMs;
@@ -45,7 +44,6 @@ export function chatPostWindow(now: number) {
 }
 
 export function chatPostingState(
-  scope: ChatScope,
   accepting: boolean,
   sender: ChatSender | null,
   tournament: ChatTournament | null,
@@ -55,12 +53,11 @@ export function chatPostingState(
     tournament?.finalizedAtMs == null ? null : tournament.finalizedAtMs + tournamentGraceMs;
   return {
     acceptingPosts:
-      accepting &&
-      (scope === null || Boolean(tournament?.accepting)) &&
-      (closesAtMs === null || now() < closesAtMs),
+      accepting && Boolean(tournament?.accepting) && (closesAtMs === null || now() < closesAtMs),
     postingStopped: Boolean(sender?.stopped),
     availableAtMs: sender ? nextChatPostAt(sender.lastSentAtMs) : 0,
-    ...(scope === null ? {} : { entered: Boolean(tournament?.entered), closesAtMs }),
+    entered: Boolean(tournament?.entered),
+    closesAtMs,
   };
 }
 
@@ -74,9 +71,9 @@ export function chatProfileRejection(user: {
   return null;
 }
 
-export function chatPostRejection(scope: ChatScope, page: ChatPage, sentAtMs: number) {
+export function chatPostRejection(page: ChatPage, sentAtMs: number) {
   if (page.closesAtMs != null && sentAtMs >= page.closesAtMs) return "closed";
-  if (scope !== null && !page.entered) return "entryRequired";
+  if (!page.entered) return "entryRequired";
   if (!page.acceptingPosts || page.postingStopped) return "stopped";
   return "rateLimited";
 }

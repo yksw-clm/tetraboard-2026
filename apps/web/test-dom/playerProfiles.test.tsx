@@ -20,8 +20,8 @@ const profile = {
   avatarUrl: null,
   stats: { singles: { total: 3, first: 1 }, doubles: { total: 4, wins: 2 } },
 };
-const wrap = (child: React.ReactNode) => (
-  <MemoryRouter>
+const wrap = (child: React.ReactNode, path = "/") => (
+  <MemoryRouter initialEntries={[path]}>
     <PlayerProfileProvider>{child}</PlayerProfileProvider>
   </MemoryRouter>
 );
@@ -37,6 +37,84 @@ const trigger = (label = "プレイヤー", cpu = false) => (
   </PlayerProfileTrigger>
 );
 const region = () => document.querySelector<HTMLElement>('[role="region"]');
+
+test.each([
+  { path: "/games/four-shogi", kind: "登録者", newTab: false },
+  { path: "/matches/record", kind: "登録者", newTab: false },
+  { path: "/matches/record", kind: "ゲスト", newTab: false },
+  { path: "/rooms/12345", kind: "登録者", newTab: true },
+])(
+  "$path のカード内の現在名がリンクになり、タップ・キーボードで到達できる",
+  async ({ path, kind, newTab }) => {
+    const view = render(
+      wrap(
+        <PlayerProfileTrigger target={target} game="four-shogi" mode="doubles" label={kind}>
+          {kind}
+        </PlayerProfileTrigger>,
+        path,
+      ),
+    );
+    const button = view.querySelector("button")!;
+    act(() =>
+      button.dispatchEvent(
+        new PointerEvent("pointerover", { bubbles: true, pointerType: "touch" }),
+      ),
+    );
+    clock.advance(300);
+    expect(region()).toBeNull();
+    act(() => button.click());
+    await flush();
+    expect(region()?.querySelector("a")).toBeNull();
+    requests[0]!.respond({
+      ...profile,
+      game: "four-shogi",
+      ...(kind === "ゲスト" ? { isGuest: true } : {}),
+    });
+    await flush();
+    expect(region()!.querySelectorAll("a")).toHaveLength(1);
+    const link = region()!.querySelector("a")!;
+    const playerPath = kind === "ゲスト" ? `/players/${id}` : "/users/@current_id";
+    expect(link.getAttribute("href")).toBe(`${playerPath}?game=four-shogi&mode=doubles`);
+    expect(link.textContent).toBe(profile.name);
+    expect(link.getAttribute("target")).toBe(newTab ? "_blank" : null);
+    const description = link.getAttribute("aria-describedby");
+    if (newTab) {
+      expect(description).not.toBeNull();
+      expect(document.getElementById(description!)?.textContent).toBe("新しいタブで開く");
+    } else {
+      expect(description).toBeNull();
+      expect(region()?.textContent).not.toContain("新しいタブで開く");
+    }
+    if (kind === "ゲスト") expect(region()?.textContent).toContain("@current_idゲスト");
+    act(() => link.focus());
+    expect(document.activeElement === link).toBe(true);
+    act(() => link.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(document.activeElement === button).toBe(true);
+    expect(region()).toBeNull();
+    act(() => button.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    await flush();
+    expect(document.activeElement === region()).toBe(true);
+    expect(region()!.querySelector("a")?.getAttribute("href")).toBe(
+      `${playerPath}?game=four-shogi&mode=doubles`,
+    );
+  },
+);
+
+test.each([
+  { response: { kind: "guest", name: "旧ゲスト", avatarUrl: null }, status: 200 },
+  { response: { kind: "cpu", level: 2 }, status: 200 },
+  { response: { message: "退会したプレイヤーです。" }, status: 404 },
+  { response: { message: "プロフィールを表示できません。" }, status: 404 },
+])("公開アカウントの応答以外にページリンクを表示しない", async ({ response, status }) => {
+  const view = render(wrap(trigger()));
+  act(() => view.querySelector("button")!.click());
+  await flush();
+  requests[0]!.respond(response, status);
+  await flush();
+  expect(region()).not.toBeNull();
+  expect(region()!.querySelector("a")).toBeNull();
+});
+
 test("プレイヤー情報に現在レートを表示し、元のトリガーの名前は維持する", async () => {
   const view = render(wrap(trigger()));
   act(() => view.querySelector<HTMLButtonElement>("button")!.click());
@@ -65,12 +143,14 @@ test.each([
     rating,
   };
   const view = render(
-    <PlayerProfileCard
-      state={{ loading: false, error: null, loadedAt: 0, profile: current }}
-      game="four-reversi"
-      mode="singles"
-      onRetry={() => {}}
-    />,
+    wrap(
+      <PlayerProfileCard
+        state={{ loading: false, error: null, loadedAt: 0, profile: current }}
+        game="four-reversi"
+        mode="singles"
+        onRetry={() => {}}
+      />,
+    ),
   );
   expect(view.textContent).toContain(text);
   expect(view.textContent).not.toContain("ランク");
@@ -248,12 +328,14 @@ test("全ゲームの戦績をモードに応じたコンパクトな文章で�
     };
     for (const mode of ["singles", "doubles"] as const) {
       const view = render(
-        <PlayerProfileCard
-          state={{ loading: false, profile: current, error: null, loadedAt: 0 }}
-          game={game}
-          mode={mode}
-          onRetry={() => {}}
-        />,
+        wrap(
+          <PlayerProfileCard
+            state={{ loading: false, profile: current, error: null, loadedAt: 0 }}
+            game={game}
+            mode={mode}
+            onRetry={() => {}}
+          />,
+        ),
       );
       const summary = [...view.querySelectorAll("p")].find(
         (node) => node.textContent?.startsWith("83局") || node.textContent?.startsWith("20局"),
@@ -437,7 +519,7 @@ test("explicit activation focuses the card, retry keeps Escape available and clo
   act(() => button.click());
   await flush();
   expect(Boolean(region())).toBe(true);
-  expect(region()!.closest('[role="dialog"]')).not.toBeNull();
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain("ランキング");
   expect(document.activeElement === region()).toBe(true);
   requests[0]!.respond({}, 503);
   await flush();

@@ -32,6 +32,7 @@ const AnnouncementEditPage = lazy(() =>
 const LobbyChat = lazy(() =>
   import("./LobbyChat").then((module) => ({ default: module.LobbyChat })),
 );
+const Board = lazy(() => import("./Board").then((module) => ({ default: module.Board })));
 const Kpi = lazy(() => import("./Kpi").then((module) => ({ default: module.Kpi })));
 const parseSession = (body: unknown) => adminSessionSchema.parse(body);
 export function AdminApp() {
@@ -72,6 +73,7 @@ export function AdminApp() {
             <Route path="/kpi" element={<Kpi />} />
             <Route path="/" element={<Navigate to="/kpi" replace />} />
             <Route path="/lobby-chat" element={<LobbyChat />} />
+            <Route path="/board" element={<Board />} />
             <Route path="/announcements" element={<Announcements />} />
             <Route path="/announcements/new" element={<AnnouncementCreatePage />} />
             <Route path="/announcements/:id" element={<AnnouncementEditPage />} />

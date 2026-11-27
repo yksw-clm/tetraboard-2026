@@ -1,0 +1,88 @@
+export const boardIndexAgeMs = 24 * 60 * 60 * 1000;
+export const boardIndexReplyCount = 1;
+export const boardIndexTextLength = 50;
+export const boardPostIntervalMs = 30_000;
+const segmenter = new Intl.Segmenter("ja", { granularity: "grapheme" });
+
+export function boardPostVisibility(deletedAtMs: number | null, replyCount: number) {
+  if (deletedAtMs === null) return "published";
+  return replyCount >= 1 ? "placeholder" : "notFound";
+}
+
+export function shouldIndexBoardPost({
+  production,
+  deletedAtMs,
+  postedAtMs,
+  replyCount,
+  text,
+  now,
+}: {
+  production: boolean;
+  deletedAtMs: number | null;
+  postedAtMs: number;
+  replyCount: number;
+  text: string;
+  now: number;
+}) {
+  if (!production || deletedAtMs !== null || now - postedAtMs < boardIndexAgeMs) return false;
+  if (replyCount >= boardIndexReplyCount) return true;
+  let length = 0;
+  for (const _ of segmenter.segment(text)) {
+    length++;
+    if (length === boardIndexTextLength) return true;
+  }
+  return false;
+}
+
+export function boardProfileRejection(user: {
+  isAnonymous?: number | null;
+  profileCompleted: number;
+}) {
+  if (user.isAnonymous) return "guest";
+  if (!user.profileCompleted) return "profileIncomplete";
+  return null;
+}
+
+export function nextBoardPostAt(postedAtMs: number) {
+  return postedAtMs + boardPostIntervalMs;
+}
+
+export type BoardWriteState = {
+  eligible: number;
+  parentAvailable: number;
+  accepting: number;
+  stopped: number;
+  lastPostedAtMs: number;
+};
+
+export function boardWriteRejection(state: BoardWriteState, lastPostByMs: number) {
+  if (!state.eligible) return { status: "ineligible" } as const;
+  if (!state.parentAvailable) return { status: "notFound" } as const;
+  if (!state.accepting || state.stopped) return { status: "stopped" } as const;
+  if (state.lastPostedAtMs !== 0 && state.lastPostedAtMs > lastPostByMs)
+    return { status: "rateLimited", availableAtMs: nextBoardPostAt(state.lastPostedAtMs) } as const;
+  return null;
+}
+
+export function boardPostingState(
+  state: { accepting: number; stopped: number; lastPostedAtMs: number },
+  now: () => number,
+) {
+  return {
+    acceptingPosts: Boolean(state.accepting),
+    postingStopped: Boolean(state.stopped),
+    availableAtMs: state.lastPostedAtMs ? nextBoardPostAt(state.lastPostedAtMs) : 0,
+    serverTimeMs: now(),
+  };
+}
+
+export type BoardCursor = { postedAtMs: number; id: string };
+
+export function boardPage<T extends BoardCursor>(rows: T[], limit: number) {
+  const items = rows.slice(0, limit);
+  const last = items.at(-1);
+  return {
+    items,
+    nextCursor: rows.length > limit && last ? `${last.postedAtMs}:${last.id}` : null,
+  };
+}

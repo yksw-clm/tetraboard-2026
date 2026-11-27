@@ -5,6 +5,7 @@ export interface AccountProfiles {
   sessionProfile(id: string): Promise<StoredProfile | null>;
   currentProfiles(ids: readonly string[]): Promise<CurrentProfileRow[]>;
   accountId(profileId: string): Promise<string | null>;
+  accountIdByUsername(username: string): Promise<string | null>;
   mergedAccountId(guestId: string): Promise<string | null>;
 }
 export interface ProfileWriter {

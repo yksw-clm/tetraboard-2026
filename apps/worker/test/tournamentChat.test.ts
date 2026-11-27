@@ -1,99 +1,18 @@
-import { env, applyD1Migrations } from "cloudflare:test";
-import { beforeAll, afterEach, expect, test, vi } from "vitest";
-import {
-  lobbyChatSchema,
-  tournamentChatSchema,
-  lobbyAdminSchema,
-} from "@tetraboard/protocol/general-lobby";
+import { env } from "cloudflare:test";
+import { expect, test, vi } from "vitest";
+import { lobbyAdminSchema, lobbyPostResultSchema } from "@tetraboard/protocol/general-lobby";
 import { legalVersion } from "@tetraboard/protocol/privacy";
-import worker from "../src/worker";
 import { accountFixture, origin } from "./accountFixtures";
 import { cleanupLobbyChat } from "../src/adapters/community/chatCleanup";
 import { lobbyRetentionMs } from "@tetraboard/context-community";
+import { processDeletions } from "../src/flows/accountPurge/processDeletions";
 import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { guestChatMergeStatements } from "../src/adapters/community/guestMergeWrites";
 
-const db = (env as typeof env & { LOBBY_TEST_DB: D1Database }).LOBBY_TEST_DB;
-beforeAll(async () => {
-  await applyD1Migrations(
-    db,
-    (env as typeof env & { TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1] })
-      .TEST_MIGRATIONS,
-  );
-});
-afterEach(async () => {
-  vi.restoreAllMocks();
-  await db.batch(
-    [
-      "lobby_chat_reports",
-      "lobby_chat_messages",
-      "lobby_chat_requests",
-      "lobby_chat_senders",
-      "tournament_entries",
-      "tournaments",
-    ].map((t) => db.prepare(`DELETE FROM ${t}`)),
-  );
-  await db.prepare("UPDATE lobby_chat_settings SET accepting=1").run();
-});
-const request = (path: string, init?: RequestInit, owner?: string) =>
-  worker.fetch(
-    new Request(`${origin}/api${path}`, init),
-    { ...env, APP_DB: db, ADMIN_ACCOUNT_IDS: owner ? JSON.stringify([owner]) : "[]" },
-    { waitUntil: () => {} } as unknown as ExecutionContext,
-  );
-const user = () => accountFixture(true, crypto.randomUUID(), db);
-type User = Pick<Awaited<ReturnType<typeof user>>, "id" | "headers">;
-async function tournament(id = 1, finalized: number | null = null, published = true) {
-  const key = crypto.randomUUID();
-  await db
-    .prepare(
-      "INSERT INTO tournaments(key,public_id,name,starts_at_ms,ends_at_ms,published,finalized_at_ms,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?)",
-    )
-    .bind(
-      key,
-      id,
-      `大会${id}`,
-      Date.now() + 3600000,
-      Date.now() + 7200000,
-      Number(published),
-      finalized,
-      Date.now(),
-      Date.now(),
-    )
-    .run();
-  return { id, key };
-}
-async function enroll(t: Awaited<ReturnType<typeof tournament>>, u: User) {
-  await db
-    .prepare(
-      "INSERT INTO tournament_entries(id,tournament_key,account_id,entered_at_ms) VALUES(?,?,?,?)",
-    )
-    .bind(crypto.randomUUID(), t.key, u.id, Date.now())
-    .run();
-}
-const path = (id: number | null) => (id === null ? "/lobby/chat" : `/tournaments/${id}/chat`);
-const post = (
-  id: number | null,
-  u: User,
-  text = "よろしくお願いします",
-  requestId = crypto.randomUUID(),
-) =>
-  request(path(id), {
-    method: "POST",
-    headers: u.headers,
-    body: JSON.stringify({ text, requestId }),
-  });
-async function read(id: number | null, u?: User, suffix = "") {
-  const response = await request(path(id) + suffix, u ? { headers: u.headers } : undefined);
-  expect(response.status).toBe(200);
-  return (id === null ? lobbyChatSchema : tournamentChatSchema).parse(await response.json());
-}
-const moderate = (u: User, body: unknown) =>
-  request(
-    "/admin/lobby-chat",
-    { method: "POST", headers: u.headers, body: JSON.stringify(body) },
-    u.id,
-  );
+import { useTournamentChatFixtures } from "./tournamentChatFixtures";
+
+const { db, request, user, tournament, enroll, path, post, read, moderate } =
+  useTournamentChatFixtures();
 
 test("公開大会だけを閲覧でき、本人の有効なエントリーと名前設定・Originを投稿時に検査する", async () => {
   const t = await tournament(),
@@ -103,12 +22,16 @@ test("公開大会だけを閲覧でき、本人の有効なエントリーと�
     401,
   );
   expect((await post(t.id, u)).status).toBe(403);
+  const incomplete = await accountFixture(false, crypto.randomUUID(), db);
+  await enroll(t, incomplete);
+  expect((await post(t.id, incomplete)).status).toBe(403);
   await enroll(t, u);
   expect(
     (await post(t.id, { ...u, headers: { ...u.headers, Origin: "https://other.invalid" } })).status,
   ).toBe(403);
   expect((await post(t.id, u)).status).toBe(200);
   expect(await read(t.id, u)).toMatchObject({ entered: true, messages: [{ own: true }] });
+  expect((await read(t.id)).messages[0]!.own).toBe(false);
   expect(JSON.stringify(await read(t.id))).not.toContain(u.id);
   await db.prepare("UPDATE tournament_entries SET deleted=1 WHERE account_id=?").bind(u.id).run();
   expect((await post(t.id, u)).status).toBe(403);
@@ -139,8 +62,17 @@ test("名前設定済みのゲスト参加者も投稿でき、登録やエン�
     headers: { Cookie: cookie, Origin: origin, "Content-Type": "application/json" },
   };
   expect((await post(t.id, guest)).status).toBe(403);
+  expect(await read(t.id, guest)).toMatchObject({ entered: false, messages: [] });
   await enroll(t, guest);
   expect((await post(t.id, guest)).status).toBe(200);
+  const subjectId = (await read(t.id, guest)).messages[0]!.id;
+  const report = { method: "POST", body: JSON.stringify({ messageId: subjectId }) };
+  expect(
+    (await request(`${path(t.id)}/reports`, { ...report, headers: { Origin: origin } })).status,
+  ).toBe(401);
+  expect(
+    (await request(`${path(t.id)}/reports`, { ...report, headers: guest.headers })).status,
+  ).toBe(201);
   expect((await read(t.id, guest)).messages[0]).toMatchObject({
     senderName: "大会ゲスト",
     own: true,
@@ -149,7 +81,22 @@ test("名前設定済みのゲスト参加者も投稿でき、登録やエン�
   expect((await post(t.id, guest)).status).toBe(403);
 });
 
-test("大会ごとの履歴・再送・通報を分離し、総合ロビーへ混ぜない", async () => {
+test("投稿は100文字まで受け付け、URLを拒否する", async () => {
+  const t = await tournament();
+  const u = await user();
+  await enroll(t, u);
+  for (const text of [
+    "",
+    "x".repeat(101),
+    "https://example.test",
+    "www.example.test",
+    "example.com",
+  ])
+    expect((await post(t.id, u, text)).status).toBe(400);
+  expect((await post(t.id, u, "👨‍👩‍👧‍👦".repeat(100))).status).toBe(200);
+});
+
+test("大会ごとの履歴・再送・通報を分離する", async () => {
   const t = await tournament(),
     other = await tournament(2),
     u = await user(),
@@ -161,10 +108,8 @@ test("大会ごとの履歴・再送・通報を分離し、総合ロビーへ�
   const id = crypto.randomUUID();
   expect((await post(t.id, u, "大会1", id)).status).toBe(200);
   expect((await post(other.id, v, "大会2")).status).toBe(200);
-  expect((await post(null, w, "ロビー")).status).toBe(200);
   expect((await read(t.id)).messages.map((m) => m.text)).toEqual(["大会1"]);
   expect((await read(other.id)).messages.map((m) => m.text)).toEqual(["大会2"]);
-  expect((await read(null)).messages.map((m) => m.text)).toEqual(["ロビー"]);
   expect((await post(t.id, u, "大会1", id)).status).toBe(200);
   expect((await post(other.id, u, "大会1", id)).status).toBe(409);
   const messageId = (await read(t.id)).messages[0]!.id;
@@ -192,10 +137,12 @@ test("大会ごとの履歴・再送・通報を分離し、総合ロビーへ�
 
 test("ゲスト統合後も大会の所属・公開送信者ID・再送台帳と共通の送信間隔を引き継ぐ", async () => {
   const t = await tournament(),
+    other = await tournament(2),
     guest = await user(),
     account = await user();
   await enroll(t, guest);
   await enroll(t, account);
+  await enroll(other, account);
   const id = crypto.randomUUID();
   await post(t.id, guest, "引き継ぐ発言", id);
   const message = (await read(t.id)).messages[0]!;
@@ -205,12 +152,12 @@ test("ゲスト統合後も大会の所属・公開送信者ID・再送台帳と
     senderId: message.senderId,
     own: true,
   });
-  expect((await read(null)).messages).toHaveLength(0);
+  expect((await read(other.id)).messages).toHaveLength(0);
   expect((await post(t.id, account, "引き継ぐ発言", id)).status).toBe(200);
-  expect((await post(null, account)).status).toBe(429);
+  expect((await post(other.id, account)).status).toBe(429);
 });
 
-test("総合ロビーと別大会への同時送信にも共通の10秒制限を適用し、境界と再送で重複させない", async () => {
+test("別大会と同じ大会への同時送信に共通の10秒制限を適用し、境界と再送で重複させない", async () => {
   const t = await tournament(),
     other = await tournament(2),
     u = await user();
@@ -219,15 +166,18 @@ test("総合ロビーと別大会への同時送信にも共通の10秒制限を
   const now = Date.now(),
     clock = vi.spyOn(Date, "now").mockReturnValue(now),
     id = crypto.randomUUID();
-  expect((await post(t.id, u, "最初", id)).status).toBe(200);
-  expect((await post(t.id, u, "最初", id)).status).toBe(200);
+  const retries = await Promise.all([post(t.id, u, "最初", id), post(t.id, u, "最初", id)]);
+  expect(retries.map((r) => r.status)).toEqual([200, 200]);
+  expect((await post(t.id, u, "変更した本文", id)).status).toBe(409);
   clock.mockReturnValue(now + 9999);
-  expect((await post(null, u)).status).toBe(429);
+  expect((await post(other.id, u)).status).toBe(429);
   clock.mockReturnValue(now + 10000);
-  const results = await Promise.all([post(null, u), post(other.id, u)]);
+  const results = await Promise.all([post(t.id, u), post(other.id, u)]);
   expect(results.map((r) => r.status).sort()).toEqual([200, 429]);
-  expect((await read(t.id)).messages).toHaveLength(1);
-  expect((await read(null)).messages.length + (await read(other.id)).messages.length).toBe(1);
+  const texts = (await Promise.all([read(t.id), read(other.id)])).flatMap((page) =>
+    page.messages.map((m) => m.text),
+  );
+  expect(texts).toEqual(["最初", "よろしくお願いします"]);
 });
 
 test("開催前・開催中・結果待機・結果確定後に投稿でき、確定24時間の境界で受付終了する", async () => {
@@ -269,14 +219,29 @@ test("大会単位の停止・全体停止・利用者停止と削除を管理AP
     admin = await user();
   await enroll(t, u);
   await enroll(other, u);
+  expect((await request("/admin/lobby-chat", { headers: u.headers }, admin.id)).status).toBe(403);
+  expect((await request("/admin/lobby-chat", undefined, admin.id)).status).toBe(401);
+  expect(
+    (
+      await moderate(
+        { ...admin, headers: { ...admin.headers, Origin: "https://other.invalid" } },
+        {
+          action: "accepting",
+          accepting: false,
+        },
+      )
+    ).status,
+  ).toBe(403);
   expect(
     (await moderate(admin, { action: "accepting", accepting: false, tournamentId: t.id })).status,
   ).toBe(200);
   expect((await post(t.id, u)).status).toBe(403);
-  expect((await post(other.id, u)).status).toBe(200);
+  const requestId = crypto.randomUUID();
+  expect((await post(other.id, u, "削除後も再送を受理したままにする", requestId)).status).toBe(200);
   const message = (await read(other.id)).messages[0]!;
   expect((await moderate(admin, { action: "accepting", accepting: false })).status).toBe(200);
-  expect((await post(null, u)).status).toBe(403);
+  expect((await post(t.id, u)).status).toBe(403);
+  expect((await read(other.id)).messages).toHaveLength(1);
   expect((await post(other.id, u)).status).toBe(403);
   await moderate(admin, { action: "accepting", accepting: true });
   await moderate(admin, { action: "accepting", accepting: true, tournamentId: t.id });
@@ -287,18 +252,22 @@ test("大会単位の停止・全体停止・利用者停止と削除を管理AP
   expect((await read(other.id)).messages).toHaveLength(0);
   await moderate(admin, { action: "stop", senderId: message.senderId, stopped: false });
   expect((await read(t.id, u)).postingStopped).toBe(false);
+  const retry = await post(other.id, u, "削除後も再送を受理したままにする", requestId);
+  expect(retry.status).toBe(200);
+  expect(lobbyPostResultSchema.parse(await retry.json()).message).toBeNull();
+  expect((await post(other.id, u, "別の投稿")).status).toBe(429);
+  expect((await read(other.id)).messages).toHaveLength(0);
 });
 
 test("大会別に最新500件を保持し、50件ずつの取得と7日期限・退会の除外を共通処理で行う", async () => {
   const t = await tournament(),
     other = await tournament(2),
     u = await user(),
-    v = await user(),
-    lobbyUser = await user();
+    v = await user();
   await enroll(t, u);
   await enroll(other, v);
-  expect((await post(other.id, v, "別大会に残す")).status).toBe(200);
-  expect((await post(null, lobbyUser, "ロビーに残す")).status).toBe(200);
+  const otherRequestId = crypto.randomUUID();
+  expect((await post(other.id, v, "別大会に残す", otherRequestId)).status).toBe(200);
   const now = Date.now();
   vi.spyOn(Date, "now").mockReturnValue(now);
   for (let start = 0; start < 500; start += 80)
@@ -330,9 +299,12 @@ test("大会別に最新500件を保持し、50件ずつの取得と7日期限�
     "450",
   );
   expect((await read(other.id)).messages).toHaveLength(1);
-  expect((await read(null)).messages).toHaveLength(1);
   await db
     .prepare("UPDATE lobby_chat_messages SET sent_at_ms=? WHERE tournament_id=?")
+    .bind(now - lobbyRetentionMs, t.id)
+    .run();
+  await db
+    .prepare("UPDATE lobby_chat_requests SET sent_at_ms=? WHERE tournament_id=?")
     .bind(now - lobbyRetentionMs, t.id)
     .run();
   expect((await read(t.id)).messages).toHaveLength(0);
@@ -343,7 +315,138 @@ test("大会別に最新500件を保持し、50件ずつの取得と7日期限�
       .bind(t.id)
       .first<{ n: number }>())!.n,
   ).toBe(0);
+  expect(
+    await db.prepare("SELECT 1 FROM lobby_chat_requests WHERE tournament_id=?").bind(t.id).first(),
+  ).toBeNull();
   await requestDeletion({ ...env, APP_DB: db }, v.id, "chat-deletion-receipt");
   expect((await read(other.id)).messages).toHaveLength(0);
-  expect((await read(null)).messages).toHaveLength(1);
+  expect((await post(other.id, v)).status).toBe(401);
+  expect((await post(other.id, v, "別大会に残す", otherRequestId)).status).toBe(401);
+  await processDeletions({ ...env, APP_DB: db });
+  expect(
+    await db.prepare("SELECT 1 FROM lobby_chat_messages WHERE account_id=?").bind(v.id).first(),
+  ).toBeNull();
+});
+
+test("通報は全大会で直近1時間に5件までで、重複は件数を消費しない", async () => {
+  const t = await tournament(),
+    other = await tournament(2);
+  const author = await user(),
+    reporter = await user();
+  await enroll(t, author);
+  await enroll(other, author);
+  const now = Date.now();
+  const clock = vi.spyOn(Date, "now");
+  const subjects: { id: number; messageId: string }[] = [];
+  for (let i = 0; i < 7; i++) {
+    clock.mockReturnValue(now + i * 10000);
+    const id = i % 2 === 0 ? t.id : other.id;
+    const response = await post(id, author, `通報対象${i}`);
+    expect(response.status).toBe(200);
+    const message = lobbyPostResultSchema.parse(await response.json()).message!;
+    subjects.push({ id, messageId: message.id });
+  }
+  const report = ({ id, messageId }: (typeof subjects)[number]) =>
+    request(`${path(id)}/reports`, {
+      method: "POST",
+      headers: reporter.headers,
+      body: JSON.stringify({ messageId }),
+    });
+  const results = await Promise.all(subjects.map(report));
+  expect(results.filter((r) => r.status === 201)).toHaveLength(5);
+  expect(results.filter((r) => r.status === 429)).toHaveLength(2);
+  const accepted = subjects[results.findIndex((r) => r.status === 201)]!;
+  const blocked = subjects[results.findIndex((r) => r.status === 429)]!;
+  expect((await report(accepted)).status).toBe(200);
+  expect((await report(blocked)).status).toBe(429);
+  clock.mockReturnValue(now + 60000 + 3600000);
+  expect((await report(blocked)).status).toBe(201);
+});
+
+test("全体通報一覧は大会横断の証拠と旧ロビーの証拠を期限内だけ管理者に返す", async () => {
+  const t = await tournament(),
+    other = await tournament(2);
+  const admin = await user(),
+    author = await user();
+  await enroll(t, author);
+  await enroll(other, admin);
+  const now = Date.now();
+  const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+  const legacyId = crypto.randomUUID();
+  const legacyText = "旧ロビーの保存済み発言";
+  await db.batch([
+    db
+      .prepare(
+        "INSERT INTO lobby_chat_messages(id,account_id,body,sent_at_ms,request_id,body_hash) VALUES(?,?,?,?,?,?)",
+      )
+      .bind(
+        legacyId,
+        author.id,
+        legacyText,
+        now - lobbyRetentionMs + 1,
+        crypto.randomUUID(),
+        "hash",
+      ),
+    db
+      .prepare(
+        "INSERT INTO lobby_chat_reports(id,message_id,sender_account_id,sender_name,body,sent_at_ms,reporter_account_id,reported_at_ms) VALUES(?,?,?,?,?,?,?,?)",
+      )
+      .bind(
+        legacyId,
+        legacyId,
+        author.id,
+        "旧投稿者",
+        legacyText,
+        now - lobbyRetentionMs + 1,
+        admin.id,
+        now - lobbyRetentionMs + 1,
+      ),
+  ]);
+  const reportIds = [];
+  for (const [id, sender] of [
+    [t.id, author],
+    [other.id, admin],
+  ] as const) {
+    const sent = lobbyPostResultSchema.parse(await (await post(id, sender)).json()).message!;
+    expect((await read(id)).messages.map((m) => m.id)).toEqual([sent.id]);
+    expect(
+      (
+        await request(`${path(id)}/reports`, {
+          method: "POST",
+          headers: admin.headers,
+          body: JSON.stringify({ messageId: sent.id }),
+        })
+      ).status,
+    ).toBe(201);
+    expect((await moderate(admin, { action: "delete", messageId: sent.id })).status).toBe(200);
+    reportIds.push(sent.id);
+  }
+  const reports = async (suffix = "") => {
+    const response = await request(
+      "/admin/lobby-chat" + suffix,
+      { headers: admin.headers },
+      admin.id,
+    );
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    return lobbyAdminSchema.parse(await response.json()).reports;
+  };
+  expect((await reports()).map((r) => r.messageId)).toEqual(
+    expect.arrayContaining([...reportIds, legacyId]),
+  );
+  expect(await reports(`?tournamentId=${t.id}`)).toMatchObject([{ messageId: reportIds[0] }]);
+  expect((await moderate(admin, { action: "resolve", reportId: legacyId })).status).toBe(200);
+  expect((await reports()).find((r) => r.id === legacyId)).toMatchObject({
+    status: "resolved",
+    text: legacyText,
+    tournamentId: null,
+  });
+  clock.mockReturnValue(now + 1);
+  expect((await reports()).map((r) => r.messageId)).not.toContain(legacyId);
+  await cleanupLobbyChat(db);
+  expect(
+    await db.prepare("SELECT id FROM lobby_chat_reports WHERE id=?").bind(legacyId).first(),
+  ).toBeNull();
+  expect(
+    await db.prepare("SELECT id FROM lobby_chat_messages WHERE id=?").bind(legacyId).first(),
+  ).toBeNull();
 });

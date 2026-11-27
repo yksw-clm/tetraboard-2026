@@ -1,9 +1,13 @@
-import { RatedLaunchAnnouncement } from "../matchmaking/RatedLaunchAnnouncement";
-import { TournamentEntrance } from "../tournaments/TournamentEntrance";
+import { TournamentEntranceContent } from "../tournaments/TournamentEntrance";
 import { TournamentList } from "../tournaments/TournamentList";
 import { LobbyFooter } from "./LobbyFooter";
 import { RecentMatches } from "../matches/RecentMatches";
-import { LobbyBoardPreview } from "./LobbyBoardPreview";
+import { LobbyGameTitle } from "./LobbyGameTitle";
+import { LobbyRankings } from "./LobbyRankings";
+import { MobileLobbyNavigation } from "./MobileLobbyNavigation";
+import { readLobbyTab, useMobileLobby } from "./useMobileLobby";
+import { useLobbyTournaments } from "../tournaments/useLobbyTournaments";
+import { LobbyPostPreview } from "./LobbyPostPreview";
 import { AppButton } from "../../shared/ui/AppButton";
 
 import {
@@ -12,7 +16,7 @@ import {
   type CpuLevel,
   type AvatarPresetId,
 } from "@tetraboard/protocol";
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { AccountMenu } from "../account/AccountMenu";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { isRatedMatchmakingGame } from "@tetraboard/protocol";
@@ -48,7 +52,6 @@ type Props = {
   renderRooms: (
     onJoin: (roomId: string, humanOnly?: boolean, instanceId?: string) => void,
   ) => ReactNode;
-  rankings?: ReactNode;
   onNameChange: (value: string) => void;
   onRoomCodeChange: (value: string) => void;
   onModeChange: (mode: RoomMode) => void;
@@ -62,15 +65,6 @@ type Props = {
     avatarPresetId?: AvatarPresetId,
   ) => void;
 };
-
-const gameDescriptions = {
-  "four-gomoku": "4色でつなぐ五連。ひとりでも、チームでも。",
-  gomoku: "五つの石をつなぐ、黒と白の真剣勝負。",
-  reversi: "黒と白で楽しむリバーシ。",
-  shogi: "先手と後手で楽しむ将棋。",
-  "four-reversi": "4色で楽しむリバーシ。",
-  "four-shogi": "4方向から楽しむ将棋。",
-} satisfies Record<GameId, string>;
 
 type ActiveDialog =
   | {
@@ -86,6 +80,25 @@ type ActiveDialog =
 export function LobbyView(props: Props) {
   const location = useLocation();
   const navigate = useNavigate();
+  const mobile = useMobileLobby();
+  const tab = readLobbyTab(location.search);
+  const play = !mobile || tab === "play";
+  const showRankings = !mobile || tab === "rankings";
+  const showTournaments = !mobile || tab === "tournaments";
+  const rankingsTarget = useRef<HTMLDivElement>(null);
+  const tournamentTarget = useRef<HTMLDivElement>(null);
+  const tournaments = useLobbyTournaments(props.game);
+  const entranceIds = new Set(
+    [...tournaments.current, ...tournaments.upcoming]
+      .filter(({ status }) => status === "active" || status === "upcoming")
+      .map(({ id }) => id),
+  );
+  useLayoutEffect(() => {
+    if (mobile) return;
+    const target =
+      tab === "rankings" ? rankingsTarget : tab === "tournaments" ? tournamentTarget : null;
+    target?.current?.scrollIntoView();
+  }, [mobile, tab]);
   const createRequested = location.state?.roomEntryIntent === "create";
   useEffect(() => {
     if (!createRequested) return;
@@ -106,8 +119,6 @@ export function LobbyView(props: Props) {
   );
   const game = {
     title: gameCatalog[props.game].name,
-    homeTo: gameCatalog[props.game].lobbyPath,
-    description: gameDescriptions[props.game],
     theme: gameThemes[props.game],
   };
   const ratedMatch = isRatedMatchmakingGame(props.game) && props.showRatedMatchmaking !== false;
@@ -141,29 +152,13 @@ export function LobbyView(props: Props) {
     if (props.isSubmitting === null) setDialog(null);
   }
 
-  const sections = {
-    rooms: (
-      <div
-        key="rooms"
-        className="min-w-0 [@media(min-width:768px)]:row-span-2 [@media(min-width:768px)]:self-stretch"
-      >
-        {props.renderRooms((roomId, humanOnly, instanceId) =>
-          openEntry("join", roomId, humanOnly, instanceId),
-        )}
-      </div>
-    ),
-    matches: <RecentMatches key={`matches:${props.game}`} game={props.game} />,
-    rankings: props.rankings && <Fragment key="rankings">{props.rankings}</Fragment>,
-    tournaments: (
-      <div
-        key={`tournaments:${props.game}`}
-        className="min-w-0 [@media(min-width:768px)]:col-span-2 [@media(min-width:768px)]:col-start-1 [@media(min-width:768px)]:row-start-3"
-      >
-        <TournamentList game={props.game} />
-      </div>
-    ),
-  };
-  const order = ["rooms", "rankings", "matches", "tournaments"] as const;
+  const entrance = (
+    <TournamentEntranceContent
+      game={props.game}
+      state={tournaments}
+      activeAndUpcomingOnly={mobile}
+    />
+  );
 
   return (
     <div className="app-theme min-h-dvh text-ink text-[15px] leading-[1.6]">
@@ -174,65 +169,75 @@ export function LobbyView(props: Props) {
         className={`lobby-background text-ink min-h-[calc(100dvh-69px)] [@media(max-width:650px)]:min-h-[calc(100dvh-61px)] ${appThemeClasses[game.theme]}`}
       >
         <main className="flex flex-col gap-[22px] max-w-[1148px] mx-auto px-6 pt-6 [@media(max-width:650px)]:gap-[18px] [@media(max-width:650px)]:px-5 [@media(max-width:650px)]:pt-5">
-          <div className="flex items-center justify-between gap-5 [@media(max-width:767px)]:flex-col [@media(max-width:767px)]:items-stretch [@media(max-width:767px)]:gap-2">
-            <div className="flex min-w-0 items-center gap-5 [@media(max-width:767px)]:gap-3">
-              <span className="grid size-16 shrink-0 place-items-center">
-                <LobbyBoardPreview game={props.game} compact className="!w-12" />
-              </span>
-              <div className="min-w-0">
-                <h1 className="text-[36px] leading-[1.35] tracking-[0.02em] [@media(max-width:767px)]:text-[27px]">
-                  {game.title}
-                </h1>
-                <p className="mt-[6px]! text-muted text-sm [@media(max-width:767px)]:text-xs">
-                  ひとりでも、友達とでも。{game.description}
-                </p>
+          <div className="flex items-center justify-between gap-5 [@media(max-width:767px)]:contents">
+            <LobbyGameTitle game={props.game} onRules={() => setDialog({ type: "rules" })} />
+            {mobile && <MobileLobbyNavigation game={props.game} selected={tab} />}
+            {play && (
+              <section
+                aria-label="対局を始める"
+                className={`grid w-full max-w-[576px] grid-cols-2 gap-3 [@media(min-width:768px)]:w-[min(48%,28rem)] [@media(min-width:768px)]:shrink-0 ${ratedMatch ? "" : "[@media(max-width:400px)]:grid-cols-1"}`}
+              >
                 <AppButton
-                  className="-ml-[9px] px-[9px] text-[13px]"
-                  appearance="quiet"
-                  type="button"
-                  onPress={() => setDialog({ type: "rules" })}
+                  className="w-full min-w-0 min-h-12 gap-2 px-3 whitespace-normal"
+                  onPress={() => openEntry("quick")}
                 >
-                  <AppIcon name="book" />
-                  遊び方
+                  <AppIcon name="robot" />
+                  CPUと遊ぶ
                 </AppButton>
-              </div>
-            </div>
-            <section
-              aria-label="対局を始める"
-              className={`grid w-full max-w-[576px] grid-cols-2 gap-3 [@media(min-width:768px)]:w-[min(48%,28rem)] [@media(min-width:768px)]:shrink-0 ${ratedMatch ? "" : "[@media(max-width:400px)]:grid-cols-1"}`}
-            >
-              <AppButton
-                className="w-full min-w-0 min-h-12 gap-2 px-3 whitespace-normal"
-                onPress={() => openEntry("quick")}
-              >
-                <AppIcon name="robot" />
-                CPUと遊ぶ
-              </AppButton>
-              <AppButton
-                className="w-full min-w-0 min-h-12 gap-2 px-3 whitespace-normal"
-                appearance="secondary"
-                isPending={creatingFromResult}
-                onPress={() => openEntry("create")}
-              >
-                <AppIcon name="plus" />
-                公開ルームを作る
-              </AppButton>
-              {ratedMatch && (
-                <AppButton className="col-span-full w-full min-h-12" onPress={openMatchmaking}>
-                  <AppIcon name="shuffle" />
-                  レート戦
+                <AppButton
+                  className="w-full min-w-0 min-h-12 gap-2 px-3 whitespace-normal"
+                  appearance="secondary"
+                  isPending={creatingFromResult}
+                  onPress={() => openEntry("create")}
+                >
+                  <AppIcon name="plus" />
+                  公開ルームを作る
                 </AppButton>
-              )}
-            </section>
+                {ratedMatch && (
+                  <AppButton className="col-span-full w-full min-h-12" onPress={openMatchmaking}>
+                    <AppIcon name="shuffle" />
+                    レート戦
+                  </AppButton>
+                )}
+              </section>
+            )}
           </div>
 
           {dialog === null && props.entryFromResult && props.message && (
             <RoomEntryMessage message={props.message} />
           )}
           <LobbyAnnouncement game={props.game} />
-          <TournamentEntrance game={props.game} />
+          {showTournaments && entrance}
           <div className="grid grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] items-start gap-5 [@media(max-width:767px)]:grid-cols-1 [@media(max-width:767px)]:gap-[18px]">
-            {order.map((section) => sections[section])}
+            {play && (
+              <div className="min-w-0 [@media(min-width:768px)]:row-span-2 [@media(min-width:768px)]:self-stretch">
+                {props.renderRooms((roomId, humanOnly, instanceId) =>
+                  openEntry("join", roomId, humanOnly, instanceId),
+                )}
+              </div>
+            )}
+            <div ref={rankingsTarget} hidden={!showRankings} className="min-w-0">
+              <LobbyRankings game={props.game} theme={game.theme} inline={mobile} />
+            </div>
+            {play && <RecentMatches key={`matches:${props.game}`} game={props.game} />}
+            <LobbyPostPreview
+              key={`posts:${props.game}`}
+              game={props.game}
+              launchBlocked={dialog !== null || props.isSubmitting !== null || createRequested}
+              announcementOnly={mobile}
+            />
+            {showTournaments && (
+              <div
+                ref={tournamentTarget}
+                className="min-w-0 [@media(min-width:768px)]:col-span-2 [@media(min-width:768px)]:col-start-1 [@media(min-width:768px)]:row-start-4"
+              >
+                <TournamentList
+                  key={props.game}
+                  game={props.game}
+                  lobbyEntranceIds={mobile ? entranceIds : undefined}
+                />
+              </div>
+            )}
           </div>
           <GameIntroduction game={props.game} />
           <LobbyFooter>
@@ -240,18 +245,6 @@ export function LobbyView(props: Props) {
           </LobbyFooter>
         </main>
       </div>
-      {isRatedMatchmakingGame(props.game) && (
-        <RatedLaunchAnnouncement
-          game={props.game}
-          blocked={
-            dialog !== null ||
-            Boolean(props.registrationDraft) ||
-            createRequested ||
-            Boolean(location.state?.friendRoomNonce) ||
-            creatingFromResult
-          }
-        />
-      )}
       {dialog?.type === "entry" && (
         <RoomEntryDialog
           game={props.game}

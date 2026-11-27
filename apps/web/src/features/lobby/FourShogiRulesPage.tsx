@@ -3,7 +3,6 @@ import { tournamentListPath } from "@tetraboard/protocol/tournament-pages";
 import { fourShogiRulesMetadata } from "../../seo/fourShogiRulesMetadata";
 import type { ReactNode } from "react";
 import { AppHeader } from "../../shared/ui/AppHeader";
-import { AccountMenu } from "../account/AccountMenu";
 import { Link } from "react-router";
 import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { FourShogiRules } from "./FourShogiRules";
@@ -72,9 +71,7 @@ export function FourShogiRulesPage({
     >
       {header ?? (
         <div className="app-theme">
-          <AppHeader homeTo="/" homeLabel="TetraBoard ホーム">
-            <AccountMenu />
-          </AppHeader>
+          <AppHeader homeTo="/" homeLabel="TetraBoard ホーム" />
         </div>
       )}
       <main className="mx-auto flex max-w-[920px] flex-col gap-6 px-5 py-8">

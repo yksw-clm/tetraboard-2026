@@ -7,7 +7,12 @@ import { rankingEntrySchema } from "./rankings";
 import { accountStatsSchema } from "./matches";
 import { badgeIds } from "./badges";
 import { profileDetailsSchema } from "./profileDetails";
-import { publicReversiRatingSchema, publicShogiRatingSchema } from "./matchmaking";
+import {
+  gameRatingSummarySchema,
+  publicReversiRatingSchema,
+  publicShogiRatingSchema,
+  ratedMatchmakingGameIds,
+} from "./matchmaking";
 
 export const profileRatingSchema = z.union([
   z.strictObject({
@@ -31,6 +36,11 @@ export type ProfileRating = z.infer<typeof profileRatingSchema>;
 export const profileRatingsSchema = z.record(z.uuid(), profileRatingSchema);
 export type ProfileRatings = z.infer<typeof profileRatingsSchema>;
 
+export const playerProfileReferenceSchema = z.strictObject({
+  source: z.literal("profile"),
+  profileId: z.uuid(),
+});
+
 export const playerProfileTargetSchema = z.discriminatedUnion("source", [
   z.strictObject({
     source: z.literal("room"),
@@ -39,37 +49,32 @@ export const playerProfileTargetSchema = z.discriminatedUnion("source", [
     playerId: z.uuid(),
   }),
   z.strictObject({ source: z.literal("match"), matchId: z.uuid(), playerId: z.uuid() }),
-  z.strictObject({ source: z.literal("profile"), profileId: z.uuid() }),
+  playerProfileReferenceSchema,
 ]);
 export type PlayerProfileTarget = z.infer<typeof playerProfileTargetSchema>;
+const playerUsernameReferenceSchema = z.strictObject({
+  source: z.literal("username"),
+  username: usernameSchema,
+});
+export type PlayerProfileQueryTarget =
+  | PlayerProfileTarget
+  | z.infer<typeof playerUsernameReferenceSchema>;
+export const publicPlayerPagePathPattern = /^\/(?:players\/[^/]+|users\/(?:@|%40)[^/]*)\/?$/;
+
+const playerProfileQueryOptions = {
+  game: gameIdSchema,
+  includeRating: z.literal("1").optional(),
+  includeBadges: z.literal("1").optional(),
+  includeStats: z.literal("1").optional(),
+  includeDetails: z.literal("1").optional(),
+  includeShogiRating: z.literal("1").optional(),
+  includeReversiRating: z.literal("1").optional(),
+};
 export const playerProfileQuerySchema = z.discriminatedUnion("source", [
-  playerProfileTargetSchema.options[0].extend({
-    game: gameIdSchema,
-    includeRating: z.literal("1").optional(),
-    includeBadges: z.literal("1").optional(),
-    includeStats: z.literal("1").optional(),
-    includeDetails: z.literal("1").optional(),
-    includeShogiRating: z.literal("1").optional(),
-    includeReversiRating: z.literal("1").optional(),
-  }),
-  playerProfileTargetSchema.options[1].extend({
-    game: gameIdSchema,
-    includeRating: z.literal("1").optional(),
-    includeBadges: z.literal("1").optional(),
-    includeStats: z.literal("1").optional(),
-    includeDetails: z.literal("1").optional(),
-    includeShogiRating: z.literal("1").optional(),
-    includeReversiRating: z.literal("1").optional(),
-  }),
-  playerProfileTargetSchema.options[2].extend({
-    game: gameIdSchema,
-    includeRating: z.literal("1").optional(),
-    includeBadges: z.literal("1").optional(),
-    includeStats: z.literal("1").optional(),
-    includeDetails: z.literal("1").optional(),
-    includeShogiRating: z.literal("1").optional(),
-    includeReversiRating: z.literal("1").optional(),
-  }),
+  playerProfileTargetSchema.options[0].extend(playerProfileQueryOptions),
+  playerProfileTargetSchema.options[1].extend(playerProfileQueryOptions),
+  playerProfileReferenceSchema.extend(playerProfileQueryOptions),
+  playerUsernameReferenceSchema.extend(playerProfileQueryOptions),
 ]);
 const count = z.int().nonnegative();
 export const playerProfileSchema = z.discriminatedUnion("kind", [
@@ -122,6 +127,15 @@ export const getPlayerProfileContract = {
   path: "/player-profile",
   query: playerProfileQuerySchema,
   response: playerProfileSchema,
+} as const;
+export const getPlayerGameRatingsContract = {
+  method: "GET",
+  path: "/players/:profileId/game-ratings",
+  params: z.strictObject({ profileId: z.uuid() }),
+  response: z.strictObject({
+    profileId: z.uuid(),
+    games: z.record(z.enum(ratedMatchmakingGameIds), gameRatingSummarySchema).nullable(),
+  }),
 } as const;
 export const previewRoomSchema = roomPublicMetadataSchema.safeExtend({
   profileTarget: playerProfileTargetSchema.optional().nullable(),

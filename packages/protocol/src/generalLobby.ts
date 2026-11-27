@@ -6,7 +6,7 @@ import { gameCatalog } from "./games";
 import { playerProfileTargetSchema } from "./playerProfiles";
 import { matchSummarySchema } from "./matches";
 import { chatTextSchema } from "./rooms";
-import { ratedMatchmakingGameIds, ratingSummarySchema } from "./matchmaking";
+import { gameRatingSummarySchema, ratedMatchmakingGameIds } from "./matchmaking";
 
 export const lobbyGameRatingsSchema = z.strictObject({
   viewer: z
@@ -16,9 +16,7 @@ export const lobbyGameRatingsSchema = z.strictObject({
     z.enum(ratedMatchmakingGameIds),
     z.strictObject({
       enabled: z.boolean(),
-      summary: z
-        .union([ratingSummarySchema, z.strictObject({ status: z.literal("error") })])
-        .nullable(),
+      summary: gameRatingSummarySchema.nullable(),
     }),
   ),
 });

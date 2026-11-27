@@ -1,7 +1,7 @@
 import type {
   GameId,
   PlayerProfile,
-  PlayerProfileTarget,
+  PlayerProfileQueryTarget,
   ProfileRating,
   AccountStats,
 } from "@tetraboard/protocol";
@@ -9,7 +9,7 @@ import type { CurrentProfile } from "../domain/currentProfiles";
 import type { ProfilePolicy } from "../domain/profile";
 import type { AccountProfiles } from "./ports";
 import { readCurrentProfiles } from "./currentProfiles";
-export type PlayerProfileQuery = PlayerProfileTarget & {
+export type PlayerProfileQuery = PlayerProfileQueryTarget & {
   game: GameId;
   includeRating?: "1";
   includeBadges?: "1";
@@ -18,6 +18,10 @@ export type PlayerProfileQuery = PlayerProfileTarget & {
   includeShogiRating?: "1";
   includeReversiRating?: "1";
 };
+export type PlayerProfileAppearanceQuery = Extract<
+  PlayerProfileQuery,
+  { source: "room" | "match" }
+>;
 type AccountCard = Extract<PlayerProfile, { kind: "account" }>;
 export type ProfileFailure = { status: 400 | 404 | 410; message: string };
 export type ProfileSource =
@@ -32,7 +36,7 @@ export interface PlayerProfilePorts {
   profiles: AccountProfiles;
   policy: ProfilePolicy;
   validProfile(profile: CurrentProfile): boolean;
-  source(target: Exclude<PlayerProfileQuery, { source: "profile" }>): Promise<ProfileSource>;
+  source(target: PlayerProfileAppearanceQuery): Promise<ProfileSource>;
   stats(accountId: string, game: GameId): Promise<AccountStats>;
   rating(accountId: string, game: GameId): Promise<ProfileRating | undefined>;
   shogiRating(accountId: string): Promise<AccountCard["shogiRating"]>;
@@ -43,48 +47,74 @@ const unavailable = (): ProfileFailure => ({
   status: 404,
   message: "プロフィールを表示できません。",
 });
-async function resolveSource(
-  r: PlayerProfilePorts,
-  target: PlayerProfileQuery,
-): Promise<ProfileSource> {
-  return target.source === "profile"
-    ? { accountId: await r.profiles.accountId(target.profileId) }
-    : r.source(target);
+type PublicProfileReader = Pick<PlayerProfilePorts, "profiles" | "policy" | "validProfile">;
+
+export async function resolvePublicPlayer(r: PublicProfileReader, profileId: string) {
+  return resolvePublicAccount(r, await r.profiles.accountId(profileId));
 }
+
 export async function readPlayerProfile(
   r: PlayerProfilePorts,
   target: PlayerProfileQuery,
 ): Promise<PlayerProfile | ProfileFailure> {
-  const source = await resolveSource(r, target);
+  if (target.source === "profile") {
+    const resolved = await resolvePublicPlayer(r, target.profileId);
+    return resolved ? readAccountCard(r, target, resolved) : unavailable();
+  }
+  if (target.source === "username") {
+    const accountId = await r.profiles.accountIdByUsername(target.username);
+    const resolved = await resolvePublicAccount(r, accountId);
+    if (!matchesUsername(resolved, accountId, target.username)) return unavailable();
+    const card = await readAccountCard(r, target, resolved);
+    const current = await resolvePublicAccount(r, accountId);
+    return matchesUsername(current, accountId, target.username) &&
+      current.profileId === resolved.profileId
+      ? card
+      : unavailable();
+  }
+  const source = await r.source(target);
   if ("status" in source) return source;
   if (source.appearance?.kind === "cpu") return source.appearance;
   if (source.retired) return { status: 404, message: "退会したプレイヤーです。" };
   if (source.appearance && !source.accountId) return source.appearance;
-  let accountId = source.accountId;
-  if (accountId) accountId = (await r.profiles.mergedAccountId(accountId)) ?? accountId;
-  const profile = accountId
-    ? (await readCurrentProfiles(r.profiles, r.policy, [accountId])).get(accountId)
-    : undefined;
-  if (
-    !accountId ||
-    !profile ||
-    !profile.profileCompleted ||
-    (!profile.isAnonymous && !r.validProfile(profile))
-  )
-    return unavailable();
-  if (!profile.publicProfileId) throw new Error("Public profile ID is missing");
-  return readAccountCard(r, target, accountId, profile, source.rating);
+  const resolved = await resolvePublicAccount(r, source.accountId);
+  return resolved ? readAccountCard(r, target, resolved, source.rating) : unavailable();
 }
+
+type ResolvedPublicAccount = NonNullable<Awaited<ReturnType<typeof resolvePublicAccount>>>;
+
+function matchesUsername(
+  player: ResolvedPublicAccount | null,
+  accountId: string | null,
+  username: string,
+): player is ResolvedPublicAccount {
+  return (
+    player !== null &&
+    player.accountId === accountId &&
+    !player.profile.isAnonymous &&
+    player.profile.username?.toLowerCase() === username
+  );
+}
+
+async function resolvePublicAccount(r: PublicProfileReader, sourceId: string | null) {
+  if (!sourceId) return null;
+  const accountId = (await r.profiles.mergedAccountId(sourceId)) ?? sourceId;
+  const profile = (await readCurrentProfiles(r.profiles, r.policy, [accountId])).get(accountId);
+  if (!profile?.profileCompleted || (!profile.isAnonymous && !r.validProfile(profile))) return null;
+  if (!profile.publicProfileId) throw new Error("Public profile ID is missing");
+  return { accountId, profile, profileId: profile.publicProfileId };
+}
+
 async function readAccountCard(
   r: PlayerProfilePorts,
   target: PlayerProfileQuery,
-  accountId: string,
-  profile: CurrentProfile,
+  { accountId, profile, profileId }: ResolvedPublicAccount,
   rating?: ProfileRating,
 ): Promise<PlayerProfile> {
   const stats = await r.stats(accountId, target.game);
   if (target.includeRating === "1" && !profile.isAnonymous) {
-    if (target.source === "profile") rating = await r.rating(accountId, target.game);
+    if (target.source === "profile" || target.source === "username")
+      rating = await r.rating(accountId, target.game);
   } else rating = undefined;
   const shogiRating =
     target.game === "shogi" && target.includeShogiRating === "1" && !profile.isAnonymous
@@ -97,7 +127,7 @@ async function readAccountCard(
   return {
     kind: "account",
     ...(profile.isAnonymous ? { isGuest: true } : {}),
-    profileId: profile.publicProfileId!,
+    profileId,
     name: profile.name,
     username: profile.username,
     avatarUrl: profile.avatarUrl,

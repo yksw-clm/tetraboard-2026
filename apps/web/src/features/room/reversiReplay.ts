@@ -1,13 +1,15 @@
 import type { ReversiLastRound } from "@tetraboard/protocol";
+import { snapshotReplayPositions } from "@tetraboard/protocol/replay-positions";
 import type { ReversiState } from "@tetraboard/reversi";
 import { useState } from "react";
+import { initialReplayIndex } from "./initialReplayIndex";
 const names = { black: "黒", white: "白" };
 const reasons = { resigned: "投了", left: "退室", timeout: "時間切れ", disconnected: "通信切れ" };
-export function reversiReplayFrames(lastRound: ReversiLastRound) {
-  const frames: { label: string; game: ReversiState }[] = [
-    { label: "開始局面", game: lastRound.replay.initial },
-  ];
-  for (const { action, game, passedColors } of lastRound.replay.steps) {
+export function reversiReplayFrames<T extends Pick<ReversiLastRound, "replay">>({ replay }: T) {
+  return snapshotReplayPositions(replay).map((position) => {
+    if (position.kind === "initial" || position.kind === "final")
+      return { label: "開始局面", game: replay.initial };
+    const { action, game, passedColors } = replay.steps[position.stepIndex];
     const beforePass = (index: number): ReversiState =>
       index < passedColors.length
         ? {
@@ -18,23 +20,30 @@ export function reversiReplayFrames(lastRound: ReversiLastRound) {
             result: null,
           }
         : game;
-    frames.push({
+    if (position.kind === "pass")
+      return {
+        label: `${names[passedColors[position.passIndex]]} パス`,
+        game: beforePass(position.passIndex + 1),
+      };
+    return {
       label:
         action.type === "place"
           ? `${game.moveNumber}: ${names[action.color]}${"ABCDEFGH"[action.position.x]}${action.position.y + 1}`
           : `${names[action.color]} ${reasons[action.reason]}`,
       game: beforePass(0),
-    });
-    passedColors.forEach((color, index) =>
-      frames.push({ label: `${names[color]} パス`, game: beforePass(index + 1) }),
-    );
-  }
-  return frames;
+    };
+  });
 }
-export function useReversiReplay(lastRound: ReversiLastRound | null) {
+export function useReversiReplay(
+  lastRound: ReversiLastRound | null,
+  initialPosition: string | null = null,
+) {
   const id = lastRound?.replay.id ?? null;
   const frames = lastRound ? reversiReplayFrames(lastRound) : [];
-  const [selection, setSelection] = useState({ id, index: frames.length - 1 });
+  const [selection, setSelection] = useState(() => ({
+    id,
+    index: initialReplayIndex(initialPosition, frames.length),
+  }));
   if (selection.id !== id) setSelection({ id, index: frames.length - 1 });
   const index = selection.id === id ? selection.index : frames.length - 1;
   return {

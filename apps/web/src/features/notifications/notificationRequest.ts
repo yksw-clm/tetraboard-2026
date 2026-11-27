@@ -20,7 +20,8 @@ export async function notificationRequest(
   if (signal.aborted) abort();
   const timer = setTimeout(abort, 10_000);
   try {
-    const response = await fetch(`/api/${path}`, {
+    const query = body === undefined ? `${path.includes("?") ? "&" : "?"}replies=1` : "";
+    const response = await fetch(`/api/${path}${query}`, {
       signal: controller.signal,
       credentials: "same-origin",
       cache: "no-store",

@@ -1,9 +1,16 @@
 import { legalHtml } from "./routes/legalHtml";
-import { fourShogiRulesPath, gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { publicPlayerPagePathPattern } from "@tetraboard/protocol";
+import { parseBoardPostNumber } from "@tetraboard/protocol/board";
+import { boardPostPath } from "@tetraboard/protocol/board-presentation";
+import { fourShogiRulesPath, gameCatalog, gameIds, isGameId } from "@tetraboard/protocol/games";
 import { serveRoomShareHtml } from "./roomShareHtml";
 import { serveMatchShareHtml } from "./matchSharing/html";
 import { withVisitHtml } from "./usageEvents/visit";
 import { serveTournamentHtml, serveTournamentSitemap } from "./tournamentPages";
+import { serveBoardHtml, serveBoardSitemap } from "./boardPages";
+
+const boardTimelinePath = /^\/games\/([^/]+)\/posts\/?$/;
+const boardDetailPath = /^\/posts\/([^/]+)\/?$/;
 
 const publicPagePaths = [
   ...gameIds.map((game) => gameCatalog[game].lobbyPath),
@@ -37,6 +44,7 @@ function isSpaPath(path: string) {
       "/games/shogi/matchmaking",
     ].includes(path.replace(/\/$/, "")) ||
     /^\/(?:rooms|matches|updates)\/[^/]+\/?$/.test(path) ||
+    publicPlayerPagePathPattern.test(path) ||
     tournamentDetailPath.test(path) ||
     /^\/account\/matches\/[^/]+\/?$/.test(path)
   );
@@ -76,6 +84,37 @@ async function serveSpaAsset(request: Request, assets: Fetcher, path: string, en
   return withoutIndexing(await assets.fetch(new Request(url, request)));
 }
 
+function rejectAssetRequest(request: Request, board: boolean) {
+  const upgrade = request.headers.has("Upgrade");
+  if (!upgrade && (request.method === "GET" || request.method === "HEAD")) return null;
+  const headers = new Headers({ "Content-Type": "text/plain;charset=UTF-8" });
+  if (board) headers.set("Cache-Control", "no-store");
+  if (!upgrade) headers.set("Allow", "GET, HEAD");
+  const message = upgrade ? "Not Found" : "Method Not Allowed";
+  return withoutIndexing(
+    new Response(request.method === "HEAD" ? null : message, {
+      status: upgrade ? 404 : 405,
+      headers,
+    }),
+  );
+}
+
+function redirectToPath(url: URL, path: string) {
+  url.pathname = path;
+  return Response.redirect(url.toString(), 308);
+}
+
+function serveBoardDetailAsset(request: Request, url: URL, assets: Fetcher, env?: Env) {
+  const id = boardDetailPath.exec(url.pathname)?.[1] ?? "";
+  // URL の区切り文字を展開せず、ASCII 数字の符号化だけを戻します。
+  const number = parseBoardPostNumber(id.replace(/%3([0-9])/g, "$1"));
+  if (number !== null) {
+    const path = boardPostPath(number);
+    if (url.pathname !== path) return redirectToPath(url, path);
+  }
+  return serveBoardHtml(request, assets, env, number);
+}
+
 export async function servePublicAssets(
   request: Request,
   assets: Fetcher,
@@ -84,12 +123,19 @@ export async function servePublicAssets(
 ): Promise<Response> {
   const url = new URL(request.url);
   const html = (response: Response) => withVisitHtml(request, response, path);
-  if (request.headers.get("Upgrade"))
-    return withoutIndexing(new Response("Not Found", { status: 404 }));
-  if (request.method !== "GET" && request.method !== "HEAD")
-    return withoutIndexing(
-      new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } }),
-    );
+  const boardTimeline = boardTimelinePath.exec(path);
+  const boardDetail = boardDetailPath.exec(path);
+  const boardSitemap = path === "/sitemap-posts.xml";
+  const boardRequest = Boolean(boardTimeline || boardDetail || boardSitemap);
+  const rejection = rejectAssetRequest(request, boardRequest);
+  if (rejection) return rejection;
+  if (boardTimeline)
+    return isGameId(boardTimeline[1])
+      ? html(await serveBoardHtml(request, assets, env))
+      : serveNotFoundAsset(request, url, assets);
+  if (boardDetail) return html(await serveBoardDetailAsset(request, url, assets, env));
+  if (boardSitemap && env?.APP_ORIGIN === "https://tetraboard.net")
+    return serveBoardSitemap(request, env);
   if (path === "/privacy" || path === "/terms")
     return legalHtml(request, assets, path.slice(1) as "privacy" | "terms");
   if (path === "/" || path === "/index.html") {

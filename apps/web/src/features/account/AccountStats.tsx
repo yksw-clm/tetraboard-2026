@@ -1,32 +1,26 @@
 import { gameCatalog } from "@tetraboard/protocol/games";
-import { lazy, Suspense, useState } from "react";
-import { isRatedMatchmakingGame, type MatchGame, type RoomMode } from "@tetraboard/protocol";
+import { lazy, Suspense } from "react";
+import type { MatchGame, RoomMode } from "@tetraboard/protocol";
 import { AppButton } from "../../shared/ui/AppButton";
 import { formatStatsRate, statsScopeLabel } from "./statsPresentation";
 import { StatsTable, type StatsRow } from "./StatsTable";
 import { useFormationStats } from "./useFormationStats";
 import { useAccountStats } from "./useAccountStats";
 import { AccountBadges } from "../badges/AccountBadges";
-import { useReversiRatedAvailability } from "../matchmaking/useReversiRatedAvailability";
-import { RatingSummary } from "../matchmaking/RatingSummary";
 const FormationStats = lazy(() => import("./FormationStats"));
 
 export function AccountStats({
   game,
   mode,
-  registered = false,
+  onRefresh,
 }: {
   game: MatchGame;
   mode: RoomMode;
-  registered?: boolean;
+  onRefresh?: () => void;
 }) {
   const { stats, loading, error, pendingSource, refresh } = useAccountStats(game);
   const showFormations = game === "four-shogi" && mode === "singles";
   const formations = useFormationStats(showFormations);
-  const reversiRatedAvailable = useReversiRatedAvailability(registered && game === "reversi");
-  const showRating =
-    registered && isRatedMatchmakingGame(game) && (game !== "reversi" || reversiRatedAvailable);
-  const [ratingRefresh, setRatingRefresh] = useState(0);
   const rows: StatsRow[] = [];
   if (stats) {
     const selected = "wins" in stats ? stats : stats[mode];
@@ -79,13 +73,12 @@ export function AccountStats({
             onPress={() => {
               void refresh("refresh");
               void formations.refresh("refresh");
-              if (showRating) setRatingRefresh((current) => current + 1);
+              onRefresh?.();
             }}
           >
             更新
           </AppButton>
         </div>
-        {showRating && <RatingSummary key={`${game}:${ratingRefresh}`} game={game} compact />}
         <p className="text-xs text-muted">{statsScopeLabel(game, mode)}</p>
         <div className="flex flex-col gap-3">
           {loading && !pendingSource && (

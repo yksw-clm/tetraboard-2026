@@ -12,3 +12,4 @@ export * from "./chat";
 export * from "./feedback";
 export * from "./insights";
 export * from "./tournaments";
+export * from "./board";

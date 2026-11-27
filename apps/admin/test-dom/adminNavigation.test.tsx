@@ -30,7 +30,8 @@ test("画面選択は全管理メニューへadmin配下で移動し、PCリン�
   const select = view.querySelector("select")!;
   const destinations = [
     ["/kpi", "KPI"],
-    ["/lobby-chat", "公開チャット"],
+    ["/lobby-chat", "大会チャット"],
+    ["/board", "掲示板"],
     ["/feedback", "フィードバック"],
     ["/announcements", "お知らせ"],
     ["/tournaments", "大会"],

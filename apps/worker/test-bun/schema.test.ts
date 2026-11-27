@@ -54,9 +54,68 @@ const uniqueNames = new Set(
     .filter((name) => name !== undefined),
 );
 
-test("既存migrationの全67テーブルを適用します", () => {
-  expect(tableNames(migrated)).toHaveLength(67);
+test("全 migration の 73 テーブルを適用します", () => {
+  expect(tableNames(migrated)).toHaveLength(73);
   expect(tableNames(defined)).toEqual(tableNames(migrated));
+});
+
+test("掲示板の投稿受付は migration の適用直後に停止しています", () => {
+  expect(migrated.query("SELECT id,accepting FROM board_settings").all()).toEqual([
+    { id: 1, accepting: 0 },
+  ]);
+});
+
+test("掲示板の通報は投稿から独立し、同じ通報者と対象の証拠を複数保存できます", () => {
+  const db = new Database(":memory:");
+  try {
+    applyMigrations(db);
+    const insert = db.query(
+      `INSERT INTO board_reports(id,post_id,game_id,author_name,body,posted_at_ms,reason,reporter_account_id,reported_at_ms)
+       VALUES(?,'missing-post','reversi','投稿者','本文',1,?,?,2)`,
+    );
+    insert.run("report", "abuse", "reporter");
+    expect(db.query("SELECT status,moderator_deleted_at_ms FROM board_reports").get()).toEqual({
+      status: "open",
+      moderator_deleted_at_ms: null,
+    });
+    insert.run("duplicate", "spam", "reporter");
+    expect(() => insert.run("wrong-reason", "unknown", null)).toThrow("board_reports_reason");
+    expect(() => db.exec("UPDATE board_reports SET status='unknown'")).toThrow(
+      "board_reports_status",
+    );
+    insert.run("anonymous", "spam", null);
+    expect(db.query("SELECT id FROM board_reports").all()).toHaveLength(3);
+  } finally {
+    db.close();
+  }
+});
+
+test("掲示板の再送情報は退会済みの行だけ省略でき、空でない識別子はアカウント内で一意です", () => {
+  const db = new Database(":memory:");
+  try {
+    applyMigrations(db);
+    const insert = db.query(
+      "INSERT INTO board_posts(id,game_id,account_id,body,posted_at_ms,deleted_at_ms,deletion_reason,request_id,body_hash) VALUES(?,'reversi','account',?,0,?,?,?,?)",
+    );
+    for (const reason of [null, "author", "moderator"]) {
+      const body = reason === null ? "投稿" : null;
+      const deletedAt = reason === null ? null : 1;
+      expect(() => insert.run("missing-request", body, deletedAt, reason, null, "hash")).toThrow(
+        "board_posts_replay",
+      );
+      expect(() => insert.run("missing-hash", body, deletedAt, reason, "request", null)).toThrow(
+        "board_posts_replay",
+      );
+    }
+    insert.run("withdrawn-1", null, 1, "withdrawn", null, null);
+    insert.run("withdrawn-2", null, 1, "withdrawn", null, null);
+    insert.run("post-1", "投稿", null, null, "request", "hash");
+    expect(() => insert.run("post-2", "再送", null, null, "request", "hash")).toThrow(
+      "UNIQUE constraint failed",
+    );
+  } finally {
+    db.close();
+  }
 });
 
 test("初期のお知らせの公開日を全 migration 適用後も保持します", () => {

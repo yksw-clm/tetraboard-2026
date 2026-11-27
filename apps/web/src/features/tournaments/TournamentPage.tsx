@@ -9,9 +9,10 @@ import { gameCatalog } from "@tetraboard/protocol/games";
 import { tournamentDate } from "@tetraboard/protocol/tournament-pages";
 import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { RoomIdentityFields } from "../account/RoomIdentityFields";
-import { useEffect, useState, type MouseEventHandler, type ReactNode } from "react";
+import { useEffect, useRef, useState, type MouseEventHandler, type ReactNode } from "react";
 import { useLocation, useParams } from "react-router";
 import { updatePageMetadata } from "../../seo/pageMetadata";
+import { roomSounds, useSoundEffects } from "../../shared/soundEffects";
 import {
   tournamentRules,
   type TournamentDetail,
@@ -144,6 +145,11 @@ function TournamentPlay({ state }: { state: TournamentState }) {
   return (
     <AppCard className="gap-4">
       <h2 className="text-lg font-bold">大会対局</h2>
+      {state.queueExpired && (
+        <p role="alert" className="text-sm text-danger">
+          待機が切れました。対局するには、もう一度「対局する」を押してください。
+        </p>
+      )}
       {state.participationLoading ? (
         <p role="status" className="text-sm text-muted">
           参加状態を確認しています…
@@ -192,6 +198,11 @@ function TournamentPlay({ state }: { state: TournamentState }) {
               現在{state.data!.tournament.waitingCount}
               人が待機中です。4人そろったら入室のご案内が表示されます。
             </p>
+            {waiting && (
+              <p className="mt-1 text-xs text-muted">
+                このページを開いたままお待ちください。4人そろうと自動で入室します。スマートフォンでほかのアプリに切り替えたり、画面を消したりすると、待機が切れることがあります。
+              </p>
+            )}
           </div>
           {participation.entered ? (
             <AppButton
@@ -249,6 +260,20 @@ function TournamentMatchedDialog({
     </AppDialog>
   );
 }
+const matchTitlePrefix = "【対戦相手が集まりました】";
+
+function updateMatchTitle(original: string | null, show: boolean): string | null {
+  const title = document.title;
+  const hasPrefix = original !== null && title === matchTitlePrefix + original;
+  if (!show) {
+    if (hasPrefix) document.title = original;
+    return null;
+  }
+  if (hasPrefix) return original;
+  document.title = matchTitlePrefix + title;
+  return title;
+}
+
 function TournamentContent({ id }: { id: number }) {
   const { pathname } = useLocation();
   const state = useTournament(id);
@@ -258,9 +283,40 @@ function TournamentContent({ id }: { id: number }) {
   const settings = tournament ? getTournamentSettings(tournament) : legacyTournamentSettings;
   const game = settings.game;
   const lobbyPath = gameCatalog[game].lobbyPath;
+  const activatedOnPage = useSoundEffects();
+  const seenMatches = useRef(new Set<string>());
+  const hiddenMatch = useRef<string | null>(null);
+  const originalTitle = useRef<string | null>(null);
+  const matched = state.participation.status === "matched" && state.canEnterRoom;
+  const matchKey = matched
+    ? `${state.participation.operationId}:${state.participation.matchId}`
+    : null;
+  useEffect(() => {
+    const visibilityChanged = () => {
+      if (document.visibilityState !== "visible") return;
+      hiddenMatch.current = null;
+      originalTitle.current = updateMatchTitle(originalTitle.current, false);
+    };
+    document.addEventListener("visibilitychange", visibilityChanged);
+    return () => {
+      document.removeEventListener("visibilitychange", visibilityChanged);
+      originalTitle.current = updateMatchTitle(originalTitle.current, false);
+    };
+  }, []);
   useEffect(() => {
     if (tournament) updatePageMetadata(pathname, undefined, undefined, { ...tournament, game });
-  }, [game, pathname, tournament]);
+    if (matchKey && !seenMatches.current.has(matchKey)) {
+      seenMatches.current.add(matchKey);
+      if (document.visibilityState !== "visible") {
+        hiddenMatch.current = matchKey;
+        if (activatedOnPage.current) roomSounds.playMatchNotification();
+      }
+    }
+    originalTitle.current = updateMatchTitle(
+      originalTitle.current,
+      matchKey !== null && matchKey === hiddenMatch.current,
+    );
+  }, [game, pathname, tournament, matchKey, activatedOnPage]);
   return (
     <TournamentPageLayout
       game={game}
@@ -500,7 +556,7 @@ function TournamentContent({ id }: { id: number }) {
             </AppButton>
           </AppDialog>
         )}
-        {state.participation.status === "matched" && state.canEnterRoom && (
+        {matched && (
           <TournamentMatchedDialog
             game={game}
             key={`${account.user?.profileId ?? account.user?.username}:${state.participation.operationId}:${state.participation.matchId}:${state.participation.roomId}`}

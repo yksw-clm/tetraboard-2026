@@ -147,6 +147,8 @@ test("既知SPA画面はnoindexで配信し、未知画面と欠落資産は本�
     "/account/setup",
     "/account/matches/example",
     "/matches/example",
+    "/players/10000000-0000-4000-8000-000000000001?game=four-shogi&mode=doubles",
+    "/users/@public_player?game=four-shogi&mode=doubles",
     "/rooms/12345?invite=example",
     "/feedback",
     "/updates",

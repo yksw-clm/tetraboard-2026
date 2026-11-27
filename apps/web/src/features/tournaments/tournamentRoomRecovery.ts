@@ -77,6 +77,7 @@ export async function recoverTournamentRoom(
       operationId: reference.operationId,
       token: result.token,
       controllerVersion: result.participation.controllerVersion,
+      hasEnteredRoom: true,
     });
     if (
       !saveRoomMembershipToken(roomId, result.token) ||

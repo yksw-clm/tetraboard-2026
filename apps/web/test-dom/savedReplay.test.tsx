@@ -14,9 +14,15 @@ import gomokuArchive from "../../../test-fixtures/matches/gomoku-on-five.json";
 import reversiArchive from "../../../test-fixtures/matches/reversi-standard-draw.json";
 import FourReversiMatchReplayView from "../src/features/room/FourReversiMatchReplayView";
 import FourShogiMatchReplayView from "../src/features/room/FourShogiMatchReplayView";
-import { MatchReplayErrorPage } from "../src/features/room/MatchReplayPage";
+// 遅延読み込みされるViewを先に評価し、actの中で描画を待てるようにします。
+import "../src/features/room/FourGomokuMatchReplayView";
+import "../src/features/room/GomokuMatchReplayView";
+import "../src/features/room/ReversiMatchReplayView";
+import "../src/features/room/ShogiMatchReplayView";
+import { MatchReplayErrorPage, MatchReplayPage } from "../src/features/room/MatchReplayPage";
 import { SavedMatchReplayView } from "../src/features/room/SavedMatchReplayView";
-import { matchReplayLoader } from "../src/features/room/matchReplayLoader";
+import { matchReplayLoader, publicMatchReplayLoader } from "../src/features/room/matchReplayLoader";
+import { initialReplayIndex } from "../src/features/room/initialReplayIndex";
 import { fetchFourShogiMatchReplay } from "../src/features/room/fourShogiMatchReplay";
 import { MatchHistoryCard } from "../src/features/matches/MatchHistoryCard";
 import { simultaneousMateFrames } from "../test/fixtures/shogiKnockouts";
@@ -26,14 +32,117 @@ import { token } from "../test/fixtures/rooms";
 import { AccountContext } from "../src/features/account/useAccount";
 import { act, clock, flush, press, render, requests, wrap } from "./harness";
 
+const standardShogiArchive = standardSavedRound();
 const publicReplayCases = {
   "four-reversi": { detail: reversiArchives[1]!.detail, title: "四人リバーシ（オセロ）" },
   "four-shogi": { detail: shogiArchives[0]!.detail, title: "四人将棋" },
   reversi: { detail: reversiArchive.detail, title: "リバーシ（オセロ）" },
-  shogi: { detail: standardSavedRound().match, title: "将棋" },
+  shogi: { detail: standardShogiArchive.match, title: "将棋" },
   gomoku: { detail: gomokuArchive.detail, title: "五目並べ" },
   "four-gomoku": { detail: fourGomokuArchive.detail, title: "四人五目並べ" },
 };
+
+const replayPositions = {
+  "four-reversi": { index: 37, label: "黒 パス" },
+  "four-shogi": { index: 101, label: "西 退室" },
+  reversi: { index: 60, label: "白 パス" },
+  shogi: { index: 1, label: "1: ▲6八金" },
+  gomoku: { index: 1, label: "1: 黒 A8" },
+  "four-gomoku": { index: 1, label: "1: 黒 A1" },
+};
+
+test.each([
+  [null, 3],
+  ["", 3],
+  ["0", 0],
+  ["2", 2],
+  ["02", 2],
+  ["3", 3],
+  ["4", 3],
+  ["-1", 3],
+  ["1.5", 3],
+  ["abc", 3],
+  ["1e0", 3],
+  [" 1", 3],
+  ["1\n", 3],
+] as const)("4局面の初期添字を position=%p から決める", (position, index) => {
+  expect(initialReplayIndex(position, 4)).toBe(index);
+});
+
+for (const game of gameIds) {
+  test(`${game}の公開棋譜はURLで指定した局面から開く`, async () => {
+    const match = { ...publicReplayCases[game].detail };
+    Reflect.deleteProperty(match, "selfPlayerId");
+    const { index, label } = replayPositions[game];
+    const path = `/matches/${match.id}`;
+    const fetch = spyOn(globalThis, "fetch").mockImplementation((async (input) => {
+      const url = new URL(String(input), window.location.origin);
+      if (url.pathname === `/api${path}`) return Response.json({ match });
+      if (url.pathname === `/api${path}/replay`) {
+        const cursor = Number(url.searchParams.get("cursor"));
+        if (game === "shogi") return Response.json(standardShogiArchive.page(cursor));
+        if (game === "four-shogi") {
+          const fixture = shogiArchives[0]!;
+          return Response.json({
+            matchId: match.id,
+            ...fixture.detail.replay,
+            events: fixture.events.slice(cursor, cursor + 100),
+            nextCursor: cursor + 100 < fixture.events.length ? cursor + 100 : null,
+          });
+        }
+      }
+      throw new Error(`Unexpected replay request: ${url}`);
+    }) as typeof globalThis.fetch);
+    const router = createMemoryRouter(
+      [
+        { path: "/", element: null },
+        {
+          path: "/matches/:matchId",
+          loader: publicMatchReplayLoader,
+          element: <MatchReplayPage />,
+          hydrateFallbackElement: <p>棋譜を読み込んでいます…</p>,
+        },
+      ],
+      { initialEntries: ["/"] },
+    );
+    try {
+      const view = render(<RouterProvider router={router} />);
+      const selectedLabel = () =>
+        view.querySelector('button[aria-haspopup="listbox"]')?.textContent;
+      const back = () => view.querySelector<HTMLButtonElement>('[aria-label="棋譜を1つ戻る"]')!;
+      const next = () => view.querySelector<HTMLButtonElement>('[aria-label="棋譜を1つ進む"]')!;
+      await act(() => router.navigate(`${path}?position=0`));
+      expect(selectedLabel()).toBe("開始局面");
+      expect(back().disabled).toBe(true);
+      expect(next().disabled).toBe(false);
+
+      await act(() => router.navigate(`${path}?position=${index}`));
+      expect(selectedLabel()).toBe(label);
+      const postLink = () =>
+        [...view.querySelectorAll("a")].find((link) => link.textContent === "この局面で投稿する");
+      expect(postLink()?.getAttribute("href")).toBe(
+        `/games/${game}/posts?match=${match.id}&position=${index}`,
+      );
+      expect(back().disabled).toBe(false);
+      expect(next().disabled).toBe(false);
+      act(() => back().click());
+      expect(selectedLabel()).not.toBe(label);
+      expect(postLink()?.getAttribute("href")).toBe(
+        `/games/${game}/posts?match=${match.id}&position=${index - 1}`,
+      );
+      expect(router.state.location.search).toBe(`?position=${index}`);
+
+      for (const search of ["?position=99999", "?position=1e0", ""]) {
+        await act(() => router.navigate(`${path}${search}`));
+        expect(back().disabled).toBe(false);
+        expect(next().disabled).toBe(true);
+      }
+    } finally {
+      act(() => router.dispose());
+      fetch.mockRestore();
+    }
+  });
+}
 
 for (const game of gameIds) {
   test(`${game}の公開棋譜はゲームを案内し、遊ぶリンクからロビーへ移動する`, async () => {
@@ -79,9 +188,15 @@ for (const game of gameIds) {
 test("本人の棋譜には遊ぶ帯を出さず、ルーム情報からマイページへ戻れる", async () => {
   const match = fourReversiMatchDetailSchema.parse(reversiArchives[0]!.detail);
   const view = render(
-    wrap(null, `/account/matches/${match.id}`)(<FourReversiMatchReplayView match={match} />),
+    wrap(
+      null,
+      `/account/matches/${match.id}?position=1`,
+    )(<FourReversiMatchReplayView match={match} initialPosition="1" />),
   );
   expect(view.querySelector('[aria-label="このゲームを遊ぶ"]')).toBeNull();
+  expect(view.querySelector('[aria-label="棋譜の操作"] a')?.getAttribute("href")).toBe(
+    `/games/four-reversi/posts?match=${match.id}&position=1`,
+  );
   const roomTab = [...view.querySelectorAll<HTMLElement>('[role="tab"]')].find(
     (tab) => tab.textContent === "ルーム",
   )!;

@@ -12,6 +12,7 @@ import { fixTestTime } from "./fixedTimeFixture";
 import { humanFixtureRecord } from "./matchFixtures";
 import { humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
 import { guestFenceFixture, markDeleted } from "./guestFenceFixtures";
+import { publishedChatTournament } from "./tournamentChatFixtures";
 
 const bindings = env as typeof env & {
   COMMUNITY_BATCHES_TEST_DB: D1Database;
@@ -29,12 +30,7 @@ beforeAll(async () => {
 });
 
 const chat = new D1ChatStore(db);
-const post = (
-  accountId: string,
-  requestId: string,
-  sentAtMs: number,
-  tournamentId: number | null = null,
-) =>
+const post = (tournamentId: number, accountId: string, requestId: string, sentAtMs: number) =>
   postChatMessage(
     chat,
     { accountId, requestId, tournamentId, text: "対局募集" },
@@ -44,8 +40,12 @@ const post = (
 
 test("チャットの送信時刻と再送記録を保存し、同時送信にも10秒制限を適用する", async () => {
   const { id } = await fixture();
+  const tournamentId = 74207;
+  const tournament = await publishedChatTournament(db, tournamentId);
+  await tournament.enroll(id);
+  const send = (requestId: string, at: number) => post(tournamentId, id, requestId, at);
   const firstId = crypto.randomUUID();
-  const accepted = await post(id, firstId, now);
+  const accepted = await send(firstId, now);
   expect(accepted).toMatchObject({ status: "accepted", message: { sentAtMs: now } });
   expect(
     await db
@@ -54,12 +54,12 @@ test("チャットの送信時刻と再送記録を保存し、同時送信に�
       .first(),
   ).toEqual({ last_sent_at_ms: now });
 
-  const retry = await post(id, firstId, now + 1);
+  const retry = await send(firstId, now + 1);
   expect(retry).toEqual(accepted);
-  expect((await post(id, crypto.randomUUID(), now + 9999)).status).toBe("rateLimited");
+  expect((await send(crypto.randomUUID(), now + 9999)).status).toBe("rateLimited");
   const concurrent = await Promise.all([
-    post(id, crypto.randomUUID(), now + 10_000),
-    post(id, crypto.randomUUID(), now + 10_000),
+    send(crypto.randomUUID(), now + 10_000),
+    send(crypto.randomUUID(), now + 10_000),
   ]);
   expect(concurrent.map(({ status }) => status).sort()).toEqual(["accepted", "rateLimited"]);
   const requests = await db
@@ -86,20 +86,14 @@ test("チャットの送信時刻と再送記録を保存し、同時送信に�
 
 test("投稿先の大会だけを最新500件にする", async () => {
   const { id } = await fixture();
-  const key = crypto.randomUUID();
-  const tournamentId = 1;
-  const outside = await post(id, crypto.randomUUID(), now - 10_000);
-  expect(outside.status).toBe("accepted");
+  const tournamentId = 74208;
+  const tournament = await publishedChatTournament(db, tournamentId);
+  await tournament.enroll(id);
   await db.batch([
     db
-      .prepare(`INSERT INTO tournaments(key, public_id, name, starts_at_ms, ends_at_ms, published, created_at_ms, updated_at_ms)
-      VALUES(?, ?, '大会', ?, ?, 1, ?, ?)`)
-      .bind(key, tournamentId, now, now + 60_000, now, now),
-    db
-      .prepare(
-        "INSERT INTO tournament_entries(id,tournament_key,account_id,entered_at_ms) VALUES(?,?,?,?)",
-      )
-      .bind(crypto.randomUUID(), key, id, now),
+      .prepare(`INSERT INTO lobby_chat_messages(id, account_id, body, request_id, body_hash, sent_at_ms)
+      VALUES(?, ?, '旧ロビーからの投稿', ?, 'legacy-hash', ?)`)
+      .bind(crypto.randomUUID(), id, crypto.randomUUID(), now - 10_000),
     db
       .prepare(`WITH RECURSIVE numbers(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM numbers WHERE i<500)
       INSERT INTO lobby_chat_messages(id, account_id, body, request_id, body_hash, sent_at_ms, tournament_id)
@@ -108,7 +102,7 @@ test("投稿先の大会だけを最新500件にする", async () => {
   ]);
 
   const requestId = crypto.randomUUID();
-  expect((await post(id, requestId, now, tournamentId)).status).toBe("accepted");
+  expect((await post(tournamentId, id, requestId, now)).status).toBe("accepted");
   const messages = await db
     .prepare(
       "SELECT id, request_id FROM lobby_chat_messages WHERE tournament_id=? ORDER BY sent_at_ms DESC,id DESC",

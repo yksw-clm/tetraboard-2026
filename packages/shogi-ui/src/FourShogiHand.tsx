@@ -14,6 +14,7 @@ export function FourShogiHand({
   reverseOrder = direction === "down" || direction === "left",
   vertical = false,
   standard = false,
+  compact = false,
   selectedKind,
   availableKinds,
   draggingKind,
@@ -30,6 +31,7 @@ export function FourShogiHand({
   reverseOrder?: boolean;
   vertical?: boolean;
   standard?: boolean;
+  compact?: boolean;
   selectedKind: HandPieceKind | null;
   availableKinds: readonly HandPieceKind[];
   draggingKind: HandPieceKind | null;
@@ -43,9 +45,16 @@ export function FourShogiHand({
   const order: readonly HandPieceKind[] = standard
     ? ["pawn", "lance", "knight", "silver", "gold", "bishop", "rook"]
     : ["pawn", "silver", "gold", "rook"];
+  const pieceWidth =
+    standard || compact
+      ? "w-[calc(var(--shogi-piece-width)_+_4px)]"
+      : "w-[calc(var(--shogi-piece-width)_+_6px)]";
+  const centeredHand = compact
+    ? "justify-center min-w-0 flex-wrap"
+    : "justify-center min-w-[calc(4_*_var(--shogi-piece-width)_+_38px)]";
   const layoutClasses = vertical
     ? "flex-col min-w-[calc(var(--shogi-piece-width)_+_14px)] min-h-[calc(4_*_var(--shogi-piece-width)_*_148_/_140_+_38px)]"
-    : `flex-row min-h-[calc(var(--shogi-piece-width)_*_148_/_140_+_14px)] ${standard ? `w-[var(--shogi-board-width)] ${direction === "up" ? "justify-start" : "justify-end"}` : "justify-center min-w-[calc(4_*_var(--shogi-piece-width)_+_38px)]"}`;
+    : `flex-row min-h-[calc(var(--shogi-piece-width)_*_148_/_140_+_14px)] ${standard ? `w-[var(--shogi-board-width)] ${direction === "up" ? "justify-start" : "justify-end"}` : centeredHand}`;
   return (
     <div
       role="group"
@@ -68,7 +77,7 @@ export function FourShogiHand({
             aria-pressed={selected}
             data-hand-kind={kind}
             data-dragging={draggingKind === kind || undefined}
-            className={`group/shogi-piece relative grid shrink-0 place-items-center ${standard ? "w-[calc(var(--shogi-piece-width)_+_4px)]" : "w-[calc(var(--shogi-piece-width)_+_6px)]"} h-[calc(var(--shogi-piece-width)_*_148_/_140_+_6px)] [@media(max-width:767px)]:h-[calc(var(--shogi-piece-width)_*_148_/_140_+_2px)] p-0 rounded-[4px] border-0 bg-transparent focus-visible:outline-[3px] focus-visible:outline-focus focus-visible:outline-offset-[-2px] ${available ? "touch-none cursor-pointer enabled:hover:bg-[#fff6d16b]" : "touch-auto cursor-default"}${selected ? " ring-2 ring-inset ring-[#bd7d10] bg-[#ffe3919c]" : ""}`}
+            className={`group/shogi-piece relative grid shrink-0 place-items-center ${pieceWidth} h-[calc(var(--shogi-piece-width)_*_148_/_140_+_6px)] [@media(max-width:767px)]:h-[calc(var(--shogi-piece-width)_*_148_/_140_+_2px)] p-0 rounded-[4px] border-0 bg-transparent focus-visible:outline-[3px] focus-visible:outline-focus focus-visible:outline-offset-[-2px] ${available ? "touch-none cursor-pointer enabled:hover:bg-[#fff6d16b]" : "touch-auto cursor-default"}${selected ? " ring-2 ring-inset ring-[#bd7d10] bg-[#ffe3919c]" : ""}`}
             onClick={(event) => onSelect(kind, event)}
             onPointerDown={(event) => onPointerDown(event, kind)}
             onPointerMove={onPointerMove}
