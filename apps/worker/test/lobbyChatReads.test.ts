@@ -61,17 +61,14 @@ function readChat(path: string, db: D1Database, cookie?: string) {
   );
 }
 
-test.each([
-  { path: "/lobby/chat", tournament: false, statements: 2 },
-  { path: "/tournaments/74144/chat", tournament: true, statements: 3 },
-])("$path の未ログイン閲覧は1回のbatchで取得する", async ({ path, tournament, statements }) => {
-  if (tournament) await createTournament(74144, true);
+test("未ログインの大会チャットは1回のbatchで取得する", async () => {
+  await createTournament(74144, true);
   const { db, batches, reads } = observeChatReads();
 
-  const response = await readChat(path, db);
+  const response = await readChat("/tournaments/74144/chat", db);
 
   expect(response.status).toBe(200);
-  expect(batches).toEqual([statements]);
+  expect(batches).toEqual([3]);
   expect(reads).toEqual([]);
 });
 

@@ -2,27 +2,25 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   lobbyOperationResultSchema,
-  lobbyChatSchema,
   lobbyPostResultSchema,
   tournamentChatSchema,
-  type LobbyChat,
 } from "@tetraboard/protocol/general-lobby";
 import { lobbyRequest } from "./generalLobbyApi";
 import { createUuid } from "../../shared/createUuid";
-const empty: LobbyChat = {
+const empty: ReturnType<typeof tournamentChatSchema.parse> = {
   messages: [],
   nextCursor: null,
   acceptingPosts: true,
   postingStopped: false,
   availableAtMs: 0,
   serverTimeMs: 0,
+  entered: false,
+  closesAtMs: null,
 };
-export function useLobbyChat(identity: string | null, tournamentId?: number) {
-  const path = tournamentId === undefined ? "/lobby/chat" : `/tournaments/${tournamentId}/chat`;
+export function useLobbyChat(identity: string | null, tournamentId: number) {
+  const path = `/tournaments/${tournamentId}/chat`;
   const [state, setState] = useState({
     ...empty,
-    entered: false,
-    closesAtMs: null as number | null,
     ready: false,
     loading: true,
     error: null as string | null,
@@ -45,7 +43,7 @@ export function useLobbyChat(identity: string | null, tournamentId?: number) {
         let count = more ? Math.min(500, limit.current + 50) : limit.current;
         let page = await lobbyRequest(
           `${path}?limit=${count}`,
-          tournamentId === undefined ? lobbyChatSchema : tournamentChatSchema,
+          tournamentChatSchema,
           controller.signal,
         );
         const additions = page.messages.filter((m) => !known.current.has(m.id)).length;
@@ -53,7 +51,7 @@ export function useLobbyChat(identity: string | null, tournamentId?: number) {
           count = Math.min(500, count + additions);
           page = await lobbyRequest(
             `${path}?limit=${count}`,
-            tournamentId === undefined ? lobbyChatSchema : tournamentChatSchema,
+            tournamentChatSchema,
             controller.signal,
           );
         }
@@ -72,7 +70,7 @@ export function useLobbyChat(identity: string | null, tournamentId?: number) {
         if (request.current === controller) request.current = null;
       }
     },
-    [path, tournamentId],
+    [path],
   );
   useEffect(() => {
     generation.current++;
@@ -84,8 +82,6 @@ export function useLobbyChat(identity: string | null, tournamentId?: number) {
     const timer = setTimeout(() => {
       setState({
         ...empty,
-        entered: false,
-        closesAtMs: null,
         ready: false,
         loading: true,
         error: null,

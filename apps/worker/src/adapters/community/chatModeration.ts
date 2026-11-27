@@ -1,7 +1,7 @@
-import { lobbyRetentionMs, type ChatScope } from "@tetraboard/context-community";
+import { lobbyRetentionMs } from "@tetraboard/context-community";
 import type { LobbyModeration } from "@tetraboard/protocol/general-lobby";
 
-export async function readChatModeration(db: D1Database, id: ChatScope, now: () => number) {
+export async function readChatModeration(db: D1Database, id: number | null, now: () => number) {
   const settings =
     id === null
       ? await db

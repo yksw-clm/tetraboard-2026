@@ -26,9 +26,7 @@ export function LobbyChat({ tournamentId }: { tournamentId?: number }) {
       parseAdmin,
     ),
     chat = useAdminData(
-      tournamentId === undefined
-        ? "/api/lobby/chat?limit=500"
-        : `/api/tournaments/${tournamentId}/chat?limit=500`,
+      tournamentId === undefined ? null : `/api/tournaments/${tournamentId}/chat?limit=500`,
       parseChat,
     );
   const [busy, setBusy] = useState(false),
@@ -60,14 +58,14 @@ export function LobbyChat({ tournamentId }: { tournamentId?: number }) {
   return (
     <div className="flex flex-col gap-6">
       {tournamentId === undefined ? (
-        <h1 className="text-2xl font-bold">公開チャット（β）</h1>
+        <h1 className="text-2xl font-bold">大会チャット</h1>
       ) : (
         <h2 className="text-xl font-bold">大会 #{tournamentId} のチャット管理</h2>
       )}
       <p className="text-sm text-muted-foreground">
         {tournamentId === undefined
-          ? "全体の受付停止と利用者の投稿停止は、総合ロビー・全大会に共通です。"
-          : "利用者の投稿停止は総合ロビー・全大会に共通です。この大会の受付を再開しても、全体停止と結果確定24時間後の締切は有効です。"}
+          ? "全体の受付停止と利用者の投稿停止は、全大会に適用されます。"
+          : "利用者の投稿停止は全大会に適用されます。この大会の受付を再開しても、全体停止と結果確定24時間後の締切は有効です。"}
       </p>
       <Dialog
         open={confirmation !== null}
@@ -177,7 +175,7 @@ export function LobbyChat({ tournamentId }: { tournamentId?: number }) {
             {page.data.reports.map((r) => (
               <article key={r.id} className="flex flex-col gap-2 border-b border-border py-3">
                 <p>
-                  {r.tournamentId != null && (
+                  {r.tournamentId != null ? (
                     <a
                       className="mr-2 text-primary underline"
                       href={`/tournaments/${r.tournamentId}`}
@@ -186,6 +184,8 @@ export function LobbyChat({ tournamentId }: { tournamentId?: number }) {
                     >
                       大会 #{r.tournamentId}
                     </a>
+                  ) : (
+                    <span className="mr-2 text-muted-foreground">旧総合ロビー</span>
                   )}
                   {r.senderName} · {new Date(r.sentAtMs).toLocaleString("ja")} ·{" "}
                   {r.status === "resolved" ? "対応済み" : "未対応"}
@@ -220,34 +220,36 @@ export function LobbyChat({ tournamentId }: { tournamentId?: number }) {
           </Card>
         </>
       )}
-      <Card className="gap-3 p-5">
-        <h2 className="text-lg font-bold">現在の公開投稿</h2>
-        {chat.loading && <p role="status">読み込んでいます…</p>}
-        {chat.data?.messages.map((m) => (
-          <article key={m.id} className="flex flex-col gap-2 border-b border-border py-3">
-            <p>
-              {m.senderName} · {new Date(m.sentAtMs).toLocaleString("ja")}
-            </p>
-            <p className="whitespace-pre-wrap break-words">{m.text}</p>
-            <div className="flex gap-2">
-              <Button
-                disabled={busy}
-                onClick={() => void operate({ action: "delete", messageId: m.id })}
-              >
-                投稿を削除
-              </Button>
-              <Button
-                disabled={busy}
-                onClick={() =>
-                  void operate({ action: "stop", senderId: m.senderId, stopped: true })
-                }
-              >
-                投稿を停止
-              </Button>
-            </div>
-          </article>
-        ))}
-      </Card>
+      {tournamentId !== undefined && (
+        <Card className="gap-3 p-5">
+          <h2 className="text-lg font-bold">現在の公開投稿</h2>
+          {chat.loading && <p role="status">読み込んでいます…</p>}
+          {chat.data?.messages.map((m) => (
+            <article key={m.id} className="flex flex-col gap-2 border-b border-border py-3">
+              <p>
+                {m.senderName} · {new Date(m.sentAtMs).toLocaleString("ja")}
+              </p>
+              <p className="whitespace-pre-wrap break-words">{m.text}</p>
+              <div className="flex gap-2">
+                <Button
+                  disabled={busy}
+                  onClick={() => void operate({ action: "delete", messageId: m.id })}
+                >
+                  投稿を削除
+                </Button>
+                <Button
+                  disabled={busy}
+                  onClick={() =>
+                    void operate({ action: "stop", senderId: m.senderId, stopped: true })
+                  }
+                >
+                  投稿を停止
+                </Button>
+              </div>
+            </article>
+          ))}
+        </Card>
+      )}
     </div>
   );
 }
