@@ -228,7 +228,7 @@ export function BoardEntry({
     <article className="min-w-0">
       <AppCard
         density="compact"
-        className={`min-w-0 wrap-anywhere ${timeline ? "relative isolate hover:bg-surface-hover" : ""}`}
+        className={`min-w-0 wrap-anywhere ${timeline ? "relative isolate" : ""}`}
       >
         {"status" in item && item.status === "deleted" ? (
           <>

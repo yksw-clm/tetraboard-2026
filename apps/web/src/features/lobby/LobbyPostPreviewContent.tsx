@@ -35,7 +35,7 @@ function PostPreview({
   const date = new Date(post.postedAtMs);
   const iso = Number.isNaN(date.getTime()) ? undefined : date.toISOString();
   return (
-    <AppCard density="compact" className="relative isolate min-w-0 hover:bg-surface-hover">
+    <AppCard density="compact" className="relative isolate min-w-0">
       <header className="flex min-w-0 items-center gap-2">
         <BoardAuthor author={post.author} game={post.gameId} compact />
         {iso && (
