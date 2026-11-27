@@ -56,7 +56,7 @@ export function BoardBody({ text, detailPath }: { text: string; detailPath?: str
     const to = url.slice(origin.length);
     parts.push(text.slice(end, start));
     parts.push(
-      <Link key={start} to={to} className={boardLinkClasses}>
+      <Link key={start} to={to} className={`relative z-10 ${boardLinkClasses}`}>
         {url}
       </Link>,
     );
@@ -82,7 +82,7 @@ export function BoardBody({ text, detailPath }: { text: string; detailPath?: str
         )}
       </div>
       {detailPath && overflow && (
-        <Link to={detailPath} className={boardLinkClasses}>
+        <Link to={detailPath} className={`relative z-10 w-fit ${boardLinkClasses}`}>
           続きを読む
         </Link>
       )}

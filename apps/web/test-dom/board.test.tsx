@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import type { AccountProfile, TournamentDetail } from "@tetraboard/protocol";
+import {
+  fourShogiPublicStateSchema,
+  type AccountProfile,
+  type TournamentDetail,
+} from "@tetraboard/protocol";
 import type {
   BoardPost,
   BoardPostInput,
@@ -18,6 +22,7 @@ import {
   Route,
   RouterProvider,
   Routes,
+  useLocation,
 } from "react-router";
 import reversiArchive from "../../../test-fixtures/matches/reversi-doubles-normal.json";
 import shogiArchive from "../../../test-fixtures/matches/shogi-singles.json";
@@ -28,12 +33,12 @@ import {
 import { AccountLayout } from "../src/features/account/AccountSession";
 import { AccountContext } from "../src/features/account/useAccount";
 import { PlayerProfileProvider } from "../src/features/players/PlayerProfileProvider";
+import { BoardAttachmentBoard } from "../src/features/board/BoardAttachmentBoard";
 import { BoardDetailPage, BoardTimelinePage } from "../src/features/board/BoardPages";
 import { formatMatchDate } from "../src/features/matches/matchDatePresentation";
 import { startPageMetadata } from "../src/seo/pageMetadata";
 import { appThemeClasses } from "../src/shared/ui/appTheme";
 // 遅延読み込みされるモジュールを先に評価し、act 内で描画を待てるようにします。
-import "../src/features/board/BoardAttachmentBoard";
 import "../src/features/board/boardAttachmentFrames";
 import "../src/features/board/boardMediaRequests";
 import "../src/features/room/fourShogiMatchReplay";
@@ -152,6 +157,11 @@ function cursor({ id, postedAtMs }: BoardReply) {
   return `${postedAtMs}:${id}`;
 }
 
+function MatchDestination() {
+  const { pathname, search } = useLocation();
+  return <p>{pathname + search}</p>;
+}
+
 function show(entry = timelinePath, viewer: AccountProfile | null = user) {
   return render(
     wrap(
@@ -162,6 +172,7 @@ function show(entry = timelinePath, viewer: AccountProfile | null = user) {
         <Routes>
           <Route path="/games/:gameId/posts" element={<BoardTimelinePage />} />
           <Route path="/posts/:id" element={<BoardDetailPage />} />
+          <Route path="/matches/:id" element={<MatchDestination />} />
           <Route path="/login" element={<p>ログイン画面</p>} />
         </Routes>
       </PlayerProfileProvider>,
@@ -175,6 +186,20 @@ const like = (element: HTMLElement) =>
   element.querySelector<HTMLButtonElement>('button[aria-label="いいね"]')!;
 const dialog = () => document.querySelector<HTMLElement>('[role="dialog"]')!;
 const requestInput = (request: Request) => JSON.parse(String(request.init.body)) as BoardPostInput;
+
+function expectDetailLink(entry: HTMLElement, path: string) {
+  const links = entry.querySelectorAll<HTMLAnchorElement>(`a[href="${path}"]`);
+  expect(links).toHaveLength(1);
+  const link = links[0]!;
+  const time = link.querySelector("time")!;
+  expect(time.textContent).toMatch(/分前$/);
+  expect(link.getAttribute("aria-label")).toBeNull();
+  expect(link.textContent?.trim()).toBe(`投稿の詳細 ${time.textContent}`);
+  expect(link.querySelector("a, button")).toBeNull();
+  expect(link.classList.contains("before:inset-0")).toBe(true);
+  expect(link.classList.contains("focus-visible:before:outline-focus")).toBe(true);
+  return link;
+}
 
 const { selfPlayerId: _reversiSelf, ...reversiMatch } = reversiArchive.detail;
 const { selfPlayerId: _shogiSelf, ...shogiMatch } = shogiArchive.detail;
@@ -261,7 +286,11 @@ test("対局と大会を合わせて同時に3件まで取得し、残りは順�
   await flush();
 });
 
-test("タイムラインで同じ対局の取得を共有し、自動パスの盤面と棋譜リンクを表示する", async () => {
+test.each([
+  ["本文のリンク", 0],
+  ["棋譜カード", 1],
+  ["局面ラベル", 2],
+] as const)("棋譜の取得を共有し、タイムラインの%sから公開棋譜の局面へ移る", async (_, index) => {
   const view = show("/games/four-reversi/posts");
   const matchPath = `/matches/${reversiMatch.id}`;
   const positionPath = matchPath + "?position=37";
@@ -287,22 +316,27 @@ test("タイムラインで同じ対局の取得を共有し、自動パスの�
   expect(first?.querySelector('[aria-label="四人リバーシの盤面"]')).not.toBeNull();
   expect(first?.querySelector('[aria-label^="A1："]')).not.toBeNull();
   expect(first?.textContent).not.toContain(reversiMatch.participants[0]?.name);
-  expect(
-    [...first!.querySelectorAll(`a[href="${positionPath}"]`)].map((link) => link.textContent),
-  ).toEqual([
+  const links = first!.querySelectorAll<HTMLAnchorElement>(`a[href="${positionPath}"]`);
+  expect([...links].map((link) => link.textContent)).toEqual([
     window.location.origin + positionPath,
     "四人リバーシ " + formatMatchDate(reversiMatch.startedAtMs),
     "黒 パス",
   ]);
   expect(second?.querySelector(`a[href="${matchPath}?position=0"]`)?.textContent).toBe("開始局面");
   expect(requests).toHaveLength(2);
+  const detail = expectDetailLink(first!, postPath);
+  const link = links[index]!;
+  expect(detail.contains(link)).toBe(false);
+  expect(link.classList.contains("z-10")).toBe(true);
+  await act(async () => link.click());
+  expect(view.textContent).toBe(positionPath);
 });
 
 test("返信の添付は公開棋譜のページを最後まで取得し、同じ対局の範囲外の局面は案内を表示する", async () => {
   const view = show(postPath);
   const matchPath = `/matches/${shogiMatch.id}`;
   await respond(
-    thread(post(1, "投稿"), [
+    thread(post(1, "投稿", { replyCount: 2 }), [
       reply(2, "将棋の局面", { attachment: { matchId: shogiMatch.id, position: 101 } }),
       reply(3, "範囲外", { attachment: { matchId: shogiMatch.id, position: 104 } }),
     ]),
@@ -320,10 +354,49 @@ test("返信の添付は公開棋譜のページを最後まで取得し、同�
   }
   const [, first, second] = articles(view);
   expect(first?.querySelector('[aria-label="四人将棋の盤面"]')).not.toBeNull();
-  expect(first?.querySelector(`a[href="${matchPath}?position=101"]`)?.textContent).toBe("西 退室");
+  const links = first!.querySelectorAll(`a[href^="${matchPath}"]`);
+  expect(links).toHaveLength(1);
+  expect(links[0]?.getAttribute("href")).toBe(`${matchPath}?position=101`);
+  expect(links[0]?.textContent).toBe("西 退室");
+  expect(links[0]?.classList.contains("after:inset-0")).toBe(false);
+  expect(first?.querySelector(".pointer-events-none [data-hand-kind]")).not.toBeNull();
   expect(second?.textContent).toContain("棋譜を表示できません。");
   expect(second?.querySelector(`a[href^="${matchPath}"]`)).toBeNull();
   expect(requests).toHaveLength(4);
+});
+
+test("スマホの四人将棋の添付では、折り返せる持ち駒台に4種と枚数を表示する", () => {
+  const state = fourShogiPublicStateSchema.parse(shogiMatch.game);
+  const hand = { ...state.hands.north, pawn: 4 };
+  const game = {
+    ...state,
+    board: state.board.map((row) =>
+      row.map((piece) => (piece?.side === "south" && piece.kind === "pawn" ? null : piece)),
+    ),
+    hands: { ...state.hands, north: hand },
+  };
+  const view = render(
+    <BoardAttachmentBoard
+      game="four-shogi"
+      frame={{
+        game,
+        label: "表示確認",
+        checkState: { south: false, west: false, north: false, east: false },
+      }}
+    />,
+  );
+  const trays = [...view.querySelectorAll('[data-testid="shogi-hand"]')];
+  const wrapping = trays.filter((tray) => tray.classList.contains("flex-wrap"));
+  expect(wrapping).toHaveLength(4);
+  const northTray = wrapping.find((tray) => tray.getAttribute("aria-label") === "北の持ち駒");
+  expect(northTray?.querySelectorAll("[data-hand-kind]")).toHaveLength(4);
+  for (const [kind, count] of Object.entries(hand)) {
+    const piece = northTray?.querySelector(`[data-hand-kind="${kind}"]`);
+    expect(piece?.querySelector(".tabular-nums")?.textContent).toBe(
+      count >= 2 ? String(count) : undefined,
+    );
+    expect(piece?.getAttribute("aria-label")).toContain(`${count}枚`);
+  }
 });
 
 test("棋譜を表示できない下書きでも添付を送信し、400の案内を出してから添付を外せる", async () => {
@@ -692,7 +765,7 @@ test("直接開いた投稿の詳細APIが404を返すとnoindexにしてJSON-LD
   }
 });
 
-test("タイムラインは追加取得で重複を除き、更新で先頭の結果に戻る", async () => {
+test("タイムラインは更新ボタンを表示せず、追加取得で重複を除いて詳細へ移れる", async () => {
   const view = show();
   expect(view.querySelector('[role="status"]')?.textContent).toContain("読み込んでいます");
   expect(latest().url).toBe(timelineUrl);
@@ -702,7 +775,9 @@ test("タイムラインは追加取得で重複を除き、更新で先頭の�
   await respond(timeline([recent], before));
   expect(view.querySelector("h1")?.textContent).toBe("四人将棋の掲示板");
   expect(view.querySelector('a[href="/games/four-shogi"]')).not.toBeNull();
-  expect(articles(view)[0]?.querySelector("time")?.textContent).toMatch(/分前$/);
+  expect([...view.querySelectorAll("button")].some((button) => button.textContent === "更新")).toBe(
+    false,
+  );
   expect(articles(view)[0]?.textContent).toContain("最新の投稿");
   clock.advance(60_000);
   expect(requests).toHaveLength(1);
@@ -713,31 +788,44 @@ test("タイムラインは追加取得で重複を除き、更新で先頭の�
   expect(articles(view)).toHaveLength(2);
   expect(articles(view)[1]?.textContent).toContain("古い投稿");
 
-  press(view, "更新");
-  expect(latest().url).toBe(timelineUrl);
-  expect(view.querySelector('button[data-pending="true"]')?.textContent).toBe("更新");
-  await respond(timeline([]));
-  expect(articles(view)).toHaveLength(0);
-  expect(view.textContent).toContain("まだ投稿はありません。");
+  const [first, second] = articles(view);
+  expectDetailLink(first!, `/posts/${recent.id}`);
+  const detail = expectDetailLink(second!, postPath);
+  await act(async () => detail.click());
+  expect(latest().url).toBe(detailUrl);
+  await respond(thread(old));
+  expect(view.querySelector("h1")?.textContent).toBe("投稿の詳細");
+  expect(view.querySelector("h2")).toBeNull();
+  expect(view.querySelector("section[aria-labelledby] .border-l-2")).toBeNull();
 });
 
-test("更新は失敗した添付と棋譜カードをまとめて再取得する", async () => {
+test("タイムラインの再試行は失敗した添付と棋譜カードをまとめて再取得する", async () => {
   const view = show();
   const matchPath = `/matches/${reversiMatch.id}`;
   const item = post(1, window.location.origin + matchPath, {
     attachment: { matchId: reversiMatch.id, position: 37 },
   });
-  await respond(timeline([item]));
+  await respond(timeline([item, post(2, "削除する投稿", { own: true })]));
   expect(latest().url).toBe("/api" + matchPath);
   await respond({}, 503);
   const entry = articles(view)[0]!;
   expect(entry.textContent).toContain("棋譜を表示できません。");
   expect(entry.querySelectorAll(`a[href="${matchPath}"]`)).toHaveLength(1);
 
-  press(view, "更新");
+  press(articles(view)[1]!, "削除");
+  press(dialog(), "削除する");
+  await respond(null, 204);
+  expect(latest().url).toBe(`/api/posts/${uuid(2)}${detailQuery}`);
+  await respond(null, 503);
+
+  const beforeRetry = requests.length;
+  press(view, "再試行");
   expect(latest().url).toBe(timelineUrl);
   await respond(timeline([item]));
-  expect(requests.slice(2).map(({ url }) => url)).toEqual([timelineUrl, "/api" + matchPath]);
+  expect(requests.slice(beforeRetry).map(({ url }) => url)).toEqual([
+    timelineUrl,
+    "/api" + matchPath,
+  ]);
   expect(entry.querySelector('[aria-label="棋譜を読み込んでいます"]')).not.toBeNull();
   await respond({ match: reversiMatch });
   expect(entry.querySelector('[aria-label="四人リバーシの盤面"]')).not.toBeNull();
@@ -811,9 +899,9 @@ test("省略した投稿ではカードを取得せず、詳細では全文の�
     expect(link?.hasAttribute("target")).toBe(false);
     expect(short?.querySelector('a[href*="example.com"]')).toBeNull();
     expect(short?.textContent).toContain(external);
-    const replies = short?.querySelector(`a[href="${postPath}"]`);
-    expect(replies?.querySelector(".sr-only")?.textContent).toBe("返信 0 件");
-    expect(replies?.querySelector('[aria-hidden="true"]')?.textContent).toBe("0");
+    expectDetailLink(short!, postPath);
+    expect(like(short!).previousElementSibling?.textContent).toContain("返信 0 件");
+    expect(more?.classList.contains("z-10")).toBe(true);
     act(() => more!.click());
     await flush();
     expect(latest().url).toBe(`/api/posts/${uuid(2)}${detailQuery}`);
@@ -972,6 +1060,14 @@ test("詳細は全文と正確な日時を表示し、返信の追加取得と�
   expect(time.textContent).toBe(time.title);
   expect(articles(view)[1]?.querySelector("time")?.textContent).toMatch(/分前$/);
   expect(view.querySelector(`a[href="${timelinePath}"]`)).not.toBeNull();
+  for (const entry of articles(view)) {
+    expect(entry.querySelector('a[href^="/posts/"]')).toBeNull();
+  }
+  const heading = view.querySelector("h2")!;
+  const replies = view.querySelector(`section[aria-labelledby="${heading.id}"]`);
+  expect(heading.textContent).toBe("返信 2 件");
+  expect(replies?.contains(heading)).toBe(true);
+  expect(replies?.querySelector(".ml-3.border-l-2.pl-3 article")).toBe(articles(view)[1]!);
   enter(input(view), newReply.text);
   press(view, "返信する");
   expect(latest().url).toBe(repliesUrl);
@@ -984,6 +1080,7 @@ test("詳細は全文と正確な日時を表示し、返信の追加取得と�
   );
   expect(articles(view)[2]?.textContent).toContain(newReply.text);
   expect(main.textContent).toContain("返信 7 件");
+  expect(heading.textContent).toBe("返信 7 件");
   expect(like(main).textContent).toContain("14");
   expect(like(main).getAttribute("aria-pressed")).toBe("true");
   press(view, "もっと見る");
@@ -994,6 +1091,35 @@ test("詳細は全文と正確な日時を表示し、返信の追加取得と�
   expect(articles(view)[2]?.textContent).toContain(second.text);
   expect(articles(view)[3]?.textContent).toContain(newReply.text);
   expect(main.textContent).toContain("返信 7 件");
+});
+
+test("タイムラインの返信数、いいね、通報は独立した操作として順に並ぶ", async () => {
+  const view = show();
+  await respond(timeline([post(1, "投稿", { replyCount: 3 })]));
+  const card = articles(view)[0]!;
+  const button = like(card);
+  const report = reportButton(card)!;
+  const count = button.previousElementSibling!;
+  expect(count.textContent).toContain("返信 3 件");
+  expect(count.closest("a")).toBeNull();
+  expect(button.nextElementSibling).toBe(report);
+  expect(button.closest("a")).toBeNull();
+  expect(report.closest("a")).toBeNull();
+  expect(button.classList.contains("z-10")).toBe(true);
+  expect(report.classList.contains("z-10")).toBe(true);
+  expect(report.classList.contains("ml-auto")).toBe(true);
+
+  act(() => button.click());
+  expect(latest().url).toBe(postUrl + "/like");
+  expect(latest().init.method).toBe("PUT");
+  await respond({ liked: true, likeCount: 3 });
+  await act(async () => {
+    report.click();
+    await import("../src/features/board/BoardReportDialog");
+  });
+  expect(dialog().textContent).toContain("投稿を通報");
+  expect(view.querySelector("h1")?.textContent).toBe("四人将棋の掲示板");
+  expect(requests).toHaveLength(2);
 });
 
 test("返信送信後に同期が失敗しても返信を表示し、再試行で返信数を同期する", async () => {
@@ -1090,10 +1216,25 @@ test("自分の投稿と返信にもいいねできる。即時反映し、応�
   const [main, child] = articles(view);
   const mainLike = like(main!);
   const replyLike = like(child!);
+  expect(replyLike.previousElementSibling).toBeNull();
+  expect(replyLike.nextElementSibling?.textContent).toBe("削除");
+  expect(mainLike.matches(".min-h-11.min-w-11")).toBe(true);
+  expect([...mainLike.classList].filter((name) => /(^|:)border|(^|:)bg-/.test(name))).toEqual([
+    "border-0",
+    "bg-transparent",
+  ]);
+  expect(mainLike.classList.contains("text-ink-secondary")).toBe(true);
+  expect(mainLike.querySelector("svg")?.getAttribute("fill")).toBe("none");
   act(() => mainLike.click());
   expect(latest().url).toBe(postUrl + "/like");
   expect(latest().init.method).toBe("PUT");
   expect(mainLike.getAttribute("aria-pressed")).toBe("true");
+  expect([...mainLike.classList].filter((name) => /(^|:)border|(^|:)bg-/.test(name))).toEqual([
+    "border-0",
+    "bg-transparent",
+  ]);
+  expect(mainLike.classList.contains("text-danger")).toBe(true);
+  expect(mainLike.querySelector("svg")?.getAttribute("fill")).toBe("currentColor");
   expect(mainLike.textContent).toContain("3");
   act(() => mainLike.click());
   expect(requests).toHaveLength(2);
@@ -1197,11 +1338,11 @@ test("投稿者の公開プロフィールがある場合だけプレイヤー�
   await respond(timeline([post(1, "投稿", { author }), post(2, "プロフィールなし")]));
   const [withProfile, withoutProfile] = articles(view);
   expect(withoutProfile?.querySelector('button[aria-label$="プレイヤー情報"]')).toBeNull();
-  act(() =>
-    withProfile
-      ?.querySelector<HTMLButtonElement>('button[aria-label="現在名のプレイヤー情報"]')
-      ?.click(),
-  );
+  const trigger = withProfile!.querySelector<HTMLButtonElement>(
+    'button[aria-label="現在名のプレイヤー情報"]',
+  )!;
+  expect(trigger.closest("a")).toBeNull();
+  act(() => trigger.click());
   expect(latest().url).toContain(profileId);
   await respond({
     kind: "account",
@@ -1248,6 +1389,11 @@ test("タイムラインの削除は詳細の404で消し、200なら返信の�
   await respond(timeline([older], cursor(older)));
 
   const [existing, empty] = articles(view);
+  const deleteButton = like(empty!).nextElementSibling!;
+  expect(like(empty!).previousElementSibling?.textContent).toContain("返信 4 件");
+  expect(deleteButton.textContent).toBe("削除");
+  expect(deleteButton.closest("a")).toBeNull();
+  expect(deleteButton.matches(".relative.z-10.ml-auto")).toBe(true);
   press(empty!, "削除");
   expect(dialog().textContent).toContain("投稿を削除しますか？");
   expect(dialog().textContent).toContain("削除すると元に戻せません。");
@@ -1280,13 +1426,18 @@ test("タイムラインの削除は詳細の404で消し、200なら返信の�
   expect(placeholder?.textContent).not.toContain(gainsReply.text);
   expect(placeholder?.textContent).not.toContain(gainsReply.author.name);
   expect(placeholder?.querySelector("button")).toBeNull();
-  const replies = placeholder?.querySelector("a");
-  expect(replies?.getAttribute("href")).toBe(`/posts/${gainsReply.id}`);
-  expect(replies?.querySelector(".sr-only")?.textContent).toBe("返信 2 件");
+  const deletedPath = `/posts/${gainsReply.id}`;
+  const detail = expectDetailLink(placeholder!, deletedPath);
+  expect(placeholder?.textContent).toContain("返信 2 件");
   expect(preserved?.textContent).toContain(older.text);
   press(view, "もっと見る");
   expect(latest().url).toBe(`${timelineUrl}&before=${encodeURIComponent(cursor(older))}`);
   await respond(timeline([]));
+  await act(async () => detail.click());
+  expect(latest().url).toBe(`/api${deletedPath}${detailQuery}`);
+  await respond(thread(deleted({ ...gainsReply, replyCount: 1 }), [reply(4, "残った返信")]));
+  expect(view.querySelector("h1")?.textContent).toBe("投稿の詳細");
+  expect(view.textContent).toContain("残った返信");
 });
 
 test("タイムラインの削除後に詳細の取得が失敗すると表示を保ち、先頭から再試行できる", async () => {

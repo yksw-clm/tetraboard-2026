@@ -9,7 +9,7 @@ function Card({ to, children }: { to: string; children: ReactNode }) {
   return (
     <Link
       to={to}
-      className="w-fit max-w-full rounded-control border border-solid border-line bg-surface-muted px-3 py-2 text-sm text-brand hover:underline"
+      className="relative z-10 w-fit max-w-full rounded-control border border-solid border-line bg-surface-muted px-3 py-2 text-sm text-brand hover:underline"
     >
       {children}
     </Link>
