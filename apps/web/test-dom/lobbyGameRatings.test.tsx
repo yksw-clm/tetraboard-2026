@@ -35,7 +35,7 @@ function visibility(value: string) {
   act(() => document.dispatchEvent(new Event("visibilitychange")));
 }
 
-test("総合ロビーは掲示板の受付確認を待たずに4ゲームのレートを表示する", async () => {
+test("総合ロビーは4ゲームのレートを表示し、掲示板の初回案内を開かない", async () => {
   visibility("visible");
   const view = render(wrap(user)(<GeneralLobbyPage />));
   clock.advance(0);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import type { GameId } from "@tetraboard/protocol/games";
 import { useAccount } from "../account/useAccount";
@@ -30,35 +30,33 @@ function isForeground() {
   return document.visibilityState === "visible" && document.hasFocus();
 }
 
-function hasActiveControl() {
+function launchDialog() {
+  return document.querySelector("[data-board-launch-dialog]")?.closest(dialogSelector);
+}
+
+function hasOtherDialog(own?: Element | null) {
+  return [...document.querySelectorAll(dialogSelector)].some((dialog) => dialog !== own);
+}
+
+function hasActiveControl(own?: Element | null) {
+  const active = document.activeElement;
   return (
-    Boolean(document.activeElement && document.activeElement !== document.body) ||
-    Boolean(document.querySelector(dialogSelector))
+    Boolean(active && active !== document.body && !own?.contains(active)) || hasOtherDialog(own)
   );
 }
 
-async function readPostingAvailability(signal: AbortSignal): Promise<boolean> {
-  // 投稿受付は全ゲーム共通です。
-  const response = await fetch("/api/games/four-shogi/posts?limit=1", {
-    cache: "no-store",
-    signal,
-  });
-  if (!response.ok) return false;
-  const data: unknown = await response.json();
-  return Boolean(
-    data && typeof data === "object" && "acceptingPosts" in data && data.acceptingPosts === true,
-  );
-}
-
-type Phase = "waiting" | "closed" | { Dialog: typeof BoardLaunchDialog };
+type Phase =
+  | "waiting"
+  | "closed"
+  | { Dialog: typeof BoardLaunchDialog; status: "reserved" | "mounting" | "shown" };
 
 export function BoardLaunchAnnouncement({
   game,
   acceptingPosts,
   blocked = false,
 }: {
-  game?: GameId;
-  acceptingPosts?: boolean | null;
+  game: GameId;
+  acceptingPosts: boolean | null;
   blocked?: boolean;
 }) {
   "use no memo";
@@ -81,17 +79,18 @@ export function BoardLaunchAnnouncement({
     excluded || alreadySeen() ? "closed" : "waiting",
   );
   const [foreground, setForeground] = useState(isForeground);
-  const [homeAvailability, setHomeAvailability] = useState<boolean | null>(null);
   const cancelled = useRef(false);
+  const shown = useRef(false);
   const waiting = phase === "waiting";
-  const eligible = waiting && !excluded && foreground && !loading && !error;
-  const available = game ? acceptingPosts : homeAvailability;
+  const pending = waiting || (typeof phase === "object" && phase.status !== "shown");
+  const eligible = !excluded && foreground && !loading && !error && acceptingPosts === true;
 
   useEffect(() => {
-    if (!waiting) return;
+    if (!pending) return;
     const cancel = () => {
+      if (shown.current) return;
       cancelled.current = true;
-      setPhase((current) => (current === "waiting" ? "closed" : current));
+      setPhase("closed");
     };
     if (excluded || hasActiveControl()) {
       cancel();
@@ -101,51 +100,42 @@ export function BoardLaunchAnnouncement({
     const storage = (event: StorageEvent) => {
       if ((event.key === seenKey || event.key === null) && alreadySeen()) cancel();
     };
+    const interaction = (event: Event) => {
+      if (
+        event.type === "focusin" &&
+        event.target instanceof Node &&
+        launchDialog()?.contains(event.target)
+      )
+        return;
+      cancel();
+    };
     const observer = new MutationObserver(() => {
-      if (document.querySelector(dialogSelector)) cancel();
+      if (hasOtherDialog(launchDialog())) cancel();
     });
     observer.observe(document.body, { childList: true, subtree: true });
     for (const event of interactionEvents)
-      document.addEventListener(event, cancel, { capture: true, passive: true });
+      document.addEventListener(event, interaction, { capture: true, passive: true });
     document.addEventListener("visibilitychange", checkForeground);
     window.addEventListener("focus", checkForeground);
     window.addEventListener("blur", checkForeground);
     window.addEventListener("storage", storage);
     return () => {
       observer.disconnect();
-      for (const event of interactionEvents) document.removeEventListener(event, cancel, true);
+      for (const event of interactionEvents) document.removeEventListener(event, interaction, true);
       document.removeEventListener("visibilitychange", checkForeground);
       window.removeEventListener("focus", checkForeground);
       window.removeEventListener("blur", checkForeground);
       window.removeEventListener("storage", storage);
     };
-  }, [excluded, waiting]);
-
-  useEffect(() => {
-    if (game || !eligible || cancelled.current || homeAvailability !== null) return;
-    const controller = new AbortController();
-    // StrictModeの再マウントや、受付取得前に始まる既存操作を先に反映します。
-    const timer = window.setTimeout(() => {
-      if (cancelled.current || !isForeground()) return;
-      void readPostingAvailability(controller.signal)
-        .catch(() => false)
-        .then((value) => {
-          if (!controller.signal.aborted) setHomeAvailability(value);
-        });
-    }, 0);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [eligible, game, homeAvailability]);
+  }, [excluded, pending]);
 
   useEffect(() => {
     if (!waiting) return;
-    if (available === false) {
+    if (acceptingPosts === false) {
       setPhase("closed");
       return;
     }
-    if (!eligible || available !== true || cancelled.current) return;
+    if (!eligible || cancelled.current) return;
     let disposed = false;
     let timer: number | undefined;
     void import("./BoardLaunchDialog")
@@ -153,11 +143,7 @@ export function BoardLaunchAnnouncement({
         if (disposed || cancelled.current) return;
         timer = window.setTimeout(() => {
           if (cancelled.current || !isForeground()) return;
-          if (hasActiveControl() || !markSeen()) {
-            setPhase("closed");
-            return;
-          }
-          setPhase({ Dialog: BoardLaunchDialog });
+          setPhase({ Dialog: BoardLaunchDialog, status: "reserved" });
         }, 0);
       })
       .catch(() => {
@@ -167,9 +153,43 @@ export function BoardLaunchAnnouncement({
       disposed = true;
       window.clearTimeout(timer);
     };
-  }, [available, eligible, waiting]);
+  }, [acceptingPosts, eligible, waiting]);
 
-  if (typeof phase !== "object") return null;
+  useLayoutEffect(() => {
+    if (typeof phase !== "object" || phase.status === "shown") return;
+    // 予約と同じバッチで始まった操作を、モーダルのマウントより先に反映します。
+    if (cancelled.current || excluded || acceptingPosts === false) {
+      setPhase("closed");
+    } else if (!eligible || !isForeground()) {
+      setPhase("waiting");
+    } else if (phase.status === "reserved") {
+      setPhase(hasActiveControl() || alreadySeen() ? "closed" : { ...phase, status: "mounting" });
+    }
+  }, [acceptingPosts, eligible, excluded, phase]);
+
+  const onDisplay = useCallback((content: HTMLDivElement | null) => {
+    if (!content || shown.current) return;
+    const own = content.closest(dialogSelector);
+    if (!own || cancelled.current || hasActiveControl(own)) {
+      setPhase("closed");
+    } else if (!isForeground()) {
+      setPhase("waiting");
+    } else if (markSeen()) {
+      shown.current = true;
+      setPhase((current) =>
+        typeof current === "object" ? { ...current, status: "shown" } : current,
+      );
+    } else {
+      setPhase("closed");
+    }
+  }, []);
+
+  if (
+    typeof phase !== "object" ||
+    phase.status === "reserved" ||
+    (phase.status === "mounting" && !eligible)
+  )
+    return null;
   const { Dialog } = phase;
-  return <Dialog game={game} onClose={() => setPhase("closed")} />;
+  return <Dialog game={game} onDisplay={onDisplay} onClose={() => setPhase("closed")} />;
 }

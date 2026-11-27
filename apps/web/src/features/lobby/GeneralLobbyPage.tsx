@@ -21,7 +21,6 @@ import { gameThemes } from "../../shared/ui/appTheme";
 import { AppButton } from "../../shared/ui/AppButton";
 import { XIcon } from "../../shared/ui/XIcon";
 import { useLobbyGameRatings } from "./useLobbyGameRatings";
-import { BoardLaunchAnnouncement } from "./BoardLaunchAnnouncement";
 
 const mobileQuery = "(max-width: 767px)";
 function subscribeToMobile(onChange: () => void) {
@@ -145,7 +144,6 @@ export function GeneralLobbyPage() {
           </LobbyFooter>
         </main>
       </div>
-      <BoardLaunchAnnouncement blocked={selectingGame || selected !== null} />
       {selectingGame && (
         <AppDialog title="ゲームを選択" onClose={() => setSelectingGame(false)}>
           <LobbyGameGrid create />

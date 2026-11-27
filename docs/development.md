@@ -496,7 +496,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
   - 退会の受付と毎時の再処理は `boardDeletion.ts` の `withdrawBoardStatements`（本人の投稿と返信の削除と、再送識別子・本文のハッシュの消去、本人のいいねの削除）、退会の完了は `deleteAccountBoardStatements`（アカウント参照を NULL）です。読み取りでも `deleted_accounts` の投稿者を削除扱いにします。
   - `POST /api/posts/:id/reports` は `boardRoutes.ts` から community の `use-cases/boardReports.ts` を呼び、`board_reports` に証拠を写します。`boardCleanup.ts` が毎時、7 日を過ぎた証拠の削除と退会者の匿名化を行います。
   - 管理の入口は `routes/boardAdminRoutes.ts`（`/api/admin/board`）と `apps/admin/src/Board.tsx` です。
-  - 初回の公開案内は `features/lobby/BoardLaunchAnnouncement.tsx` が担当します。ゲームロビーでは投稿プレビューの受付状態を使い、総合ロビーでは初回案内の候補だけが既存の掲示板 API から共通の受付状態を読みます。画面の文言・導線は [初回の公開案内](specs/board.md#初回の公開案内) に従います。
+  - 初回の公開案内は `features/lobby/BoardLaunchAnnouncement.tsx` が担当します。ゲームロビーの投稿プレビューから受付状態を受け取ります。未連携の利用者が登録を始めると、共通の `useSocialSignIn` にそのゲームの掲示板を復帰先として渡します。画面の文言・導線は [初回の公開案内](specs/board.md#初回の公開案内) に従います。
 
 ## マッチングの入口
 
