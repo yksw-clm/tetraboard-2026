@@ -4,7 +4,18 @@ import { FourShogiBoardLayout } from "../room/FourShogiBoardLayout";
 import { GomokuBoard } from "../room/GomokuBoard";
 import type { BoardAttachmentFrame } from "./boardAttachmentFrames";
 
-export function BoardAttachmentBoard({ game, frame }: BoardAttachmentFrame) {
+export function BoardAttachmentBoard(position: BoardAttachmentFrame) {
+  const shogi = position.game === "shogi" || position.game === "four-shogi";
+  return (
+    <div
+      className={`pointer-events-none aspect-square min-w-0 [--board-size:100%] [&_[data-hand-kind]>.tabular-nums]:origin-top-right [&_[data-hand-kind]>.tabular-nums]:scale-75 ${shogi ? "[@media(max-width:767px)]:aspect-auto" : ""}`}
+    >
+      <AttachmentBoard {...position} />
+    </div>
+  );
+}
+
+function AttachmentBoard({ game, frame }: BoardAttachmentFrame) {
   switch (game) {
     case "four-reversi":
     case "reversi":

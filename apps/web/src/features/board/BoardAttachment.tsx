@@ -26,14 +26,9 @@ export function BoardAttachment({ matchId, position }: Attachment) {
   if (!selected || result.status !== "ready")
     return <p className="text-sm text-muted">棋譜を表示できません。</p>;
   const { Board } = result.data;
-  const shogi = selected.game === "shogi" || selected.game === "four-shogi";
   return (
     <div className={`${width} grid gap-2`}>
-      <div
-        className={`pointer-events-none aspect-square min-w-0 [--board-size:100%] [&_[data-hand-kind]>.tabular-nums]:origin-top-right [&_[data-hand-kind]>.tabular-nums]:scale-75 ${shogi ? "[@media(max-width:767px)]:aspect-auto" : ""}`}
-      >
-        <Board {...selected} />
-      </div>
+      <Board {...selected} />
       <Link
         to={`/matches/${matchId}?position=${position}`}
         className="relative z-10 w-fit text-sm text-brand underline underline-offset-2"
