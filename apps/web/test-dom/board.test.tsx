@@ -6,8 +6,19 @@ import type {
   BoardPublishedPost,
   BoardReply,
 } from "@tetraboard/protocol/board";
+import {
+  boardPostMetadata,
+  renderDiscussionForumPostingJsonLd,
+} from "@tetraboard/protocol/board-pages";
 import { gameIds } from "@tetraboard/protocol/games";
-import { MemoryRouter, Route, Routes } from "react-router";
+import {
+  createMemoryRouter,
+  MemoryRouter,
+  Outlet,
+  Route,
+  RouterProvider,
+  Routes,
+} from "react-router";
 import reversiArchive from "../../../test-fixtures/matches/reversi-doubles-normal.json";
 import shogiArchive from "../../../test-fixtures/matches/shogi-singles.json";
 import {
@@ -15,9 +26,11 @@ import {
   registrationPath,
 } from "../src/features/account/registrationReturn";
 import { AccountLayout } from "../src/features/account/AccountSession";
+import { AccountContext } from "../src/features/account/useAccount";
 import { PlayerProfileProvider } from "../src/features/players/PlayerProfileProvider";
 import { BoardDetailPage, BoardTimelinePage } from "../src/features/board/BoardPages";
 import { formatMatchDate } from "../src/features/matches/matchDatePresentation";
+import { startPageMetadata } from "../src/seo/pageMetadata";
 // 遅延読み込みされるモジュールを先に評価し、act 内で描画を待てるようにします。
 import "../src/features/board/BoardAttachmentBoard";
 import "../src/features/board/boardAttachmentFrames";
@@ -31,7 +44,8 @@ const timelinePath = "/games/four-shogi/posts";
 const includeAttachments = "?includeAttachments=1";
 const timelineUrl = "/api" + timelinePath + includeAttachments;
 const postUrl = "/api" + postPath;
-const detailUrl = postUrl + includeAttachments;
+const detailQuery = includeAttachments + "&includeIndexable=1";
+const detailUrl = postUrl + detailQuery;
 const repliesUrl = postUrl + "/replies" + includeAttachments;
 const user: AccountProfile = {
   username: "owner",
@@ -80,8 +94,13 @@ function state(overrides = {}) {
 function timeline(posts: BoardPost[], nextCursor: string | null = null, overrides = {}) {
   return { ...state(overrides), posts, nextCursor };
 }
-function thread(parent: BoardPost, replies: BoardReply[] = [], nextCursor: string | null = null) {
-  return { ...state(), post: parent, replies, nextCursor };
+function thread(
+  parent: BoardPost,
+  replies: BoardReply[] = [],
+  nextCursor: string | null = null,
+  indexable?: boolean,
+) {
+  return { ...state(), post: parent, replies, nextCursor, indexable };
 }
 function deleted({ id, postedAtMs, gameId, replyCount }: BoardPost): BoardPost {
   return { id, postedAtMs, gameId, replyCount, status: "deleted" };
@@ -319,6 +338,239 @@ test("大会とルームをカードにし、取得に失敗した URL は本文
   expect(linkText(paths[1]!)).toEqual([origin + paths[1]]);
   expect(linkText(matchPath)).toEqual([origin + matchPath]);
   expect(linkText(roomPath)).toEqual([origin + roomPath, "ルーム 12345"]);
+});
+
+function boardMetadataRouter(path: string) {
+  return createMemoryRouter(
+    [
+      {
+        element: (
+          <AccountContext.Provider
+            value={{
+              user: null,
+              loading: false,
+              error: null,
+              refresh: async () => {},
+              update: () => {},
+            }}
+          >
+            <PlayerProfileProvider>
+              <Outlet />
+            </PlayerProfileProvider>
+          </AccountContext.Provider>
+        ),
+        children: [
+          { path: "/games/:gameId/posts", element: <BoardTimelinePage /> },
+          { path: "/posts/:id", element: <BoardDetailPage /> },
+        ],
+      },
+    ],
+    { initialEntries: [path] },
+  );
+}
+
+test("画面内で投稿の詳細を開くと投稿ごとのメタ情報に更新し、読めない場合はnoindexに戻す", async () => {
+  const previousHead = document.head.innerHTML;
+  const router = boardMetadataRouter(timelinePath);
+  const stop = startPageMetadata(router);
+  const canonical = () =>
+    document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href;
+  const meta = (selector: string) =>
+    document.head.querySelector<HTMLMetaElement>(selector)?.content;
+  const robots = () => meta('meta[name="robots"]');
+  const expectFallback = () => {
+    expect(robots()).toBe("noindex,follow");
+    expect(document.title).toBe("TetraBoard");
+    expect(canonical()).toBeUndefined();
+    expect(
+      [...document.head.querySelectorAll('meta[property^="og:"], meta[name^="twitter:"]')].map(
+        (tag) => tag.getAttribute("property"),
+      ),
+    ).toEqual(["og:site_name"]);
+  };
+  try {
+    const view = render(<RouterProvider router={router} />);
+    const first = post(1, "最初の投稿\n次の行");
+    await respond(timeline([first]));
+    await act(async () => view.querySelector<HTMLAnchorElement>(`a[href="${postPath}"]`)!.click());
+    expect(latest().url).toBe(detailUrl);
+    expectFallback();
+    await respond(thread(first, [], null, true));
+    expect(document.title).toBe("最初の投稿 次の行｜四人将棋の掲示板 | TetraBoard");
+    expect(meta('meta[name="description"]')).toBe("最初の投稿 次の行");
+    expect(canonical()).toBe(`https://tetraboard.net${postPath}`);
+    expect(robots()).toBe("index,follow");
+    expect(meta('meta[property="og:image"]')).toBe(
+      "https://tetraboard.net/assets/ogp/four-shogi.png",
+    );
+    expect(document.head.querySelector('script[type="application/ld+json"]')).toBeNull();
+
+    const second = post(2, "別の投稿", { gameId: "reversi" });
+    await act(async () => {
+      await router.navigate(`/posts/${second.id}/`);
+    });
+    await respond(thread(second));
+    expect(document.title).toBe("別の投稿｜リバーシの掲示板 | TetraBoard");
+    expect(canonical()).toBe(`https://tetraboard.net/posts/${second.id}`);
+    expect(robots()).toBe("noindex,follow");
+    expect(meta('meta[property="og:image"]')).toBe("https://tetraboard.net/assets/ogp/reversi.png");
+
+    await act(async () => {
+      await router.navigate(`/posts/${uuid(3)}`);
+    });
+    await respond({}, 404);
+    expectFallback();
+    await act(async () => {
+      await router.navigate(`/posts/${uuid(4)}`);
+    });
+    await respond({}, 503);
+    expectFallback();
+  } finally {
+    stop();
+    router.dispose();
+    document.head.innerHTML = previousHead;
+  }
+});
+
+function initialBoardMetadata(parent: BoardPublishedPost, replies: BoardReply[]) {
+  const previousHead = document.head.innerHTML;
+  const router = boardMetadataRouter(`${postPath}/`);
+  const { title, description, canonical } = boardPostMetadata("https://tetraboard.net", parent);
+  document.head.innerHTML = `<title>${title}</title><meta name="description" content="${description}"><meta name="robots" content="index,follow"><link rel="canonical" href="${canonical}"><meta property="og:image" content="https://tetraboard.net/assets/ogp/four-shogi.png">${renderDiscussionForumPostingJsonLd(canonical, parent, replies)}`;
+  const stop = startPageMetadata(router);
+  return {
+    router,
+    dispose() {
+      stop();
+      router.dispose();
+      document.head.innerHTML = previousHead;
+    },
+  };
+}
+
+function readBoardHead() {
+  return {
+    title: document.title,
+    description: document.head.querySelector('meta[name="description"]')?.getAttribute("content"),
+    canonical: document.head.querySelector('link[rel="canonical"]')?.getAttribute("href"),
+    robots: document.head.querySelector('meta[name="robots"]')?.getAttribute("content"),
+    jsonLd: document.head.querySelector('script[type="application/ld+json"]')?.textContent,
+  };
+}
+
+test("直接開いた投稿が初期HTMLと同じならメタ情報とJSON-LDの内容が変わらない", async () => {
+  const parent = post(1, "投稿の本文", { replyCount: 2 });
+  const first = reply(2, "最初の返信", { own: true });
+  const next = reply(3, "追加取得した返信");
+  const { router, dispose } = initialBoardMetadata(parent, [first]);
+  const initialHead = document.head.innerHTML;
+  const initialContent = readBoardHead();
+  try {
+    const view = render(<RouterProvider router={router} />);
+    expect(document.head.innerHTML).toBe(initialHead);
+    await respond(thread(parent, [first], cursor(first), true));
+    expect(view.textContent).toContain(parent.text);
+    expect(readBoardHead()).toEqual(initialContent);
+
+    press(view, "もっと見る");
+    await respond({ replies: [next], nextCursor: null });
+    expect(view.textContent).toContain(next.text);
+    expect(readBoardHead()).toEqual(initialContent);
+
+    press(articles(view)[1]!, "削除");
+    press(dialog(), "削除する");
+    await respond(null, 204);
+    expect(latest().url).toBe(detailUrl);
+    const newFirst = reply(4, "再取得の最初のページにある返信");
+    await respond(thread(parent, [newFirst], null, true));
+    expect(view.textContent).toContain(next.text);
+    const updated = readBoardHead();
+    expect(JSON.parse(updated.jsonLd!).comment.map(({ text }: { text: string }) => text)).toEqual([
+      newFirst.text,
+    ]);
+
+    await act(async () => {
+      await router.navigate(`${postPath}?source=board`);
+    });
+    expect(readBoardHead()).toEqual(updated);
+    await act(async () => {
+      await router.navigate(timelinePath);
+    });
+    expect(readBoardHead().jsonLd).toBeUndefined();
+    expect(readBoardHead().description).toBeUndefined();
+    expect(readBoardHead().robots).toBe("noindex,follow");
+  } finally {
+    dispose();
+  }
+});
+
+test("直接開いた投稿の詳細APIが削除枠を返すとheadから元の内容を取り除く", async () => {
+  const parent = post(1, "削除された元の本文", { replyCount: 1 });
+  const remaining = reply(2, "残った返信");
+  const { router, dispose } = initialBoardMetadata(parent, [remaining]);
+  try {
+    render(<RouterProvider router={router} />);
+    await respond(thread(deleted(parent), [remaining], null, false));
+    expect(readBoardHead()).toEqual({
+      title: "削除された投稿｜四人将棋の掲示板 | TetraBoard",
+      description: "四人将棋の掲示板の削除された投稿です。返信 1 件を読めます。",
+      canonical: `https://tetraboard.net${postPath}`,
+      robots: "noindex,follow",
+      jsonLd: undefined,
+    });
+    expect(document.head.innerHTML).not.toContain(parent.text);
+  } finally {
+    dispose();
+  }
+});
+
+test("直接開いた投稿の詳細APIで返信が減ったときはJSON-LDにも反映する", async () => {
+  const parent = post(1, "投稿の本文", { replyCount: 2 });
+  const removed = reply(2, "削除された元の返信");
+  const remaining = reply(3, "残った返信");
+  const { router, dispose } = initialBoardMetadata(parent, [removed, remaining]);
+  const initialContent = readBoardHead();
+  try {
+    render(<RouterProvider router={router} />);
+    await respond(thread({ ...parent, replyCount: 1 }, [remaining], null, true));
+    const { jsonLd, ...updated } = readBoardHead();
+    expect(updated).toEqual({
+      title: initialContent.title,
+      description: initialContent.description,
+      canonical: initialContent.canonical,
+      robots: "index,follow",
+    });
+    expect(JSON.parse(jsonLd!)).toMatchObject({
+      "@type": "DiscussionForumPosting",
+      url: updated.canonical,
+      text: parent.text,
+      comment: [{ "@type": "Comment", text: remaining.text }],
+    });
+    expect(jsonLd).not.toContain(removed.text);
+  } finally {
+    dispose();
+  }
+});
+
+test("直接開いた投稿の詳細APIが404を返すとnoindexにしてJSON-LDを取り除く", async () => {
+  const parent = post(1, "削除された元の本文");
+  const { router, dispose } = initialBoardMetadata(parent, []);
+  try {
+    const view = render(<RouterProvider router={router} />);
+    await respond({}, 404);
+    expect(view.textContent).toContain("投稿が見つかりません。");
+    expect(readBoardHead()).toEqual({
+      title: "TetraBoard",
+      description: undefined,
+      canonical: undefined,
+      robots: "noindex,follow",
+      jsonLd: undefined,
+    });
+    expect(document.head.querySelector('meta[property="og:image"]')).toBeNull();
+    expect(document.head.innerHTML).not.toContain(parent.text);
+  } finally {
+    dispose();
+  }
 });
 
 test("タイムラインは追加取得で重複を除き、更新で先頭の結果に戻る", async () => {
@@ -886,7 +1138,7 @@ test("タイムラインの削除は詳細の404で消し、200なら返信の�
   expect(articles(view)).toHaveLength(3);
   press(dialog(), "削除する");
   await respond(null, 204);
-  expect(latest().url).toBe(`/api/posts/${losesReplies.id}${includeAttachments}`);
+  expect(latest().url).toBe(`/api/posts/${losesReplies.id}${detailQuery}`);
   expect(latest().init.method).toBeUndefined();
   expect(articles(view)).toHaveLength(3);
   await respond(null, 404);
@@ -896,7 +1148,7 @@ test("タイムラインの削除は詳細の404で消し、200なら返信の�
   press(existing!, "削除");
   press(dialog(), "削除する");
   await respond(null, 204);
-  expect(latest().url).toBe(`/api/posts/${gainsReply.id}${includeAttachments}`);
+  expect(latest().url).toBe(`/api/posts/${gainsReply.id}${detailQuery}`);
   await respond(thread(deleted({ ...gainsReply, replyCount: 2 })));
   const [placeholder, preserved] = articles(view);
   expect(placeholder?.textContent).toContain("削除された投稿");

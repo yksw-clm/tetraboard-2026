@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./board": "./src/board.ts",
+    "./board-pages": "./src/boardPages.ts",
     "./general-lobby": "./src/generalLobby.ts",
     "./games": "./src/games.ts",
     "./room-sharing": "./src/roomSharing.ts",

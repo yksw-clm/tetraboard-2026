@@ -80,6 +80,8 @@ function submit(
 }
 
 test("自動パスを含む局面を投稿・返信に保存し、各読み取りで返す", async () => {
+  const clock = fixTestTime();
+  const now = Date.now();
   await openBoard();
   const { matchId, eventCount, positionCount } = await matchFixture();
   const author = await accountFixture();
@@ -111,6 +113,7 @@ test("自動パスを含む局面を投稿・返信に保存し、各読み取�
   const thread = boardDetailSchema.parse(
     await (await boardRequest(postPath(id) + includeAttachments)).json(),
   );
+  expect(thread).not.toHaveProperty("indexable");
   expect(thread.post).toMatchObject({ attachment });
   expect(thread.replies).toEqual([
     expect.objectContaining({ id: reply!.id, attachment: replyAttachment }),
@@ -139,11 +142,34 @@ test("自動パスを含む局面を投稿・返信に保存し、各読み取�
     expect(legacyResponse.status).toBe(200);
     expect(JSON.stringify(await legacyResponse.json())).not.toContain('"attachment"');
   }
-  const internal = await new D1BoardReader(env.APP_DB).detail(id, null);
-  expect(internal).toEqual(expect.objectContaining({ post: thread.post, replies: thread.replies }));
-  const html = await assetFixture().fetch(postPath(id));
-  expect(html.status).toBe(200);
-  expect(await html.text()).toContain('id="root"');
+  clock.mockReturnValue(now + 24 * 60 * 60_000);
+  const internal = await new D1BoardReader(env.APP_DB).detail(id, null, true);
+  const expected = { post: thread.post, replies: thread.replies, indexable: true };
+  expect(internal).toMatchObject(expected);
+  const detailPath = postPath(id);
+  const assets = assetFixture();
+  const api = await assets.fetch(`/api${detailPath}${includeAttachments}&includeIndexable=1`);
+  expect(api.status).toBe(200);
+  expect(boardDetailSchema.parse(await api.json())).toMatchObject(expected);
+  const htmlResponse = await assets.fetch(detailPath);
+  expect(htmlResponse.status).toBe(200);
+  const html = await htmlResponse.text();
+  expect(html).toContain('<meta name="robots" content="index,follow">');
+  expect(html).not.toContain(matchId);
+  const withAttachments = await assets.fetch(detailPath + includeAttachments);
+  expect(withAttachments.status).toBe(200);
+  expect(await withAttachments.text()).toBe(html);
+  const jsonLd = html.match(/<script type="application\/ld\+json">([^<]*)<\/script>/)?.[1];
+  expect(jsonLd).toBeDefined();
+  expect(jsonLd).not.toContain('"attachment"');
+  expect(JSON.parse(jsonLd!)).toMatchObject({
+    "@type": "DiscussionForumPosting",
+    text: post!.text,
+    comment: [{ text: reply!.text }],
+  });
+  const sitemap = await assets.fetch("/sitemap-posts.xml");
+  expect(sitemap.status).toBe(200);
+  expect(await sitemap.text()).toContain(`<loc>https://tetraboard.net${detailPath}</loc>`);
 });
 
 test("存在しない、未公開、別ゲーム、または範囲外の添付で投稿を保存しない", async () => {

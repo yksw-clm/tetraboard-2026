@@ -6,8 +6,9 @@ import {
   type BoardReply,
 } from "@tetraboard/protocol/board";
 import { gameCatalog, isGameId, type GameId } from "@tetraboard/protocol/games";
-import { useCallback, useRef, useState, type ReactNode } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
+import { updatePageMetadata } from "../../seo/pageMetadata";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { AppPageLoading, AppPageState } from "../../shared/ui/AppPageState";
@@ -29,6 +30,7 @@ import {
   readReplies,
   readTimeline,
 } from "./boardApi";
+import { boardPageMetadata } from "./boardPageMetadata";
 import { useBoardData } from "./useBoardData";
 
 function BoardLayout({
@@ -289,11 +291,29 @@ export function BoardDetailPage() {
 function BoardDetail({ id }: { id: string }) {
   const navigate = useNavigate();
   const [media] = useState(createBoardMedia);
+  const { pathname } = useLocation();
   const path = boardPostPath(id);
-  const readFirst = useCallback((signal: AbortSignal) => readDetail(id, signal), [id]);
+  const readFirst = useCallback(
+    async (signal: AbortSignal) => {
+      const firstPage = await readDetail(id, signal);
+      return { ...firstPage, firstPage };
+    },
+    [id],
+  );
   const board = useBoardData(readFirst);
   const { data, pending, failure } = board;
   const busy = pending !== null;
+  // head には詳細 API が返した最初のページを使います。
+  const metadata = failure?.notFound
+    ? null
+    : !failure || failure.source === "more"
+      ? data?.firstPage
+      : undefined;
+  useEffect(() => {
+    if (pathname.replace(/\/$/, "") !== path) return;
+    const page = metadata ? boardPageMetadata(metadata) : metadata;
+    updatePageMetadata(pathname, undefined, undefined, undefined, undefined, page);
+  }, [pathname, path, metadata]);
   // 同期に失敗した場合も、再試行で除外する返信 ID を保持します。
   const removedReplies = useRef(new Set<string>());
 
@@ -321,6 +341,7 @@ function BoardDetail({ id }: { id: string }) {
       const next = await readDetailOrMissing(id, signal);
       signal.throwIfAborted();
       if (!next) {
+        updatePageMetadata(pathname, undefined, undefined, undefined, undefined, null);
         void navigate(boardTimelinePath(data.post.gameId), { replace: true });
         return;
       }
@@ -328,6 +349,7 @@ function BoardDetail({ id }: { id: string }) {
       removedReplies.current = new Set();
       board.change((current) => ({
         ...next,
+        firstPage: next,
         nextCursor: current.nextCursor,
         replies: mergeReplies(
           next.replies,

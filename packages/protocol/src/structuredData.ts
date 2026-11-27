@@ -1,4 +1,4 @@
-function renderJsonLd(data: object): string {
+export function renderJsonLd(data: object): string {
   const json = JSON.stringify(data).replaceAll("<", "\\u003c");
   return `<script type="application/ld+json">${json}</script>`;
 }

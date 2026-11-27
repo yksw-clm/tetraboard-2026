@@ -4,7 +4,7 @@ import { serveRoomShareHtml } from "./roomShareHtml";
 import { serveMatchShareHtml } from "./matchSharing/html";
 import { withVisitHtml } from "./usageEvents/visit";
 import { serveTournamentHtml, serveTournamentSitemap } from "./tournamentPages";
-import { serveBoardHtml } from "./boardPages";
+import { serveBoardHtml, serveBoardSitemap } from "./boardPages";
 
 const boardTimelinePath = /^\/games\/([^/]+)\/posts\/?$/;
 const boardDetailPath = /^\/posts\/([^/]+)\/?$/;
@@ -95,6 +95,11 @@ function rejectAssetRequest(request: Request, board: boolean) {
   );
 }
 
+function redirectToPath(url: URL, path: string) {
+  url.pathname = path;
+  return Response.redirect(url.toString(), 308);
+}
+
 export async function servePublicAssets(
   request: Request,
   assets: Fetcher,
@@ -105,13 +110,18 @@ export async function servePublicAssets(
   const html = (response: Response) => withVisitHtml(request, response, path);
   const boardTimeline = boardTimelinePath.exec(path);
   const boardDetail = boardDetailPath.exec(path);
-  const rejection = rejectAssetRequest(request, Boolean(boardTimeline || boardDetail));
+  const boardSitemap = path === "/sitemap-posts.xml";
+  const boardRequest = Boolean(boardTimeline || boardDetail || boardSitemap);
+  const rejection = rejectAssetRequest(request, boardRequest);
   if (rejection) return rejection;
   if (boardTimeline)
     return isGameId(boardTimeline[1])
       ? html(await serveBoardHtml(request, assets, env))
       : serveNotFoundAsset(request, url, assets);
+  if (boardDetail && path.endsWith("/")) return redirectToPath(url, path.slice(0, -1));
   if (boardDetail) return html(await serveBoardHtml(request, assets, env, boardDetail[1]));
+  if (boardSitemap && env?.APP_ORIGIN === "https://tetraboard.net")
+    return serveBoardSitemap(request, env);
   if (path === "/privacy" || path === "/terms")
     return legalHtml(request, assets, path.slice(1) as "privacy" | "terms");
   if (path === "/" || path === "/index.html") {

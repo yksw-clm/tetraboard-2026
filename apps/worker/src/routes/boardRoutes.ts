@@ -89,18 +89,25 @@ boardRoutes.get(gamePath, async (c) => {
 boardRoutes.get("/posts/:id", async (c) => {
   const id = boardPostIdSchema.safeParse(c.req.param("id"));
   if (!id.success) return c.notFound();
-  const page = await new D1BoardReader(c.env.APP_DB).detail(id.data, c.get("user")?.id ?? null);
+  const page = await new D1BoardReader(c.env.APP_DB).detail(
+    id.data,
+    c.get("user")?.id ?? null,
+    c.env.APP_ORIGIN === "https://tetraboard.net",
+  );
   if (!page) return c.notFound();
+  const { indexable, ...detail } = page;
+  const response = wantsAttachments(c)
+    ? detail
+    : {
+        ...detail,
+        post: withoutAttachment(detail.post),
+        replies: detail.replies.map(withoutAttachment),
+      };
   return c.json(
-    boardDetailSchema.parse(
-      wantsAttachments(c)
-        ? page
-        : {
-            ...page,
-            post: withoutAttachment(page.post),
-            replies: page.replies.map(withoutAttachment),
-          },
-    ),
+    boardDetailSchema.parse({
+      ...response,
+      ...(c.req.query("includeIndexable") === "1" && { indexable }),
+    }),
   );
 });
 

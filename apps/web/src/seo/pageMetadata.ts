@@ -1,4 +1,4 @@
-import { fourShogiRulesPath } from "@tetraboard/protocol/games";
+import { fourShogiRulesPath, type GameId } from "@tetraboard/protocol/games";
 import type { DataRouter } from "react-router";
 import type { RoomLoaderData } from "../features/room/roomLoader";
 import type { MatchReplayData } from "../features/room/matchReplayLoader";
@@ -27,26 +27,37 @@ import {
 } from "@tetraboard/protocol/tournament-pages";
 
 type PublicPageMetadata = { title: string; description: string };
+type BoardPageMetadata = PublicPageMetadata & {
+  path: string;
+  canonical: string;
+  indexable: boolean;
+  game: GameId;
+  jsonLd: string | null;
+};
 
 const tournamentDetailPattern = /^\/tournaments\/[1-9]\d*$/;
-let initialTournamentPath: string | undefined;
+let initialServerPagePath: string | undefined;
 
-function isTournamentPage(path: string): boolean {
-  return path === tournamentListPath || /^\/tournaments\/[^/]+$/.test(path);
+function isServerPage(path: string): boolean {
+  return path === tournamentListPath || /^\/(?:tournaments|posts)\/[^/]+$/.test(path);
+}
+
+export function isInitialServerPage(path: string): boolean {
+  return path === initialServerPagePath;
 }
 
 export function startPageMetadata(router: DataRouter, root?: HTMLElement): () => void {
   let currentPath = router.state.location.pathname.replace(/\/$/, "");
-  initialTournamentPath = isTournamentPage(currentPath) ? currentPath : undefined;
+  initialServerPagePath = isServerPage(currentPath) ? currentPath : undefined;
   function syncMetadata(state: DataRouter["state"]) {
     const { pathname } = state.location;
     const nextPath = pathname.replace(/\/$/, "");
     if (nextPath !== currentPath) {
       document.head.querySelector('script[type="application/ld+json"]')?.remove();
-      initialTournamentPath = undefined;
+      initialServerPagePath = undefined;
       currentPath = nextPath;
-    } else if (isTournamentPage(nextPath)) {
-      // 遅延ルートの準備や再検証では、表示中の大会のメタ情報を保持します。
+    } else if (isServerPage(nextPath)) {
+      // 遅延ルートの準備や再検証では、表示中のページのメタ情報を保持します。
       return;
     }
     const data = state.errors ? undefined : (state.loaderData.room as RoomLoaderData | undefined);
@@ -74,7 +85,7 @@ export function startPageMetadata(router: DataRouter, root?: HTMLElement): () =>
   const stop = router.subscribe(syncMetadata);
   return () => {
     stop();
-    initialTournamentPath = undefined;
+    initialServerPagePath = undefined;
   };
 }
 
@@ -84,9 +95,13 @@ export function updatePageMetadata(
   match?: ShareMatch,
   tournament?: TournamentPageInfo,
   publicPage?: PublicPageMetadata,
+  board?: BoardPageMetadata | null,
 ): void {
   const currentPath = path.replace(/\/$/, "");
-  if (currentPath === initialTournamentPath) return;
+  const boardPage = board?.path === currentPath ? board : undefined;
+  const initial = isInitialServerPage(currentPath);
+  if (initial && !boardPage && board !== null) return;
+  if (initial) document.head.querySelector('script[type="application/ld+json"]')?.remove();
   const isDetail = tournamentDetailPattern.test(currentPath);
   const isList = currentPath === tournamentListPath;
   const tournamentMetadata = isList
@@ -98,6 +113,7 @@ export function updatePageMetadata(
   const staticPage = publicPage ?? (currentPath === howToPlayPath ? howToPlayMetadata : undefined);
   const metadata =
     staticPage ??
+    boardPage ??
     tournamentMetadata ??
     (path === "/" ? generalLobbyMetadata : game ? lobbyMetadata[game] : null);
   const legalDocument =
@@ -114,7 +130,8 @@ export function updatePageMetadata(
     element.remove();
   const robots = document.createElement("meta");
   robots.name = "robots";
-  robots.content = metadata && searchIndexable ? "index,follow" : "noindex,follow";
+  const indexable = boardPage?.indexable ?? (searchIndexable && Boolean(metadata));
+  robots.content = indexable ? "index,follow" : "noindex,follow";
   document.head.append(robots);
   if (
     match &&
@@ -141,14 +158,17 @@ export function updatePageMetadata(
   const canonical = document.createElement("link");
   canonical.rel = "canonical";
   const canonicalUrl =
+    boardPage?.canonical ??
     tournamentMetadata?.canonical ??
     (game ? lobbyCanonical(game) : `${publicOrigin}${staticPage ? currentPath : "/"}`);
   canonical.href = canonicalUrl;
   document.head.append(canonical);
   const imageGame =
+    boardPage?.game ??
     game ??
     (currentPath === fourShogiRulesPath ? "four-shogi" : isDetail ? tournament?.game : undefined);
   for (const tag of openGraphTags(metadata, canonicalUrl, imageGame)) appendMetaTag(tag);
+  if (initial && boardPage?.jsonLd) document.head.insertAdjacentHTML("beforeend", boardPage.jsonLd);
 }
 
 function appendMetaTag({
