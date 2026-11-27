@@ -31,6 +31,7 @@ import { PlayerProfileProvider } from "../src/features/players/PlayerProfileProv
 import { BoardDetailPage, BoardTimelinePage } from "../src/features/board/BoardPages";
 import { formatMatchDate } from "../src/features/matches/matchDatePresentation";
 import { startPageMetadata } from "../src/seo/pageMetadata";
+import { appThemeClasses } from "../src/shared/ui/appTheme";
 // 遅延読み込みされるモジュールを先に評価し、act 内で描画を待てるようにします。
 import "../src/features/board/BoardAttachmentBoard";
 import "../src/features/board/boardAttachmentFrames";
@@ -183,6 +184,27 @@ async function respond(body: unknown, status?: number) {
   latest().respond(body, status);
   await flush();
 }
+
+test.each([
+  ["タイムライン", timelinePath],
+  ["詳細", postPath],
+] as const)(
+  "掲示板の%sは共通のヘッダーを表示し、本文にゲームのテーマを適用する",
+  async (_, path) => {
+    const view = show(path, null);
+    await respond(path === timelinePath ? timeline([]) : thread(post(1, "四人将棋の投稿")));
+
+    const banner = view.querySelector("header")!;
+    expect(banner.textContent).not.toContain("4人の遊びを、もっと気軽に。");
+    expect(banner.querySelector('a[href="/login"]')?.textContent).toBe("登録・ログイン");
+
+    const logo = banner.querySelector('a[aria-label="総合ロビーへ"] .text-brand')!;
+    const themeSelector = `.${appThemeClasses["four-shogi"]}`;
+    expect(logo.textContent).toBe("Board");
+    expect(logo.closest(themeSelector)).toBeNull();
+    expect(view.querySelector("main")!.parentElement!.closest(themeSelector)).not.toBeNull();
+  },
+);
 
 test("カードと添付が表示範囲に近づいた対局だけを取得する", async () => {
   const observed = observeMedia();

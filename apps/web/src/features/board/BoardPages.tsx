@@ -44,13 +44,17 @@ function BoardLayout({
 }) {
   const theme = gameThemes[game];
   return (
-    <div className={`app-theme ${appThemeClasses[theme]} lobby-background min-h-dvh text-ink`}>
+    <div className="app-theme min-h-dvh text-ink">
       <AppHeader homeTo="/" homeLabel="総合ロビーへ" theme={theme} />
-      <main className={`${appPageWidthClasses} space-y-5 py-6 sm:py-8`}>
-        <BoardMediaContext.Provider value={media}>
-          <div className="mx-auto grid min-w-0 max-w-3xl gap-5">{children}</div>
-        </BoardMediaContext.Provider>
-      </main>
+      <div
+        className={`lobby-background text-ink min-h-[calc(100dvh-69px)] [@media(max-width:650px)]:min-h-[calc(100dvh-61px)] ${appThemeClasses[theme]}`}
+      >
+        <main className={`${appPageWidthClasses} space-y-5 py-6 sm:py-8`}>
+          <BoardMediaContext.Provider value={media}>
+            <div className="mx-auto grid min-w-0 max-w-3xl gap-5">{children}</div>
+          </BoardMediaContext.Provider>
+        </main>
+      </div>
     </div>
   );
 }
