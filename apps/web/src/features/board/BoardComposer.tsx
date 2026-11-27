@@ -7,6 +7,7 @@ import {
 import { useId, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { createUuid } from "../../shared/createUuid";
+import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { saveRegistrationReturn } from "../account/registrationReturn";
@@ -127,37 +128,40 @@ export function BoardComposer({
   } else {
     controls = (
       <form className="grid gap-3" onSubmit={submit}>
-        <textarea
-          rows={3}
-          className="w-full min-w-0 resize-y rounded-control border border-solid border-line bg-white p-3 text-base text-ink wrap-anywhere focus-visible:outline-[3px] focus-visible:outline-focus"
-          aria-label={placeholder}
-          aria-describedby={description}
-          placeholder={placeholder}
-          value={text}
-          readOnly={pending}
-          onChange={(event) => {
-            request.current = null;
-            setText(event.currentTarget.value);
-          }}
-          onCompositionStart={() => {
-            composing.current = true;
-          }}
-          onCompositionEnd={() => {
-            composing.current = false;
-          }}
-          onKeyDown={(event) => {
-            if (
-              event.key !== "Enter" ||
-              !(event.ctrlKey || event.metaKey) ||
-              event.nativeEvent.isComposing ||
-              event.keyCode === 229 ||
-              composing.current
-            )
-              return;
-            event.preventDefault();
-            submit();
-          }}
-        />
+        <div className="flex min-w-0 items-start gap-2">
+          <AppAvatar src={account.user.avatarUrl} />
+          <textarea
+            rows={3}
+            className="min-w-0 flex-1 resize-y rounded-control border border-solid border-line bg-white p-3 text-base text-ink wrap-anywhere focus-visible:outline-[3px] focus-visible:outline-focus"
+            aria-label={placeholder}
+            aria-describedby={description}
+            placeholder={placeholder}
+            value={text}
+            readOnly={pending}
+            onChange={(event) => {
+              request.current = null;
+              setText(event.currentTarget.value);
+            }}
+            onCompositionStart={() => {
+              composing.current = true;
+            }}
+            onCompositionEnd={() => {
+              composing.current = false;
+            }}
+            onKeyDown={(event) => {
+              if (
+                event.key !== "Enter" ||
+                !(event.ctrlKey || event.metaKey) ||
+                event.nativeEvent.isComposing ||
+                event.keyCode === 229 ||
+                composing.current
+              )
+                return;
+              event.preventDefault();
+              submit();
+            }}
+          />
+        </div>
         {attachment && (
           <div className="grid justify-items-start gap-2">
             <BoardAttachment {...attachment} />

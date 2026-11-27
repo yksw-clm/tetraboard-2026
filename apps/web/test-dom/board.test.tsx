@@ -229,6 +229,39 @@ test.each([
   },
 );
 
+test.each([
+  ["投稿欄", timelinePath],
+  ["返信欄", postPath],
+] as const)("%sの入力欄の手前に本人の画像を表示する", async (_, path) => {
+  const avatarUrl = "/api/avatars/board-owner.webp";
+  const images: HTMLImageElement[] = [];
+  const NativeImage = window.Image;
+  window.Image = class extends NativeImage {
+    constructor(width?: number, height?: number) {
+      super(width, height);
+      images.push(this);
+    }
+  };
+  try {
+    const view = show(path, { ...user, avatarUrl });
+    await respond(path === timelinePath ? timeline([]) : thread(post(1, "閲覧する投稿")));
+    for (const image of images) {
+      Object.defineProperties(image, {
+        complete: { value: true },
+        naturalWidth: { value: 32 },
+      });
+      act(() => image.dispatchEvent(new Event("load")));
+    }
+    await flush();
+
+    const avatar = input(view).previousElementSibling;
+    expect(avatar?.querySelector("img")?.getAttribute("src")).toBe(avatarUrl);
+    expect(avatar?.querySelector('[data-slot="avatar-fallback"]')).toBeNull();
+  } finally {
+    window.Image = NativeImage;
+  }
+});
+
 test("カードと添付が表示範囲に近づいた対局だけを取得する", async () => {
   const observed = observeMedia();
   const view = show("/games/four-reversi/posts");
@@ -479,6 +512,7 @@ test("添付のクエリをログイン後の復帰先に引き継ぐ", async ()
   const view = show(timelineWithPosition, null);
   await respond(timeline([]));
   expect(input(view)).toBeNull();
+  expect(view.querySelector('main [data-slot="avatar-fallback"]')).toBeNull();
   expect(requests).toHaveLength(1);
   press(view, "ログインして投稿");
   expect(view.textContent).toBe("ログイン画面");
@@ -926,6 +960,9 @@ test("省略した投稿ではカードを取得せず、詳細では全文の�
 test("投稿の失敗と再送で下書きとrequestIdを保持し、本文変更後の成功で先頭に足す", async () => {
   const view = show();
   await respond(timeline([post(1, "以前の投稿")]));
+  expect(
+    input(view).previousElementSibling?.querySelector('[data-slot="avatar-fallback"] svg'),
+  ).toBeTruthy();
   enter(input(view), "  \n");
   expect(view.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true);
   enter(input(view), "あ".repeat(1001));
@@ -1142,6 +1179,9 @@ test("返信送信後に同期が失敗しても返信を表示し、再試行�
   const original = reply(2, "既存の返信");
   const sent = reply(3, "送信した返信");
   await respond(thread(parent, [original]));
+  expect(
+    input(view).previousElementSibling?.querySelector('[data-slot="avatar-fallback"] svg'),
+  ).toBeTruthy();
   enter(input(view), sent.text);
   press(view, "返信する");
   await respond({ reply: sent, availableAtMs: 0 });
