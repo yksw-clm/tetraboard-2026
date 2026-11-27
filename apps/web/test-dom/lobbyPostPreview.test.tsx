@@ -1,13 +1,14 @@
 import { beforeAll, expect, mock, spyOn, test } from "bun:test";
 import { StrictMode } from "react";
-import { useLocation } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 import type { AccountProfile } from "@tetraboard/protocol";
 import type { BoardPost, BoardPublishedPost } from "@tetraboard/protocol/board";
 import { gameCatalog, gameIds, type GameId } from "@tetraboard/protocol/games";
+import { AccountContext } from "../src/features/account/useAccount";
 import { LobbyView } from "../src/features/lobby/LobbyView";
 import * as previewImport from "../src/features/lobby/importLobbyPostPreview";
 import { preloadRecovery } from "../src/shared/preloadRecovery";
-import { act, clock, flush, press, render, requests, rerender, wrap } from "./harness";
+import { act, clock, flush, press, render, requests, rerender } from "./harness";
 
 const game = "four-shogi";
 const firstPostPrompt = "対局の感想や気になる局面を、最初に投稿してみませんか。";
@@ -20,6 +21,7 @@ const viewer: AccountProfile = {
   avatarUrl: null,
   profileCompleted: true,
 };
+const otherViewer = { ...viewer, username: "other-viewer", name: "別の閲覧者" };
 
 beforeAll(async () => {
   await previewImport.importLobbyPostPreview();
@@ -29,14 +31,13 @@ function CurrentPath() {
   return <p aria-label="現在のパス">{useLocation().pathname}</p>;
 }
 
-function show(game: GameId, user: AccountProfile | null = null) {
-  return render(
+function lobby(game: GameId, user: AccountProfile | null, loading = false) {
+  return (
     <StrictMode>
-      {wrap(
-        user,
-        gameCatalog[game].lobbyPath,
-      )(
-        <>
+      <MemoryRouter initialEntries={[gameCatalog[game].lobbyPath]}>
+        <AccountContext.Provider
+          value={{ user, loading, error: null, refresh: async () => {}, update: () => {} }}
+        >
           <CurrentPath />
           <LobbyView
             game={game}
@@ -55,10 +56,14 @@ function show(game: GameId, user: AccountProfile | null = null) {
             onTimeControlChange={() => {}}
             onClearMessage={() => {}}
           />
-        </>,
-      )}
-    </StrictMode>,
+        </AccountContext.Provider>
+      </MemoryRouter>
+    </StrictMode>
   );
+}
+
+function show(game: GameId, user: AccountProfile | null = null) {
+  return render(lobby(game, user));
 }
 
 function preview(view: HTMLElement) {
@@ -141,6 +146,33 @@ test.each([...gameIds])("%s のロビーはそのゲームのタイムライン�
   ]);
   clock.advance(60_000);
   expect(timelineRequests(game)).toHaveLength(1);
+});
+
+test.each([
+  { name: "登録者", user: viewer },
+  { name: "未ログイン", user: null },
+])("セッション確認後に $name のプレビューを1回だけ取得する", async ({ user }) => {
+  const view = render(lobby(game, null, true));
+  const section = preview(view);
+  await flush();
+  expect(timelineRequests(game)).toHaveLength(0);
+  expect(section.querySelector('[role="status"]')?.textContent).toBe("投稿を読み込んでいます…");
+  expectTimelineLink(section, game);
+
+  rerender(view, lobby(game, user));
+  await flush();
+  expect(timelineRequests(game)).toHaveLength(1);
+  const first = post(1);
+  timelineRequests(game)[0]!.respond(timeline([first]));
+  await flush();
+  expect(section.textContent).toContain(first.text);
+
+  rerender(view, lobby(game, user, true));
+  await flush();
+  rerender(view, lobby(game, user));
+  await flush();
+  expect(timelineRequests(game)).toHaveLength(1);
+  expect(section.textContent).toContain(first.text);
 });
 
 test("読み込み中は3枠と1つの案内を出し、削除枠を除いて新しい投稿を3件表示する", async () => {
@@ -281,6 +313,99 @@ test("ロビーを離れると進行中のいいねを中止する", async () =>
   expect(signal.aborted).toBe(true);
 });
 
+test.each([
+  { name: "ログアウト", user: null, liked: false, method: null },
+  { name: "いいねしていない閲覧者への切り替え", user: otherViewer, liked: false, method: "PUT" },
+  { name: "いいね済みの閲覧者への切り替え", user: otherViewer, liked: true, method: "DELETE" },
+])("$name の後は新しい閲覧者の状態でいいねを判定する", async ({ user, liked, method }) => {
+  const first = post(1);
+  const {
+    view,
+    cards: [oldCard],
+  } = await showPosts(viewer, { ...first, liked: true, likeCount: 6 });
+  const section = preview(view);
+  expectLike(like(oldCard!), true, 6);
+
+  rerender(view, lobby(game, user));
+  expect(section.querySelectorAll('button[aria-label="いいね"]')).toHaveLength(0);
+  expect(section.querySelector('[role="status"]')?.textContent).toBe("投稿を読み込んでいます…");
+  await flush();
+  expect(timelineRequests(game)).toHaveLength(2);
+  timelineRequests(game)[1]!.respond(timeline([{ ...first, liked }]));
+  await flush();
+
+  const card = section.querySelector("li")!;
+  const button = like(card);
+  expectLike(button, liked, first.likeCount);
+  const requestCount = requests.length;
+  act(() => button.click());
+  if (method) {
+    expect(requests).toHaveLength(requestCount + 1);
+    expect(requests.at(-1)?.url).toBe(`/api/posts/${first.id}/like`);
+    expect(requests.at(-1)?.init.method).toBe(method);
+  } else {
+    expect(requests).toHaveLength(requestCount);
+    expect(card.querySelector('[role="alert"]')?.textContent).toBe(
+      "いいねするにはログインしてください。",
+    );
+  }
+});
+
+test("閲覧者を切り替えると進行中の取得を中止し、遅れて届いた応答を捨てる", async () => {
+  const view = show(game, viewer);
+  await flush();
+  const oldRequest = timelineRequests(game)[0]!;
+  expect(oldRequest.init.signal?.aborted).toBe(false);
+
+  rerender(view, lobby(game, otherViewer));
+  await flush();
+  expect(oldRequest.init.signal?.aborted).toBe(true);
+  expect(timelineRequests(game)).toHaveLength(2);
+  const current = post(2);
+  timelineRequests(game)[1]!.respond(timeline([current]));
+  await flush();
+
+  oldRequest.respond(timeline([{ ...post(1), liked: true, likeCount: 99 }]));
+  await flush();
+  const section = preview(view);
+  expect(section.textContent).toContain(current.text);
+  expect(section.textContent).not.toContain(post(1).text);
+  expectLike(like(section), false, current.likeCount);
+});
+
+test.each([
+  { name: "成功", status: 200, body: { liked: true, likeCount: 99 } },
+  { name: "失敗", status: 503, body: { message: "切り替え前のいいねの失敗理由" } },
+])(
+  "閲覧者を切り替えると進行中のいいねを中止し、遅れて届いた$name 応答を捨てる",
+  async ({ status, body }) => {
+    const first = post(1);
+    const {
+      view,
+      cards: [card],
+    } = await showPosts(viewer, first);
+    act(() => like(card!).click());
+    const oldRequest = requests.at(-1)!;
+    expect(oldRequest.init.method).toBe("PUT");
+    expect(oldRequest.init.signal?.aborted).toBe(false);
+    expectLike(like(card!), true, first.likeCount + 1);
+
+    rerender(view, lobby(game, otherViewer));
+    await flush();
+    expect(oldRequest.init.signal?.aborted).toBe(true);
+    expect(timelineRequests(game)).toHaveLength(2);
+    const current = { ...first, liked: false, likeCount: 10 };
+    timelineRequests(game)[1]!.respond(timeline([current]));
+    await flush();
+
+    oldRequest.respond(body, status);
+    await flush();
+    const section = preview(view);
+    expectLike(like(section), false, current.likeCount);
+    expect(section.querySelector('[role="alert"]')).toBeNull();
+  },
+);
+
 test.each([true, false])(
   "投稿が0件なら受付状態 %s に応じて投稿を案内する",
   async (acceptingPosts) => {
@@ -376,7 +501,7 @@ test("ロビーを離れると進行中の投稿取得を中止する", async ()
   expect(signal.aborted).toBe(true);
 });
 
-test("区画が画面に入ったときだけゲームを1回送信し、監視を終了する", async () => {
+test("区画が画面に入ったときだけゲームを1回送信し、閲覧者の切り替えでも再送しない", async () => {
   let intersect: ((isIntersecting: boolean) => void) | undefined;
   const disconnect = mock(() => {});
   const beacon = mock((_url: string, _body: Blob) => true);
@@ -400,7 +525,8 @@ test("区画が画面に入ったときだけゲームを1回送信し、監視�
   Object.defineProperty(window, "IntersectionObserver", { configurable: true, value: Observer });
   Object.defineProperty(navigator, "sendBeacon", { configurable: true, value: beacon });
   try {
-    const view = show(game);
+    const view = show(game, viewer);
+    const section = preview(view);
     expect(intersect).toBeDefined();
     expect(beacon).not.toHaveBeenCalled();
     intersect!(false);
@@ -414,6 +540,10 @@ test("区画が画面に入ったときだけゲームを1回送信し、監視�
     expect(url).toBe("/api/board-preview-views");
     expect(body.type).toMatch(/^application\/json(?:;|$)/);
     expect(JSON.parse(await body.text())).toEqual({ game });
+    rerender(view, lobby(game, otherViewer));
+    expect(preview(view)).toBe(section);
+    intersect!(true);
+    expect(beacon).toHaveBeenCalledTimes(1);
     rerender(view, null);
   } finally {
     if (originalObserver) Object.defineProperty(window, "IntersectionObserver", originalObserver);
