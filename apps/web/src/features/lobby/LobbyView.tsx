@@ -154,7 +154,13 @@ export function LobbyView(props: Props) {
     ),
     matches: <RecentMatches key={`matches:${props.game}`} game={props.game} />,
     rankings: props.rankings && <Fragment key="rankings">{props.rankings}</Fragment>,
-    posts: <LobbyPostPreview key={`posts:${props.game}`} game={props.game} />,
+    posts: (
+      <LobbyPostPreview
+        key={`posts:${props.game}`}
+        game={props.game}
+        launchBlocked={dialog !== null || props.isSubmitting !== null || createRequested}
+      />
+    ),
     tournaments: (
       <div
         key={`tournaments:${props.game}`}
