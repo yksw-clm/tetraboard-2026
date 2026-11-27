@@ -2,11 +2,14 @@ import {
   getPlayerGameRatingsContract,
   getPlayerProfileContract,
   listPlayerMatchesContract,
+  playerProfileReferenceSchema,
+  usernameSchema,
+  type PlayerProfileQueryTarget,
   type RoomMode,
 } from "@tetraboard/protocol";
 import { defaultGameId, gameCatalog, isGameId, type GameId } from "@tetraboard/protocol/games";
-import { useCallback, useState } from "react";
-import { Navigate, useParams, useSearchParams } from "react-router";
+import { useCallback, useEffect, useState } from "react";
+import { Navigate, useLocation, useParams, useSearchParams } from "react-router";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppHeader } from "../../shared/ui/AppHeader";
@@ -20,32 +23,49 @@ import { PlayerAvatar } from "../room/PlayerAvatar";
 import { PlayerProfileId, PublicPlayerStats, type PublicAccountProfile } from "./PlayerProfileCard";
 import { ProfileDetails } from "./ProfileDetails";
 import { ProfileGameButtons } from "./ProfileGameButtons";
-import { playerGameQuery, playerProfileApiUrl } from "./playerProfileQuery";
+import { playerGameQuery, playerProfileApiUrl, playerUsernamePath } from "./playerProfileQuery";
 import { usePublicPlayerRequest } from "./usePublicPlayerRequest";
 
+type PublicPlayerTarget = Extract<PlayerProfileQueryTarget, { source: "profile" | "username" }>;
+
+function publicPlayerTarget(profileId?: string, handle?: string): PublicPlayerTarget | null {
+  if (handle?.startsWith("@")) {
+    const result = usernameSchema.safeParse(handle);
+    return result.success ? { source: "username", username: result.data } : null;
+  }
+  const result = playerProfileReferenceSchema.safeParse({ source: "profile", profileId });
+  return result.data ?? null;
+}
+
 export function PublicPlayerPage() {
-  const { profileId = "" } = useParams();
+  const { profileId, handle } = useParams();
+  const { state } = useLocation();
+  const target = publicPlayerTarget(profileId, handle);
+  const expectedProfileId =
+    target?.source === "username" && typeof state?.expectedProfileId === "string"
+      ? state.expectedProfileId
+      : undefined;
+  const targetKey =
+    target?.source === "username"
+      ? `${playerUsernamePath(target.username)}:${expectedProfileId ?? ""}`
+      : profileId;
   const [search, setSearch] = useSearchParams();
   const { user, loading } = useAccount();
   const [accountChecked, setAccountChecked] = useState(!loading);
   const [unavailableProfiles, setUnavailableProfiles] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  const markUnavailable = useCallback(
-    () => setUnavailableProfiles((profiles) => new Set(profiles).add(profileId)),
-    [profileId],
-  );
+  const markUnavailable = useCallback(() => {
+    if (targetKey) setUnavailableProfiles((profiles) => new Set(profiles).add(targetKey));
+  }, [targetKey]);
   const selectedGame = search.get("game");
   const game = isGameId(selectedGame) ? selectedGame : defaultGameId;
   const mode =
     gameCatalog[game].hasModes && search.get("mode") === "doubles" ? "doubles" : "singles";
 
   if (!accountChecked && !loading) setAccountChecked(true);
-  if (profileId && user?.profileId === profileId) {
-    const accountSelection = createAccountSelection(game);
-    accountSelection.modes[game] = mode;
-    return <Navigate to="/account" replace state={{ accountSelection }} />;
-  }
+  if (target?.source === "profile" && user?.profileId === target.profileId)
+    return <OwnPlayerPage game={game} mode={mode} />;
   if (!accountChecked && loading && !user)
     return <AppPageLoading message="ログイン状態を確認しています…" />;
 
@@ -56,21 +76,17 @@ export function PublicPlayerPage() {
       <AppHeader homeTo="/" homeLabel="TetraBoard ロビー" theme={theme} />
       <div className={`lobby-background flex-1 text-ink ${appThemeClasses[theme]}`}>
         <main className={`${appPageWidthClasses} flex flex-col gap-5 py-6 sm:py-8`}>
-          {unavailableProfiles.has(profileId) ? (
-            <AppCard>
-              <h1 className="m-0 text-xl font-bold">プレイヤーページ</h1>
-              <p role="status" className="m-0">
-                プロフィールを表示できません。
-              </p>
-            </AppCard>
+          {!target || (targetKey && unavailableProfiles.has(targetKey)) ? (
+            <UnavailablePlayerCard />
           ) : (
             <PublicPlayerContent
-              key={profileId}
-              profileId={profileId}
+              key={targetKey}
+              target={target}
+              expectedProfileId={expectedProfileId}
               game={game}
               mode={mode}
-              onGameChange={(next) => setSearch(playerGameQuery(next, "singles"))}
-              onModeChange={(next) => setSearch(playerGameQuery(game, next))}
+              onGameChange={(next) => setSearch(playerGameQuery(next, "singles"), { state })}
+              onModeChange={(next) => setSearch(playerGameQuery(game, next), { state })}
               onUnavailable={markUnavailable}
             />
           )}
@@ -80,47 +96,105 @@ export function PublicPlayerPage() {
   );
 }
 
+function UnavailablePlayerCard() {
+  return (
+    <AppCard>
+      <h1 className="m-0 text-xl font-bold">プレイヤーページ</h1>
+      <p role="status" className="m-0">
+        プロフィールを表示できません。
+      </p>
+    </AppCard>
+  );
+}
+
+function OwnPlayerPage({ game, mode }: { game: GameId; mode: RoomMode }) {
+  const accountSelection = createAccountSelection(game);
+  accountSelection.modes[game] = mode;
+  return <Navigate to="/account" replace state={{ accountSelection }} />;
+}
+
 function PublicPlayerContent({
-  profileId,
+  target,
+  expectedProfileId,
   game,
   mode,
   onGameChange,
   onModeChange,
   onUnavailable,
 }: {
-  profileId: string;
+  target: PublicPlayerTarget;
+  expectedProfileId?: string;
   game: GameId;
   mode: RoomMode;
   onGameChange: (game: GameId) => void;
   onModeChange: (mode: RoomMode) => void;
   onUnavailable: () => void;
 }) {
+  const { user } = useAccount();
+  const location = useLocation();
   const profile = usePublicPlayerRequest(
-    playerProfileApiUrl({ source: "profile", profileId }, game, { includeRating: false }),
+    playerProfileApiUrl(target, game, { includeRating: false }),
     getPlayerProfileContract.response,
     onUnavailable,
   );
+  const account = profile.result.status === "ready" && profile.result.data;
+  const resolvedPlayer =
+    account &&
+    account.kind === "account" &&
+    account.game === game &&
+    (target.source === "profile" || (!account.isGuest && account.username === target.username))
+      ? account
+      : null;
+  const unexpectedOwner = Boolean(
+    resolvedPlayer && expectedProfileId && resolvedPlayer.profileId !== expectedProfileId,
+  );
+  useEffect(() => {
+    if (unexpectedOwner) onUnavailable();
+  }, [unexpectedOwner, onUnavailable]);
+  const player = unexpectedOwner ? null : resolvedPlayer;
+  const ownProfile = player && user?.profileId === player.profileId;
+  const canonicalPath =
+    player && !player.isGuest && player.username ? playerUsernamePath(player.username) : null;
+  const redirectToCanonical = canonicalPath && canonicalPath !== location.pathname;
+  const legacyProfileId = target.source === "profile" ? target.profileId : null;
+  const [confirmedProfileId, setConfirmedProfileId] = useState<string | null>(null);
+  const playerProfileId = player && !player.isGuest ? player.profileId : null;
+  // ゲーム切替中はレートの再取得を省き、表示は現行プロフィールの照合を待ちます。
+  const ratingProfileId =
+    profile.result.status === "loading" ? confirmedProfileId : playerProfileId;
+  if (ratingProfileId !== confirmedProfileId) setConfirmedProfileId(ratingProfileId);
+  const historyProfileId = player?.profileId ?? legacyProfileId;
+  const ratingsRequestId = ratingProfileId ?? legacyProfileId;
+  const leaving = ownProfile || redirectToCanonical;
   const history = usePublicPlayerRequest(
-    `/api${listPlayerMatchesContract.path.replace(":profileId", encodeURIComponent(profileId))}?${playerGameQuery(game, mode)}`,
+    historyProfileId && !leaving
+      ? `/api${listPlayerMatchesContract.path.replace(":profileId", historyProfileId)}?${playerGameQuery(game, mode)}`
+      : null,
     listPlayerMatchesContract.response,
     onUnavailable,
   );
   const ratings = usePublicPlayerRequest(
-    `/api${getPlayerGameRatingsContract.path.replace(":profileId", encodeURIComponent(profileId))}`,
+    ratingsRequestId && !leaving
+      ? `/api${getPlayerGameRatingsContract.path.replace(":profileId", ratingsRequestId)}`
+      : null,
     getPlayerGameRatingsContract.response,
   );
-  const account = profile.result.status === "ready" && profile.result.data;
-  const player = account && account.kind === "account" && account.game === game ? account : null;
-  const [confirmedProfileId, setConfirmedProfileId] = useState<string | null>(null);
-  const playerProfileId = player && !player.isGuest ? player.profileId : null;
-  // 同じ公開参照のゲーム切替中は、照合済みの公開UUIDを使います。
-  const ratingProfileId =
-    profile.result.status === "loading" ? confirmedProfileId : playerProfileId;
-  if (ratingProfileId !== confirmedProfileId) setConfirmedProfileId(ratingProfileId);
   const games =
-    ratings.result.status === "ready" && ratings.result.data.profileId === ratingProfileId
+    ratings.result.status === "ready" && ratings.result.data.profileId === playerProfileId
       ? ratings.result.data.games
       : null;
+  if (ownProfile) return <OwnPlayerPage game={game} mode={mode} />;
+  if (unexpectedOwner) return <UnavailablePlayerCard />;
+  if (player && redirectToCanonical)
+    return (
+      <Navigate
+        to={{ pathname: canonicalPath, search: location.search }}
+        replace
+        state={{
+          expectedProfileId: target.source === "profile" ? player.profileId : expectedProfileId,
+        }}
+      />
+    );
   return (
     <>
       <AppCard>
@@ -174,35 +248,37 @@ function PublicPlayerContent({
           )}
         </AppCard>
       </section>
-      <section aria-labelledby="public-player-matches">
-        <AppCard>
-          <h2 id="public-player-matches" className="m-0 text-lg font-bold">
-            最近の公開棋譜（最大20局）
-          </h2>
-          {history.result.status === "ready" ? (
-            history.result.data.matches.length ? (
-              <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-                {history.result.data.matches.map((match) => (
-                  <MatchHistoryCard
-                    key={match.id}
-                    match={match}
-                    to={`/matches/${match.id}`}
-                    showGame={false}
-                  />
-                ))}
-              </div>
+      {historyProfileId && (
+        <section aria-labelledby="public-player-matches">
+          <AppCard>
+            <h2 id="public-player-matches" className="m-0 text-lg font-bold">
+              最近の公開棋譜（最大20局）
+            </h2>
+            {history.result.status === "ready" ? (
+              history.result.data.matches.length ? (
+                <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                  {history.result.data.matches.map((match) => (
+                    <MatchHistoryCard
+                      key={match.id}
+                      match={match}
+                      to={`/matches/${match.id}`}
+                      showGame={false}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="m-0 text-sm text-muted">このゲーム・モードの公開棋譜はありません。</p>
+              )
             ) : (
-              <p className="m-0 text-sm text-muted">このゲーム・モードの公開棋譜はありません。</p>
-            )
-          ) : (
-            <PlayerRequestNotice
-              loading={history.result.status === "loading"}
-              label="公開棋譜"
-              onRetry={history.retry}
-            />
-          )}
-        </AppCard>
-      </section>
+              <PlayerRequestNotice
+                loading={history.result.status === "loading"}
+                label="公開棋譜"
+                onRetry={history.retry}
+              />
+            )}
+          </AppCard>
+        </section>
+      )}
     </>
   );
 }

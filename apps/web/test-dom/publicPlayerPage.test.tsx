@@ -16,6 +16,8 @@ const otherId = "20000000-0000-4000-8000-000000000002";
 const viewerId = "40000000-0000-4000-8000-000000000004";
 const pagePath = `/players/${playerId}`;
 const otherPath = `/players/${otherId}`;
+const usernamePath = "/users/@public_player";
+const otherUsernamePath = "/users/@other_player";
 const zero = { total: 0, wins: 0, losses: 0, draws: 0 };
 const reversiMatch: MatchSummary = {
   game: "reversi",
@@ -42,7 +44,7 @@ function player(game: GameId, profileId = playerId) {
     profileId,
     game,
     name: "公開プレイヤー",
-    username: "public_player",
+    username: profileId === otherId ? "other_player" : "public_player",
     avatarUrl: null,
     profileMessage: "対局よろしくお願いします",
     favoriteGames: ["reversi"],
@@ -51,6 +53,10 @@ function player(game: GameId, profileId = playerId) {
       : zero,
   };
 }
+const legacyPlayer = (game: GameId, profileId = playerId) => ({
+  ...player(game, profileId),
+  username: null,
+});
 const profiles = () => requests.filter((request) => request.url.startsWith("/api/player-profile?"));
 const histories = () =>
   requests.filter(({ url }) => url.startsWith("/api/players/") && url.includes("/matches?"));
@@ -93,6 +99,7 @@ function open(initialEntry = pagePath) {
             ),
           },
           { path: "/players/:profileId", element: <PublicPlayerPage /> },
+          { path: "/users/:handle", element: <PublicPlayerPage /> },
           { path: "/matches/:matchId", element: <p>公開棋譜の画面</p> },
           { path: "/account", element: <p>マイページ</p> },
           { path: "/account/setup", element: <p>初回設定の画面</p> },
@@ -115,7 +122,10 @@ test("本人のカード内の名前リンクは再確認中でもマイペー�
   await flush();
 
   act(() => window.dispatchEvent(new Event("focus")));
-  act(() => document.querySelector<HTMLAnchorElement>(`a[href^="${pagePath}?"]`)!.click());
+  act(() => document.querySelector<HTMLAnchorElement>(`a[href^="${usernamePath}?"]`)!.click());
+  await flush();
+  expect(router.state.location.pathname).toBe(usernamePath);
+  profiles()[1]!.respond(player("four-shogi"));
   await flush();
   expect(router.state.historyAction).toBe(NavigationType.Replace);
   expect(router.state.location.pathname).toBe("/account");
@@ -125,7 +135,7 @@ test("本人のカード内の名前リンクは再確認中でもマイペー�
     modes: { "four-shogi": "doubles" },
   });
   expect(view.textContent).toContain("マイページ");
-  expect(profiles()).toHaveLength(1);
+  expect(profiles()).toHaveLength(2);
   expect(histories()).toHaveLength(0);
   expect(ratings()).toHaveLength(0);
 
@@ -161,10 +171,11 @@ test.each([
 ] as const)(
   "%sで再確認中も公開ページを保持し、本人と判明したらマイページへ移動する",
   async (_, user) => {
-    const { view, router } = open(`${pagePath}?game=reversi`);
+    const { view, router } = open(`${usernamePath}?game=reversi`);
     session().respond({ user });
     await flush();
     profiles()[0]!.respond(player("reversi"));
+    await flush();
     histories()[0]!.respond({ matches: [reversiMatch] });
     await flush();
 
@@ -174,7 +185,7 @@ test.each([
     expect(view.querySelector(replayLink)).not.toBeNull();
     session().respond({ user });
     await flush();
-    expect(router.state.location.pathname).toBe(pagePath);
+    expect(router.state.location.pathname).toBe(usernamePath);
     expect(view.querySelector(replayLink)).not.toBeNull();
     expect(profiles()).toHaveLength(1);
     expect(histories()).toHaveLength(1);
@@ -202,15 +213,16 @@ test("未ログインでカード内の名前リンクから四人将棋ダブ�
     rating: { timing: "before", status: "rated", rating: 1480 },
   });
   await flush();
-  const link = document.querySelector<HTMLAnchorElement>(`a[href^="${pagePath}?"]`)!;
+  const link = document.querySelector<HTMLAnchorElement>(`a[href^="${usernamePath}?"]`)!;
   expect(link.textContent).toBe("公開プレイヤー");
   act(() => link.click());
   await flush();
   expect(router.state.location.search).toBe("?game=four-shogi&mode=doubles");
   expect(profiles()[1]!.url).toBe(
-    `/api/player-profile?source=profile&profileId=${playerId}&game=four-shogi&includeBadges=1&includeStats=1&includeDetails=1`,
+    "/api/player-profile?source=username&username=public_player&game=four-shogi&includeBadges=1&includeStats=1&includeDetails=1",
   );
   profiles()[1]!.respond(player("four-shogi"));
+  await flush();
   histories()[0]!.respond({ matches: [] });
   await flush();
   expect(view.querySelector('button[aria-pressed="true"]')?.textContent).toBe("四人将棋");
@@ -224,8 +236,9 @@ test("未ログインでカード内の名前リンクから四人将棋ダブ�
   press(view, "リバーシ");
   await flush();
   expect(router.state.location.search).toBe("?game=reversi");
-  expect(histories().at(-1)!.url).toBe(`/api${pagePath}/matches?game=reversi`);
   profiles().at(-1)!.respond(player("reversi"));
+  await flush();
+  expect(histories().at(-1)!.url).toBe(`/api${pagePath}/matches?game=reversi`);
   histories()
     .at(-1)!
     .respond({ matches: [reversiMatch] });
@@ -241,16 +254,15 @@ test("未ログインでカード内の名前リンクから四人将棋ダブ�
   await flush();
   expect(view.textContent).toContain("公開棋譜の画面");
   await act(async () => router.navigate(-1));
-  expect(router.state.location.pathname).toBe(pagePath);
+  expect(router.state.location.pathname).toBe(usernamePath);
   expect(router.state.location.search).toBe("?game=reversi");
-  profiles()
-    .at(-1)!
-    .respond({ ...player("reversi"), username: "renamed_player" });
+  profiles().at(-1)!.respond(player("reversi"));
+  await flush();
   histories()
     .at(-1)!
     .respond({ matches: [reversiMatch] });
   await flush();
-  expect(view.textContent).toContain("@renamed_player");
+  expect(view.textContent).toContain("@public_player");
   expect(view.querySelector('button[aria-pressed="true"]')?.textContent).toBe("リバーシ");
   expect(requests.every((request) => !request.init.method || request.init.method === "GET")).toBe(
     true,
@@ -279,9 +291,10 @@ test("ゲームを切り替えてもヘッダーロゴは標準テーマで、�
 });
 
 test("直リンクの既定、6ゲーム、四人ゲームのモード切替と初回設定前の閲覧", async () => {
-  const { view, router } = open();
+  const { view, router } = open(usernamePath);
   const stop = startPageMetadata(router);
   try {
+    expect(document.title).toBe("プレイヤーページ | TetraBoard");
     expect(document.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
       "noindex,follow",
     );
@@ -290,9 +303,10 @@ test("直リンクの既定、6ゲーム、四人ゲームのモード切替と�
     });
     await flush();
     profiles()[0]!.respond(player("four-reversi"));
+    await flush();
     histories()[0]!.respond({ matches: [] });
     await flush();
-    expect(router.state.location.pathname).toBe(pagePath);
+    expect(router.state.location.pathname).toBe(usernamePath);
     expect(histories()[0]!.url).toEndWith("?game=four-reversi&mode=singles");
     expect(view.querySelector("h1")?.textContent).toBe("公開プレイヤー");
     expect(view.textContent).toContain("3局 1優勝 (.333)");
@@ -312,9 +326,10 @@ test("直リンクの既定、6ゲーム、四人ゲームのモード切替と�
       await flush();
       const mode = gameCatalog[game].hasModes ? "&mode=singles" : "";
       expect(router.state.location.search).toBe(`?game=${game}${mode}`);
-      expect(histories().at(-1)!.url).toEndWith(router.state.location.search);
       expect(profiles().at(-1)!.url).toContain(`&game=${game}&`);
       profiles().at(-1)!.respond(player(game));
+      await flush();
+      expect(histories().at(-1)!.url).toEndWith(router.state.location.search);
       histories().at(-1)!.respond({ matches: [] });
       await flush();
       expect(Boolean(view.querySelector('[aria-label="プロフィールの対局モード"]'))).toBe(
@@ -327,18 +342,19 @@ test("直リンクの既定、6ゲーム、四人ゲームのモード切替と�
 });
 
 test("公開レートは対象UUIDの全ゲームを一度で取得し、閲覧者やゲーム・モードによって変わらない", async () => {
-  const { view, router } = open();
+  const { view, router } = open(usernamePath);
   session().respond({ user: { ...signedIn, profileId: viewerId } });
   await flush();
-  expect(ratings()[0]!.url).toBe(`/api${pagePath}/game-ratings`);
-  expect(ratings()[0]!.init.cache).toBe("no-store");
-  ratings()[0]!.respond({ profileId: playerId, games });
-  await flush();
-  expect(gameButtons(view).every((button) => !button.querySelector("strong"))).toBe(true);
+  expect(ratings()).toHaveLength(0);
+  expect(histories()).toHaveLength(0);
   profiles()[0]!.respond({
     ...player("four-reversi"),
     rating: { timing: "current", status: "rated", rating: 1620 },
   });
+  await flush();
+  expect(ratings()[0]!.url).toBe(`/api${pagePath}/game-ratings`);
+  expect(ratings()[0]!.init.cache).toBe("no-store");
+  ratings()[0]!.respond({ profileId: playerId, games });
   await flush();
   expect(gameButton(view, "four-reversi").querySelector("strong")?.textContent).toBe("1620");
   expect(gameButton(view, "four-shogi").querySelector("strong")?.textContent).toBe("認定戦 2/5");
@@ -356,13 +372,34 @@ test("公開レートは対象UUIDの全ゲームを一度で取得し、閲覧�
   act(() => gameButton(view, "reversi").click());
   await flush();
   expect(router.state.location.search).toBe("?game=reversi");
-  expect(gameButton(view, "shogi").querySelector("strong")?.textContent).toBe("認定戦 0/5");
+  expect(gameButtons(view).every((button) => !button.querySelector("strong"))).toBe(true);
   expect(profiles()).toHaveLength(2);
   expect(ratings()).toHaveLength(1);
   expect(requests.some((request) => request.url === "/api/lobby/game-ratings")).toBe(false);
-  profiles()[1]!.respond(player("reversi", otherId));
+  profiles()[1]!.respond(player("reversi"));
+  await flush();
+  expect(gameButton(view, "shogi").querySelector("strong")?.textContent).toBe("認定戦 0/5");
+  expect(ratings()).toHaveLength(1);
+
+  act(() => gameButton(view, "four-shogi").click());
   await flush();
   expect(gameButtons(view).every((button) => !button.querySelector("strong"))).toBe(true);
+  profiles()[2]!.respond({
+    ...player("four-shogi", otherId),
+    username: "public_player",
+    name: "現在の所有者",
+  });
+  await flush();
+  expect(gameButtons(view).every((button) => !button.querySelector("strong"))).toBe(true);
+  expect(view.querySelector("h1")?.textContent).toBe("現在の所有者");
+  expect(histories().at(-1)!.url).toBe(`/api${otherPath}/matches?game=four-shogi&mode=singles`);
+  expect(ratings()[1]!.url).toBe(`/api${otherPath}/game-ratings`);
+  ratings()[1]!.respond({
+    profileId: otherId,
+    games: { ...games, reversi: { status: "rated", rating: 1740 } },
+  });
+  await flush();
+  expect(gameButton(view, "reversi").querySelector("strong")?.textContent).toBe("1740");
 
   await act(async () => router.navigate(otherPath));
   expect(gameButtons(view).every((button) => !button.querySelector("strong"))).toBe(true);
@@ -381,7 +418,7 @@ test("別UUIDのレートが先着してもプロフィール確認前後やゲ�
   ratings()[0]!.respond({ profileId: otherId, games });
   await flush();
   expect(gameButtons(view).every((button) => !button.querySelector("strong"))).toBe(true);
-  profiles()[0]!.respond(player("four-reversi"));
+  profiles()[0]!.respond(legacyPlayer("four-reversi"));
   await flush();
   expect(view.textContent).toContain("3局 1優勝 (.333)");
   expect(gameButtons(view).every((button) => !button.querySelector("strong"))).toBe(true);
@@ -394,7 +431,7 @@ test("レート取得の全体失敗・ゲーム別失敗を認定0局と区別�
   const { view, router } = open();
   session().respond({ user: null });
   await flush();
-  profiles()[0]!.respond(player("four-reversi"));
+  profiles()[0]!.respond(legacyPlayer("four-reversi"));
   ratings()[0]!.respond({}, 503);
   await flush();
   expect(view.textContent).toContain("3局 1優勝 (.333)");
@@ -407,7 +444,7 @@ test("レート取得の全体失敗・ゲーム別失敗を認定0局と区別�
   previous.respond({ profileId: otherId, games });
   await flush();
   expect(gameButtons(view).every((button) => !button.querySelector("strong"))).toBe(true);
-  profiles().at(-1)!.respond(player("four-reversi"));
+  profiles().at(-1)!.respond(legacyPlayer("four-reversi"));
   ratings()
     .at(-1)!
     .respond({ profileId: playerId, games: { ...games, reversi: { status: "error" } } });
@@ -426,7 +463,7 @@ test("レートAPIだけが404のときは取得済みの公開プロフィー�
   const { view } = open(`${pagePath}?game=reversi`);
   session().respond({ user: null });
   await flush();
-  profiles()[0]!.respond(player("reversi"));
+  profiles()[0]!.respond(legacyPlayer("reversi"));
   histories()[0]!.respond({ matches: [reversiMatch] });
   await flush();
   ratings()[0]!.respond({}, 404);
@@ -472,11 +509,12 @@ test("取得失敗と空一覧を区別し、失敗した欄だけ再試行し�
 });
 
 test("棋譜が404になったプレイヤーは別モードへ戻って再取得が失敗しても再表示しない", async () => {
-  const { view, router } = open(`${pagePath}?game=four-reversi&mode=singles`);
+  const { view, router } = open(`${usernamePath}?game=four-reversi&mode=singles`);
   session().respond({ user: null });
   await flush();
   const saved = match(1);
   profiles()[0]!.respond(player("four-reversi"));
+  await flush();
   histories()[0]!.respond({ matches: [saved] });
   ratings()[0]!.respond({ profileId: playerId, games });
   await flush();
@@ -505,10 +543,11 @@ test("棋譜が404になったプレイヤーは別モードへ戻って再取�
   expect(view.querySelector(`a[href="/matches/${saved.id}"]`)).toBeNull();
   expect(histories()).toHaveLength(2);
 
-  await act(async () => router.navigate(otherPath));
+  await act(async () => router.navigate(otherUsernamePath));
   profiles()
     .at(-1)!
     .respond({ ...player("four-reversi", otherId), name: "別のプレイヤー" });
+  await flush();
   histories().at(-1)!.respond({ matches: [] });
   await flush();
   expect(view.querySelector("h1")?.textContent).toBe("別のプレイヤー");
@@ -518,35 +557,139 @@ test("棋譜が404になったプレイヤーは別モードへ戻って再取�
 });
 
 test("別ゲーム・別人へ移動すると旧応答を破棄し、現行の棋譜側の404でプロフィールを消す", async () => {
-  const { view, router } = open();
+  const { view, router } = open(usernamePath);
   session().respond({ user: null });
   await flush();
-  const firstProfile = profiles()[0]!;
+  profiles()[0]!.respond(player("four-reversi"));
+  await flush();
   const firstHistory = histories()[0]!;
+  const firstRatings = ratings()[0]!;
   press(view, "リバーシ");
   await flush();
   const secondProfile = profiles()[1]!;
-  const secondHistory = histories()[1]!;
-  expect(firstProfile.init.signal?.aborted).toBe(true);
   expect(firstHistory.init.signal?.aborted).toBe(true);
-  firstProfile.respond({ ...player("four-reversi"), name: "前のゲーム" });
   firstHistory.respond({}, 404);
   await flush();
-  expect(view.textContent).not.toContain("前のゲーム");
   expect(view.textContent).not.toContain("プロフィールを表示できません。");
 
-  await act(async () => router.navigate(`${otherPath}?game=reversi`));
+  await act(async () => router.navigate(`${otherUsernamePath}?game=reversi`));
   expect(secondProfile.init.signal?.aborted).toBe(true);
-  expect(secondHistory.init.signal?.aborted).toBe(true);
+  expect(firstRatings.init.signal?.aborted).toBe(true);
+  expect(histories()).toHaveLength(1);
   profiles()[2]!.respond({ ...player("reversi", otherId), name: "別のプレイヤー" });
   secondProfile.respond({ ...player("reversi"), name: "前のプレイヤー" });
-  secondHistory.respond({ matches: [reversiMatch] });
+  firstRatings.respond({ profileId: playerId, games });
   await flush();
   expect(view.querySelector("h1")?.textContent).toBe("別のプレイヤー");
   expect(view.textContent).not.toContain("前のプレイヤー");
   expect(view.querySelector("article")).toBeNull();
-  histories()[2]!.respond({}, 404);
+  expect(gameButtons(view).every((button) => !button.querySelector("strong"))).toBe(true);
+  expect(histories()[1]!.url).toBe(`/api${otherPath}/matches?game=reversi`);
+  expect(ratings()[1]!.url).toBe(`/api${otherPath}/game-ratings`);
+  histories()[1]!.respond({}, 404);
   await flush();
   expect(view.textContent).not.toContain("別のプレイヤー");
   expect(view.textContent).toContain("プロフィールを表示できません。");
 });
+
+test("以前のUUIDリンクは現在の公開IDに履歴置換し、ゲームとモードを引き継ぐ", async () => {
+  const { view, router } = open("/lobby");
+  session().respond({ user: null });
+  await flush();
+  const selection = "?game=four-shogi&mode=doubles";
+  await act(async () => router.navigate(pagePath + selection));
+  profiles()[0]!.respond({ ...player("four-shogi"), username: "renamed_player" });
+  await flush();
+  expect(router.state.historyAction).toBe(NavigationType.Replace);
+  expect(router.state.location.pathname).toBe("/users/@renamed_player");
+  expect(router.state.location.search).toBe(selection);
+  expect(router.state.location.state).toEqual({ expectedProfileId: playerId });
+  profiles()[1]!.respond({ ...player("four-shogi"), username: "renamed_player" });
+  await flush();
+  expect(view.textContent).toContain("@renamed_player");
+  expect(view.textContent).toContain("4局 2勝 (.500)");
+  await act(async () => router.navigate(-1));
+  expect(router.state.location.pathname).toBe("/lobby");
+});
+
+test("統合元の旧UUIDから転送された公開IDが別人に移っていたら、本文・棋譜・レートと本人遷移を拒む", async () => {
+  const formerGuestId = "50000000-0000-4000-8000-000000000005";
+  const { view, router } = open(`/players/${formerGuestId}?game=four-shogi&mode=doubles`);
+  session().respond({ user: { ...signedIn, profileId: otherId } });
+  await flush();
+  profiles()[0]!.respond(player("four-shogi"));
+  await flush();
+  expect(router.state.location.pathname).toBe(usernamePath);
+  expect(router.state.location.state).toEqual({ expectedProfileId: playerId });
+  profiles()[1]!.respond({
+    ...player("four-shogi", otherId),
+    name: "再割り当て後の本人",
+    username: "public_player",
+  });
+  await flush();
+  expect(router.state.location.pathname).toBe(usernamePath);
+  expect(view.textContent).toContain("プロフィールを表示できません。");
+  expect(view.textContent).not.toContain("再割り当て後の本人");
+  expect(gameButtons(view)).toHaveLength(0);
+  expect(histories().some(({ url }) => url.includes(otherId))).toBe(false);
+  expect(ratings().some(({ url }) => url.includes(otherId))).toBe(false);
+});
+
+test("旧UUIDからの照合を公開IDの大小文字の正規化とゲーム・モード変更後も維持する", async () => {
+  const { view, router } = open();
+  session().respond({ user: null });
+  await flush();
+  profiles()[0]!.respond(player("four-reversi"));
+  await flush();
+  profiles()[1]!.respond(player("four-reversi"));
+  await flush();
+  const state = { expectedProfileId: playerId };
+  await act(async () =>
+    router.navigate("/users/@PUBLIC_PLAYER?game=four-reversi&mode=singles", {
+      state,
+      replace: true,
+    }),
+  );
+  expect(router.state.location.pathname).toBe(usernamePath);
+  expect(router.state.location.state).toEqual(state);
+  press(view, "ダブルス");
+  await flush();
+  expect(router.state.location.search).toBe("?game=four-reversi&mode=doubles");
+  expect(router.state.location.state).toEqual(state);
+  press(view, "リバーシ");
+  await flush();
+  expect(router.state.location.state).toEqual(state);
+  profiles()[2]!.respond({ ...player("reversi", otherId), username: "public_player" });
+  await flush();
+  expect(view.textContent).toContain("プロフィールを表示できません。");
+  expect(histories().some(({ url }) => url.includes(otherId))).toBe(false);
+  expect(ratings().some(({ url }) => url.includes(otherId))).toBe(false);
+});
+
+test("ゲストのUUIDリンクは公開ページのまま戦績と棋譜を表示する", async () => {
+  const { view, router } = open();
+  session().respond({ user: null });
+  await flush();
+  profiles()[0]!.respond({ ...player("four-reversi"), isGuest: true });
+  histories()[0]!.respond({ matches: [] });
+  await flush();
+  expect(router.state.location.pathname).toBe(pagePath);
+  expect(view.textContent).toContain("@public_playerゲスト");
+  expect(view.textContent).toContain("3局 1優勝 (.333)");
+  expect(view.textContent).toContain("このゲーム・モードの公開棋譜はありません。");
+});
+
+test.each(["/users/@ab", "/users/@%2Fabc", "/users/@unknown"])(
+  "無効または非公開の公開ページ %s ではプロフィールと棋譜を表示しない",
+  async (path) => {
+    const { view } = open(path);
+    session().respond({ user: null });
+    await flush();
+    if (path === "/users/@unknown") profiles()[0]!.respond({}, 404);
+    else expect(profiles()).toHaveLength(0);
+    await flush();
+    expect(view.textContent).toContain("プロフィールを表示できません。");
+    expect(histories()).toHaveLength(0);
+    expect(ratings()).toHaveLength(0);
+  },
+);

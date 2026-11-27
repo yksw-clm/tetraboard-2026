@@ -162,6 +162,7 @@ test("未完了プロフィールは初回設定へ誘導し、受付・公開�
     "/matches/example",
     "/tournaments/1",
     "/players/example",
+    "/users/@public_player",
   ]) {
     let location!: ReturnType<typeof useLocation>;
     function Probe() {

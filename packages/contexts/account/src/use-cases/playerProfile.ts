@@ -1,7 +1,7 @@
 import type {
   GameId,
   PlayerProfile,
-  PlayerProfileTarget,
+  PlayerProfileQueryTarget,
   ProfileRating,
   AccountStats,
 } from "@tetraboard/protocol";
@@ -9,7 +9,7 @@ import type { CurrentProfile } from "../domain/currentProfiles";
 import type { ProfilePolicy } from "../domain/profile";
 import type { AccountProfiles } from "./ports";
 import { readCurrentProfiles } from "./currentProfiles";
-export type PlayerProfileQuery = PlayerProfileTarget & {
+export type PlayerProfileQuery = PlayerProfileQueryTarget & {
   game: GameId;
   includeRating?: "1";
   includeBadges?: "1";
@@ -18,6 +18,10 @@ export type PlayerProfileQuery = PlayerProfileTarget & {
   includeShogiRating?: "1";
   includeReversiRating?: "1";
 };
+export type PlayerProfileAppearanceQuery = Extract<
+  PlayerProfileQuery,
+  { source: "room" | "match" }
+>;
 type AccountCard = Extract<PlayerProfile, { kind: "account" }>;
 export type ProfileFailure = { status: 400 | 404 | 410; message: string };
 export type ProfileSource =
@@ -32,7 +36,7 @@ export interface PlayerProfilePorts {
   profiles: AccountProfiles;
   policy: ProfilePolicy;
   validProfile(profile: CurrentProfile): boolean;
-  source(target: Exclude<PlayerProfileQuery, { source: "profile" }>): Promise<ProfileSource>;
+  source(target: PlayerProfileAppearanceQuery): Promise<ProfileSource>;
   stats(accountId: string, game: GameId): Promise<AccountStats>;
   rating(accountId: string, game: GameId): Promise<ProfileRating | undefined>;
   shogiRating(accountId: string): Promise<AccountCard["shogiRating"]>;
@@ -57,6 +61,17 @@ export async function readPlayerProfile(
     const resolved = await resolvePublicPlayer(r, target.profileId);
     return resolved ? readAccountCard(r, target, resolved) : unavailable();
   }
+  if (target.source === "username") {
+    const accountId = await r.profiles.accountIdByUsername(target.username);
+    const resolved = await resolvePublicAccount(r, accountId);
+    if (!matchesUsername(resolved, accountId, target.username)) return unavailable();
+    const card = await readAccountCard(r, target, resolved);
+    const current = await resolvePublicAccount(r, accountId);
+    return matchesUsername(current, accountId, target.username) &&
+      current.profileId === resolved.profileId
+      ? card
+      : unavailable();
+  }
   const source = await r.source(target);
   if ("status" in source) return source;
   if (source.appearance?.kind === "cpu") return source.appearance;
@@ -64,6 +79,21 @@ export async function readPlayerProfile(
   if (source.appearance && !source.accountId) return source.appearance;
   const resolved = await resolvePublicAccount(r, source.accountId);
   return resolved ? readAccountCard(r, target, resolved, source.rating) : unavailable();
+}
+
+type ResolvedPublicAccount = NonNullable<Awaited<ReturnType<typeof resolvePublicAccount>>>;
+
+function matchesUsername(
+  player: ResolvedPublicAccount | null,
+  accountId: string | null,
+  username: string,
+): player is ResolvedPublicAccount {
+  return (
+    player !== null &&
+    player.accountId === accountId &&
+    !player.profile.isAnonymous &&
+    player.profile.username?.toLowerCase() === username
+  );
 }
 
 async function resolvePublicAccount(r: PublicProfileReader, sourceId: string | null) {
@@ -78,12 +108,13 @@ async function resolvePublicAccount(r: PublicProfileReader, sourceId: string | n
 async function readAccountCard(
   r: PlayerProfilePorts,
   target: PlayerProfileQuery,
-  { accountId, profile, profileId }: NonNullable<Awaited<ReturnType<typeof resolvePublicAccount>>>,
+  { accountId, profile, profileId }: ResolvedPublicAccount,
   rating?: ProfileRating,
 ): Promise<PlayerProfile> {
   const stats = await r.stats(accountId, target.game);
   if (target.includeRating === "1" && !profile.isAnonymous) {
-    if (target.source === "profile") rating = await r.rating(accountId, target.game);
+    if (target.source === "profile" || target.source === "username")
+      rating = await r.rating(accountId, target.game);
   } else rating = undefined;
   const shogiRating =
     target.game === "shogi" && target.includeShogiRating === "1" && !profile.isAnonymous

@@ -221,13 +221,13 @@ export const router = createBrowserRouter([
         lazy: lazyMatchReplayPage(),
         hydrateFallbackElement: <AppPageLoading message="棋譜を読み込んでいます…" />,
       },
-      {
-        path: "/players/:profileId",
+      ...["/players/:profileId", "/users/:handle"].map((path) => ({
+        path,
         lazy: async () => ({
           Component: (await import("../features/players/PublicPlayerPage")).PublicPlayerPage,
         }),
         hydrateFallbackElement: <AppPageLoading message="プレイヤー情報を読み込んでいます…" />,
-      },
+      })),
       {
         path: "/matches/:matchId",
         id: "public-match",

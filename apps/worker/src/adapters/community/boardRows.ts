@@ -1,4 +1,5 @@
 import { boardPostVisibility } from "@tetraboard/context-community";
+import { profileInputSchema } from "@tetraboard/protocol";
 import type { BoardPost, BoardReply } from "@tetraboard/protocol/board";
 import type { GameId } from "@tetraboard/protocol/games";
 import { accountNotDeletedSql } from "../../db/deletionGuard";
@@ -20,6 +21,7 @@ export const boardPostColumns = `p.id,n.number AS publicNumber,p.game_id AS game
  CASE WHEN u.id IS NOT NULL THEN p.match_id END AS matchId,
  CASE WHEN u.id IS NOT NULL THEN p.position END AS position,
  u.id AS accountId,u.name,u.avatarKey,u.avatarPresetId,u.publicProfileId,
+ u.username,u.isAnonymous,u.profileCompleted,
  (SELECT COUNT(*) ${boardLiveRepliesSql}) AS replyCount,${boardLikeColumns}`;
 
 export const boardPostFrom = `FROM board_posts p LEFT JOIN board_post_numbers n ON n.post_id=p.id
@@ -42,6 +44,9 @@ export type BoardRow = {
   avatarKey: string | null;
   avatarPresetId: string | null;
   publicProfileId: string | null;
+  username: string | null;
+  isAnonymous: number | null;
+  profileCompleted: number | null;
   likeCount: number;
   liked: number;
 };
@@ -49,6 +54,13 @@ export type BoardRow = {
 export function boardReply(row: BoardRow, viewer: string | null): BoardReply {
   const { id, postedAtMs, text, accountId, name, avatarKey, avatarPresetId, publicProfileId } = row;
   if (text === null || accountId === null || name === null) throw new Error("Missing board author");
+  const profile = row.isAnonymous
+    ? null
+    : profileInputSchema.safeParse({ name, username: row.username }).data;
+  const profileTarget =
+    publicProfileId && row.profileCompleted && (row.isAnonymous || profile)
+      ? { source: "profile" as const, profileId: publicProfileId }
+      : null;
   return {
     id,
     postedAtMs,
@@ -60,7 +72,8 @@ export function boardReply(row: BoardRow, viewer: string | null): BoardReply {
     author: {
       name,
       avatarUrl: accountAvatarUrl({ id: accountId, avatarKey, avatarPresetId }),
-      profileTarget: publicProfileId ? { source: "profile", profileId: publicProfileId } : null,
+      profileTarget,
+      ...(profileTarget && profile ? { username: profile.username } : {}),
     },
     likeCount: row.likeCount,
     liked: Boolean(row.liked),

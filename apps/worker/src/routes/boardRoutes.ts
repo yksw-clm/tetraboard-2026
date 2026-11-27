@@ -5,6 +5,7 @@ import {
   type BoardDestination,
 } from "@tetraboard/context-community";
 import {
+  boardAuthorUsernameHeader,
   boardDetailSchema,
   boardLikeResultSchema,
   boardPostIdSchema,
@@ -62,10 +63,16 @@ function wantsAttachments(c: Context<BoardEnv>) {
   return flags?.length === 1 && flags[0] === "1";
 }
 
-function withoutAttachment(entry: BoardPost | BoardReply | null) {
-  if (!entry || !("attachment" in entry)) return entry;
-  const { attachment: _attachment, ...original } = entry;
-  return original;
+function boardEntryResponse(c: Context<BoardEnv>, entry: BoardPost | BoardReply | null) {
+  if (!entry || !("author" in entry)) return entry;
+  const { attachment, author, ...fields } = entry;
+  // 旧クライアントでも投稿者の厳密な応答スキーマを通るようにします。
+  const { username: _username, ...legacyAuthor } = author;
+  return {
+    ...fields,
+    ...(wantsAttachments(c) ? { attachment } : {}),
+    author: c.req.header(boardAuthorUsernameHeader) === "1" ? author : legacyAuthor,
+  };
 }
 
 boardRoutes.get(gamePath, async (c) => {
@@ -81,9 +88,10 @@ boardRoutes.get(gamePath, async (c) => {
     before,
   );
   return c.json(
-    boardTimelineSchema.parse(
-      query.data.includeAttachments ? page : { ...page, posts: page.posts.map(withoutAttachment) },
-    ),
+    boardTimelineSchema.parse({
+      ...page,
+      posts: page.posts.map((post) => boardEntryResponse(c, post)),
+    }),
   );
 });
 
@@ -99,16 +107,11 @@ boardRoutes.get("/posts/:id", async (c) => {
   );
   if (!page) return c.notFound();
   const { indexable, ...detail } = page;
-  const response = wantsAttachments(c)
-    ? detail
-    : {
-        ...detail,
-        post: withoutAttachment(detail.post),
-        replies: detail.replies.map(withoutAttachment),
-      };
   return c.json(
     boardDetailSchema.parse({
-      ...response,
+      ...detail,
+      post: boardEntryResponse(c, detail.post),
+      replies: detail.replies.map((reply) => boardEntryResponse(c, reply)),
       ...(c.req.query("includeIndexable") === "1" && { indexable }),
     }),
   );
@@ -126,11 +129,10 @@ boardRoutes.get("/posts/:id/replies", async (c) => {
   );
   if (!page) return c.notFound();
   return c.json(
-    boardRepliesSchema.parse(
-      query.data.includeAttachments
-        ? page
-        : { ...page, replies: page.replies.map(withoutAttachment) },
-    ),
+    boardRepliesSchema.parse({
+      ...page,
+      replies: page.replies.map((reply) => boardEntryResponse(c, reply)),
+    }),
   );
 });
 
@@ -180,7 +182,7 @@ async function submitPost(c: Context<BoardEnv>, destination: BoardDestination) {
     case "accepted": {
       const { post, reply, availableAtMs } = result;
       const entry = destination.parentId === null ? post : reply;
-      const response = wantsAttachments(c) ? entry : withoutAttachment(entry);
+      const response = boardEntryResponse(c, entry);
       return destination.parentId === null
         ? c.json(boardPostResultSchema.parse({ post: response, availableAtMs }))
         : c.json(boardReplyResultSchema.parse({ reply: response, availableAtMs }));

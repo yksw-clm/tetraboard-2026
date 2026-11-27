@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 export type PublicPlayerRequest<T> = { status: "loading" | "error" } | { status: "ready"; data: T };
 
 export function usePublicPlayerRequest<T>(
-  url: string,
+  url: string | null,
   schema: { parse(value: unknown): T },
   onUnavailable?: () => void,
 ) {
@@ -14,13 +14,15 @@ export function usePublicPlayerRequest<T>(
     result: PublicPlayerRequest<T>;
   }>();
   useEffect(() => {
+    const url = request.url;
+    if (url === null) return;
     const controller = new AbortController();
     const complete = (result: PublicPlayerRequest<T>) => {
       if (!controller.signal.aborted) setResponse({ request, result });
     };
     void (async () => {
       try {
-        const reply = await fetch(request.url, { cache: "no-store", signal: controller.signal });
+        const reply = await fetch(url, { cache: "no-store", signal: controller.signal });
         if (controller.signal.aborted) return;
         if (reply.status === 404 && onUnavailable) onUnavailable();
         else if (!reply.ok) complete({ status: "error" });

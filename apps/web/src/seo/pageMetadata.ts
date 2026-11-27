@@ -1,5 +1,6 @@
 import { boardPostPath } from "@tetraboard/protocol/board-presentation";
 import { fourShogiRulesPath, type GameId } from "@tetraboard/protocol/games";
+import { publicPlayerPagePathPattern } from "@tetraboard/protocol";
 import type { DataRouter } from "react-router";
 import type { RoomLoaderData } from "../features/room/roomLoader";
 import type { MatchReplayData } from "../features/room/matchReplayLoader";
@@ -126,7 +127,7 @@ export function updatePageMetadata(
     (path === "/" ? generalLobbyMetadata : game ? lobbyMetadata[game] : null);
   const legalDocument =
     path === "/terms" ? legalDocuments.terms : path === "/privacy" ? legalDocuments.privacy : null;
-  const isPlayer = /^\/players\/[^/]+$/.test(currentPath);
+  const isPlayer = publicPlayerPagePathPattern.test(currentPath);
   document.title = legalDocument
     ? `${legalDocument.title} | TetraBoard`
     : (metadata?.title ??

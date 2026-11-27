@@ -394,11 +394,12 @@ test("ロビーでアバターと名前を押すと投稿のゲームの公開�
   first.gameId = "four-reversi";
   const profileId = post(2).id;
   first.author.profileTarget = { source: "profile", profileId };
+  first.author.username = "lobby_author";
   const {
     view,
     cards: [card],
   } = await showPosts(viewer, first);
-  const playerPath = `/players/${profileId}?game=four-reversi&mode=singles`;
+  const playerPath = "/users/@lobby_author?game=four-reversi&mode=singles";
   const profile = card!.querySelector<HTMLAnchorElement>(`a[href="${playerPath}"]`)!;
   const detail = card!.querySelector<HTMLAnchorElement>(`a[href="/posts/${first.publicNumber}"]`)!;
   expect(profile?.textContent).toBe(first.author.name);

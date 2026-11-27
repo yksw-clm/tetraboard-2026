@@ -40,6 +40,7 @@ const region = () => document.querySelector<HTMLElement>('[role="region"]');
 
 test.each([
   { path: "/games/four-shogi", kind: "登録者", newTab: false },
+  { path: "/matches/record", kind: "登録者", newTab: false },
   { path: "/matches/record", kind: "ゲスト", newTab: false },
   { path: "/rooms/12345", kind: "登録者", newTab: true },
 ])(
@@ -72,7 +73,8 @@ test.each([
     await flush();
     expect(region()!.querySelectorAll("a")).toHaveLength(1);
     const link = region()!.querySelector("a")!;
-    expect(link.getAttribute("href")).toBe(`/players/${id}?game=four-shogi&mode=doubles`);
+    const playerPath = kind === "ゲスト" ? `/players/${id}` : "/users/@current_id";
+    expect(link.getAttribute("href")).toBe(`${playerPath}?game=four-shogi&mode=doubles`);
     expect(link.textContent).toBe(profile.name);
     expect(link.getAttribute("target")).toBe(newTab ? "_blank" : null);
     const description = link.getAttribute("aria-describedby");
@@ -92,7 +94,9 @@ test.each([
     act(() => button.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
     await flush();
     expect(document.activeElement === region()).toBe(true);
-    expect(region()!.querySelector("a")?.getAttribute("href")).toContain(id);
+    expect(region()!.querySelector("a")?.getAttribute("href")).toBe(
+      `${playerPath}?game=four-shogi&mode=doubles`,
+    );
   },
 );
 

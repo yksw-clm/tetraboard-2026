@@ -1,9 +1,9 @@
-import { getPlayerProfileContract, type PlayerProfileTarget } from "@tetraboard/protocol";
+import { getPlayerProfileContract, type PlayerProfileQueryTarget } from "@tetraboard/protocol";
 import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import type { RoomMode } from "@tetraboard/protocol";
 
 export function playerProfileApiUrl(
-  target: PlayerProfileTarget,
+  target: PlayerProfileQueryTarget,
   game: GameId,
   { includeRating = true } = {},
 ) {
@@ -24,6 +24,17 @@ export function playerGameQuery(game: GameId, mode: RoomMode) {
   return query;
 }
 
-export function playerPagePath(profileId: string, game: GameId, mode: RoomMode) {
-  return `/players/${profileId}?${playerGameQuery(game, mode)}`;
+export function playerUsernamePath(username: string) {
+  return `/users/@${encodeURIComponent(username)}`;
+}
+
+export function playerPagePath(
+  profile: { profileId: string; username?: string | null },
+  game: GameId,
+  mode: RoomMode,
+) {
+  const path = profile.username
+    ? playerUsernamePath(profile.username)
+    : `/players/${profile.profileId}`;
+  return `${path}?${playerGameQuery(game, mode)}`;
 }

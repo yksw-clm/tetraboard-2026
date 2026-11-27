@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { usernameSchema } from "./accounts";
 import { boardPostIdSchema, boardPostNumberSchema } from "./boardIds";
 import { gameIdSchema } from "./gameSchemas";
 import { getPublicMatchContract } from "./matches";
@@ -31,10 +32,13 @@ export const boardPostInputSchema = z.strictObject({
   attachment: boardAttachmentSchema.optional(),
 });
 
+export const boardAuthorUsernameHeader = "X-Tetraboard-Board-Author-Username";
+
 export const boardAuthorSchema = z.strictObject({
   name: z.string(),
   avatarUrl: z.string().nullable(),
   profileTarget: playerProfileReferenceSchema.nullable(),
+  username: usernameSchema.optional(),
 });
 
 const timestampSchema = z.int().nonnegative();

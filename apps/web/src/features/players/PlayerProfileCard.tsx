@@ -51,7 +51,7 @@ export function PlayerProfileCard({
       </div>
     );
   const name = profile.kind === "cpu" ? (profile.name ?? `CPU Lv${profile.level}`) : profile.name;
-  const linkedProfile = state.profile?.kind === "account" && state.profile.profileId;
+  const linkedProfile = state.profile?.kind === "account" ? state.profile : null;
   return (
     <div className="flex flex-col gap-3">
       <div className="flex min-w-0 items-center gap-3 pr-8">
@@ -63,7 +63,7 @@ export function PlayerProfileCard({
         />
         <div className="min-w-0">
           {linkedProfile ? (
-            <PlayerNameLink name={name} profileId={linkedProfile} game={game} mode={mode} />
+            <PlayerNameLink profile={linkedProfile} game={game} mode={mode} />
           ) : (
             <p className="m-0 font-bold wrap-anywhere">{name}</p>
           )}
@@ -126,13 +126,11 @@ export function PlayerProfileCard({
 }
 
 function PlayerNameLink({
-  name,
-  profileId,
+  profile,
   game,
   mode,
 }: {
-  name: string;
-  profileId: string;
+  profile: PublicAccountProfile;
   game: GameId;
   mode: RoomMode;
 }) {
@@ -142,13 +140,17 @@ function PlayerNameLink({
     <>
       <p className="m-0 font-bold wrap-anywhere">
         <Link
-          to={playerPagePath(profileId, game, mode)}
+          to={playerPagePath(
+            { profileId: profile.profileId, username: profile.isGuest ? null : profile.username },
+            game,
+            mode,
+          )}
           className="rounded-sm text-brand underline underline-offset-2 focus-visible:outline-[3px] focus-visible:outline-focus focus-visible:outline-offset-2"
           target={isRoom ? "_blank" : undefined}
           rel={isRoom ? "noopener noreferrer" : undefined}
           aria-describedby={isRoom ? descriptionId : undefined}
         >
-          {name}
+          {profile.name}
         </Link>
       </p>
       {isRoom && (
