@@ -8,8 +8,19 @@ import { lastLobbyGame, lastLobbyGameKey } from "../src/shared/lastLobbyGame";
 import { HowToPlayPage } from "../src/features/help/HowToPlayPage";
 import { profile } from "../test/fixtures/account";
 import { AccountLayout } from "../src/features/account/AccountSession";
+import { AccountContext } from "../src/features/account/useAccount";
 import { guestProfile } from "./guestAccountFixtures";
 import { act, flush, render, requests, rerender, wrap } from "./harness";
+
+function renderNavigation(router: ReturnType<typeof createMemoryRouter>) {
+  return render(
+    <AccountContext.Provider
+      value={{ user: null, loading: false, error: null, refresh: async () => {}, update: () => {} }}
+    >
+      <RouterProvider router={router} />
+    </AccountContext.Provider>,
+  );
+}
 
 test("ヘッダーと下タブは共通の移動先・現在地・直近ゲームを遷移と戻る操作で保つ", async () => {
   lastLobbyGame.sync(null);
@@ -25,7 +36,7 @@ test("ヘッダーと下タブは共通の移動先・現在地・直近ゲー�
       children: [{ path: "*", element: <div /> }],
     },
   ]);
-  const view = render(<RouterProvider router={router} />);
+  const view = renderNavigation(router);
   const nav = () => view.querySelector<HTMLElement>('[aria-label="メインナビゲーション"]')!;
   const mobile = () => view.querySelector<HTMLElement>('[aria-label="下部ナビゲーション"]')!;
   try {
@@ -87,7 +98,7 @@ test.each([
       ],
       { initialEntries: [path] },
     );
-    const view = render(<RouterProvider router={router} />);
+    const view = renderNavigation(router);
     const lobbyPath = gameCatalog["four-shogi"].lobbyPath;
     try {
       for (const label of ["メインナビゲーション", "下部ナビゲーション"]) {

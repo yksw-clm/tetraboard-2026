@@ -37,7 +37,7 @@ export function PublicPlayerPage() {
 
   return (
     <div className={`app-theme lobby-background min-h-dvh text-ink ${appThemeClasses[theme]}`}>
-      <AppHeader homeTo="/" homeLabel="TetraBoard ロビー" theme={theme} showAccountMenu />
+      <AppHeader homeTo="/" homeLabel="TetraBoard ロビー" theme={theme} />
       <main className={`${appPageWidthClasses} flex flex-col gap-5 py-6 sm:py-8`}>
         {unavailableProfiles.has(profileId) ? (
           <AppCard>

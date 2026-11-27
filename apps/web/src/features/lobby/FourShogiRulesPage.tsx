@@ -71,7 +71,7 @@ export function FourShogiRulesPage({
     >
       {header ?? (
         <div className="app-theme">
-          <AppHeader homeTo="/" homeLabel="TetraBoard ホーム" showAccountMenu />
+          <AppHeader homeTo="/" homeLabel="TetraBoard ホーム" />
         </div>
       )}
       <main className="mx-auto flex max-w-[920px] flex-col gap-6 px-5 py-8">

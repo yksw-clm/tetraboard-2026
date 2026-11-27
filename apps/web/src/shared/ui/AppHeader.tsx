@@ -17,7 +17,6 @@ export function AppHeader({
   onLogoClick,
   onNavigate,
   children,
-  showAccountMenu,
   theme,
 }: {
   homeTo: string;
@@ -25,7 +24,6 @@ export function AppHeader({
   onLogoClick?: MouseEventHandler<HTMLAnchorElement>;
   onNavigate?: AppNavigationHandler;
   children?: ReactNode;
-  showAccountMenu?: boolean;
   theme?: AppTheme;
 }) {
   const { tournaments } = useActiveTournaments();
@@ -92,16 +90,7 @@ export function AppHeader({
                 </span>
               </Link>
             )}
-            <div className="[@media(max-width:767px)]:hidden">
-              {children ??
-                (showAccountMenu ? (
-                  <AccountMenu />
-                ) : (
-                  <span className="text-xs tracking-[0.06em] text-muted [@media(max-width:650px)]:hidden">
-                    4人の遊びを、もっと気軽に。
-                  </span>
-                ))}
-            </div>
+            <div className="[@media(max-width:767px)]:hidden">{children ?? <AccountMenu />}</div>
             <NotificationBell />
             <BrowserSettingsButton theme={theme} />
           </div>
