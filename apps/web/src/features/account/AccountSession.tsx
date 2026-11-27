@@ -4,7 +4,7 @@ import { GuestMergeConfirmation } from "./GuestAccountControls";
 import { accountPrivacyEvent } from "./accountPrivacy";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Navigate, Outlet, useLocation, useNavigationType } from "react-router";
-import type { AccountProfile } from "@tetraboard/protocol";
+import { publicPlayerPagePathPattern, type AccountProfile } from "@tetraboard/protocol";
 import {
   accountRequestGeneration,
   advanceAccountRequestGeneration,
@@ -204,7 +204,8 @@ export function AccountLayout() {
             !/^\/tournaments\/[1-9]\d*\/?$/.test(location.pathname) &&
             !boardPagePathPattern.test(location.pathname) &&
             !/^\/updates(?:\/[^/]+)?\/?$/.test(location.pathname) &&
-            !/^\/(?:matches|players)\/[^/]+\/?$/.test(location.pathname) &&
+            !/^\/matches\/[^/]+\/?$/.test(location.pathname) &&
+            !publicPlayerPagePathPattern.test(location.pathname) &&
             !(
               location.pathname === "/login" &&
               new URLSearchParams(location.search).get("destination") === "admin"

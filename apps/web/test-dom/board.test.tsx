@@ -190,6 +190,7 @@ function show(entry = timelinePath, viewer: AccountProfile | null = user) {
         <Route path="/posts/:id" element={<BoardDetailPage />} />
         <Route path="/matches/:id" element={<Destination />} />
         <Route path="/players/:profileId" element={<Destination />} />
+        <Route path="/users/:handle" element={<Destination />} />
       </Routes>,
     ),
   );
@@ -1919,10 +1920,11 @@ test("タイムラインの投稿者リンクはカードの詳細リンクか�
     name: "現在名",
     avatarUrl: null,
     profileTarget: { source: "profile" as const, profileId },
+    username: "current_author",
   };
   await respond(timeline([post(1, "投稿", { author }), post(2, "プロフィールなし")]));
   const [withProfile, withoutProfile] = articles(view);
-  const playerPath = `/players/${profileId}?game=four-shogi&mode=singles`;
+  const playerPath = "/users/@current_author?game=four-shogi&mode=singles";
   const link = withProfile!.querySelector<HTMLAnchorElement>(`a[href="${playerPath}"]`)!;
   expect(link?.textContent).toBe(author.name);
   expect(link.querySelector("svg")).not.toBeNull();
@@ -1930,7 +1932,9 @@ test("タイムラインの投稿者リンクはカードの詳細リンクか�
   expect(expectDetailLink(withProfile!, postPath).contains(link)).toBe(false);
   expectDetailLink(withoutProfile!, "/posts/1002");
   expect(withoutProfile?.querySelector("header")?.textContent).toContain("投稿者");
-  expect(withoutProfile?.querySelector('header a[href^="/players/"], header button')).toBeNull();
+  expect(
+    withoutProfile?.querySelector('header a[href^="/users/"], header a[href^="/players/"]'),
+  ).toBeNull();
   await act(async () => link.click());
   expect(view.textContent).toBe(playerPath);
   expect(requests.map(({ url }) => url)).toEqual([timelineUrl]);
@@ -1945,6 +1949,7 @@ test("詳細の投稿と返信は表示中のゲームでそれぞれの公開�
       name: "投稿者名",
       avatarUrl: null,
       profileTarget: { source: "profile", profileId: uuid(4) },
+      username: "parent_author",
     },
   });
   const child = reply(2, "返信", {
@@ -1952,12 +1957,13 @@ test("詳細の投稿と返信は表示中のゲームでそれぞれの公開�
       name: "返信者名",
       avatarUrl: null,
       profileTarget: { source: "profile", profileId: uuid(5) },
+      username: "reply_author",
     },
   });
   await respond(thread(parent, [child, reply(3, "プロフィールなし")]));
   const [postCard, replyCard, withoutProfile] = articles(view);
-  const parentPath = `/players/${uuid(4)}?game=reversi`;
-  const replyPath = `/players/${uuid(5)}?game=reversi`;
+  const parentPath = "/users/@parent_author?game=reversi";
+  const replyPath = "/users/@reply_author?game=reversi";
   expect(postCard?.querySelector(`a[href="${parentPath}"]`)?.textContent).toBe(parent.author.name);
   const link = replyCard!.querySelector<HTMLAnchorElement>(`a[href="${replyPath}"]`)!;
   expect(link?.textContent).toBe(child.author.name);

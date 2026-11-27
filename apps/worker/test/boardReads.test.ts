@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { boardPostVisibility } from "@tetraboard/context-community";
 import {
+  boardAuthorUsernameHeader,
   boardDetailSchema,
   boardLikeResultSchema,
   boardRepliesSchema,
@@ -23,6 +24,38 @@ import {
 } from "./boardFixtures";
 
 afterEach(resetBoard);
+
+test("指定時だけ投稿と返信に現在の公開IDを追加し、非公開の参照を除く", async () => {
+  const author = await accountFixture();
+  const replyAuthor = await accountFixture();
+  const post = boardPostFixture({ accountId: author.id, text: "親投稿" });
+  const reply = boardPostFixture({ accountId: replyAuthor.id, parentId: post.id });
+  await env.APP_DB.batch([
+    post.statement,
+    reply.statement,
+    env.APP_DB.prepare("UPDATE user SET username=? WHERE id=?").bind("New_Author", author.id),
+  ]);
+
+  expect((await detail(post.id)).post).toMatchObject({
+    author: { profileTarget: { source: "profile" } },
+  });
+  expect(JSON.stringify(await detail(post.id))).not.toContain('"username"');
+  const headers = { [boardAuthorUsernameHeader]: "1" };
+  const page = boardDetailSchema.parse(
+    await (await boardRequest(postPath(post.id), { headers })).json(),
+  );
+  expect(page.post).toMatchObject({ author: { username: "new_author" } });
+  expect(page.replies[0]).toMatchObject({ author: { username: replyAuthor.username } });
+  expect(JSON.stringify(page)).not.toContain(author.id);
+  expect(JSON.stringify(page)).not.toContain(replyAuthor.id);
+
+  await env.APP_DB.prepare("UPDATE user SET profileCompleted=0 WHERE id=?").bind(author.id).run();
+  const current = boardDetailSchema.parse(
+    await (await boardRequest(postPath(post.id), { headers })).json(),
+  );
+  expect(current.post).toMatchObject({ author: { profileTarget: null } });
+  if (current.post.status === "published") expect(current.post.author.username).toBeUndefined();
+});
 
 test("タイムラインはゲームごとに投稿日時とIDの降順で、返信によって順番を変えない", async () => {
   const { id: accountId } = await accountFixture();

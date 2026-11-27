@@ -1197,7 +1197,7 @@ Workerテストで両ゲーム・両モードの人間4人、CPU1〜3人の過�
 
 ## 公開プレイヤー情報
 
-公開ページ `/players/:profileId` の入口は Web の [PublicPlayerPage.tsx](../apps/web/src/features/players/PublicPlayerPage.tsx) と Worker の [playerProfileRoutes.ts](../apps/worker/src/routes/playerProfileRoutes.ts) です。プロフィールと戦績は `GET /api/player-profile?source=profile&profileId=…&game=…` の公開オプションを使い、モード切替は取得済みの戦績を使います。プロフィール・棋譜のどちらかが404を返した場合、公開参照UUID単位で閲覧不可を保持し、そのUUIDの表示データと進行中の取得を破棄します。公開ページ内でゲームやモードを変える履歴移動でも閲覧不可を維持します。ページはSPAで配信し、HTTPヘッダーと画面に `noindex` を指定します。
+公開ページ `/users/@id` と `/players/:profileId` の入口は Web の [PublicPlayerPage.tsx](../apps/web/src/features/players/PublicPlayerPage.tsx) と Worker の [playerProfileRoutes.ts](../apps/worker/src/routes/playerProfileRoutes.ts) です。前者は公開ID、後者は公開参照UUIDで対象を解決し、取得できた公開UUIDで棋譜と4ゲームのレートを読みます。モード切替は取得済みの戦績を使います。プロフィール・棋譜のどちらかが404を返した場合、開いている公開IDまたは公開参照UUID単位で閲覧不可を保持し、表示データと進行中の取得を破棄します。公開ページ内の履歴移動でも閲覧不可を維持します。ページはSPAで配信し、HTTPヘッダーと画面に `noindex` を指定します。
 
 `GET /api/players/:profileId/matches?game=…&mode=…` は認証不要です。`game` は必須で、`mode` は四人ゲームだけに指定します。account 文脈が公開プロフィールと同じ条件で対象・統合先を解決し、record 文脈の `readMatchHistory` が参加索引と保存済み対局から公開要約を生成します。応答直前に公開可否と解決先を再照合し、読取中の退会や統合で対象が変わった場合は404を返します。応答は `{ matches: MatchSummary[] }` で、全応答が `no-store` です。条件不正は400、閲覧できない対象は404、取得障害は503を返します。
 
@@ -1213,7 +1213,7 @@ Webのキャッシュは対局・部屋世代・参加者の参照元を維持�
 
 `0010_player_profiles.sql` は `user.publicProfileId` の一意UUIDと `room_index` の部屋世代・ホストID列を追加します。内部アカウントIDと変更可能な公開IDから独立した参照キーを既存ユーザーへ付与し、プロフィール保存では未設定の場合だけ生成します。ゲスト作成・プロフィール完了時に公開参照IDを確定し、プロフィール・ランキングGETでは補完UPDATEを行いません。公開対象のID欠落はデータ不整合として503にします。2026-11-06に本番232件・開発12件とも欠落0件を確認しています。
 
-`GET /api/player-profile` はゲームと参照種別を必須にします。`source=room` は `roomId, instanceId, playerId`、`source=match` は `matchId, playerId`、`source=profile` は `profileId` を渡します。GameRoom内部の参加者・アカウント対応、保存記録、公開参照キーをサーバーで照合します。名前や画像で本人を判定せず、内部IDはHTTP・WebSocketへ返しません。省略可能な `includeStats=1` を指定した場合は、平均順位・勝敗分・撃破数の表示に必要な既存 `AccountStats` の全項目を返します。追加指定がない場合、登録者には現在のプロフィールと対象ゲームの `{ singles: { total, first }, doubles: { total, wins } }` だけを返し、既存の `readAccountStats` を呼びます。ゲスト・CPUを区別し、不正400、対象なし404、部屋世代変更410、障害503、全応答no-storeです。対局のWebSocket配信へD1取得を追加しません。
+`GET /api/player-profile` はゲームと参照種別を必須にします。`source=room` は `roomId, instanceId, playerId`、`source=match` は `matchId, playerId`、`source=profile` は `profileId`、`source=username` は `username` を渡します。公開IDからの解決は公開可能な登録者を対象にします。GameRoom内部の参加者・アカウント対応、保存記録、公開参照キーをサーバーで照合します。名前や画像で本人を判定せず、内部IDはHTTP・WebSocketへ返しません。省略可能な `includeStats=1` を指定した場合は、平均順位・勝敗分・撃破数の表示に必要な既存 `AccountStats` の全項目を返します。追加指定がない場合、登録者には現在のプロフィールと対象ゲームの `{ singles: { total, first }, doubles: { total, wins } }` だけを返し、既存の `readAccountStats` を呼びます。ゲスト・CPUを区別し、不正400、対象なし404、部屋世代変更410、障害503、全応答no-storeです。対局のWebSocket配信へD1取得を追加しません。
 
 ロビー・ランキングは `profilePreview=1` の要求にだけ参照情報を追加します。通常の応答は従来の形で、旧Workerの400では通常取得へ戻ります。ロビーの古い索引で参照情報がない行は `getPublicMetadata` で現在の部屋世代とホストへ補完し、閉鎖済みを除外します。参照のない旧応答をゲストと判断しません。
 

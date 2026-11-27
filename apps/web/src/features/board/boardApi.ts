@@ -1,4 +1,5 @@
 import {
+  boardAuthorUsernameHeader,
   boardTimelineSchema,
   boardDetailSchema,
   boardRepliesSchema,
@@ -52,7 +53,9 @@ export function boardEntriesRequest(
   query?: { before: string } | { after: string } | { includeIndexable: "1" },
 ) {
   const search = new URLSearchParams({ includeAttachments: "1", ...query });
-  return boardRequest(`${path}?${search}`, init, fallback);
+  const headers = new Headers(init.headers);
+  headers.set(boardAuthorUsernameHeader, "1");
+  return boardRequest(`${path}?${search}`, { ...init, headers }, fallback);
 }
 
 export async function readTimeline(game: GameId, signal: AbortSignal, before?: string) {

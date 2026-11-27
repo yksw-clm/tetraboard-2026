@@ -52,34 +52,29 @@ export const playerProfileTargetSchema = z.discriminatedUnion("source", [
   playerProfileReferenceSchema,
 ]);
 export type PlayerProfileTarget = z.infer<typeof playerProfileTargetSchema>;
+const playerUsernameReferenceSchema = z.strictObject({
+  source: z.literal("username"),
+  username: usernameSchema,
+});
+export type PlayerProfileQueryTarget =
+  | PlayerProfileTarget
+  | z.infer<typeof playerUsernameReferenceSchema>;
+export const publicPlayerPagePathPattern = /^\/(?:players\/[^/]+|users\/(?:@|%40)[^/]*)\/?$/;
+
+const playerProfileQueryOptions = {
+  game: gameIdSchema,
+  includeRating: z.literal("1").optional(),
+  includeBadges: z.literal("1").optional(),
+  includeStats: z.literal("1").optional(),
+  includeDetails: z.literal("1").optional(),
+  includeShogiRating: z.literal("1").optional(),
+  includeReversiRating: z.literal("1").optional(),
+};
 export const playerProfileQuerySchema = z.discriminatedUnion("source", [
-  playerProfileTargetSchema.options[0].extend({
-    game: gameIdSchema,
-    includeRating: z.literal("1").optional(),
-    includeBadges: z.literal("1").optional(),
-    includeStats: z.literal("1").optional(),
-    includeDetails: z.literal("1").optional(),
-    includeShogiRating: z.literal("1").optional(),
-    includeReversiRating: z.literal("1").optional(),
-  }),
-  playerProfileTargetSchema.options[1].extend({
-    game: gameIdSchema,
-    includeRating: z.literal("1").optional(),
-    includeBadges: z.literal("1").optional(),
-    includeStats: z.literal("1").optional(),
-    includeDetails: z.literal("1").optional(),
-    includeShogiRating: z.literal("1").optional(),
-    includeReversiRating: z.literal("1").optional(),
-  }),
-  playerProfileReferenceSchema.extend({
-    game: gameIdSchema,
-    includeRating: z.literal("1").optional(),
-    includeBadges: z.literal("1").optional(),
-    includeStats: z.literal("1").optional(),
-    includeDetails: z.literal("1").optional(),
-    includeShogiRating: z.literal("1").optional(),
-    includeReversiRating: z.literal("1").optional(),
-  }),
+  playerProfileTargetSchema.options[0].extend(playerProfileQueryOptions),
+  playerProfileTargetSchema.options[1].extend(playerProfileQueryOptions),
+  playerProfileReferenceSchema.extend(playerProfileQueryOptions),
+  playerUsernameReferenceSchema.extend(playerProfileQueryOptions),
 ]);
 const count = z.int().nonnegative();
 export const playerProfileSchema = z.discriminatedUnion("kind", [

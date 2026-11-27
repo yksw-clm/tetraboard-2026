@@ -1,4 +1,5 @@
 import { legalHtml } from "./routes/legalHtml";
+import { publicPlayerPagePathPattern } from "@tetraboard/protocol";
 import { parseBoardPostNumber } from "@tetraboard/protocol/board";
 import { boardPostPath } from "@tetraboard/protocol/board-presentation";
 import { fourShogiRulesPath, gameCatalog, gameIds, isGameId } from "@tetraboard/protocol/games";
@@ -42,7 +43,8 @@ function isSpaPath(path: string) {
       "/games/four-reversi/matchmaking",
       "/games/shogi/matchmaking",
     ].includes(path.replace(/\/$/, "")) ||
-    /^\/(?:rooms|matches|players|updates)\/[^/]+\/?$/.test(path) ||
+    /^\/(?:rooms|matches|updates)\/[^/]+\/?$/.test(path) ||
+    publicPlayerPagePathPattern.test(path) ||
     tournamentDetailPath.test(path) ||
     /^\/account\/matches\/[^/]+\/?$/.test(path)
   );

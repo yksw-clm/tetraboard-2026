@@ -32,7 +32,11 @@ export function BoardAuthor({
 
   return (
     <Link
-      to={playerPagePath(target.profileId, game, "singles")}
+      to={playerPagePath(
+        { profileId: target.profileId, username: author.username },
+        game,
+        "singles",
+      )}
       className={`${authorClasses} relative z-10 rounded-control text-ink no-underline hover:underline underline-offset-2 focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2`}
     >
       {content}
