@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminApiError, adminRequest, adminAccessDeniedEvent } from "./api";
-export function useAdminData<T>(url: string, parse: (body: unknown) => T) {
+export function useAdminData<T>(url: string | null, parse: (body: unknown) => T) {
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<{
-    url: string;
+    url: string | null;
     data: T | null;
     loading: boolean;
     error: string | null;
     status?: number;
-  }>({ url, data: null, loading: true, error: null });
+  }>({ url, data: null, loading: url !== null, error: null });
   const activeRequest = useRef<AbortController | null>(null);
   const discard = useCallback(() => {
     activeRequest.current?.abort();
@@ -25,6 +25,7 @@ export function useAdminData<T>(url: string, parse: (body: unknown) => T) {
     return () => window.removeEventListener(adminAccessDeniedEvent, denied);
   }, []);
   useEffect(() => {
+    if (url === null) return;
     const controller = new AbortController();
     activeRequest.current = controller;
     // リクエスト先が変わった際は、以前の条件のデータを表示しません。
@@ -54,9 +55,9 @@ export function useAdminData<T>(url: string, parse: (body: unknown) => T) {
     return () => controller.abort();
   }, [url, parse, revision]);
   return {
-    ...(state.url === url
+    ...(url !== null && state.url === url
       ? state
-      : { url, data: null, loading: true, error: null, status: undefined }),
+      : { url, data: null, loading: url !== null, error: null, status: undefined }),
     refresh: () => setRevision((old) => old + 1),
     discard,
   };

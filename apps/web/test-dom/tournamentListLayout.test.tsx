@@ -6,7 +6,7 @@ import { GeneralLobbyPage } from "../src/features/lobby/GeneralLobbyPage";
 import { LobbyView } from "../src/features/lobby/LobbyView";
 import { profile } from "../test/fixtures/account";
 import { match } from "../test/fixtures/matchSummary";
-import { act, clock, enter, flush, render, requests, wrap } from "./harness";
+import { act, clock, flush, render, requests, wrap } from "./harness";
 
 const pastTournament = {
   id: 1,
@@ -30,7 +30,7 @@ function respondList(game: string) {
 const before = (first: Node, second: Node) =>
   expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-test("ホームの大会一覧は幅変更で位置だけを変え、チャットの下書きと取得済み一覧を保持する", async () => {
+test("ホームは旧チャットを取得せず、幅変更で大会と最近の対局の順を変えて取得済み一覧を保持する", async () => {
   let mobile = false;
   const events = new window.EventTarget();
   const matchMedia = spyOn(window, "matchMedia").mockImplementation(
@@ -74,17 +74,9 @@ test("ホームの大会一覧は幅変更で位置だけを変え、チャッ�
     requests
       .find(({ url }) => url.startsWith("/api/lobby/matches?"))!
       .respond({ matches: [match(1)] });
-    requests
-      .find(({ url }) => url.startsWith("/api/lobby/chat?"))!
-      .respond({
-        messages: [],
-        nextCursor: null,
-        acceptingPosts: true,
-        postingStopped: false,
-        availableAtMs: 0,
-        serverTimeMs: Date.now(),
-      });
     await flush();
+    expect(view.querySelector('[aria-labelledby="public-chat-title"]')).toBeNull();
+    expect(requests.some(({ url }) => url.startsWith("/api/lobby/chat"))).toBe(false);
     for (const section of [rooms, list, recent])
       expect(section.querySelector(".skeleton")).toBeNull();
     expect(recent.querySelector("article")).not.toBeNull();
@@ -96,27 +88,22 @@ test("ホームの大会一覧は幅変更で位置だけを変え、チャッ�
     filtered.respond({ matches: [] });
     await flush();
     expect(recent.textContent).toContain("対人戦の対局履歴がありません。");
-    const chat = view.querySelector('[aria-labelledby="public-chat-title"]')!;
     before(rooms, list);
-    before(list, chat);
-    before(chat, recent);
-    const input = view.querySelector<HTMLInputElement>("input[placeholder]")!;
-    enter(input, "幅を変えても保持する下書き");
+    before(list, recent);
     const requestCount = requests.length;
     mobile = true;
     act(() => events.dispatchEvent(new Event("change")));
     await flush();
-    before(rooms, chat);
-    before(chat, recent);
+    before(rooms, recent);
     before(recent, list);
     expect(view.querySelector('[aria-labelledby="tournament-list-all-title"]')).toBe(list);
-    expect(view.querySelector("input[placeholder]")).toBe(input);
-    expect(input.value).toBe("幅を変えても保持する下書き");
+    expect(view.querySelector('[aria-labelledby="recent-matches-title"]')).toBe(recent);
+    expect(recent.textContent).toContain("対人戦の対局履歴がありません。");
     expect(requests).toHaveLength(requestCount);
     mobile = false;
     act(() => events.dispatchEvent(new Event("change")));
     await flush();
-    before(list, chat);
+    before(list, recent);
     expect(requests).toHaveLength(requestCount);
   } finally {
     router.dispose();

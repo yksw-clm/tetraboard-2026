@@ -98,7 +98,8 @@ const worker = {
     // 画面・画像はアセットへ渡し、APIだけをHonoで処理します。
     if (env.ASSETS && url.pathname !== "/api" && !url.pathname.startsWith("/api/")) {
       const assetPath = normalizePublicAssetPath(url.pathname);
-      if (assetPath === null) {
+      // /api が付かない旧チャットも、アセットのメソッド判定より先に404を返します。
+      if (assetPath === null || /^\/lobby\/chat(?:\/reports)?\/?$/.test(assetPath)) {
         return new Response("Not Found", { status: 404, headers: { "Cache-Control": "no-store" } });
       }
       if (assetPath === "/admin" || assetPath.startsWith("/admin/")) {

@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import type { BoardModeration } from "@tetraboard/protocol/board";
-import { lobbyChatSchema } from "@tetraboard/protocol/general-lobby";
+import { tournamentChatSchema } from "@tetraboard/protocol/general-lobby";
 import { afterEach, expect, test } from "vitest";
 import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import { accountFixture, origin } from "./accountFixtures";
@@ -21,6 +21,8 @@ import {
 } from "./boardFixtures";
 import { fixTestTime } from "./fixedTimeFixture";
 import { processFixtureDeletion } from "./privacyFixtures";
+
+import { publishedChatTournament } from "./tournamentChatFixtures";
 
 const db = env.APP_DB;
 type Account = Awaited<ReturnType<typeof accountFixture>>;
@@ -244,17 +246,18 @@ test.each(["author", "withdrawn", "moderator"] as const)(
   },
 );
 
-test("掲示板の投稿停止・解除と全体の受付設定は投稿と返信に反映し、公開チャットと独立する", async () => {
+test("掲示板の投稿停止・解除と全体の受付設定は投稿と返信に反映し、大会チャットと独立する", async () => {
   const admin = await accountFixture();
   const author = await accountFixture();
   const parent = boardPostFixture({ accountId: admin.id });
   const authored = boardPostFixture({ accountId: author.id, parentId: parent.id });
   await db.batch([parent.statement, authored.statement]);
   expect((await reportPost(authored.id, admin.headers)).status).toBe(201);
+  const tournament = await publishedChatTournament(db, 74202);
   const readChat = async () =>
-    lobbyChatSchema.parse(
+    tournamentChatSchema.parse(
       await (
-        await boardRequest("/lobby/chat", {
+        await boardRequest(tournament.path, {
           headers: author.headers,
         })
       ).json(),
@@ -264,7 +267,7 @@ test("掲示板の投稿停止・解除と全体の受付設定は投稿と返�
     for (const path of [boardPath, repliesPath(parent.id)])
       expect((await sendToBoard(path)).status).toBe(403);
   };
-  const lobbyAccepting = (await readChat()).acceptingPosts;
+  const chatAccepting = (await readChat()).acceptingPosts;
   expect((await boardAdminPage(admin)).acceptingPosts).toBe(false);
   await rejectBoardWrites();
   await change(admin, { action: "accepting", accepting: true });
@@ -284,7 +287,7 @@ test("掲示板の投稿停止・解除と全体の受付設定は投稿と返�
     stoppedSenders: [{ accountId: author.id, name: "登録名" }],
   });
   await rejectBoardWrites();
-  expect(await readChat()).toMatchObject({ postingStopped: false, acceptingPosts: lobbyAccepting });
+  expect(await readChat()).toMatchObject({ postingStopped: false, acceptingPosts: chatAccepting });
 
   await change(admin, { action: "stop", postId: authored.id, stopped: false });
   expect((await boardAdminPage(admin)).stoppedSenders).toEqual([]);
@@ -320,5 +323,5 @@ test("掲示板の投稿停止・解除と全体の受付設定は投稿と返�
     .bind(author.id)
     .run();
   expect((await sendToBoard(boardPath)).status).toBe(200);
-  expect((await readChat()).acceptingPosts).toBe(lobbyAccepting);
+  expect((await readChat()).acceptingPosts).toBe(chatAccepting);
 });
