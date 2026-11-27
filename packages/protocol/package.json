@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./board": "./src/board.ts",
     "./board-pages": "./src/boardPages.ts",
+    "./board-presentation": "./src/boardPresentation.ts",
     "./general-lobby": "./src/generalLobby.ts",
     "./games": "./src/games.ts",
     "./room-sharing": "./src/roomSharing.ts",

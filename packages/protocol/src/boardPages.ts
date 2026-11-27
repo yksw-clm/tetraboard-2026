@@ -1,16 +1,9 @@
 import type { BoardPost, BoardPublishedPost, BoardReply } from "./board";
+import { boardPostExcerpt, boardPostPath } from "./boardPresentation";
 import { gameCatalog } from "./games";
 import { renderJsonLd } from "./structuredData";
 
-export const boardPostPath = (id: string) => `/posts/${encodeURIComponent(id)}`;
-
-const segmenter = new Intl.Segmenter("ja", { granularity: "grapheme" });
-
-function excerpt(characters: string[], limit: number) {
-  return characters.length > limit
-    ? `${characters.slice(0, limit).join("")}…`
-    : characters.join("");
-}
+export { boardPostPath };
 
 export function boardPostMetadata(origin: string, post: BoardPost) {
   const gameName = gameCatalog[post.gameId].name;
@@ -23,11 +16,9 @@ export function boardPostMetadata(origin: string, post: BoardPost) {
       canonical,
     };
   }
-  const normalized = post.text.replace(/\s+/g, " ").trim();
-  const characters = Array.from(segmenter.segment(normalized), ({ segment }) => segment);
   return {
-    title: `${excerpt(characters, 30)}${titleSuffix}`,
-    description: excerpt(characters, 120),
+    title: `${boardPostExcerpt(post.text, 30)}${titleSuffix}`,
+    description: boardPostExcerpt(post.text, 120),
     canonical,
   };
 }

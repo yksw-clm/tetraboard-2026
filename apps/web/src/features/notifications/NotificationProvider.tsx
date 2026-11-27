@@ -9,11 +9,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import {
-  notificationListSchema,
-  notificationUnreadSchema,
-  type Notification,
-} from "@tetraboard/protocol";
+import { notificationUnreadSchema, type Notification } from "@tetraboard/protocol";
 import { useAccount } from "../account/useAccount";
 import { NotificationContext } from "./NotificationContext";
 import { NotificationCache } from "./notificationCache";
@@ -107,6 +103,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     },
     [valid, scope],
   );
+  const requestList = useCallback(
+    async (path: string) => {
+      // API と表示用コードを並行取得し、ベルを開く前に返信タイトルまで用意します。
+      const [value, responses] = await Promise.all([
+        request(path),
+        import("./notificationResponses"),
+      ]);
+      return responses.parseNotificationList(value);
+    },
+    [request],
+  );
   const storeAnonymous = useCallback(
     (state: NonNullable<typeof anonymous.current>) => {
       if (!valid()) return;
@@ -119,8 +126,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const list = useCallback(
     async (cursor?: string) => {
       const revision = cache.getRevision();
-      let page = notificationListSchema.parse(
-        await request(`notifications${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
+      let page = await requestList(
+        `notifications${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
       );
       if (!valid() || revision !== cache.getRevision())
         throw new Error("お知らせが更新されました。再試行してください。");
@@ -137,7 +144,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
       return cursor === undefined ? cache.store(page) : cache.apply(page);
     },
-    [owner, request, storeAnonymous, valid, cache],
+    [owner, requestList, storeAnonymous, valid, cache],
   );
   const refresh = useCallback(async () => {
     if (!valid()) return;
@@ -170,10 +177,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             page.notifications.at(-1)!.id <= state.through
           )
             break;
-          page = notificationListSchema.parse(
-            await request(
-              `notifications?after=${state.through}&cursor=${encodeURIComponent(page.nextCursor)}`,
-            ),
+          page = await requestList(
+            `notifications?after=${state.through}&cursor=${encodeURIComponent(page.nextCursor)}`,
           );
         }
         if (latest())
@@ -212,7 +217,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           error: "お知らせを更新できませんでした。",
         }));
     }
-  }, [owner, identity, request, list, valid, cache]);
+  }, [owner, identity, request, requestList, list, valid, cache]);
   useEffect(() => {
     if (!headers || !identity) return;
     let busy = false;
@@ -295,12 +300,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         await read(cached);
         return;
       }
-      const page = notificationListSchema.parse(
-        await request(`notifications?announcementId=${encodeURIComponent(id)}`),
-      );
+      const page = await requestList(`notifications?announcementId=${encodeURIComponent(id)}`);
       if (page.notifications[0]) await read(page.notifications[0]);
     },
-    [request, read, cache],
+    [requestList, read, cache],
   );
   const value = useMemo(
     () => ({

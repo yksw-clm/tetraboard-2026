@@ -63,6 +63,14 @@ function take(url: string) {
 }
 async function reply(url: string, body: unknown, status = 200) {
   take(url).respond(body, status);
+  if (status === 200 && url.startsWith("/api/notifications?")) await flushPage();
+  else await flush();
+}
+async function flushPage() {
+  // 先読みには API の応答に加えて、表示を整えるモジュールの読み込みも含まれます。
+  await act(async () => {
+    await import("../src/features/notifications/notificationResponses");
+  });
   await flush();
 }
 function Header() {
@@ -146,7 +154,7 @@ test("先読み途中で開いた操作と更新を同じ取得にまとめ、�
   expect(dialog().textContent).toContain("お知らせを読み込んでいます");
   expect(requests.filter((r) => r.url === listUrl)).toHaveLength(1);
   fetching.respond(page([announcement()]));
-  await flush();
+  await flushPage();
   expect(dialog().textContent).toContain("更新情報1");
   expect(dialog().textContent).not.toContain("お知らせを読み込んでいます");
 });
@@ -160,7 +168,7 @@ test("返信の一覧は本文を30文字にまとめ、詳細では全文と親
     read: false,
     legacy: false,
     reply: {
-      postId: "parent-id",
+      postId: "parent/id?#",
       replyId: "reply-id",
       gameId: "reversi",
       authorName: "返信者",
@@ -168,18 +176,24 @@ test("返信の一覧は本文を30文字にまとめ、詳細では全文と親
     },
   };
   const title = `返信者さんから返信: こんにちは ${"😀".repeat(24)}…`;
-  await warm([entry]);
-  await openList();
-  await settleOpen([entry]);
+  const exactLength = `${"あ".repeat(29)}🇯🇵`;
+  const entries = [{ ...entry, id: 2, reply: { ...entry.reply, text: exactLength } }, entry];
+  await warm(entries);
+  act(() => bell().click());
   const row = dialog().querySelector('[data-notification-id="1"]')!;
   expect(Array.from(row.querySelectorAll("span"), (span) => span.textContent)).toContain("返信");
   expect(row.textContent).toContain(title);
+  const exactRow = dialog().querySelector('[data-notification-id="2"]')!;
+  expect(exactRow.lastElementChild?.textContent).toBe(`返信者さんから返信: ${exactLength}`);
+  await flush();
+  await settleOpen(entries);
   select();
   expect(dialog().querySelector("article h2")?.textContent).toBe(title);
   expect(dialog().textContent).toContain("リバーシの掲示板");
   expect(dialog().querySelector("p.whitespace-pre-wrap")?.textContent).toBe(text);
-  const link = dialog().querySelector("a[href='/posts/parent-id']");
+  const link = dialog().querySelector("article a");
   expect(link?.textContent).toBe("投稿を見る");
+  expect(link?.getAttribute("href")).toBe("/posts/parent%2Fid%3F%23");
   expect(requests.some((r) => r.url === listUrl)).toBe(true);
   expect(requests.some((r) => r.url === unreadUrl)).toBe(true);
   await reply(readUrl, { ok: true });
