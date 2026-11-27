@@ -159,6 +159,7 @@ test("帰属と席変更を確認してから新しい参加資格を保存し�
       </>,
     ),
   );
+  await act(async () => {});
   actions()[0]!.respond(status(value));
   await flush();
   expect(actions()[1]!.url).toEndWith("/complete");

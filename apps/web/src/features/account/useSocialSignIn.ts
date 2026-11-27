@@ -2,7 +2,7 @@ import { registrationContext, sendRegistrationEntry } from "./registrationAnalyt
 import type { RegistrationAnalyticsInput, RegistrationEntry } from "@tetraboard/protocol";
 import type { GameId } from "@tetraboard/protocol/games";
 import { legalVersion } from "@tetraboard/protocol/privacy";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { accountRequest } from "./accountApi";
 import type { RegistrationCredential } from "@tetraboard/protocol";
 import {
@@ -40,7 +40,7 @@ export function useSocialSignIn(
   }, [observeEntry, trackEntry]);
   const submitting = useRef(false);
   const controller = useRef<AbortController | null>(null);
-  useEffect(() => () => controller.current?.abort(), []);
+  useLayoutEffect(() => () => controller.current?.abort(), []);
   const [busy, setBusy] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<SocialProvider | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -57,9 +57,13 @@ export function useSocialSignIn(
     const request = new AbortController();
     controller.current = request;
     const registrationDestination = typeof destination === "object" ? destination : undefined;
-    if (registrationDestination) saveRegistrationReturn(registrationDestination, true);
-    else clearRegistrationReturn();
+    const draftDestination = registrationDestination?.boardDraft ? registrationDestination : null;
+    let savingDraft = false;
     try {
+      if (!draftDestination) {
+        if (registrationDestination) saveRegistrationReturn(registrationDestination, true);
+        else clearRegistrationReturn();
+      }
       if (destination !== "admin") {
         trackEntry();
         context();
@@ -94,12 +98,20 @@ export function useSocialSignIn(
         throw new Error(
           `${provider === "google" ? "Google" : "Discord"}ログインを開始できませんでした。`,
         );
+      if (draftDestination) {
+        savingDraft = true;
+        if (!saveRegistrationReturn(draftDestination, true))
+          throw new Error("下書きを保存できませんでした。もう一度お試しください。");
+      }
       window.location.assign(result.url);
       return true;
     } catch (err) {
       if (request.signal.aborted) return false;
-      if (registrationDestination) saveRegistrationReturn(registrationDestination, false);
-      else clearRegistrationReturn();
+      if (savingDraft) clearRegistrationReturn();
+      else if (!draftDestination) {
+        if (registrationDestination) saveRegistrationReturn(registrationDestination, false);
+        else clearRegistrationReturn();
+      }
       setMessage(
         err instanceof Error
           ? err.message

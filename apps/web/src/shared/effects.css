@@ -72,6 +72,16 @@
   }
 }
 
+@keyframes board-link-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-6px);
+  }
+}
+
 @keyframes room-turn-glow {
   0%,
   100% {

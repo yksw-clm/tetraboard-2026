@@ -5,21 +5,22 @@ import {
   type BoardPostInput,
 } from "@tetraboard/protocol/board";
 import { useId, useRef, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router";
 import { createUuid } from "../../shared/createUuid";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
-import { saveRegistrationReturn } from "../account/registrationReturn";
+import type { RegistrationDestination } from "../account/registrationReturn";
 import { useAccount } from "../account/useAccount";
 import { mutationError } from "./boardApi";
 import { BoardAttachment } from "./BoardAttachment";
+import { BoardLinkDialog } from "./BoardLinkDialog";
 import type { BoardWrite } from "./useBoardData";
 
 type Props = {
   posting: { acceptingPosts: boolean; postingStopped: boolean };
   returnTo: string;
   placeholder: string;
+  initialText?: string;
   reply?: boolean;
   busy: boolean;
   write: BoardWrite;
@@ -32,6 +33,7 @@ export function BoardComposer({
   posting,
   returnTo,
   placeholder,
+  initialText = "",
   reply,
   busy,
   write,
@@ -40,11 +42,11 @@ export function BoardComposer({
   onSubmit,
 }: Props) {
   const account = useAccount();
-  const navigate = useNavigate();
   const description = useId();
   const [accountChecked, setAccountChecked] = useState(!account.loading);
   if (!accountChecked && !account.loading) setAccountChecked(true);
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
+  const [linkDestination, setLinkDestination] = useState<RegistrationDestination | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const request = useRef<{ id: string; attachmentKey: string } | null>(null);
@@ -52,15 +54,32 @@ export function BoardComposer({
   const count = boardTextLength(text);
   const canSubmit = count > 0 && count <= boardTextLimit;
   const submitLabel = reply ? "返信する" : "投稿する";
-
-  function signIn() {
-    saveRegistrationReturn({ path: returnTo }, false);
-    void navigate("/login");
-  }
+  const unlinked = !account.user || account.user.isGuest;
+  const checkingAccount = !accountChecked && account.loading && !account.user;
+  const requiresSetup = !unlinked && !account.user?.profileCompleted;
+  const canCompose =
+    posting.acceptingPosts &&
+    !posting.postingStopped &&
+    !account.error &&
+    !checkingAccount &&
+    !requiresSetup;
+  const activeLink =
+    canCompose &&
+    unlinked &&
+    canSubmit &&
+    linkDestination?.path === returnTo &&
+    linkDestination.boardDraft?.text === text
+      ? linkDestination
+      : null;
+  if (linkDestination && !activeLink) setLinkDestination(null);
 
   function submit(event?: FormEvent) {
     event?.preventDefault();
-    if (busy || pending || composing.current || !canSubmit) return;
+    if (!canCompose || busy || pending || activeLink || composing.current || !canSubmit) return;
+    if (unlinked) {
+      setLinkDestination({ path: returnTo, boardDraft: { kind: reply ? "reply" : "post", text } });
+      return;
+    }
     void write(async (signal) => {
       setPending(true);
       setError(null);
@@ -102,23 +121,9 @@ export function BoardComposer({
         </AppButton>
       </>
     );
-  } else if (!accountChecked && account.loading && !account.user) {
+  } else if (checkingAccount) {
     controls = <p role="status">ログイン状態を確認しています…</p>;
-  } else if (!account.user) {
-    controls = (
-      <>
-        <p>{submitLabel}にはログインしてください。</p>
-        <AppButton onPress={signIn}>ログインして{reply ? "返信" : "投稿"}</AppButton>
-      </>
-    );
-  } else if (account.user.isGuest) {
-    controls = (
-      <>
-        <p>掲示板への投稿にはアカウント登録が必要です。</p>
-        <AppButton onPress={signIn}>アカウント登録へ</AppButton>
-      </>
-    );
-  } else if (!account.user.profileCompleted) {
+  } else if (requiresSetup) {
     controls = (
       <>
         <p>プロフィールの初回設定を完了すると投稿できます。</p>
@@ -129,7 +134,7 @@ export function BoardComposer({
     controls = (
       <form className="grid gap-3" onSubmit={submit}>
         <div className="flex min-w-0 items-start gap-2">
-          <AppAvatar src={account.user.avatarUrl} />
+          {account.user && <AppAvatar src={account.user.avatarUrl} />}
           <textarea
             rows={3}
             className="min-w-0 flex-1 resize-y rounded-control border border-solid border-line bg-white p-3 text-base text-ink wrap-anywhere focus-visible:outline-[3px] focus-visible:outline-focus"
@@ -195,5 +200,12 @@ export function BoardComposer({
     );
   }
 
-  return <AppCard className="min-w-0 gap-3 text-sm">{controls}</AppCard>;
+  return (
+    <AppCard className="min-w-0 gap-3 text-sm">
+      {controls}
+      {activeLink && (
+        <BoardLinkDialog destination={activeLink} onClose={() => setLinkDestination(null)} />
+      )}
+    </AppCard>
+  );
 }
