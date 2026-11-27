@@ -154,6 +154,25 @@ test("未ログインでカード内の名前リンクから四人将棋ダブ�
   );
 });
 
+test("ゲームを切り替えてもヘッダーロゴは標準テーマで、本文だけがゲームテーマに切り替わる", async () => {
+  const { view } = open();
+  const logo = view.querySelector('header a[aria-label="TetraBoard ロビー"] .text-brand')!;
+  const main = view.querySelector("main")!;
+  const gameTheme = '[class*="game-theme-"]';
+  expect(logo.closest(gameTheme)?.className).toBeUndefined();
+  expect(main.closest(gameTheme)?.className).toBeUndefined();
+
+  press(view, "四人将棋");
+  await flush();
+  expect(logo.closest(gameTheme)?.className).toBeUndefined();
+  expect(main.closest(gameTheme)?.classList.contains("game-theme-four-shogi")).toBe(true);
+
+  press(view, "四人リバーシ");
+  await flush();
+  expect(logo.closest(gameTheme)?.className).toBeUndefined();
+  expect(main.closest(gameTheme)?.className).toBeUndefined();
+});
+
 test("直リンクの既定、6ゲーム、四人ゲームのモード切替と初回設定前の閲覧", async () => {
   const { view, router } = open();
   const stop = startPageMetadata(router);

@@ -36,28 +36,30 @@ export function PublicPlayerPage() {
   const theme = gameThemes[game];
 
   return (
-    <div className={`app-theme lobby-background min-h-dvh text-ink ${appThemeClasses[theme]}`}>
+    <div className="app-theme flex min-h-dvh flex-col text-ink">
       <AppHeader homeTo="/" homeLabel="TetraBoard ロビー" theme={theme} />
-      <main className={`${appPageWidthClasses} flex flex-col gap-5 py-6 sm:py-8`}>
-        {unavailableProfiles.has(profileId) ? (
-          <AppCard>
-            <h1 className="m-0 text-xl font-bold">プレイヤーページ</h1>
-            <p role="status" className="m-0">
-              プロフィールを表示できません。
-            </p>
-          </AppCard>
-        ) : (
-          <PublicPlayerContent
-            key={profileId}
-            profileId={profileId}
-            game={game}
-            mode={mode}
-            onGameChange={(next) => setSearch(playerGameQuery(next, "singles"))}
-            onModeChange={(next) => setSearch(playerGameQuery(game, next))}
-            onUnavailable={markUnavailable}
-          />
-        )}
-      </main>
+      <div className={`lobby-background flex-1 text-ink ${appThemeClasses[theme]}`}>
+        <main className={`${appPageWidthClasses} flex flex-col gap-5 py-6 sm:py-8`}>
+          {unavailableProfiles.has(profileId) ? (
+            <AppCard>
+              <h1 className="m-0 text-xl font-bold">プレイヤーページ</h1>
+              <p role="status" className="m-0">
+                プロフィールを表示できません。
+              </p>
+            </AppCard>
+          ) : (
+            <PublicPlayerContent
+              key={profileId}
+              profileId={profileId}
+              game={game}
+              mode={mode}
+              onGameChange={(next) => setSearch(playerGameQuery(next, "singles"))}
+              onModeChange={(next) => setSearch(playerGameQuery(game, next))}
+              onUnavailable={markUnavailable}
+            />
+          )}
+        </main>
+      </div>
     </div>
   );
 }
