@@ -14,13 +14,14 @@ export function notificationRecipientAllowedSql(accountId: string) {
 const notificationFromSql = `FROM notification_events e
   LEFT JOIN board_posts reply ON e.kind='reply' AND reply.id=e.source_id
   LEFT JOIN board_posts parent ON parent.id=reply.parent_id
+  LEFT JOIN board_post_numbers n ON n.post_id=parent.id
   LEFT JOIN user author ON author.id=reply.account_id`;
 const visibleNotificationSql = (includeReplies: boolean) =>
   `((e.account_id=? AND ${accountNotDeletedSql("e.account_id")}) OR (e.account_id='' AND EXISTS(
     SELECT 1 FROM announcements a WHERE a.id=e.source_id AND a.published=1)))
   AND (e.kind<>'reply'${
     includeReplies
-      ? ` OR (e.account_id<>'' AND parent.id IS NOT NULL AND author.id IS NOT NULL
+      ? ` OR (e.account_id<>'' AND n.number IS NOT NULL AND author.id IS NOT NULL
         AND ${boardPublishedSql("reply")} AND ${boardPublishedSql("parent")})`
       : ""
   })`;
@@ -74,6 +75,7 @@ type NotificationRow = {
   body: string | null;
   date: string | null;
   postId: string | null;
+  postNumber: number | null;
   gameId: string | null;
   authorName: string | null;
   replyText: string | null;
@@ -98,6 +100,7 @@ function notificationFromRow(row: NotificationRow): Notification {
         ...common,
         reply: {
           postId: row.postId,
+          postNumber: row.postNumber,
           replyId: row.source_id,
           gameId: row.gameId,
           authorName: row.authorName,
@@ -137,7 +140,8 @@ export async function readNotifications(
   }
   const rows = await db
     .prepare(`SELECT e.*,${readSql} AS is_read,a.title,a.body,a.published_on AS date,
-      reply.parent_id AS postId,reply.game_id AS gameId,author.name AS authorName,reply.body AS replyText
+      reply.parent_id AS postId,n.number AS postNumber,reply.game_id AS gameId,
+      author.name AS authorName,reply.body AS replyText
     ${notificationFromSql} LEFT JOIN account_notification_state s ON s.account_id=?
     LEFT JOIN announcements a ON e.kind='announcement' AND a.id=e.source_id
     WHERE ${conditions.join(" AND ")} ORDER BY e.seq DESC LIMIT ${notificationPageSize + 1}`)

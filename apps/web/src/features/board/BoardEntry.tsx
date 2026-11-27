@@ -1,4 +1,5 @@
 import type { BoardPost, BoardReply } from "@tetraboard/protocol/board";
+import { boardPostPath } from "@tetraboard/protocol/board-presentation";
 import type { GameId } from "@tetraboard/protocol/games";
 import { lazy, Suspense, useState, type ReactNode } from "react";
 import { Link } from "react-router";
@@ -13,7 +14,7 @@ import { BoardAttachment } from "./BoardAttachment";
 import { BoardAuthor } from "./BoardAuthor";
 import { BoardLikeButton, BoardReplyCount, type BoardLike } from "./BoardReactions";
 import type { BoardWrite } from "./useBoardData";
-import { boardPostPath, boardRequest, mutationError } from "./boardApi";
+import { boardPostApiPath, boardRequest, mutationError } from "./boardApi";
 
 const BoardReportDialog = lazy(() => import("./BoardReportDialog"));
 
@@ -62,7 +63,7 @@ function BoardEntryActions({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportNotice, setReportNotice] = useState<string | null>(null);
-  const path = boardPostPath(item.id);
+  const path = boardPostApiPath(item.id);
   const type = reply ? "返信" : "投稿";
 
   function openReport() {
@@ -207,7 +208,7 @@ export function BoardEntry({
   serverTimeMs: number;
 }) {
   const post = "status" in item ? item : null;
-  const detailPath = timeline ? boardPostPath(item.id) : undefined;
+  const detailPath = timeline && post ? boardPostPath(post.publicNumber) : undefined;
   const time = (
     <BoardTime ms={item.postedAtMs} relativeTo={timeline || !post ? serverTimeMs : undefined} />
   );

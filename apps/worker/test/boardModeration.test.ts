@@ -11,6 +11,7 @@ import {
   boardPostFixture,
   boardRequest,
   detail,
+  postNumber,
   postPath,
   repliesPath,
   reportPost,
@@ -99,12 +100,13 @@ test("運営削除を次の取得に反映し、返信のある枠と再送情�
   expect((await operate(admin, { action: "delete", postId: crypto.randomUUID() })).status).toBe(
     404,
   );
-  await change(admin, { action: "delete", postId: sole.id });
+  await change(admin, { action: "delete", postNumber: await postNumber(sole.id) });
   await change(admin, { action: "delete", postId: root.id });
   expect((await boardRequest(postPath(sole.id))).status).toBe(404);
   expect((await timeline()).posts).toEqual([
     {
       id: root.id,
+      publicNumber: await postNumber(root.id),
       postedAtMs: root.postedAtMs,
       gameId: "reversi",
       replyCount: 1,
@@ -276,7 +278,9 @@ test("掲示板の投稿停止・解除と全体の受付設定は投稿と返�
     postingStopped: true,
   });
   expect(await boardAdminPage(admin)).toMatchObject({
-    reports: [{ authorStopped: true }],
+    reports: [
+      { authorStopped: true, postId: authored.id, postNumber: await postNumber(parent.id) },
+    ],
     stoppedSenders: [{ accountId: author.id, name: "登録名" }],
   });
   await rejectBoardWrites();

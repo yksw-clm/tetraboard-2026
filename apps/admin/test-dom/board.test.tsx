@@ -11,6 +11,7 @@ const report: BoardAdminReport = {
   id: "33333333-3333-4333-8333-333333333333",
   postId,
   parentId: null,
+  postNumber: 413,
   gameId: "reversi",
   reason: "harassment",
   authorName: "投稿者",
@@ -89,7 +90,8 @@ test("証拠と停止中の名前を表示し、各操作を確認後に送信�
     `運営が削除 ${new Date(moderatorDeletedAtMs).toLocaleString("ja")}`,
   );
   expect(withdrawn?.textContent).toContain("対応済み");
-  expect(withdrawn?.querySelector("a")?.getAttribute("href")).toBe(`/posts/${postId}`);
+  expect(row?.querySelector("a")?.getAttribute("href")).toBe("/posts/413");
+  expect(withdrawn?.querySelector("a")?.getAttribute("href")).toBe("/posts/413");
   expect(button(withdrawn!, "投稿を削除")).toBeUndefined();
   expect(button(withdrawn!, "投稿者を投稿停止")).toBeUndefined();
   expect(button(withdrawn!, "投稿停止を解除")).toBeUndefined();
@@ -121,6 +123,9 @@ test("ID 欄は不正な入力を拒否し、ID または投稿 URL から正し
   const field = view.querySelector("input")!;
   for (const value of [
     "invalid",
+    "/posts/0",
+    "https://other.example/posts/413",
+    "/posts/9007199254740992",
     `/posts/${postId}/replies`,
     `https://[invalid]/posts/${postId}`,
   ]) {
@@ -135,6 +140,9 @@ test("ID 欄は不正な入力を拒否し、ID または投稿 URL から正し
   enter(field, postId);
   await confirm(view, "削除", { action: "delete", postId }, "投稿を削除");
   await respond({ ...initial, reports: [] });
-  enter(field, `https://tetraboard.net/posts/${replyId}?ref=board`);
+  enter(field, `${window.location.origin}/posts/413?ref=board`);
+  await confirm(view, "削除", { action: "delete", postNumber: 413 }, "投稿を削除");
+  await respond({ ...initial, reports: [] });
+  enter(field, `${window.location.origin}/posts/${replyId}?ref=board`);
   await confirm(view, "投稿者を投稿停止", { action: "stop", postId: replyId, stopped: true });
 });

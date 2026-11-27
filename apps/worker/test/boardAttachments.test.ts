@@ -146,7 +146,7 @@ test("自動パスを含む局面を投稿・返信に保存し、各読み取�
   const internal = await new D1BoardReader(env.APP_DB).detail(id, null, true);
   const expected = { post: thread.post, replies: thread.replies, indexable: true };
   expect(internal).toMatchObject(expected);
-  const detailPath = postPath(id);
+  const detailPath = postPath(post!.publicNumber);
   const assets = assetFixture();
   const api = await assets.fetch(`/api${detailPath}${includeAttachments}&includeIndexable=1`);
   expect(api.status).toBe(200);

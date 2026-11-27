@@ -1,12 +1,12 @@
 import { z } from "zod";
-import { boardPostIdSchema } from "./boardIds";
+import { boardPostIdSchema, boardPostNumberSchema } from "./boardIds";
 import { gameIdSchema } from "./gameSchemas";
 import { getPublicMatchContract } from "./matches";
 import { playerProfileReferenceSchema } from "./playerProfiles";
 import { countCharacters } from "./rooms";
 
 export { scanBoardLinks, type BoardLink, type BoardLinkOccurrence } from "./boardLinks";
-export { boardPostIdSchema } from "./boardIds";
+export { boardPostIdSchema, parseBoardPostNumber } from "./boardIds";
 
 export const boardTextLimit = 1000;
 
@@ -53,6 +53,7 @@ export const boardReplySchema = z.strictObject({
 
 export const boardPublishedPostSchema = boardReplySchema.extend({
   status: z.literal("published"),
+  publicNumber: boardPostNumberSchema,
   gameId: gameIdSchema,
   replyCount: countSchema,
 });
@@ -60,6 +61,7 @@ export const boardPublishedPostSchema = boardReplySchema.extend({
 export const boardDeletedPostSchema = z.strictObject({
   status: z.literal("deleted"),
   id: boardPostIdSchema,
+  publicNumber: boardPostNumberSchema,
   gameId: gameIdSchema,
   postedAtMs: timestampSchema,
   replyCount: countSchema,
@@ -135,6 +137,7 @@ const boardAdminReportSchema = z.strictObject({
   id: boardReportIdSchema,
   postId: boardPostIdSchema,
   parentId: boardPostIdSchema.nullable(),
+  postNumber: boardPostNumberSchema.nullable(),
   gameId: gameIdSchema,
   reason: boardReportInputSchema.shape.reason,
   authorName: z.string(),
@@ -155,9 +158,15 @@ export const boardAdminSchema = z.strictObject({
   stoppedSenders: z.array(z.strictObject({ accountId: boardAccountIdSchema, name: z.string() })),
 });
 
-export const boardModerationSchema = z.discriminatedUnion("action", [
+export const boardModerationSchema = z.union([
   z.strictObject({ action: z.literal("delete"), postId: boardPostIdSchema }),
+  z.strictObject({ action: z.literal("delete"), postNumber: boardPostNumberSchema }),
   z.strictObject({ action: z.literal("stop"), postId: boardPostIdSchema, stopped: z.boolean() }),
+  z.strictObject({
+    action: z.literal("stop"),
+    postNumber: boardPostNumberSchema,
+    stopped: z.boolean(),
+  }),
   z.strictObject({ action: z.literal("unstop"), accountId: boardAccountIdSchema }),
   z.strictObject({ action: z.literal("accepting"), accepting: z.boolean() }),
   z.strictObject({ action: z.literal("resolve"), reportId: boardReportIdSchema }),

@@ -18,6 +18,7 @@ import { gameIds } from "@tetraboard/protocol/games";
 import {
   createMemoryRouter,
   MemoryRouter,
+  NavigationType,
   Outlet,
   Route,
   RouterProvider,
@@ -61,13 +62,13 @@ import {
 } from "./harness";
 
 const uuid = (id: number) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(id).padStart(12, "0")}`;
-const postPath = `/posts/${uuid(1)}`;
+const postPath = "/posts/1001";
 const timelinePath = "/games/four-shogi/posts";
 const includeAttachments = "?includeAttachments=1";
 const timelineUrl = "/api" + timelinePath + includeAttachments;
-const postUrl = "/api" + postPath;
+const postUrl = `/api/posts/${uuid(1)}`;
 const detailQuery = includeAttachments + "&includeIndexable=1";
-const detailUrl = postUrl + detailQuery;
+const detailUrl = "/api" + postPath + detailQuery;
 const repliesUrl = postUrl + "/replies" + includeAttachments;
 const user: AccountProfile = {
   username: "owner",
@@ -138,6 +139,7 @@ function post(
   return {
     ...reply(id, text),
     status: "published",
+    publicNumber: 1000 + id,
     gameId: "four-shogi",
     replyCount: 0,
     ...overrides,
@@ -165,8 +167,8 @@ function thread(
 ) {
   return { ...state(), post: parent, replies, nextCursor, indexable };
 }
-function deleted({ id, postedAtMs, gameId, replyCount }: BoardPost): BoardPost {
-  return { id, postedAtMs, gameId, replyCount, status: "deleted" };
+function deleted({ id, publicNumber, postedAtMs, gameId, replyCount }: BoardPost): BoardPost {
+  return { id, publicNumber, postedAtMs, gameId, replyCount, status: "deleted" };
 }
 function cursor({ id, postedAtMs }: BoardReply) {
   return `${postedAtMs}:${id}`;
@@ -831,7 +833,7 @@ test("期限切れの掲示板下書きは読み込み時にタブから削除�
 
 test.each([
   { name: "期限切れ", path: postPath, age: 3_600_000 },
-  { name: "別の投稿", path: `/posts/${uuid(2)}`, age: 0 },
+  { name: "別の投稿", path: "/posts/1002", age: 0 },
 ])("$name の復帰stateからは返信欄を復元しない", async ({ path, age }) => {
   const view = render(
     wrap(user, {
@@ -979,21 +981,21 @@ test("画面内で投稿の詳細を開くと投稿ごとのメタ情報に更�
 
     const second = post(2, "別の投稿", { gameId: "reversi" });
     await act(async () => {
-      await router.navigate(`/posts/${second.id}/`);
+      await router.navigate(`/posts/1002/`);
     });
     await respond(thread(second));
     expect(document.title).toBe("別の投稿｜リバーシの掲示板 | TetraBoard");
-    expect(canonical()).toBe(`https://tetraboard.net/posts/${second.id}`);
+    expect(canonical()).toBe(`https://tetraboard.net/posts/1002`);
     expect(robots()).toBe("noindex,follow");
     expect(meta('meta[property="og:image"]')).toBe("https://tetraboard.net/assets/ogp/reversi.png");
 
     await act(async () => {
-      await router.navigate(`/posts/${uuid(3)}`);
+      await router.navigate("/posts/1003");
     });
     await respond({}, 404);
     expectFallback();
     await act(async () => {
-      await router.navigate(`/posts/${uuid(4)}`);
+      await router.navigate("/posts/1004");
     });
     await respond({}, 503);
     expectFallback();
@@ -1004,9 +1006,13 @@ test("画面内で投稿の詳細を開くと投稿ごとのメタ情報に更�
   }
 });
 
-function initialBoardMetadata(parent: BoardPublishedPost, replies: BoardReply[]) {
+function initialBoardMetadata(
+  parent: BoardPublishedPost,
+  replies: BoardReply[],
+  path = `${postPath}/`,
+) {
   const previousHead = document.head.innerHTML;
-  const router = boardMetadataRouter(`${postPath}/`);
+  const router = boardMetadataRouter(path);
   const { title, description, canonical } = boardPostMetadata("https://tetraboard.net", parent);
   document.head.innerHTML = `<title>${title}</title><meta name="description" content="${description}"><meta name="robots" content="index,follow"><link rel="canonical" href="${canonical}"><meta property="og:image" content="https://tetraboard.net/assets/ogp/four-shogi.png">${renderDiscussionForumPostingJsonLd(canonical, parent, replies)}`;
   const stop = startPageMetadata(router);
@@ -1029,6 +1035,46 @@ function readBoardHead() {
     jsonLd: document.head.querySelector('script[type="application/ld+json"]')?.textContent,
   };
 }
+
+test("初期HTMLが届いた符号化済みの投稿URLは履歴を置き換え、本文とメタ情報を表示する", async () => {
+  const parent = post(1, "投稿の本文");
+  const suffix = "?source=board&label=a%2Fb#thread";
+  const { router, dispose } = initialBoardMetadata(parent, [], "/posts/%31001" + suffix);
+  const initialContent = readBoardHead();
+  try {
+    expect(initialContent.canonical).toBe(`https://tetraboard.net${postPath}`);
+    expect(initialContent.jsonLd).toContain(parent.text);
+    const view = render(<RouterProvider router={router} />);
+    await flush();
+    expect(router.state.historyAction).toBe(NavigationType.Replace);
+    expect(router.state.location).toMatchObject({
+      pathname: postPath,
+      search: "?source=board&label=a%2Fb",
+      hash: "#thread",
+    });
+    expect(readBoardHead()).toEqual(initialContent);
+    expect(requests.map(({ url }) => url)).toEqual([detailUrl]);
+    await respond(thread(parent, [], null, true));
+    expect(view.textContent).toContain(parent.text);
+    expect(readBoardHead()).toEqual(initialContent);
+  } finally {
+    dispose();
+  }
+});
+
+test.each([
+  `/posts/${uuid(1)}`,
+  "/posts/%301001",
+  "/posts/1001%2F",
+  "/posts/1001%3Fsource",
+  "/posts/1001%23thread",
+  "/posts/%2531001",
+])("投稿詳細の無効なパス %s では投稿を読み込まない", async (path) => {
+  const view = show(path);
+  await flush();
+  expect(view.textContent).toContain("投稿が見つかりません");
+  expect(requests).toHaveLength(0);
+});
 
 test("直接開いた投稿が初期HTMLと同じならメタ情報とJSON-LDの内容が変わらない", async () => {
   const parent = post(1, "投稿の本文", { replyCount: 2 });
@@ -1169,7 +1215,7 @@ test("タイムラインは更新ボタンを表示せず、追加取得で重�
   expect(articles(view)[1]?.textContent).toContain("古い投稿");
 
   const [first, second] = articles(view);
-  expectDetailLink(first!, `/posts/${recent.id}`);
+  expectDetailLink(first!, `/posts/${recent.publicNumber}`);
   const detail = expectDetailLink(second!, postPath);
   await act(async () => detail.click());
   expect(latest().url).toBe(detailUrl);
@@ -1286,7 +1332,7 @@ test("省略した投稿ではカードを取得せず、詳細では全文の�
     await respond(timeline([longPost, post(1, `${internal} と ${external}\n二\n三\n四\n五`)]));
     const [long, short] = articles(view);
     const more = [...long!.querySelectorAll("a")].find((link) => link.textContent === "続きを読む");
-    expect(more?.getAttribute("href")).toBe(`/posts/${uuid(2)}`);
+    expect(more?.getAttribute("href")).toBe("/posts/1002");
     expect(long?.querySelector('a[href="/tournaments/22"]')?.textContent).toBe(hidden);
     expect(requests.map(({ url }) => url)).toEqual([timelineUrl, "/api/tournaments/21"]);
     expect(short?.textContent).not.toContain("続きを読む");
@@ -1301,7 +1347,7 @@ test("省略した投稿ではカードを取得せず、詳細では全文の�
     expect(more?.classList.contains("z-10")).toBe(true);
     act(() => more!.click());
     await flush();
-    expect(latest().url).toBe(`/api/posts/${uuid(2)}${detailQuery}`);
+    expect(latest().url).toBe(`/api/posts/1002${detailQuery}`);
     await respond(thread(longPost));
     expect(latest().url).toBe("/api/tournaments/22");
   } finally {
@@ -1869,7 +1915,7 @@ test("タイムラインの投稿者リンクはカードの詳細リンクか�
   expect(link.querySelector("svg")).not.toBeNull();
   expect(link.classList.contains("z-10")).toBe(true);
   expect(expectDetailLink(withProfile!, postPath).contains(link)).toBe(false);
-  expectDetailLink(withoutProfile!, `/posts/${uuid(2)}`);
+  expectDetailLink(withoutProfile!, "/posts/1002");
   expect(withoutProfile?.querySelector("header")?.textContent).toContain("投稿者");
   expect(withoutProfile?.querySelector('header a[href^="/players/"], header button')).toBeNull();
   await act(async () => link.click());
@@ -1995,7 +2041,7 @@ test("タイムラインの削除は詳細の404で消し、200なら返信の�
   expect(placeholder?.textContent).not.toContain(gainsReply.text);
   expect(placeholder?.textContent).not.toContain(gainsReply.author.name);
   expect(placeholder?.querySelector("button")).toBeNull();
-  const deletedPath = `/posts/${gainsReply.id}`;
+  const deletedPath = `/posts/${gainsReply.publicNumber}`;
   expectDetailLink(placeholder!, deletedPath);
   const replies = expectReplyLink(placeholder!, deletedPath, 2);
   expect(preserved?.textContent).toContain(older.text);
@@ -2016,7 +2062,7 @@ test("タイムラインの削除後に詳細の取得が失敗すると表示�
   press(articles(view)[0]!, "削除");
   press(dialog(), "削除する");
   await respond(null, 204);
-  expect(latest().url).toBe(detailUrl);
+  expect(latest().url).toBe(postUrl + detailQuery);
   expect(latest().init.method).toBeUndefined();
   await respond(null, 503);
   expect(articles(view)[0]?.textContent).toContain(parent.text);
@@ -2128,19 +2174,23 @@ test("削除された投稿の最後の返信を消すと掲示板へ戻る", as
   expect(view.textContent).toContain("まだ投稿はありません。");
 });
 
-test("ログイン後の戻り先は6ゲームの掲示板とUUIDの投稿詳細だけを追加で受け付ける", () => {
+test("ログイン後の戻り先は6ゲームの掲示板と正の安全整数の投稿詳細だけを追加で受け付ける", () => {
   for (const game of gameIds) {
     const path = `/games/${game}/posts`;
     expect(registrationPath(path)).toBe(path);
   }
   expect(registrationPath(postPath)).toBe(postPath);
   expect(registrationPath(postPath + "/")).toBe(postPath + "/");
-  const upperCaseId = `/posts/${uuid(1).toUpperCase()}`;
-  expect(registrationPath(upperCaseId)).toBe(upperCaseId);
+  const max = "/posts/9007199254740991";
+  expect(registrationPath(max)).toBe(max);
   for (const path of [
     "/games/unknown/posts",
-    "/posts/not-a-uuid",
-    "/posts/aaaaaaaa-aaaa-4aaa-7aaa-000000000001",
+    `/posts/${uuid(1)}`,
+    "/posts/0",
+    "/posts/01",
+    "/posts/-1",
+    "/posts/9007199254740992",
+    "/posts/%31",
     postPath + "/replies",
     postPath + "?next=1",
     "https://example.com" + postPath,

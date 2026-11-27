@@ -6,6 +6,7 @@ const origin = "https://tetraboard.net";
 const post: BoardPublishedPost = {
   id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   status: "published",
+  publicNumber: 413,
   gameId: "shogi",
   author: { name: '投稿者"<', avatarUrl: null, profileTarget: null },
   postedAtMs: Date.UTC(2026, 10, 25, 13, 2, 3),
@@ -23,7 +24,7 @@ test("投稿の抜粋は空白をまとめ、書記素で30字と120字を上限
   expect(boardPostMetadata(origin, { ...post, text: thirty })).toEqual({
     title: thirty + titleSuffix,
     description: thirty,
-    canonical: `${origin}/posts/${post.id}`,
+    canonical: `${origin}/posts/413`,
   });
   expect(boardPostMetadata(origin, { ...post, text: thirty + "先" }).title).toBe(
     `${thirty}…${titleSuffix}`,
@@ -37,18 +38,25 @@ test("投稿の抜粋は空白をまとめ、書記素で30字と120字を上限
   expect(boardPostMetadata(origin, { ...post, text: "\n  初手\n\r\t　次の手   \t" })).toEqual({
     title: `初手 次の手${titleSuffix}`,
     description: "初手 次の手",
-    canonical: `${origin}/posts/${post.id}`,
+    canonical: `${origin}/posts/413`,
   });
 });
 
 test("削除された投稿のメタ情報にはゲーム名と返信数が入る", () => {
-  const { id, gameId, postedAtMs, replyCount } = post;
+  const { id, publicNumber, gameId, postedAtMs, replyCount } = post;
   expect(
-    boardPostMetadata(origin, { id, gameId, postedAtMs, replyCount, status: "deleted" }),
+    boardPostMetadata(origin, {
+      id,
+      publicNumber,
+      gameId,
+      postedAtMs,
+      replyCount,
+      status: "deleted",
+    }),
   ).toEqual({
     title: "削除された投稿｜将棋の掲示板 | TetraBoard",
     description: "将棋の掲示板の削除された投稿です。返信 1 件を読めます。",
-    canonical: `${origin}/posts/${id}`,
+    canonical: `${origin}/posts/413`,
   });
 });
 

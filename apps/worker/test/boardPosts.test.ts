@@ -10,6 +10,7 @@ import {
   boardPath,
   boardPostFixture,
   boardRequest,
+  detail,
   likePath,
   openBoard,
   postPath,
@@ -192,10 +193,24 @@ test("並行する別の投稿は1件だけ受け付け、同じ要求の再送�
   const accepted = results.findIndex((r) => r.status === 200);
   const requestId = intent[accepted]!;
   const initial = boardPostResultSchema.parse(await results[accepted]!.json());
-  const resent = await sendBoardPost(boardPath, " 同じ本文 ", user.headers, requestId);
-  expect(resent.status).toBe(200);
-  expect(boardPostResultSchema.parse(await resent.json())).toEqual(initial);
-  expect((await timeline()).posts).toHaveLength(1);
+  const post = initial.post!;
+  const replays = await Promise.all(
+    Array.from({ length: 2 }, () =>
+      sendBoardPost(boardPath, " 同じ本文 ", user.headers, requestId),
+    ),
+  );
+  for (const replay of replays) {
+    expect(replay.status).toBe(200);
+    expect(boardPostResultSchema.parse(await replay.json())).toEqual(initial);
+  }
+  expect((await timeline("", user.cookie)).posts).toEqual([post]);
+  expect((await detail(post.publicNumber, user.cookie)).post).toEqual(post);
+  expect((await detail(post.id, user.cookie)).post).toEqual(post);
+  const other = await accountFixture();
+  const next = await sendBoardPost(boardPath, "別の投稿", other.headers);
+  expect(next.status).toBe(200);
+  const newPost = boardPostResultSchema.parse(await next.json()).post!;
+  expect(newPost.publicNumber).toBeGreaterThan(post.publicNumber);
   expect((await sendBoardPost(boardPath, "変更", user.headers, requestId)).status).toBe(409);
   expect(
     (await sendBoardPost("/games/shogi/posts", "同じ本文", user.headers, requestId)).status,
@@ -215,6 +230,7 @@ test("並行する別の投稿は1件だけ受け付け、同じ要求の再送�
     post: null,
     availableAtMs: initial.availableAtMs,
   });
+  expect((await boardRequest(postPath(post.publicNumber))).status).toBe(404);
   expect(
     await env.APP_DB.prepare("SELECT body,request_id,body_hash FROM board_posts WHERE id=?")
       .bind(initial.post!.id)

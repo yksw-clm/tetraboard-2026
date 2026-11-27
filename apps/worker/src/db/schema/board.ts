@@ -58,6 +58,23 @@ export const boardPosts = sqliteTable(
   ],
 );
 
+export const boardPostNumbers = sqliteTable(
+  "board_post_numbers",
+  {
+    number: integer("number").primaryKey({ autoIncrement: true }),
+    postId: text("post_id")
+      .notNull()
+      .references(() => boardPosts.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    uniqueIndex("board_post_numbers_post").on(t.postId),
+    check(
+      "board_post_numbers_safe_integer",
+      sql.raw(`number BETWEEN 1 AND ${Number.MAX_SAFE_INTEGER}`),
+    ),
+  ],
+);
+
 export const boardLikes = sqliteTable(
   "board_likes",
   {

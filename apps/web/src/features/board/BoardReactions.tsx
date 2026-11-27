@@ -4,7 +4,7 @@ import { Link, useLocation } from "react-router";
 import { boardPagePathPattern } from "../../shared/siteNavigation";
 import { registrationPath } from "../account/registrationReturn";
 import { useAccount } from "../account/useAccount";
-import { boardPostPath, boardRequest, mutationError } from "./boardApi";
+import { boardPostApiPath, boardRequest, mutationError } from "./boardApi";
 import { boardTimelineReturnPath, readBoardAttachmentSearch } from "./boardAttachmentSearch";
 import { BoardLinkDialog } from "./BoardLinkDialog";
 import type { BoardWrite } from "./useBoardData";
@@ -109,7 +109,7 @@ export function BoardLikeButton({
       setOptimistic({ liked: !liked, likeCount: Math.max(0, likeCount + (liked ? -1 : 1)) });
       try {
         const response = await boardRequest(
-          `${boardPostPath(item.id)}/like`,
+          `${boardPostApiPath(item.id)}/like`,
           { method: liked ? "DELETE" : "PUT", signal },
           fallback,
         );

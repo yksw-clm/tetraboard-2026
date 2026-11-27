@@ -169,6 +169,7 @@ test("返信の一覧は本文を30文字にまとめ、詳細では全文と親
     legacy: false,
     reply: {
       postId: "parent/id?#",
+      postNumber: 413,
       replyId: "reply-id",
       gameId: "reversi",
       authorName: "返信者",
@@ -193,7 +194,7 @@ test("返信の一覧は本文を30文字にまとめ、詳細では全文と親
   expect(dialog().querySelector("p.whitespace-pre-wrap")?.textContent).toBe(text);
   const link = dialog().querySelector("article a");
   expect(link?.textContent).toBe("投稿を見る");
-  expect(link?.getAttribute("href")).toBe("/posts/parent%2Fid%3F%23");
+  expect(link?.getAttribute("href")).toBe("/posts/413");
   expect(requests.some((r) => r.url === listUrl)).toBe(true);
   expect(requests.some((r) => r.url === unreadUrl)).toBe(true);
   await reply(readUrl, { ok: true });
@@ -349,6 +350,7 @@ test("詳細の返信が裏の再取得で消えると一覧へ戻り、削除�
     legacy: false,
     reply: {
       postId: "parent-id",
+      postNumber: 414,
       replyId: "reply-id",
       gameId: "reversi",
       authorName: "返信者",

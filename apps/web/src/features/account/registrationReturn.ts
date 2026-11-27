@@ -1,7 +1,6 @@
 import { gameCatalog, gameIds, isGameId } from "@tetraboard/protocol/games";
-import { boardTextSchema } from "@tetraboard/protocol/board";
+import { boardTextSchema, parseBoardPostNumber } from "@tetraboard/protocol/board";
 import {
-  boardPostIdSchema,
   roomSocketContract,
   ratedMatchmakingGameIds,
   roomTimeControlSchema,
@@ -45,8 +44,10 @@ export function registrationPath(path: unknown): string | null {
   if (path === "/") return path;
   const board = boardPagePathPattern.exec(path);
   if (board) {
-    const [, gameId, postId] = board;
-    return (gameId ? isGameId(gameId) : boardPostIdSchema.safeParse(postId).success) ? path : null;
+    const [, gameId, postNumber] = board;
+    return (gameId ? isGameId(gameId) : parseBoardPostNumber(postNumber ?? "") !== null)
+      ? path
+      : null;
   }
   if (/^\/tournaments\/[1-9]\d*$/.test(path)) {
     const id = Number(path.split("/").at(-1));

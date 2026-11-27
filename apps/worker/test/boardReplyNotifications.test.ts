@@ -15,6 +15,7 @@ import {
   boardPostFixture,
   boardRequest,
   openBoard,
+  postNumber,
   postPath,
   repliesPath,
   resetBoard,
@@ -101,6 +102,7 @@ test("他人の返信は親の投稿者だけに届き、現在の返信者名�
     legacy: false,
     reply: {
       postId: parent.id,
+      postNumber: await postNumber(parent.id),
       replyId: reply.id,
       gameId: "reversi",
       authorName: "変更後の名前",
