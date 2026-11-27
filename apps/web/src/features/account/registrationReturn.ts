@@ -1,4 +1,5 @@
 import { gameCatalog, gameIds, isGameId } from "@tetraboard/protocol/games";
+import { boardTextSchema } from "@tetraboard/protocol/board";
 import {
   boardPostIdSchema,
   roomSocketContract,
@@ -9,6 +10,7 @@ import {
   type CpuLevel,
 } from "@tetraboard/protocol";
 import { boardPagePathPattern } from "../../shared/siteNavigation";
+import { readBoardAttachmentSearch } from "../board/boardAttachmentSearch";
 
 export const registrationReturnKey = "tetraboard:registration-return";
 const lifetimeMs = 60 * 60 * 1000;
@@ -30,6 +32,7 @@ export type RegistrationDestination = {
   entry?: RegistrationEntryDraft;
   joinName?: string;
   tournamentEntry?: number;
+  boardDraft?: { kind: "post" | "reply"; text: string };
 };
 export type RegistrationReturn = RegistrationDestination & {
   createdAt: number;
@@ -141,14 +144,40 @@ export function parseRegistrationReturn(
       return null;
     result.joinName = record.joinName;
   }
+  if (record.boardDraft !== undefined) {
+    const board = boardPagePathPattern.exec(path);
+    if (!board || !record.boardDraft || typeof record.boardDraft !== "object") return null;
+    const draft = record.boardDraft as Record<string, unknown>;
+    const kind = board[1] ? "post" : "reply";
+    const query = path.split("?")[1];
+    if (
+      draft.kind !== kind ||
+      typeof draft.text !== "string" ||
+      !boardTextSchema.safeParse(draft.text).success ||
+      (query && !readBoardAttachmentSearch(new URLSearchParams(query)))
+    )
+      return null;
+    result.boardDraft = { kind, text: draft.text };
+  }
   return result;
 }
 
 export function readRegistrationReturn(): RegistrationReturn | null {
   try {
-    return parseRegistrationReturn(
-      JSON.parse(sessionStorage.getItem(registrationReturnKey) ?? "null"),
-    );
+    const record = JSON.parse(sessionStorage.getItem(registrationReturnKey) ?? "null") as {
+      boardDraft?: unknown;
+      createdAt?: unknown;
+    } | null;
+    const now = Date.now();
+    if (
+      record?.boardDraft !== undefined &&
+      typeof record.createdAt === "number" &&
+      now - record.createdAt >= lifetimeMs
+    ) {
+      clearRegistrationReturn();
+      return null;
+    }
+    return parseRegistrationReturn(record, now);
   } catch {
     return null;
   }
@@ -161,16 +190,20 @@ export function clearRegistrationReturn(): void {
   }
 }
 export function saveRegistrationReturn(
-  destination: RegistrationDestination,
+  destination: RegistrationDestination | RegistrationReturn,
   oauthStarted: boolean,
-): void {
+): boolean {
   clearRegistrationReturn();
-  const value = parseRegistrationReturn({ ...destination, createdAt: Date.now(), oauthStarted });
-  if (!value) return;
+  const createdAt =
+    destination.boardDraft && "createdAt" in destination ? destination.createdAt : Date.now();
+  const value = parseRegistrationReturn({ ...destination, createdAt, oauthStarted });
+  if (!value) return false;
   try {
-    sessionStorage.setItem(registrationReturnKey, JSON.stringify(value));
+    const serialized = JSON.stringify(value);
+    sessionStorage.setItem(registrationReturnKey, serialized);
+    return !value.boardDraft || sessionStorage.getItem(registrationReturnKey) === serialized;
   } catch {
-    /* 復帰情報がなければマイページへ進む。 */
+    return false;
   }
 }
 

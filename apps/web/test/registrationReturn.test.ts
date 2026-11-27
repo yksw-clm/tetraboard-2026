@@ -114,4 +114,27 @@ describe("登録後の復帰情報", () => {
       ),
     ).toBeNull();
   });
+  test("掲示板の下書きは許可済みの投稿先と掲示板の文字数で検証する", () => {
+    const path = "/games/four-shogi/posts";
+    const match = "00000000-0000-4000-8000-000000000010";
+    const attachedPath = `${path}?match=${match}&position=9`;
+    const text = ` ${"👨‍👩‍👧‍👦".repeat(1000)}\n`;
+    const draft = {
+      path: attachedPath,
+      createdAt: now,
+      oauthStarted: true,
+      boardDraft: { kind: "post", text },
+    };
+    expect(parseRegistrationReturn(draft, now)).toEqual(draft);
+    for (const invalid of [
+      { ...draft, path: "/games/four-shogi" },
+      { ...draft, path: `/posts/${match}` },
+      { ...draft, path: `${attachedPath}&position=1` },
+      { ...draft, path: `${path}?match=bad&position=9` },
+      { ...draft, path: `${path}?match=${match}&position=9007199254740992` },
+      { ...draft, boardDraft: { kind: "post", text: "あ".repeat(1001) } },
+      { ...draft, boardDraft: { kind: "post", text: " \n" } },
+    ])
+      expect(parseRegistrationReturn(invalid, now)).toBeNull();
+  });
 });

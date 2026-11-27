@@ -1,8 +1,12 @@
 import { boardLikeResultSchema, type BoardReply } from "@tetraboard/protocol/board";
 import { useState, type PointerEvent } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
+import { boardPagePathPattern } from "../../shared/siteNavigation";
+import { registrationPath } from "../account/registrationReturn";
 import { useAccount } from "../account/useAccount";
 import { boardPostPath, boardRequest, mutationError } from "./boardApi";
+import { boardTimelineReturnPath, readBoardAttachmentSearch } from "./boardAttachmentSearch";
+import { BoardLinkDialog } from "./BoardLinkDialog";
 import type { BoardWrite } from "./useBoardData";
 
 export type BoardLike = Pick<BoardReply, "liked" | "likeCount">;
@@ -73,23 +77,33 @@ export function BoardLikeButton({
   className?: string;
 }) {
   const account = useAccount();
+  const { pathname, search } = useLocation();
+  const [linkPath, setLinkPath] = useState<string | null>(null);
   const [optimistic, setOptimistic] = useState<BoardLike | null>(null);
   const { liked, likeCount } = optimistic ?? item;
   const pending = busy || optimistic !== null;
+  const canLink = !account.error && (account.user ? account.user.isGuest : !account.loading);
+  const path = registrationPath(pathname.replace(/\/$/, "") || "/");
+  const returnPath =
+    path && boardPagePathPattern.exec(path)?.[1]
+      ? boardTimelineReturnPath(path, readBoardAttachmentSearch(new URLSearchParams(search)))
+      : path;
+  const showLink = linkPath !== null && linkPath === returnPath && canLink;
+  if (linkPath && !showLink) setLinkPath(null);
 
   function toggleLike() {
-    if (pending) return;
+    if (pending || showLink) return;
     const reason =
       account.error ??
-      (!account.user
-        ? "いいねするにはログインしてください。"
-        : account.user.isGuest
-          ? "いいねにはアカウント登録が必要です。"
-          : !account.user.profileCompleted
-            ? "プロフィールの初回設定を完了するといいねできます。"
-            : null);
+      (account.user && !account.user.isGuest && !account.user.profileCompleted
+        ? "プロフィールの初回設定を完了するといいねできます。"
+        : null);
     onError(reason);
     if (reason) return;
+    if (!account.user || account.user.isGuest) {
+      if (canLink) setLinkPath(returnPath);
+      return;
+    }
     void write(async (signal) => {
       const fallback = "いいねを更新できませんでした。";
       setOptimistic({ liked: !liked, likeCount: Math.max(0, likeCount + (liked ? -1 : 1)) });
@@ -111,18 +125,23 @@ export function BoardLikeButton({
   }
 
   return (
-    <button
-      type="button"
-      className={`${reactionControlClasses} border-0 bg-transparent aria-disabled:cursor-default ${liked ? "text-danger" : "text-ink-secondary"} ${className ?? ""}`}
-      aria-label="いいね"
-      aria-pressed={liked}
-      aria-disabled={pending || undefined}
-      {...reactionTouchHandlers}
-      onClick={toggleLike}
-    >
-      <ReactionIcon name="heart" filled={liked} />
-      {likeCount}
-    </button>
+    <>
+      <button
+        type="button"
+        className={`${reactionControlClasses} border-0 bg-transparent aria-disabled:cursor-default ${liked ? "text-danger" : "text-ink-secondary"} ${className ?? ""}`}
+        aria-label="いいね"
+        aria-pressed={liked}
+        aria-disabled={pending || undefined}
+        {...reactionTouchHandlers}
+        onClick={toggleLike}
+      >
+        <ReactionIcon name="heart" filled={liked} />
+        {likeCount}
+      </button>
+      {showLink && (
+        <BoardLinkDialog destination={{ path: linkPath }} onClose={() => setLinkPath(null)} />
+      )}
+    </>
   );
 }
 

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test } from "bun:test";
+import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import {
   fourShogiPublicStateSchema,
   type AccountProfile,
@@ -29,11 +29,15 @@ import shogiArchive from "../../../test-fixtures/matches/shogi-singles.json";
 import {
   readRegistrationReturn,
   registrationPath,
+  registrationReturnKey,
+  saveRegistrationReturn,
 } from "../src/features/account/registrationReturn";
+import { LoginPage, ProfilePage } from "../src/features/account/AccountPages";
 import { AccountLayout } from "../src/features/account/AccountSession";
 import { AccountContext } from "../src/features/account/useAccount";
 import { BoardAttachmentBoard } from "../src/features/board/BoardAttachmentBoard";
 import { BoardDetailPage, BoardTimelinePage } from "../src/features/board/BoardPages";
+import { BoardLikeButton } from "../src/features/board/BoardReactions";
 import { formatMatchDate } from "../src/features/matches/matchDatePresentation";
 import { startPageMetadata } from "../src/seo/pageMetadata";
 import { appThemeClasses } from "../src/shared/ui/appTheme";
@@ -42,7 +46,19 @@ import "../src/features/board/boardAttachmentFrames";
 import "../src/features/board/boardMediaRequests";
 import "../src/features/room/fourShogiMatchReplay";
 import "../src/features/room/replayFrames";
-import { act, clock, enter, flush, press, render, requests, wrap, type Request } from "./harness";
+import {
+  act,
+  clock,
+  denyStorage,
+  enter,
+  flush,
+  press,
+  render,
+  requests,
+  rerender,
+  wrap,
+  type Request,
+} from "./harness";
 
 const uuid = (id: number) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(id).padStart(12, "0")}`;
 const postPath = `/posts/${uuid(1)}`;
@@ -172,7 +188,6 @@ function show(entry = timelinePath, viewer: AccountProfile | null = user) {
         <Route path="/posts/:id" element={<BoardDetailPage />} />
         <Route path="/matches/:id" element={<Destination />} />
         <Route path="/players/:profileId" element={<Destination />} />
-        <Route path="/login" element={<p>ログイン画面</p>} />
       </Routes>,
     ),
   );
@@ -523,15 +538,321 @@ test.each([
   expect(requests).toHaveLength(1);
 });
 
-test("添付のクエリをログイン後の復帰先に引き継ぐ", async () => {
-  const view = show(timelineWithPosition, null);
+const guest = { ...user, isGuest: true };
+const signInUrl = "/api/auth/sign-in/social";
+const googleOAuthUrl = "https://accounts.google.com/o/oauth2/auth";
+const signInRequest = () => requests.findLast(({ url }) => url === signInUrl);
+const storedRegistrationReturn = () => sessionStorage.getItem(registrationReturnKey);
+const boardWrites = () =>
+  requests.filter(
+    ({ url, init }) => url.includes("/posts") && init.method && init.method !== "GET",
+  );
+
+function expectBoardLinkDialog(draft = false) {
+  const link = dialog();
+  expect(link).not.toBeNull();
+  expect(link.textContent).toContain("掲示板のアカウント連携");
+  expect(link.textContent).toContain("アカウントを連携して、掲示板を楽しもう！");
+  expect(link.textContent).toContain("連携すると、投稿・返信・いいねができます。");
+  expect(link.textContent?.includes("連携後も、入力した内容から続けられます。")).toBe(draft);
+  return link;
+}
+
+test.each([
+  ["未ログイン", null],
+  ["ゲスト", guest],
+] as const)("%s の投稿・返信は入力を残して連携を案内する", async (_, viewer) => {
+  for (const isReply of [false, true]) {
+    const path = isReply ? postPath : timelinePath;
+    const label = isReply ? "返信する" : "投稿する";
+    const view = show(path, viewer);
+    await respond(isReply ? thread(post(1, "投稿")) : timeline([]));
+    expect(Boolean(input(view).previousElementSibling)).toBe(Boolean(viewer));
+    enter(input(view), "  ");
+    expect(view.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true);
+    enter(input(view), "入力中の本文");
+    press(view, label);
+    press(expectBoardLinkDialog(true), "キャンセル");
+    expect(dialog()).toBeNull();
+    expect(input(view).value).toBe("入力中の本文");
+    expect(storedRegistrationReturn()).toBeNull();
+
+    press(view, label);
+    press(dialog(), "Discordで続ける");
+    await flush();
+    expect(storedRegistrationReturn()).toBeNull();
+    expect(dialog().querySelector('[data-pending="true"]')?.textContent).toContain(
+      "Discordで続ける",
+    );
+    expect([...dialog().querySelectorAll("button")].every(({ disabled }) => disabled)).toBe(true);
+    expect(requests.every(({ init }) => !String(init.body).includes("入力中の本文"))).toBe(true);
+    signInRequest()!.respond({ message: "連携の開始に失敗しました。" }, 503);
+    await flush();
+    expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(
+      "連携の開始に失敗しました。",
+    );
+    press(dialog(), "キャンセル");
+    expect(input(view).value).toBe("入力中の本文");
+    expect(storedRegistrationReturn()).toBeNull();
+    expect(boardWrites()).toEqual([]);
+  }
+});
+
+test("保存不可の下書きは入力欄に残り、プロバイダーへ遷移しない", async () => {
+  const view = show(timelinePath, null);
   await respond(timeline([]));
-  expect(input(view)).toBeNull();
-  expect(view.querySelector('main [data-slot="avatar-fallback"]')).toBeNull();
-  expect(requests).toHaveLength(1);
-  press(view, "ログインして投稿");
-  expect(view.textContent).toBe("ログイン画面");
-  expect(readRegistrationReturn()?.path).toBe(timelineWithPosition);
+  enter(input(view), "入力中");
+  press(view, "投稿する");
+  const denied = denyStorage();
+  const assign = spyOn(window.location, "assign").mockImplementation(() => {});
+  try {
+    press(dialog(), "Googleで続ける");
+    await flush();
+    const oauth = signInRequest()!;
+    expect(oauth.init.method).toBe("POST");
+    oauth.respond({ url: googleOAuthUrl });
+    await flush();
+    expect(dialog().querySelector('[role="alert"]')?.textContent).toContain(
+      "下書きを保存できませんでした",
+    );
+    expect(assign).not.toHaveBeenCalled();
+    expect(storedRegistrationReturn()).toBeNull();
+    expect(boardWrites()).toEqual([]);
+    press(dialog(), "キャンセル");
+    expect(input(view).value).toBe("入力中");
+  } finally {
+    assign.mockRestore();
+    denied.mockRestore();
+  }
+});
+
+test("OAuth開始中に掲示板を離れると、遅れて成功が返っても下書きを保存しない", async () => {
+  const view = show(timelinePath, null);
+  await respond(timeline([]));
+  enter(input(view), "入力中");
+  press(view, "投稿する");
+  const assign = spyOn(window.location, "assign").mockImplementation(() => {});
+  try {
+    press(dialog(), "Googleで続ける");
+    await flush();
+    const oauth = signInRequest()!;
+    rerender(view, null);
+    expect(oauth.init.signal?.aborted).toBe(true);
+    oauth.respond({ url: googleOAuthUrl });
+    await flush();
+    expect(assign).not.toHaveBeenCalled();
+    expect(storedRegistrationReturn()).toBeNull();
+  } finally {
+    assign.mockRestore();
+  }
+});
+
+test("同じ掲示板で添付URLが変わったら連携を閉じ、新しい添付でやり直せる", async () => {
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/games/:gameId/posts",
+        element: (
+          <AccountContext.Provider
+            value={{
+              user: null,
+              loading: false,
+              error: null,
+              refresh: async () => {},
+              update: () => {},
+            }}
+          >
+            <BoardTimelinePage />
+          </AccountContext.Provider>
+        ),
+      },
+    ],
+    { initialEntries: [timelineWithPosition] },
+  );
+  const view = render(<RouterProvider router={router} />);
+  await respond(timeline([]));
+  enter(input(view), "入力中");
+  press(view, "投稿する");
+  press(dialog(), "Googleで続ける");
+  await flush();
+  const previous = signInRequest()!;
+  const nextPath = timelineWithPosition.replace("position=0", "position=1");
+  await act(async () => router.navigate(nextPath));
+  expect(dialog()).toBeNull();
+  expect(previous.init.signal?.aborted).toBe(true);
+  expect(input(view).value).toBe("入力中");
+
+  const assign = spyOn(window.location, "assign").mockImplementation(() => {});
+  try {
+    previous.respond({ url: googleOAuthUrl });
+    await flush();
+    expect(assign).not.toHaveBeenCalled();
+    expect(storedRegistrationReturn()).toBeNull();
+    press(view, "投稿する");
+    press(dialog(), "Googleで続ける");
+    await flush();
+    signInRequest()!.respond({ url: googleOAuthUrl });
+    await flush();
+    expect(assign).toHaveBeenCalledWith(googleOAuthUrl);
+    expect(readRegistrationReturn()).toMatchObject({
+      path: nextPath,
+      boardDraft: { text: "入力中" },
+    });
+  } finally {
+    assign.mockRestore();
+  }
+});
+
+test.each([
+  { path: postPath, label: "返信する", setup: false, canceled: false },
+  {
+    path: `/games/four-reversi/posts?match=${reversiMatch.id}&position=36`,
+    label: "投稿する",
+    setup: true,
+    canceled: false,
+  },
+  { path: postPath, label: "返信する", setup: false, canceled: true },
+] as const)(
+  "OAuthから戻ると元の入力欄に一度だけ復元する %j",
+  async ({ path, label, setup, canceled }) => {
+    const isReply = path === postPath;
+    const response = isReply ? thread(post(1, "投稿")) : timeline([]);
+    const destination = canceled
+      ? "/login?error=access_denied"
+      : setup
+        ? "/account/setup"
+        : "/account";
+    const draft = "  入力中の本文👨‍👩‍👧‍👦\n";
+    const initialPath = setup
+      ? `/games/four-reversi/posts?position=36&match=${reversiMatch.id}`
+      : path;
+    const initial = show(initialPath, setup ? guest : null);
+    await respond(response);
+    enter(input(initial), draft);
+    press(initial, label);
+    const assign = spyOn(window.location, "assign").mockImplementation(() => {
+      expect(readRegistrationReturn()).toMatchObject({
+        path,
+        boardDraft: { kind: isReply ? "reply" : "post", text: draft },
+        oauthStarted: true,
+      });
+    });
+    try {
+      press(dialog(), "Googleで続ける");
+      await flush();
+      expect(storedRegistrationReturn()).toBeNull();
+      signInRequest()!.respond({ url: googleOAuthUrl });
+      await flush();
+      expect(assign).toHaveBeenCalledWith(googleOAuthUrl);
+    } finally {
+      assign.mockRestore();
+    }
+
+    rerender(initial, null);
+    const router = createMemoryRouter(
+      [
+        {
+          element: <AccountLayout />,
+          children: [
+            { path: "/account", element: <p>マイページ</p> },
+            { path: "/account/setup", element: <ProfilePage setup /> },
+            { path: "/login", element: <LoginPage /> },
+            { path: "/posts/:id", element: <BoardDetailPage /> },
+            { path: "/games/:gameId/posts", element: <BoardTimelinePage /> },
+          ],
+        },
+      ],
+      { initialEntries: ["/account", destination], initialIndex: 1 },
+    );
+    const view = render(<RouterProvider router={router} />);
+    const accountRequest = requests.findLast(({ url }) => url === "/api/account/session")!;
+    accountRequest.respond({ user: canceled ? null : { ...user, profileCompleted: !setup } });
+    await flush();
+    if (setup) {
+      expect(router.state.location.pathname).toBe("/account/setup");
+      expect(readRegistrationReturn()?.boardDraft?.text).toBe(draft);
+      press(view, "プロフィールを作成");
+      const request = requests.findLast(({ url }) => url === "/api/account/setup")!;
+      expect(request.init.method).toBe("POST");
+      request.respond(user);
+      await flush();
+    }
+    if (canceled) {
+      expect(view.textContent).toContain("ログインを完了できませんでした");
+      press(view, "Discordで続ける");
+      await flush();
+      signInRequest()!.respond({ message: "再試行に失敗しました。" }, 503);
+      await flush();
+      expect(view.textContent).toContain("再試行に失敗しました。");
+      expect(readRegistrationReturn()).toMatchObject({
+        path,
+        boardDraft: { text: draft },
+        oauthStarted: false,
+      });
+      press(view, "元の画面へ戻る");
+      await flush();
+    }
+    expect(router.state.location.pathname + router.state.location.search).toBe(path);
+    const dataUrl = isReply ? detailUrl : "/api" + path.split("?")[0] + includeAttachments;
+    const boardRead = () => requests.findLast(({ url }) => url === dataUrl)!;
+    boardRead().respond(response);
+    await flush();
+    expect(input(view).value).toBe(draft);
+    expect(router.state.location.state).toBeNull();
+    expect(readRegistrationReturn()).toBeNull();
+    expect(boardWrites()).toEqual([]);
+    if (setup) {
+      expect(view.textContent).toContain("添付を外す");
+      const replay = requests.findLast(({ url }) => url === `/api/matches/${reversiMatch.id}`)!;
+      replay.respond({ match: reversiMatch });
+      await flush();
+      expect(view.querySelector("form")?.textContent).toContain("36: 青H5");
+      press(view, label);
+      expect(requestInput(boardWrites()[0]!)).toMatchObject({
+        text: draft,
+        attachment: { matchId: reversiMatch.id, position: 36 },
+      });
+    }
+    await act(async () => router.navigate(-1));
+    await act(async () => router.navigate(1));
+    boardRead().respond(response);
+    await flush();
+    expect(input(view).value).toBe("");
+  },
+);
+
+test("期限切れの掲示板下書きは読み込み時にタブから削除する", () => {
+  saveRegistrationReturn({ path: postPath, boardDraft: { kind: "reply", text: "入力中" } }, true);
+  clock.advance(3_600_000);
+  expect(storedRegistrationReturn()).not.toBeNull();
+  expect(readRegistrationReturn()).toBeNull();
+  expect(storedRegistrationReturn()).toBeNull();
+});
+
+test.each([
+  { name: "期限切れ", path: postPath, age: 3_600_000 },
+  { name: "別の投稿", path: `/posts/${uuid(2)}`, age: 0 },
+])("$name の復帰stateからは返信欄を復元しない", async ({ path, age }) => {
+  const view = render(
+    wrap(user, {
+      pathname: postPath,
+      state: {
+        registrationReturn: {
+          path,
+          createdAt: Date.now() - age,
+          oauthStarted: true,
+          boardDraft: { kind: "reply", text: "別の下書き" },
+        },
+      },
+    })(
+      <Routes>
+        <Route path="/posts/:id" element={<BoardDetailPage />} />
+      </Routes>,
+    ),
+  );
+  await respond(thread(post(1, "公開された投稿")));
+  expect(input(view).value).toBe("");
+  expect(boardWrites()).toEqual([]);
 });
 
 test("大会とルームをカードにし、取得に失敗した URL は本文のリンクだけを出す", async () => {
@@ -1097,8 +1418,11 @@ test.each([true, false])(
   },
 );
 
-test("Enterは送信せず、変換中のCtrlまたは⌘+Enterも送信しない", async () => {
-  const view = show();
+test.each([
+  ["連携済み", user],
+  ["未ログイン", null],
+] as const)("%s でEnterは送信せず、変換中のCtrlまたは⌘+Enterも送信しない", async (_, viewer) => {
+  const view = show(timelinePath, viewer);
   await respond(timeline([]));
   enter(input(view), "変換中");
   const keydown = (options: KeyboardEventInit, keyCode?: number) =>
@@ -1116,8 +1440,13 @@ test("Enterは送信せず、変換中のCtrlまたは⌘+Enterも送信しな�
   keydown({ ctrlKey: true, isComposing: true });
   keydown({ metaKey: true }, 229);
   expect(requests).toHaveLength(1);
+  expect(dialog()).toBeNull();
   keydown({ metaKey: true });
-  expect(latest().init.method).toBe("POST");
+  if (viewer) expect(latest().init.method).toBe("POST");
+  else {
+    expectBoardLinkDialog(true);
+    expect(boardWrites()).toEqual([]);
+  }
 });
 
 test("詳細は全文と正確な日時を表示し、返信の追加取得と送信を古い順で重複なく表示する", async () => {
@@ -1346,47 +1675,110 @@ test("自分の投稿と返信にもいいねできる。即時反映し、応�
 });
 
 test.each([
-  {
-    viewer: null,
-    reason: "いいねするにはログインしてください。",
-    prompt: "投稿するにはログインしてください。",
-  },
-  {
-    viewer: { ...user, isGuest: true },
-    reason: "いいねにはアカウント登録が必要です。",
-    prompt: "掲示板への投稿にはアカウント登録が必要です。",
-  },
-  {
-    viewer: { ...user, profileCompleted: false },
-    reason: "プロフィールの初回設定を完了するといいねできます。",
-    prompt: "プロフィールの初回設定を完了すると投稿できます。",
-  },
-])(
-  "投稿できない利用者への案内を出し、いいねの理由はボタンを押して確認できる",
-  async ({ viewer, reason, prompt }) => {
-    const view = show(timelinePath, viewer);
-    await respond(timeline([post(1, "閲覧する投稿")]));
-    expect(view.textContent).toContain(prompt);
-    expect(input(view)).toBeNull();
-    const button = like(view);
-    expect(button.textContent).toContain("2");
+  ["未ログインのタイムライン", null, timelinePath + "?other=1", timelinePath],
+  [
+    "ゲストのタイムライン",
+    guest,
+    `${timelinePath}?position=0&match=${shogiMatch.id}`,
+    timelineWithPosition,
+  ],
+  ["不正な添付のタイムライン", null, timelinePath + "?match=bad&position=0", timelinePath],
+  ["未ログインの投稿詳細", null, postPath + "?other=1", postPath],
+  ["ゲストの投稿詳細", guest, postPath, postPath],
+] as const)(
+  "%s でいいねを押すと、現在のページに戻る連携を案内する",
+  async (_, viewer, url, path) => {
+    const view = show(url, viewer);
+    await respond(
+      path === postPath ? thread(post(1, "投稿"), [reply(2, "返信")]) : timeline([post(1, "投稿")]),
+    );
+    const button = path === postPath ? like(articles(view)[1]!) : like(view);
     act(() => button.click());
-    expect(view.querySelector('[role="alert"]')?.textContent).toBe(reason);
-    expect(requests).toHaveLength(1);
-    if (viewer?.isGuest) {
-      press(view, "アカウント登録へ");
-      expect(view.textContent).toBe("ログイン画面");
-    } else if (viewer) {
-      expect(
-        [...view.querySelectorAll('a[href="/account/setup"]')].map((link) => link.textContent),
-      ).toContain("プロフィールを設定する");
-    } else {
-      press(view, "ログインして投稿");
-      expect(view.textContent).toBe("ログイン画面");
-      expect(readRegistrationReturn()?.path).toBe(timelinePath);
-    }
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+    expect(boardWrites()).toEqual([]);
+    press(expectBoardLinkDialog(), "Googleで続ける");
+    await flush();
+    expect(readRegistrationReturn()).toMatchObject({ path, oauthStarted: true });
+    expect(readRegistrationReturn()?.boardDraft).toBeUndefined();
+    expect(boardWrites()).toEqual([]);
   },
 );
+
+test("いいねの連携は添付や認証状態が変わると閉じ、開き直すと現在の復帰先を使う", async () => {
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/games/:gameId/posts",
+        element: (
+          <BoardLikeButton
+            item={post(1, "投稿")}
+            write={(operation) => operation(new AbortController().signal)}
+            onLike={() => {}}
+            onError={() => {}}
+          />
+        ),
+      },
+    ],
+    { initialEntries: [timelineWithPosition] },
+  );
+  const page = (viewer: AccountProfile | null, error: string | null = null) => (
+    <AccountContext.Provider
+      value={{ user: viewer, loading: false, error, refresh: async () => {}, update: () => {} }}
+    >
+      <RouterProvider router={router} />
+    </AccountContext.Provider>
+  );
+  const view = render(page(null));
+  act(() => like(view).click());
+  press(expectBoardLinkDialog(), "Googleで続ける");
+  await flush();
+  const previous = signInRequest()!;
+  const assign = spyOn(window.location, "assign").mockImplementation(() => {});
+  try {
+    await act(async () => router.navigate(`${timelinePath}?position=0&match=${shogiMatch.id}`));
+    expectBoardLinkDialog();
+    expect(previous.init.signal?.aborted).toBe(false);
+    const nextPath = timelineWithPosition.replace("position=0", "position=1");
+    await act(async () => router.navigate(nextPath));
+    expect(dialog()).toBeNull();
+    expect(previous.init.signal?.aborted).toBe(true);
+    previous.respond({ url: googleOAuthUrl });
+    await flush();
+    expect(assign).not.toHaveBeenCalled();
+
+    for (const invalid of [page(null, "ログイン状態を確認できません。"), page(user)]) {
+      act(() => like(view).click());
+      expectBoardLinkDialog();
+      rerender(view, invalid);
+      expect(dialog()).toBeNull();
+      rerender(view, page(null));
+      expect(dialog()).toBeNull();
+    }
+
+    act(() => like(view).click());
+    press(expectBoardLinkDialog(), "Googleで続ける");
+    await flush();
+    expect(readRegistrationReturn()?.path).toBe(nextPath);
+    expect(boardWrites()).toEqual([]);
+  } finally {
+    assign.mockRestore();
+  }
+});
+
+test("連携済みでもプロフィール未設定なら設定を案内する", async () => {
+  const view = show(timelinePath, { ...user, profileCompleted: false });
+  await respond(timeline([post(1, "閲覧する投稿")]));
+  expect(input(view)).toBeNull();
+  expect(view.querySelector('main a[href="/account/setup"]')?.textContent).toBe(
+    "プロフィールを設定する",
+  );
+  act(() => like(view).click());
+  expect(view.querySelector('[role="alert"]')?.textContent).toBe(
+    "プロフィールの初回設定を完了するといいねできます。",
+  );
+  expect(dialog()).toBeNull();
+  expect(boardWrites()).toEqual([]);
+});
 
 test("プロフィール設定前でもAccountLayoutから掲示板を閲覧できる", async () => {
   const view = render(
@@ -1412,6 +1804,53 @@ test("プロフィール設定前でもAccountLayoutから掲示板を閲覧で�
   await flush();
   expect(view.textContent).toContain("閲覧する投稿");
   expect(view.textContent).toContain("プロフィールを設定する");
+});
+
+test("ログイン状態の取得失敗時には連携を案内せず、入力中なら連携を閉じる", async () => {
+  const view = render(
+    <MemoryRouter initialEntries={[timelinePath]}>
+      <Routes>
+        <Route element={<AccountLayout />}>
+          <Route path="/games/:gameId/posts" element={<BoardTimelinePage />} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  );
+  const session = () => requests.findLast(({ url }) => url === "/api/account/session")!;
+  requests.find(({ url }) => url === timelineUrl)!.respond(timeline([post(1, "閲覧する投稿")]));
+  await flush();
+  expect(view.textContent).toContain("ログイン状態を確認しています");
+  expect(input(view)).toBeNull();
+  act(() => like(view).click());
+  expect(dialog()).toBeNull();
+
+  session().respond({}, 503);
+  await flush();
+  act(() => like(view).click());
+  expect(view.querySelector("main [role=alert]")?.textContent).toContain(
+    "ログイン状態を確認できません",
+  );
+  expect(input(view)).toBeNull();
+  expect(dialog()).toBeNull();
+  expect(boardWrites()).toEqual([]);
+  press(view.querySelector("main")!, "再試行");
+  session().respond({ user: null });
+  await flush();
+  enter(input(view), "入力中");
+  press(view, "投稿する");
+  expectBoardLinkDialog(true);
+  act(() => window.dispatchEvent(new Event("focus")));
+  session().respond({}, 503);
+  await flush();
+  expect(input(view)).toBeNull();
+  expect(dialog()).toBeNull();
+  press(view.querySelector("main")!, "再試行");
+  session().respond({ user: null });
+  await flush();
+  expect(input(view).value).toBe("入力中");
+  expect(dialog()).toBeNull();
+  press(view, "投稿する");
+  expectBoardLinkDialog(true);
 });
 
 test("タイムラインの投稿者リンクはカードの詳細リンクから独立して公開ページを開く", async () => {
@@ -1496,21 +1935,13 @@ test("詳細を直接開いても見出し左のアイコンからそのゲー�
   expect(view.querySelector("h1")?.textContent).toBe("四人リバーシの掲示板");
 });
 
-test("未ログインの返信欄は詳細をログイン後の戻り先に保存する", async () => {
-  const view = show(postPath, null);
-  await respond(thread(post(1, "閲覧する投稿")));
-  expect(view.textContent).toContain("返信するにはログインしてください。");
-  press(view, "ログインして返信");
-  expect(readRegistrationReturn()?.path).toBe(postPath);
-});
-
 test.each([
   [false, true, "現在、掲示板への投稿を受け付けていません。投稿は閲覧できます。"],
   [true, true, "このアカウントは掲示板への投稿を停止されています。"],
 ] as const)(
   "受付設定と投稿停止を投稿欄に表示する",
   async (acceptingPosts, postingStopped, message) => {
-    const view = show();
+    const view = show(timelinePath, guest);
     await respond(timeline([], null, { acceptingPosts, postingStopped }));
     expect(view.textContent).toContain(message);
     expect(input(view)).toBeNull();

@@ -1,5 +1,4 @@
 import {
-  boardAttachmentSchema,
   boardPostResultSchema,
   boardReplyResultSchema,
   type BoardPost,
@@ -14,6 +13,8 @@ import { AppHeader } from "../../shared/ui/AppHeader";
 import { AppPageLoading, AppPageState } from "../../shared/ui/AppPageState";
 import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { appPageWidthClasses } from "../../shared/ui/pageLayout";
+import { useRegistrationRestore } from "../account/useRegistrationRestore";
+import { boardTimelineReturnPath, readBoardAttachmentSearch } from "./boardAttachmentSearch";
 import { boardLinkClasses } from "./BoardBody";
 import { BoardComposer } from "./BoardComposer";
 import { BoardEntry } from "./BoardEntry";
@@ -109,14 +110,6 @@ function likePost(post: BoardPost, id: string, like: Pick<BoardReply, "liked" | 
   return post.id === id && post.status === "published" ? { ...post, ...like } : post;
 }
 
-function readAttachment(search: URLSearchParams) {
-  const [matchId, ...matches] = search.getAll("match");
-  const [position, ...positions] = search.getAll("position");
-  if (!position || !/^\d+$/.test(position) || matches.length || positions.length) return null;
-  const result = boardAttachmentSchema.safeParse({ matchId, position: Number(position) });
-  return result.success ? result.data : null;
-}
-
 export function BoardTimelinePage() {
   const { gameId } = useParams();
   const viewer = useViewerKey();
@@ -129,7 +122,9 @@ function BoardTimeline({ game }: { game: GameId }) {
   const path = boardTimelinePath(game);
   const [search, setSearch] = useSearchParams();
   const [media, setMedia] = useState(createBoardMedia);
-  const attachment = readAttachment(search);
+  const attachment = readBoardAttachmentSearch(search);
+  const returnTo = boardTimelineReturnPath(path, attachment);
+  const restored = useRegistrationRestore();
   const readFirst = useCallback((signal: AbortSignal) => readTimeline(game, signal), [game]);
   const board = useBoardData(readFirst);
   const { data, pending, failure } = board;
@@ -188,11 +183,8 @@ function BoardTimeline({ game }: { game: GameId }) {
         <>
           <BoardComposer
             posting={data}
-            returnTo={
-              attachment
-                ? `${path}?match=${attachment.matchId}&position=${attachment.position}`
-                : path
-            }
+            returnTo={returnTo}
+            initialText={restored?.path === returnTo ? restored.boardDraft?.text : undefined}
             attachment={attachment}
             onClearAttachment={clearAttachment}
             placeholder={`${catalog.name}について投稿する`}
@@ -282,6 +274,7 @@ function BoardDetail({ id }: { id: string }) {
   const [media] = useState(createBoardMedia);
   const { pathname } = useLocation();
   const path = boardPostPath(id);
+  const restored = useRegistrationRestore();
   const readFirst = useCallback(
     async (signal: AbortSignal) => {
       const firstPage = await readDetail(id, signal);
@@ -476,6 +469,7 @@ function BoardDetail({ id }: { id: string }) {
         <BoardComposer
           posting={data}
           returnTo={path}
+          initialText={restored?.path === path ? restored.boardDraft?.text : undefined}
           placeholder="返信を書く"
           reply
           busy={busy}

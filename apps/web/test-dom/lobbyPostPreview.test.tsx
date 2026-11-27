@@ -4,11 +4,12 @@ import { MemoryRouter, useLocation } from "react-router";
 import type { AccountProfile } from "@tetraboard/protocol";
 import type { BoardPost, BoardPublishedPost } from "@tetraboard/protocol/board";
 import { gameCatalog, gameIds, type GameId } from "@tetraboard/protocol/games";
+import { readRegistrationReturn } from "../src/features/account/registrationReturn";
 import { AccountContext } from "../src/features/account/useAccount";
 import { LobbyView } from "../src/features/lobby/LobbyView";
 import * as previewImport from "../src/features/lobby/importLobbyPostPreview";
 import { preloadRecovery } from "../src/shared/preloadRecovery";
-import { act, clock, flush, press, render, requests, rerender } from "./harness";
+import { act, clock, denyStorage, flush, press, render, requests, rerender } from "./harness";
 
 const game = "four-shogi";
 const firstPostPrompt = "対局の感想や気になる局面を、最初に投稿してみませんか。";
@@ -241,8 +242,11 @@ test("ロビーでは添付のある投稿だけに棋譜付きを表示し、�
   const card = cards[0]!;
   const label = [...card.querySelectorAll("p")].find((node) => node.textContent === "棋譜付き");
   const detailPath = `/posts/${first.id}`;
-  expect(label?.closest("a")?.getAttribute("href")).toBe(detailPath);
-  expect(card.querySelectorAll("a")).toHaveLength(1);
+  const [detail, replies] = card.querySelectorAll<HTMLAnchorElement>(`a[href="${detailPath}"]`);
+  expect(detail?.textContent).toContain(first.text);
+  expect(label?.closest("a")).toBe(detail);
+  expect(replies?.querySelector(".sr-only")?.textContent).toBe(`返信 ${first.replyCount} 件`);
+  expect(replies?.parentElement?.closest("a")).toBeNull();
   expect(requests.some(({ url }) => url.startsWith("/api/matches/"))).toBe(false);
 
   await act(async () => label!.click());
@@ -361,19 +365,43 @@ test("ロビーのいいねを取り消すと即時表示し、失敗したと�
 });
 
 test.each([
-  [null, "いいねするにはログインしてください。"],
-  [{ ...viewer, isGuest: true }, "いいねにはアカウント登録が必要です。"],
-  [{ ...viewer, profileCompleted: false }, "プロフィールの初回設定を完了するといいねできます。"],
-] as const)("ロビーでいいねができない場合は通信せず理由を示す（%s）", async (user, reason) => {
+  ["未ログイン", null],
+  ["ゲスト", { ...viewer, isGuest: true }],
+] as const)("%s がロビーでいいねを押すと、同じロビーに戻る連携を案内する", async (_, user) => {
   const {
     cards: [card],
   } = await showPosts(user, post(1));
   const button = like(card!);
   const requestCount = requests.length;
-
   act(() => button.click());
-  expect(card!.querySelector('[role="alert"]')?.textContent).toBe(reason);
+  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+  expect(dialog.textContent).toContain("掲示板のアカウント連携");
+  expect(dialog.textContent).not.toContain("入力した内容から続けられます");
   expectLike(button, false, 3);
+  expect(requests).toHaveLength(requestCount);
+
+  const denied = user ? denyStorage() : null;
+  try {
+    press(dialog, "Discordで続ける");
+    await flush();
+    expect(requests.some(({ url }) => url === "/api/auth/sign-in/social")).toBe(true);
+    expect(requests.some(({ url }) => url.endsWith("/like"))).toBe(false);
+    expect(readRegistrationReturn()?.path).toBe(user ? undefined : gameCatalog[game].lobbyPath);
+  } finally {
+    denied?.mockRestore();
+  }
+});
+
+test("ロビーでもプロフィール未設定のいいねは設定を案内する", async () => {
+  const {
+    cards: [card],
+  } = await showPosts({ ...viewer, profileCompleted: false }, post(1));
+  const requestCount = requests.length;
+  act(() => like(card!).click());
+  expect(card!.querySelector('[role="alert"]')?.textContent).toBe(
+    "プロフィールの初回設定を完了するといいねできます。",
+  );
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
   expect(requests).toHaveLength(requestCount);
 });
 
@@ -421,8 +449,8 @@ test.each([
     expect(requests.at(-1)?.init.method).toBe(method);
   } else {
     expect(requests).toHaveLength(requestCount);
-    expect(card.querySelector('[role="alert"]')?.textContent).toBe(
-      "いいねするにはログインしてください。",
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+      "掲示板のアカウント連携",
     );
   }
 });

@@ -1,5 +1,5 @@
 import type { RegistrationEntry } from "@tetraboard/protocol";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { AppButton } from "../../shared/ui/AppButton";
 import type { AppTheme } from "../../shared/ui/appTheme";
@@ -9,6 +9,8 @@ import { useSocialSignIn, type SocialProvider } from "./useSocialSignIn";
 
 export function AccountLinkDialog({
   feature,
+  title = "アカウントを連携しよう",
+  introduction,
   analyticsEntry = "account-link",
   theme = "default",
   destination,
@@ -19,6 +21,8 @@ export function AccountLinkDialog({
   onBusyChange,
 }: {
   feature?: string;
+  title?: string;
+  introduction?: ReactNode;
   analyticsEntry?: RegistrationEntry;
   theme?: AppTheme;
   destination?: RegistrationDestination;
@@ -35,7 +39,7 @@ export function AccountLinkDialog({
   const requestVersion = useRef(0);
   const submitting = useRef(false);
   const busy = preparing || signIn.busy;
-  useEffect(
+  useLayoutEffect(
     () => () => {
       requestVersion.current++;
     },
@@ -69,20 +73,18 @@ export function AccountLinkDialog({
     }
   }
   return (
-    <AppDialog
-      title="アカウントを連携しよう"
-      size="compact"
-      theme={theme}
-      busy={busy}
-      onClose={onClose}
-    >
+    <AppDialog title={title} size="compact" theme={theme} busy={busy} onClose={onClose}>
       <div className="flex flex-col gap-4">
-        <p className="text-sm leading-relaxed">
-          {feature
-            ? `${feature}は、GoogleまたはDiscordと連携すると利用できます。`
-            : "連携すると、別の端末でも同じアカウントで遊べます。"}
-        </p>
-        <p className="text-sm text-muted">ゲストで遊んだ記録を引き継げます。</p>
+        {introduction ?? (
+          <>
+            <p className="text-sm leading-relaxed">
+              {feature
+                ? `${feature}は、GoogleまたはDiscordと連携すると利用できます。`
+                : "連携すると、別の端末でも同じアカウントで遊べます。"}
+            </p>
+            <p className="text-sm text-muted">ゲストで遊んだ記録を引き継げます。</p>
+          </>
+        )}
         {beforeSignInNotice && <p className="text-sm font-semibold">{beforeSignInNotice}</p>}
         <SocialSignInButtons
           busy={busy}

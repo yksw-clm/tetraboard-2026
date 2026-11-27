@@ -1,12 +1,16 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Navigate } from "react-router";
+import { AppPageLoading } from "../../shared/ui/AppPageState";
 import { readGuestRegistration } from "./guestRegistration";
-import { GuestRegistrationCompletion } from "./GuestRegistrationCompletion";
 import {
   clearRegistrationReturn,
   readRegistrationReturn,
   parseRegistrationReturn,
 } from "./registrationReturn";
+
+const GuestRegistrationCompletion = lazy(async () => ({
+  default: (await import("./GuestRegistrationCompletion")).GuestRegistrationCompletion,
+}));
 
 export function RegistrationCompletion({
   children,
@@ -24,7 +28,11 @@ export function RegistrationCompletion({
   }, [enabled, handoff]);
   if (handoff?.linkGuest && guestMergePending) return children;
   if (handoff)
-    return <GuestRegistrationCompletion flow={handoff}>{children}</GuestRegistrationCompletion>;
+    return (
+      <Suspense fallback={<AppPageLoading message="登録の状態を確認しています…" />}>
+        <GuestRegistrationCompletion flow={handoff}>{children}</GuestRegistrationCompletion>
+      </Suspense>
+    );
   const validDestination = parseRegistrationReturn(destination);
   return enabled && validDestination?.oauthStarted ? (
     <Navigate to={validDestination.path} state={{ registrationReturn: validDestination }} replace />
