@@ -236,6 +236,8 @@ test("ロビーのいいねは詳細へ移らず、即時表示して応答で�
   const path = view.querySelector('[aria-label="現在のパス"]');
   const link = card!.querySelector<HTMLAnchorElement>("a")!;
   expect(button.closest("a")).toBeNull();
+  expect(button.previousElementSibling?.textContent).toContain("返信 2 件");
+  expect(button.classList.contains("z-10")).toBe(true);
   expect(link.getAttribute("href")).toBe(`/posts/${first.id}`);
 
   act(() => button.click());

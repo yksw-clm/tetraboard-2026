@@ -47,9 +47,11 @@ function BoardLayout({
     <div className="app-theme flex min-h-dvh flex-col text-ink">
       <AppHeader homeTo="/" homeLabel="総合ロビーへ" theme={theme} />
       <div className={`lobby-background text-ink flex-1 ${appThemeClasses[theme]}`}>
-        <main className={`${appPageWidthClasses} space-y-5 py-6 sm:py-8`}>
+        <main className={`${appPageWidthClasses} py-8 [@media(max-width:767px)]:py-3`}>
           <BoardMediaContext.Provider value={media}>
-            <div className="mx-auto grid min-w-0 max-w-3xl gap-5">{children}</div>
+            <div className="mx-auto grid min-w-0 max-w-3xl gap-5 [@media(max-width:767px)]:gap-2.5">
+              {children}
+            </div>
           </BoardMediaContext.Provider>
         </main>
       </div>
@@ -133,8 +135,8 @@ function BoardTimeline({ game }: { game: GameId }) {
   const { data, pending, failure } = board;
   const busy = pending !== null;
 
-  function refresh(retry = false) {
-    void board.refresh(retry, () => setMedia(refreshBoardMedia(media)));
+  function refresh() {
+    void board.refresh(true, () => setMedia(refreshBoardMedia(media)));
   }
 
   function clearAttachment() {
@@ -174,23 +176,13 @@ function BoardTimeline({ game }: { game: GameId }) {
 
   return (
     <BoardLayout game={game} media={media}>
-      <div className="grid gap-2">
+      <div className="grid gap-2 [@media(max-width:767px)]:gap-1">
         <Link to={catalog.lobbyPath} className={boardLinkClasses}>
           {catalog.name}のロビーへ
         </Link>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-2xl font-bold">{catalog.name}の掲示板</h1>
-          {data && (
-            <AppButton
-              appearance="secondary"
-              onPress={() => refresh()}
-              isPending={pending === "refresh"}
-              isDisabled={busy}
-            >
-              更新
-            </AppButton>
-          )}
-        </div>
+        <h1 className="text-2xl font-bold [@media(max-width:767px)]:text-xl">
+          {catalog.name}の掲示板
+        </h1>
       </div>
       {data && (
         <>
@@ -235,7 +227,7 @@ function BoardTimeline({ game }: { game: GameId }) {
             }}
           />
           {data.posts.length === 0 && <p className="text-muted">まだ投稿はありません。</p>}
-          <div className="grid gap-3">
+          <div className="grid gap-3 [@media(max-width:767px)]:gap-2">
             {data.posts.map((post) => (
               <BoardEntry
                 key={post.id}
@@ -270,7 +262,7 @@ function BoardTimeline({ game }: { game: GameId }) {
       )}
       {failure && (
         <Retry
-          action={() => (failure.source === "more" ? more(true) : refresh(true))}
+          action={() => (failure.source === "more" ? more(true) : refresh())}
           pending={pending === "retry"}
           disabled={busy}
         />
@@ -386,6 +378,7 @@ function BoardDetail({ id }: { id: string }) {
   }
 
   const { post, replies } = data;
+  const hasReplies = post.replyCount > 0;
   const game = post.gameId;
   const timeline = boardTimelinePath(game);
   const catalog = gameCatalog[game];
@@ -416,21 +409,36 @@ function BoardDetail({ id }: { id: string }) {
           {catalog.name}のロビーへ
         </Link>
       </nav>
-      <h1 className="text-2xl font-bold">投稿の詳細</h1>
-      <BoardEntry item={post} game={game} serverTimeMs={data.serverTimeMs} {...actions} />
-      {replies.length > 0 && (
-        <section aria-label="返信" className="grid gap-3">
-          {replies.map((reply) => (
-            <BoardEntry
-              item={reply}
-              game={game}
-              key={reply.id}
-              serverTimeMs={data.serverTimeMs}
-              {...actions}
-            />
-          ))}
-        </section>
-      )}
+      <h1 className="text-2xl font-bold [@media(max-width:767px)]:text-xl">投稿の詳細</h1>
+      <div className="grid min-w-0 gap-3 [@media(max-width:767px)]:gap-2">
+        <BoardEntry item={post} game={game} serverTimeMs={data.serverTimeMs} {...actions} />
+        {(hasReplies || replies.length > 0) && (
+          <section
+            aria-labelledby={hasReplies ? "board-replies-heading" : undefined}
+            aria-label={hasReplies ? undefined : "返信"}
+            className="grid min-w-0 gap-2"
+          >
+            {hasReplies && (
+              <h2 id="board-replies-heading" className="text-sm font-bold">
+                返信 {post.replyCount} 件
+              </h2>
+            )}
+            <div
+              className={`grid min-w-0 gap-2 ${hasReplies ? "ml-3 border-l-2 border-solid border-line pl-3" : ""}`}
+            >
+              {replies.map((reply) => (
+                <BoardEntry
+                  item={reply}
+                  game={game}
+                  key={reply.id}
+                  serverTimeMs={data.serverTimeMs}
+                  {...actions}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
       {data.nextCursor && (
         <AppButton
           appearance="secondary"

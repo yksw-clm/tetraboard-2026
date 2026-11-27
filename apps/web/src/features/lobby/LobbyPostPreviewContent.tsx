@@ -52,6 +52,7 @@ function PostPreview({
         <p className="line-clamp-3 whitespace-pre-wrap wrap-anywhere text-sm">{post.text}</p>
       </Link>
       <div className="flex items-center gap-2">
+        <BoardReplyCount count={post.replyCount} />
         <BoardLikeButton
           item={post}
           write={write}
@@ -59,7 +60,6 @@ function PostPreview({
           onError={setError}
           className="relative z-10"
         />
-        <BoardReplyCount count={post.replyCount} />
       </div>
       {error && (
         <p role="alert" className="text-sm text-danger">

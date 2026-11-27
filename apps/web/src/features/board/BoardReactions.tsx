@@ -1,14 +1,12 @@
 import { boardLikeResultSchema, type BoardReply } from "@tetraboard/protocol/board";
 import { useState } from "react";
-import { Link } from "react-router";
-import { AppButton } from "../../shared/ui/AppButton";
 import { useAccount } from "../account/useAccount";
 import { boardPostPath, boardRequest, mutationError } from "./boardApi";
 import type { BoardWrite } from "./useBoardData";
 
 export type BoardLike = Pick<BoardReply, "liked" | "likeCount">;
 
-const reactionClasses = "gap-1 text-xs text-ink-secondary";
+const reactionClasses = "inline-flex items-center gap-1 text-xs";
 const iconPaths = {
   heart: "M12 20 4.5 12.5a4.5 4.5 0 0 1 6.4-6.4L12 7.2l1.1-1.1a4.5 4.5 0 0 1 6.4 6.4L12 20Z",
   reply: "M21 11a8 8 0 0 1-8 8H8l-5 3V11a9 9 0 0 1 18 0Z",
@@ -91,36 +89,28 @@ export function BoardLikeButton({
   }
 
   return (
-    <AppButton
-      appearance={liked ? "secondary" : "quiet"}
-      size="compact"
-      className={`${reactionClasses} ${className ?? ""}`}
+    <button
+      type="button"
+      className={`${reactionClasses} -my-1 min-h-11 min-w-11 justify-center rounded-control border-0 bg-transparent px-2 cursor-pointer focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2 aria-disabled:cursor-default ${liked ? "text-danger" : "text-ink-secondary"} ${className ?? ""}`}
       aria-label="いいね"
       aria-pressed={liked}
       aria-disabled={pending || undefined}
-      onPress={toggleLike}
+      onClick={toggleLike}
     >
       <ReactionIcon name="heart" filled={liked} />
       {likeCount}
-    </AppButton>
+    </button>
   );
 }
 
-export function BoardReplyCount({ count, to }: { count: number; to?: string }) {
-  const content = (
-    <>
-      <span aria-hidden="true" className={`inline-flex items-center ${reactionClasses}`}>
+export function BoardReplyCount({ count }: { count: number }) {
+  return (
+    <span className="inline-flex">
+      <span aria-hidden="true" className={`${reactionClasses} text-ink-secondary`}>
         <ReactionIcon name="reply" />
         {count}
       </span>
       <span className="sr-only">返信 {count} 件</span>
-    </>
-  );
-  return to ? (
-    <Link to={to} className="inline-flex rounded-control no-underline hover:underline">
-      {content}
-    </Link>
-  ) : (
-    <span className="inline-flex">{content}</span>
+    </span>
   );
 }

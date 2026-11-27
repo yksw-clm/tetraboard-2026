@@ -1,6 +1,7 @@
 import type { BoardPost, BoardReply } from "@tetraboard/protocol/board";
 import type { GameId } from "@tetraboard/protocol/games";
 import { lazy, Suspense, useState, type ReactNode } from "react";
+import { Link } from "react-router";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
@@ -94,12 +95,20 @@ function BoardEntryActions({
   return (
     <div className="grid gap-1">
       <div className="flex flex-wrap items-center gap-2">
-        <BoardLikeButton item={item} busy={busy} write={write} onLike={onLike} onError={setError} />
         {replies}
+        <BoardLikeButton
+          item={item}
+          busy={busy}
+          write={write}
+          onLike={onLike}
+          onError={setError}
+          className="relative z-10"
+        />
         {item.own && (
           <AppButton
             appearance="quiet"
             size="compact"
+            className="relative z-10 ml-auto"
             isDisabled={busy}
             onPress={() => {
               setDeleteError(null);
@@ -110,7 +119,13 @@ function BoardEntryActions({
           </AppButton>
         )}
         {!item.own && (
-          <AppButton appearance="quiet" size="compact" isDisabled={busy} onPress={openReport}>
+          <AppButton
+            appearance="quiet"
+            size="compact"
+            className="relative z-10 ml-auto"
+            isDisabled={busy}
+            onPress={openReport}
+          >
             通報
           </AppButton>
         )}
@@ -197,34 +212,48 @@ export function BoardEntry({
   const time = (
     <BoardTime ms={item.postedAtMs} relativeTo={timeline || !post ? serverTimeMs : undefined} />
   );
-  const replies = post && <BoardReplyCount count={post.replyCount} to={detailPath} />;
+  const timestamp = detailPath ? (
+    <Link
+      to={detailPath}
+      className="no-underline before:absolute before:inset-0 before:z-[1] before:rounded-panel focus-visible:outline-none focus-visible:before:outline-3 focus-visible:before:outline-focus focus-visible:before:outline-offset-2"
+    >
+      <span className="sr-only">投稿の詳細 </span>
+      {time}
+    </Link>
+  ) : (
+    time
+  );
+  const replies = post && <BoardReplyCount count={post.replyCount} />;
 
   return (
     <article className="min-w-0">
-      <AppCard className="min-w-0 gap-3 wrap-anywhere">
+      <AppCard
+        density="compact"
+        className={`min-w-0 wrap-anywhere ${timeline ? "relative isolate hover:bg-surface-hover" : ""}`}
+      >
         {"status" in item && item.status === "deleted" ? (
           <>
             <p className="font-semibold text-muted">削除された投稿</p>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              {time}
+              {timestamp}
               {replies}
             </div>
           </>
         ) : (
           <>
-            <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <header className="flex flex-wrap items-center justify-between gap-2">
               <PlayerProfileTrigger
                 target={item.author.profileTarget}
                 label={item.author.name}
                 game={game}
                 mode="singles"
                 theme={gameThemes[game]}
-                className="flex min-w-0 max-w-full items-center gap-2"
+                className="flex min-w-0 max-w-full items-center gap-2 [&:is(button)]:relative [&:is(button)]:z-10"
               >
                 <AppAvatar src={item.author.avatarUrl} />
                 <span className="min-w-0 font-semibold wrap-anywhere">{item.author.name}</span>
               </PlayerProfileTrigger>
-              {time}
+              {timestamp}
             </header>
             <BoardBody text={item.text} detailPath={detailPath} />
             {item.attachment && <BoardAttachment {...item.attachment} />}
