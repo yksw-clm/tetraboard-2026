@@ -2,16 +2,15 @@ import type { BoardPost, BoardReply } from "@tetraboard/protocol/board";
 import type { GameId } from "@tetraboard/protocol/games";
 import { lazy, Suspense, useState, type ReactNode } from "react";
 import { Link } from "react-router";
-import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { gameThemes } from "../../shared/ui/appTheme";
 import { useAccount } from "../account/useAccount";
 import { formatMatchDate } from "../matches/matchDatePresentation";
-import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { BoardBody } from "./BoardBody";
 import { BoardAttachment } from "./BoardAttachment";
+import { BoardAuthor } from "./BoardAuthor";
 import { BoardLikeButton, BoardReplyCount, type BoardLike } from "./BoardReactions";
 import type { BoardWrite } from "./useBoardData";
 import { boardPostPath, boardRequest, mutationError } from "./boardApi";
@@ -242,17 +241,7 @@ export function BoardEntry({
         ) : (
           <>
             <header className="flex flex-wrap items-center justify-between gap-2">
-              <PlayerProfileTrigger
-                target={item.author.profileTarget}
-                label={item.author.name}
-                game={game}
-                mode="singles"
-                theme={gameThemes[game]}
-                className="flex min-w-0 max-w-full items-center gap-2 [&:is(button)]:relative [&:is(button)]:z-10"
-              >
-                <AppAvatar src={item.author.avatarUrl} />
-                <span className="min-w-0 font-semibold wrap-anywhere">{item.author.name}</span>
-              </PlayerProfileTrigger>
+              <BoardAuthor author={item.author} game={game} />
               {timestamp}
             </header>
             <BoardBody text={item.text} detailPath={detailPath} />

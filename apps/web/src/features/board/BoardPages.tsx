@@ -402,14 +402,33 @@ function BoardDetail({ id }: { id: string }) {
   return (
     <BoardLayout game={game} media={media}>
       <nav aria-label="掲示板の移動" className="flex flex-wrap gap-x-4 gap-y-2">
-        <Link to={timeline} className={boardLinkClasses}>
-          {catalog.name}の掲示板へ
-        </Link>
         <Link to={catalog.lobbyPath} className={boardLinkClasses}>
           {catalog.name}のロビーへ
         </Link>
       </nav>
-      <h1 className="text-2xl font-bold [@media(max-width:767px)]:text-xl">投稿の詳細</h1>
+      <div className="flex items-center gap-2">
+        <AppButtonLink
+          to={timeline}
+          aria-label={`${catalog.name}の掲示板へ`}
+          appearance="quiet"
+          size="compact"
+          className="min-h-11 min-w-11 p-0"
+        >
+          <svg
+            aria-hidden="true"
+            className="size-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M19 12H5m7-7-7 7 7 7" />
+          </svg>
+        </AppButtonLink>
+        <h1 className="text-2xl font-bold [@media(max-width:767px)]:text-xl">投稿の詳細</h1>
+      </div>
       <div className="grid min-w-0 gap-3 [@media(max-width:767px)]:gap-2">
         <BoardEntry item={post} game={game} serverTimeMs={data.serverTimeMs} {...actions} />
         {(hasReplies || replies.length > 0) && (

@@ -3,7 +3,7 @@ import { useRef } from "react";
 import { Link } from "react-router";
 import { useBoardMedia, useBoardMediaItem, useBoardMediaNear } from "./boardMedia";
 
-const width = "w-56 max-w-full [@media(max-width:767px)]:w-full";
+const width = "w-full max-w-full [@media(min-width:768px)]:w-96";
 
 export function BoardAttachment({ matchId, position }: Attachment) {
   const { attachment } = useBoardMedia();

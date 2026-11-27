@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { BoardPublishedPost } from "@tetraboard/protocol/board";
-import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppCard } from "../../shared/ui/AppCard";
 import { boardPostPath } from "../board/boardApi";
+import { BoardAuthor } from "../board/BoardAuthor";
 import { BoardLikeButton, BoardReplyCount, type BoardLike } from "../board/BoardReactions";
 import type { BoardWrite } from "../board/useBoardData";
 import { formatMatchDate } from "../matches/matchDatePresentation";
@@ -35,20 +35,19 @@ function PostPreview({
   const date = new Date(post.postedAtMs);
   const iso = Number.isNaN(date.getTime()) ? undefined : date.toISOString();
   return (
-    <AppCard density="compact" className="relative min-w-0 hover:bg-surface-hover">
+    <AppCard density="compact" className="relative isolate min-w-0 hover:bg-surface-hover">
+      <header className="flex min-w-0 items-center gap-2">
+        <BoardAuthor author={post.author} game={post.gameId} compact />
+        {iso && (
+          <time className="ml-auto shrink-0 text-xs text-muted" dateTime={iso}>
+            {formatMatchDate(post.postedAtMs, nowMs)}
+          </time>
+        )}
+      </header>
       <Link
         to={boardPostPath(post.id)}
-        className="grid gap-2 text-ink no-underline before:absolute before:inset-0 before:rounded-panel focus-visible:outline-none focus-visible:before:outline-3 focus-visible:before:outline-focus focus-visible:before:outline-offset-2"
+        className="min-w-0 text-ink no-underline before:absolute before:inset-0 before:z-[1] before:rounded-panel focus-visible:outline-none focus-visible:before:outline-3 focus-visible:before:outline-focus focus-visible:before:outline-offset-2"
       >
-        <div className="flex min-w-0 items-center gap-2">
-          <AppAvatar src={post.author.avatarUrl} />
-          <span className="min-w-0 truncate text-sm font-bold">{post.author.name}</span>
-          {iso && (
-            <time className="ml-auto shrink-0 text-xs text-muted" dateTime={iso}>
-              {formatMatchDate(post.postedAtMs, nowMs)}
-            </time>
-          )}
-        </div>
         <p className="line-clamp-3 whitespace-pre-wrap wrap-anywhere text-sm">{post.text}</p>
       </Link>
       <div className="flex items-center gap-2">

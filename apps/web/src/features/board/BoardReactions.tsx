@@ -21,7 +21,7 @@ function ReactionIcon({
 }) {
   return (
     <svg
-      className="size-4 shrink-0 align-middle"
+      className="size-5 shrink-0 align-middle"
       viewBox="0 0 24 24"
       fill={filled ? "currentColor" : "none"}
       stroke="currentColor"

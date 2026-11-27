@@ -32,7 +32,6 @@ import {
 } from "../src/features/account/registrationReturn";
 import { AccountLayout } from "../src/features/account/AccountSession";
 import { AccountContext } from "../src/features/account/useAccount";
-import { PlayerProfileProvider } from "../src/features/players/PlayerProfileProvider";
 import { BoardAttachmentBoard } from "../src/features/board/BoardAttachmentBoard";
 import { BoardDetailPage, BoardTimelinePage } from "../src/features/board/BoardPages";
 import { formatMatchDate } from "../src/features/matches/matchDatePresentation";
@@ -157,7 +156,7 @@ function cursor({ id, postedAtMs }: BoardReply) {
   return `${postedAtMs}:${id}`;
 }
 
-function MatchDestination() {
+function Destination() {
   const { pathname, search } = useLocation();
   return <p>{pathname + search}</p>;
 }
@@ -168,14 +167,13 @@ function show(entry = timelinePath, viewer: AccountProfile | null = user) {
       viewer,
       entry,
     )(
-      <PlayerProfileProvider>
-        <Routes>
-          <Route path="/games/:gameId/posts" element={<BoardTimelinePage />} />
-          <Route path="/posts/:id" element={<BoardDetailPage />} />
-          <Route path="/matches/:id" element={<MatchDestination />} />
-          <Route path="/login" element={<p>ログイン画面</p>} />
-        </Routes>
-      </PlayerProfileProvider>,
+      <Routes>
+        <Route path="/games/:gameId/posts" element={<BoardTimelinePage />} />
+        <Route path="/posts/:id" element={<BoardDetailPage />} />
+        <Route path="/matches/:id" element={<Destination />} />
+        <Route path="/players/:profileId" element={<Destination />} />
+        <Route path="/login" element={<p>ログイン画面</p>} />
+      </Routes>,
     ),
   );
 }
@@ -310,10 +308,19 @@ test.each([
     "/api/games/four-reversi/posts" + includeAttachments,
     "/api" + matchPath,
   ]);
-  expect(view.querySelectorAll('[aria-label="棋譜を読み込んでいます"]')).toHaveLength(2);
+  const loading = view.querySelectorAll('[aria-label="棋譜を読み込んでいます"]');
+  expect(loading).toHaveLength(2);
+  for (const frame of loading) {
+    expect(frame.classList.contains("[@media(min-width:768px)]:w-96")).toBe(true);
+    expect(frame.classList.contains("max-w-full")).toBe(true);
+    expect(frame.classList.contains("w-full")).toBe(true);
+  }
   await respond({ match: reversiMatch });
   const [first, second] = articles(view);
-  expect(first?.querySelector('[aria-label="四人リバーシの盤面"]')).not.toBeNull();
+  const board = first!.querySelector('[aria-label="四人リバーシの盤面"]')!;
+  const boardArea = board.closest(".pointer-events-none")!;
+  expect(boardArea.closest("a")).toBeNull();
+  expect(boardArea.parentElement?.className).toBe(loading[0]?.className);
   expect(first?.querySelector('[aria-label^="A1："]')).not.toBeNull();
   expect(first?.textContent).not.toContain(reversiMatch.participants[0]?.name);
   const links = first!.querySelectorAll<HTMLAnchorElement>(`a[href="${positionPath}"]`);
@@ -353,8 +360,8 @@ test("返信の添付は公開棋譜のページを最後まで取得し、同�
     });
   }
   const [, first, second] = articles(view);
-  expect(first?.querySelector('[aria-label="四人将棋の盤面"]')).not.toBeNull();
-  const links = first!.querySelectorAll(`a[href^="${matchPath}"]`);
+  const board = first!.querySelector<HTMLElement>('[aria-label="四人将棋の盤面"]')!;
+  const links = first!.querySelectorAll<HTMLAnchorElement>(`a[href^="${matchPath}"]`);
   expect(links).toHaveLength(1);
   expect(links[0]?.getAttribute("href")).toBe(`${matchPath}?position=101`);
   expect(links[0]?.textContent).toBe("西 退室");
@@ -363,6 +370,11 @@ test("返信の添付は公開棋譜のページを最後まで取得し、同�
   expect(second?.textContent).toContain("棋譜を表示できません。");
   expect(second?.querySelector(`a[href^="${matchPath}"]`)).toBeNull();
   expect(requests).toHaveLength(4);
+  act(() => board.click());
+  expect(view.querySelector("h1")?.textContent).toBe("投稿の詳細");
+  expect(requests).toHaveLength(4);
+  await act(async () => links[0]!.click());
+  expect(view.textContent).toBe(`${matchPath}?position=101`);
 });
 
 test("スマホの四人将棋の添付では、折り返せる持ち駒台に4種と枚数を表示する", () => {
@@ -546,9 +558,7 @@ function boardMetadataRouter(path: string) {
               update: () => {},
             }}
           >
-            <PlayerProfileProvider>
-              <Outlet />
-            </PlayerProfileProvider>
+            <Outlet />
           </AccountContext.Provider>
         ),
         children: [
@@ -1101,6 +1111,10 @@ test("タイムラインの返信数、いいね、通報は独立した操作�
   const report = reportButton(card)!;
   const count = button.previousElementSibling!;
   expect(count.textContent).toContain("返信 3 件");
+  expect(count.querySelector("svg")?.classList.contains("size-5")).toBe(true);
+  expect(button.querySelector("svg")?.classList.contains("size-5")).toBe(true);
+  expect(button.classList.contains("min-h-11")).toBe(true);
+  expect(button.classList.contains("min-w-11")).toBe(true);
   expect(count.closest("a")).toBeNull();
   expect(button.nextElementSibling).toBe(report);
   expect(button.closest("a")).toBeNull();
@@ -1327,7 +1341,7 @@ test("プロフィール設定前でもAccountLayoutから掲示板を閲覧で�
   expect(view.textContent).toContain("プロフィールを設定する");
 });
 
-test("投稿者の公開プロフィールがある場合だけプレイヤー情報を開ける", async () => {
+test("タイムラインの投稿者リンクはカードの詳細リンクから独立して公開ページを開く", async () => {
   const view = show();
   const profileId = uuid(3);
   const author = {
@@ -1337,25 +1351,76 @@ test("投稿者の公開プロフィールがある場合だけプレイヤー�
   };
   await respond(timeline([post(1, "投稿", { author }), post(2, "プロフィールなし")]));
   const [withProfile, withoutProfile] = articles(view);
-  expect(withoutProfile?.querySelector('button[aria-label$="プレイヤー情報"]')).toBeNull();
-  const trigger = withProfile!.querySelector<HTMLButtonElement>(
-    'button[aria-label="現在名のプレイヤー情報"]',
-  )!;
-  expect(trigger.closest("a")).toBeNull();
-  act(() => trigger.click());
-  expect(latest().url).toContain(profileId);
-  await respond({
-    kind: "account",
-    profileId,
-    game: "four-shogi",
-    name: "現在名",
-    username: "current_id",
-    avatarUrl: null,
-    stats: { singles: { total: 3, first: 1 }, doubles: { total: 0, wins: 0 } },
+  const playerPath = `/players/${profileId}?game=four-shogi&mode=singles`;
+  const link = withProfile!.querySelector<HTMLAnchorElement>(`a[href="${playerPath}"]`)!;
+  expect(link?.textContent).toBe(author.name);
+  expect(link.querySelector("svg")).not.toBeNull();
+  expect(link.classList.contains("z-10")).toBe(true);
+  expect(expectDetailLink(withProfile!, postPath).contains(link)).toBe(false);
+  expectDetailLink(withoutProfile!, `/posts/${uuid(2)}`);
+  expect(withoutProfile?.querySelector("header")?.textContent).toContain("投稿者");
+  expect(withoutProfile?.querySelector('header a[href^="/players/"], header button')).toBeNull();
+  await act(async () => link.click());
+  expect(view.textContent).toBe(playerPath);
+  expect(requests.map(({ url }) => url)).toEqual([timelineUrl]);
+});
+
+test("詳細の投稿と返信は表示中のゲームでそれぞれの公開ページを開ける", async () => {
+  const view = show(postPath);
+  const parent = post(1, "投稿", {
+    gameId: "reversi",
+    replyCount: 2,
+    author: {
+      name: "投稿者名",
+      avatarUrl: null,
+      profileTarget: { source: "profile", profileId: uuid(4) },
+    },
   });
-  expect(
-    document.querySelector('[aria-label="現在名のプレイヤー情報"][role="region"]')?.textContent,
-  ).toContain("現在名");
+  const child = reply(2, "返信", {
+    author: {
+      name: "返信者名",
+      avatarUrl: null,
+      profileTarget: { source: "profile", profileId: uuid(5) },
+    },
+  });
+  await respond(thread(parent, [child, reply(3, "プロフィールなし")]));
+  const [postCard, replyCard, withoutProfile] = articles(view);
+  const parentPath = `/players/${uuid(4)}?game=reversi`;
+  const replyPath = `/players/${uuid(5)}?game=reversi`;
+  expect(postCard?.querySelector(`a[href="${parentPath}"]`)?.textContent).toBe(parent.author.name);
+  const link = replyCard!.querySelector<HTMLAnchorElement>(`a[href="${replyPath}"]`)!;
+  expect(link?.textContent).toBe(child.author.name);
+  expect(withoutProfile?.querySelector("header")?.textContent).toContain("投稿者");
+  expect(withoutProfile?.querySelector("header a, header button")).toBeNull();
+  await act(async () =>
+    link.querySelector("svg")!.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+  );
+  expect(view.textContent).toBe(replyPath);
+  expect(requests.map(({ url }) => url)).toEqual([detailUrl]);
+});
+
+test("詳細を直接開いても見出し左のアイコンからそのゲームの掲示板へ戻る", async () => {
+  const view = show(postPath);
+  await respond(thread(post(1, "投稿", { gameId: "four-reversi" })));
+  const heading = view.querySelector("h1")!;
+  const back = heading.previousElementSibling as HTMLAnchorElement;
+  const destination = "/games/four-reversi/posts";
+  expect(heading.textContent).toBe("投稿の詳細");
+  expect(back?.getAttribute("aria-label")).toBe("四人リバーシの掲示板へ");
+  expect(back?.getAttribute("href")).toBe(destination);
+  expect(back.textContent).toBe("");
+  expect(back.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+  expect(back.classList.contains("min-h-11")).toBe(true);
+  expect(back.classList.contains("min-w-11")).toBe(true);
+  expect(back.classList.contains("focus-visible:outline-focus")).toBe(true);
+  expect(view.querySelectorAll(`a[href="${destination}"]`)).toHaveLength(1);
+  expect(view.querySelector('main nav a[href="/games/four-reversi"]')?.textContent).toBe(
+    "四人リバーシのロビーへ",
+  );
+  await act(async () => back.click());
+  expect(latest().url).toBe(`/api${destination}${includeAttachments}`);
+  await respond(timeline([]));
+  expect(view.querySelector("h1")?.textContent).toBe("四人リバーシの掲示板");
 });
 
 test("未ログインの返信欄は詳細をログイン後の戻り先に保存する", async () => {
