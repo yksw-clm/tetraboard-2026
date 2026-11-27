@@ -340,6 +340,77 @@ test("非公開になった通知は再取得で除外し、既読保存で404�
   expect(dialog().textContent).toContain("お知らせはありません");
 });
 
+test("詳細の返信が裏の再取得で消えると一覧へ戻り、削除された見出しと本文を隠す", async () => {
+  const entry: Notification = {
+    id: 2,
+    createdAtMs: 1780000000000,
+    kind: "reply",
+    read: false,
+    legacy: false,
+    reply: {
+      postId: "parent-id",
+      replyId: "reply-id",
+      gameId: "reversi",
+      authorName: "返信者",
+      text: "消える返信の1行目\n消える返信の2行目",
+    },
+  };
+  const entries = [entry, announcement()];
+  await warm(entries);
+  await openList();
+  await settleOpen(entries);
+  select(2);
+  await flush();
+  expect(dialog().querySelector("article h2")?.textContent).toContain("返信者さんから返信");
+  expect(dialog().querySelector("article")?.textContent).toContain(entry.reply.text);
+  await reply(readUrl, { ok: true });
+  await reply(unreadUrl, { hasUnread: true, upperBound: 2 });
+
+  clock.advance(30_000);
+  await flush();
+  await reply(unreadUrl, { hasUnread: true, upperBound: 3 });
+  await reply(listUrl, {}, 503);
+  expect(dialog().querySelector("article")?.textContent).toContain(entry.reply.text);
+
+  clock.advance(30_000);
+  await flush();
+  await reply(unreadUrl, { hasUnread: true, upperBound: 3 });
+  await reply(listUrl, page([announcement(3), announcement()]));
+  expect(dialog().querySelector("article")).toBeNull();
+  expect(dialog().querySelector('[role="status"]')?.textContent).toBe(
+    "このお知らせは表示できなくなりました。",
+  );
+  expect(dialog().textContent).not.toContain("返信者さんから返信");
+  expect(dialog().textContent).not.toContain("消える返信");
+  expect(dialog().textContent).toContain("更新情報1");
+  expect(dialog().textContent).not.toContain("更新情報3");
+  expect(document.activeElement?.getAttribute("aria-label")).toBe("お知らせを更新");
+  select(1);
+  expect(dialog().textContent).not.toContain("このお知らせは表示できなくなりました。");
+});
+
+test("更新は最新ページの範囲で消えた通知を外し、もっと見るで取得した古い通知を残す", async () => {
+  const entries = [announcement(12), announcement(11), announcement(10)];
+  await warm(entries, "10");
+  await openList();
+  await settleOpen(entries, "10");
+  press(dialog(), "もっと見る");
+  await flush();
+  await reply("/api/notifications?cursor=10&replies=1", page([announcement(9), announcement(8)]));
+  const ids = () =>
+    Array.from(dialog().querySelectorAll("[data-notification-id]"), (row) =>
+      row.getAttribute("data-notification-id"),
+    );
+
+  act(() => dialog().querySelector<HTMLButtonElement>('[aria-label="お知らせを更新"]')!.click());
+  await reply(listUrl, {}, 503);
+  expect(ids()).toEqual(["12", "11", "10", "9", "8"]);
+  press(dialog(), "再試行");
+  await flush();
+  await reply(listUrl, page([announcement(13), announcement(12), announcement(10)], "10"));
+  expect(ids()).toEqual(["13", "12", "10", "9", "8"]);
+});
+
 function authShell(
   user: AccountProfile | null,
   loading: boolean,

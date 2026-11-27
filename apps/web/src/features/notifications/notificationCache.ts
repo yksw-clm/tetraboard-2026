@@ -9,6 +9,7 @@ export class NotificationCache {
   private revision = 0;
   getRevision = () => this.revision;
   private listeners = new Set<() => void>();
+  private latestListeners = new Set<(page: DisplayNotificationList) => void>();
   constructor(owner: string) {
     this.owner = owner;
   }
@@ -16,6 +17,12 @@ export class NotificationCache {
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  };
+  subscribeLatest = (listener: (page: DisplayNotificationList) => void) => {
+    this.latestListeners.add(listener);
+    return () => {
+      this.latestListeners.delete(listener);
+    };
   };
   private publish(page: DisplayNotificationList) {
     this.page = page;
@@ -35,6 +42,7 @@ export class NotificationCache {
   store(page: DisplayNotificationList) {
     const result = this.apply(page);
     this.publish(result);
+    for (const listener of this.latestListeners) listener(result);
     return result;
   }
   markRead(id: number) {

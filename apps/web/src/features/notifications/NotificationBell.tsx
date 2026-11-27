@@ -8,14 +8,17 @@ import {
   type SetStateAction,
 } from "react";
 import { Link } from "react-router";
-import { badgeDefinitions, getBadgeIds } from "@tetraboard/protocol";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { AppIcon } from "../../shared/ui/AppIcon";
-import { BadgeImage } from "../badges/BadgeImage";
 import { createAccountSelection } from "../account/useAccountSelection";
 import { useNotificationCenter, type NotificationCenter } from "./NotificationContext";
-import type { DisplayNotification } from "./notificationResponses";
+import type { DisplayNotification, DisplayNotificationList } from "./notificationResponses";
+
+function firstCoveredId(page: DisplayNotificationList) {
+  // API は通知番号の降順で返します。
+  return page.nextCursor === null ? 0 : (page.notifications.at(-1)?.id ?? Infinity);
+}
 
 function NotificationDetails({
   notification: n,
@@ -73,24 +76,7 @@ function NotificationDetails({
           {n.presentation.body}
         </p>
       )}
-      {n.kind === "badge" && (
-        <div className="flex flex-wrap gap-4">
-          {getBadgeIds(n.badge.game)
-            .flatMap((id) => n.badge.badges.filter((b) => b.id === id))
-            .map((b) => (
-              <div key={b.id} className="flex flex-col items-center gap-1 text-sm">
-                <BadgeImage game={n.badge.game} {...b} size={56} />
-                <span>
-                  {badgeDefinitions[b.id].name}・星{b.tier}
-                </span>
-                <span>
-                  累計{b.value}
-                  {badgeDefinitions[b.id].unit}
-                </span>
-              </div>
-            ))}
-        </div>
-      )}
+      {n.presentation.badgeDetails}
       {error && (
         <div role="alert" className="space-y-2 text-sm">
           <p>既読を保存できませんでした。</p>
@@ -130,7 +116,9 @@ function NotificationDialog({
   const [pending, setPending] = useState(false);
   const [pendingSource, setPendingSource] = useState("initial");
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<DisplayNotification | null>(null);
+  const [selection, setSelection] = useState<DisplayNotification | "removed" | null>(null);
+  const selected = selection === "removed" ? null : selection;
+  const refreshButton = useRef<HTMLButtonElement>(null);
   const mounted = useRef(true);
   const requestVersion = useRef(0);
   const scroll = useRef<HTMLDivElement>(null);
@@ -138,6 +126,23 @@ function NotificationDialog({
   useLayoutEffect(() => {
     if (selected && scroll.current) scroll.current.scrollTop = 0;
   }, [selected]);
+  useLayoutEffect(() => {
+    if (selection === "removed") refreshButton.current?.focus();
+  }, [selection]);
+  const { subscribeLatest } = center;
+  useLayoutEffect(
+    () =>
+      subscribeLatest((page) => {
+        const lowerBound = firstCoveredId(page);
+        const ids = new Set(page.notifications.map((n) => n.id));
+        const stillVisible = (n: DisplayNotification) => n.id < lowerBound || ids.has(n.id);
+        setRows((previous) => previous.filter(stillVisible));
+        setSelection((previous) =>
+          previous && previous !== "removed" && !stillVisible(previous) ? "removed" : previous,
+        );
+      }),
+    [subscribeLatest],
+  );
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -153,11 +158,15 @@ function NotificationDialog({
     try {
       const page = await center.list(next);
       if (!mounted.current || version !== requestVersion.current) return;
-      setRows((previous) =>
-        next
-          ? [...previous, ...page.notifications.filter((n) => !previous.some((p) => p.id === n.id))]
-          : page.notifications,
-      );
+      const lowerBound = firstCoveredId(page);
+      setRows((previous) => {
+        if (!next) return [...page.notifications, ...previous.filter((n) => n.id < lowerBound)];
+        return [
+          ...previous,
+          ...page.notifications.filter((n) => !previous.some((p) => p.id === n.id)),
+        ].sort((a, b) => b.id - a.id);
+      });
+      if (!next) setSelection((previous) => (previous === "removed" ? null : previous));
       setCursor(page.nextCursor);
       setUpperBound(page.upperBound);
       setLoaded(true);
@@ -179,7 +188,7 @@ function NotificationDialog({
     scrollTop.current = scroll.current?.scrollTop ?? 0;
     setPending(false);
     setError(null);
-    setSelected(notification);
+    setSelection(notification);
   }
   async function allRead() {
     setPendingSource("read-all");
@@ -210,7 +219,7 @@ function NotificationDialog({
             className="size-9 min-h-9 min-w-9 p-0"
             onPress={() => {
               const id = selected.id;
-              setSelected(null);
+              setSelection(null);
               requestAnimationFrame(() => {
                 const body = scroll.current;
                 body
@@ -241,6 +250,7 @@ function NotificationDialog({
         <>
           <div className="mb-3 flex flex-wrap gap-2">
             <AppButton
+              ref={refreshButton}
               appearance="secondary"
               size="compact"
               isIconOnly
@@ -263,6 +273,11 @@ function NotificationDialog({
               すべて既読にする
             </AppButton>
           </div>
+          {selection === "removed" && (
+            <p role="status" className="mb-3 text-sm">
+              このお知らせは表示できなくなりました。
+            </p>
+          )}
           {pending && !loaded && <p role="status">お知らせを読み込んでいます…</p>}
           {error && (
             <div role="alert" className="mb-3 text-sm">

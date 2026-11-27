@@ -5,7 +5,9 @@ import {
 } from "@tetraboard/protocol";
 import { boardPostExcerpt, boardPostPath } from "@tetraboard/protocol/board-presentation";
 import { gameCatalog } from "@tetraboard/protocol/games";
+import { createElement, type ReactElement } from "react";
 import { badgeToastTitle } from "../badges/badgeNotificationPresentation";
+import { NotificationBadgeDetails } from "./NotificationBadgeDetails";
 
 type Presentation = {
   label: string;
@@ -14,6 +16,7 @@ type Presentation = {
   linkLabel: string;
   subtitle?: string;
   body?: string;
+  badgeDetails?: ReactElement;
 };
 export type DisplayNotification = Notification & { presentation: Presentation };
 export type DisplayNotificationList = Omit<NotificationList, "notifications"> & {
@@ -48,6 +51,7 @@ function present(n: Notification): Presentation {
         path: "/account",
         linkLabel: "マイページでバッジを見る",
         subtitle: gameCatalog[n.badge.game].name,
+        badgeDetails: createElement(NotificationBadgeDetails, { award: n.badge }),
       };
     case "reply": {
       const { authorName, text, postId, gameId } = n.reply;

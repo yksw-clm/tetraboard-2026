@@ -7,6 +7,7 @@ export type NotificationCenter = {
   error: string | null;
   storageError: boolean;
   cachedPage: DisplayNotificationList | null;
+  subscribeLatest: (listener: (page: DisplayNotificationList) => void) => () => void;
   registerHeader: () => () => void;
   refresh: () => Promise<void>;
   list: (cursor?: string) => Promise<DisplayNotificationList>;

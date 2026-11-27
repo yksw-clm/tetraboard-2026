@@ -312,6 +312,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       error: status.identity === identity ? status.error : null,
       storageError: status.identity === identity && status.storageError,
       cachedPage: identity ? cachedPage : null,
+      subscribeLatest: cache.subscribeLatest,
       registerHeader,
       refresh,
       list,
@@ -319,7 +320,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       readAll,
       readAnnouncement,
     }),
-    [identity, status, cachedPage, registerHeader, refresh, list, read, readAll, readAnnouncement],
+    [
+      identity,
+      status,
+      cachedPage,
+      cache,
+      registerHeader,
+      refresh,
+      list,
+      read,
+      readAll,
+      readAnnouncement,
+    ],
   );
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
 }

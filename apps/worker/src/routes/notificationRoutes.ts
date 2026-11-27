@@ -47,14 +47,12 @@ notificationRoutes.onError(
 const numberQuery = z.string().regex(/^\d+$/).transform(Number).pipe(notificationNumberSchema);
 const repliesQuery = z.literal("1").optional();
 const invalidQuery = { message: "取得条件を確認してください。" };
-const querySchema = z
-  .object({
-    cursor: numberQuery.optional(),
-    after: numberQuery.optional(),
-    announcementId: z.string().min(1).max(80).optional(),
-    replies: repliesQuery,
-  })
-  .strict();
+const querySchema = z.object({
+  cursor: numberQuery.optional(),
+  after: numberQuery.optional(),
+  announcementId: z.string().min(1).max(80).optional(),
+  replies: repliesQuery,
+});
 notificationRoutes.get("/notifications", async (c) => {
   const query = querySchema.safeParse(c.req.query());
   if (!query.success) return c.json(invalidQuery, 400);

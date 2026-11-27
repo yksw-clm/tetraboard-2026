@@ -156,6 +156,21 @@ test("自分の投稿への返信では通知を作らない", async () => {
   ).toBeNull();
 });
 
+test("通知の GET は未知のクエリを無視し、既知のクエリの不正値を拒否する", async () => {
+  const { recipient, author, parent } = await thread();
+  await postReply(parent.id, author);
+  const id = (await list(recipient)).upperBound;
+  for (const path of ["/notifications", `/notifications/${id}`, "/account/notifications/unread"]) {
+    const current = await get(path + optIn, recipient);
+    const future = await get(path + optIn + "&future=1", recipient);
+    expect(current.status).toBe(200);
+    expect(future.status).toBe(200);
+    expect(await future.json()).toEqual(await current.json());
+    expect((await get(path + "?replies=2&future=1", recipient)).status).toBe(400);
+  }
+  expect((await get("/notifications?cursor=abc&future=1", recipient)).status).toBe(400);
+});
+
 test.each([
   "返信者本人の削除",
   "運営による返信削除",
