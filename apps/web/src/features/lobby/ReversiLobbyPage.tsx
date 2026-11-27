@@ -2,7 +2,6 @@ import { getRoomContract } from "@tetraboard/protocol";
 import { useNavigate, useNavigation, useSearchParams } from "react-router";
 import { LobbyView } from "./LobbyView";
 import { LobbyList } from "./LobbyList";
-import { LobbyRankings } from "./LobbyRankings";
 import { useLobby } from "./useLobby";
 import { RatedMatchmakingDialog } from "../matchmaking/RatedMatchmakingDialog";
 import { useReversiRatedAvailability } from "../matchmaking/useReversiRatedAvailability";
@@ -51,7 +50,6 @@ export function ReversiLobbyPage() {
             }
           />
         )}
-        rankings={<LobbyRankings game="reversi" theme="reversi" />}
         onNameChange={entry.setName}
         onRoomCodeChange={entry.setRoomCode}
         onModeChange={entry.setMode}

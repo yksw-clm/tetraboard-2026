@@ -8,7 +8,14 @@ import {
 import { boardPostPath } from "@tetraboard/protocol/board-presentation";
 import { gameCatalog, isGameId, type GameId } from "@tetraboard/protocol/games";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router";
+import {
+  Link,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useNavigationType,
+  useParams,
+} from "react-router";
 import { updatePageMetadata } from "../../seo/pageMetadata";
 import { matchedBoardPostNumber } from "../../shared/siteNavigation";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
@@ -16,16 +23,31 @@ import { AppHeader } from "../../shared/ui/AppHeader";
 import { AppPageLoading, AppPageState } from "../../shared/ui/AppPageState";
 import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { appPageWidthClasses } from "../../shared/ui/pageLayout";
+import { useAccount } from "../account/useAccount";
+import { HowToPlayDialog } from "../lobby/HowToPlayDialog";
+import { LobbyGameTitle } from "../lobby/LobbyGameTitle";
+import { MobileLobbyNavigation } from "../lobby/MobileLobbyNavigation";
+import { useMobileLobby } from "../lobby/useMobileLobby";
 import { useRegistrationRestore } from "../account/useRegistrationRestore";
 import { boardTimelineReturnPath, readBoardAttachmentSearch } from "./boardAttachmentSearch";
 import { boardLinkClasses } from "./BoardBody";
 import { BoardComposer } from "./BoardComposer";
-import { BoardEntry } from "./BoardEntry";
+import { BoardEntry, type BoardDetailLink } from "./BoardEntry";
+import {
+  isStaleTimelineAttachment,
+  openTimelineDraft,
+  readTimelineVisit,
+  rememberTimelineDraft,
+  rememberTimelineVisit,
+  syncTimelineVisit,
+  timelineVisitState,
+} from "./boardTimelineVisit";
 import { BoardMediaContext, createBoardMedia, refreshBoardMedia } from "./boardMedia";
 import {
   boardLoadError,
   boardMissing,
   boardPostApiPath,
+  BoardRequestError,
   boardEntriesRequest,
   boardTimelinePath,
   readDetail,
@@ -115,37 +137,99 @@ function likePost(post: BoardPost, id: string, like: Pick<BoardReply, "liked" | 
 
 export function BoardTimelinePage() {
   const { gameId } = useParams();
+  const { loading, user } = useAccount();
   const viewer = useViewerKey();
+  const mobile = useMobileLobby();
+  const { state } = useLocation();
   if (!isGameId(gameId)) return <Missing message="掲示板が見つかりません。" />;
-  return <BoardTimeline key={`${gameId}:${viewer}`} game={gameId} />;
+  if (loading && !user && (mobile || state?.registrationReturn || state?.boardDraftAttachment)) {
+    return <AppPageLoading message="掲示板を読み込んでいます…" theme={gameThemes[gameId]} />;
+  }
+  const scope = `${gameId}:${viewer}`;
+  return <BoardTimeline key={scope} game={gameId} scope={scope} mobile={mobile} />;
 }
 
-function BoardTimeline({ game }: { game: GameId }) {
+function BoardTimeline({ game, scope, mobile }: { game: GameId; scope: string; mobile: boolean }) {
   const catalog = gameCatalog[game];
   const path = boardTimelinePath(game);
   const location = useLocation();
+  const navigationType = useNavigationType();
   const navigate = useNavigate();
   const latestLocation = useRef(location);
   const [media, setMedia] = useState(createBoardMedia);
-  const attachment = readBoardAttachmentSearch(new URLSearchParams(location.search));
-  const returnTo = boardTimelineReturnPath(path, attachment);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const restored = useRegistrationRestore();
+  const [visit] = useState(() =>
+    mobile
+      ? ((navigationType === "POP" ? readTimelineVisit(scope, location.key) : undefined) ??
+        readTimelineVisit(scope, location.state?.restoreBoardTimeline))
+      : undefined,
+  );
+  const [draft] = useState(() =>
+    openTimelineDraft(
+      scope,
+      location.key,
+      mobile && (location.state?.lobbyTabNavigation === true || Boolean(visit)),
+      restored?.path === location.pathname + location.search
+        ? restored.boardDraft?.text
+        : undefined,
+    ),
+  );
+
+  const search = new URLSearchParams(location.search);
+  const attachmentOwner = location.state?.boardDraftAttachment;
+  const staleAttachment = isStaleTimelineAttachment(attachmentOwner, scope);
+  const explicitAttachment = search.has("match") || search.has("position");
+  const urlAttachment = staleAttachment ? null : readBoardAttachmentSearch(search);
+  const [initialEntry] = useState(() => ({
+    key: location.key,
+    attachment: mobile && !explicitAttachment && !restored ? draft.attachment : null,
+  }));
+  const resumeAttachment = initialEntry.key === location.key ? initialEntry.attachment : null;
+  const attachment = urlAttachment ?? resumeAttachment;
+  const returnTo = boardTimelineReturnPath(path, attachment);
   const readFirst = useCallback((signal: AbortSignal) => readTimeline(game, signal), [game]);
-  const board = useBoardData(readFirst);
+  const board = useBoardData(readFirst, visit?.data);
   const { data, pending, failure } = board;
   const busy = pending !== null;
 
   useLayoutEffect(() => {
     latestLocation.current = location;
-  }, [location]);
+    if (!staleAttachment && !resumeAttachment) return;
+    const query = new URLSearchParams(location.search);
+    let state = location.state;
+    if (resumeAttachment && !explicitAttachment) {
+      query.set("match", resumeAttachment.matchId);
+      query.set("position", String(resumeAttachment.position));
+      state = { ...state, boardDraftAttachment: draft.owner() };
+    } else if (staleAttachment) {
+      query.delete("match");
+      query.delete("position");
+      const { boardDraftAttachment: _previous, ...remainingState } = state;
+      state = remainingState;
+    }
+    void navigate(
+      { pathname: location.pathname, search: query.toString(), hash: location.hash },
+      { replace: true, state, preventScrollReset: true },
+    );
+  }, [draft, explicitAttachment, location, navigate, resumeAttachment, staleAttachment]);
+
+  useLayoutEffect(() => {
+    if (visit) window.scrollTo(0, visit.scrollY);
+  }, [visit]);
 
   function refresh() {
     void board.refresh(true, () => setMedia(refreshBoardMedia(media)));
   }
 
+  function saveDraft() {
+    rememberTimelineDraft(draft, attachment, latestLocation.current.key);
+  }
+
   function changeAttachment(value: BoardAttachment | null) {
     const current = latestLocation.current;
     const search = new URLSearchParams(current.search);
+    const { boardDraftAttachment: _previous, ...state } = current.state ?? {};
     if (value) {
       search.set("match", value.matchId);
       search.set("position", String(value.position));
@@ -156,11 +240,36 @@ function BoardTimeline({ game }: { game: GameId }) {
       search.delete("match");
       search.delete("position");
     }
+    if (mobile) rememberTimelineDraft(draft, value, current.key);
     void navigate(
       { pathname: current.pathname, search: search.toString(), hash: current.hash },
-      { replace: true, state: current.state, preventScrollReset: true },
+      {
+        replace: true,
+        state: value ? { ...state, boardDraftAttachment: draft.owner() } : state,
+        preventScrollReset: true,
+      },
     );
   }
+
+  const detailLink: BoardDetailLink | undefined =
+    mobile && data
+      ? {
+          state: { boardTimelineEntry: location.key, boardTimelineGame: game, scrollToTop: true },
+          onClick(event) {
+            if (
+              event.defaultPrevented ||
+              event.button !== 0 ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.altKey ||
+              event.shiftKey
+            )
+              return;
+            saveDraft();
+            rememberTimelineVisit(scope, location, data, attachmentOwner);
+          },
+        }
+      : undefined;
 
   const more = (retry = false) => {
     const before = data?.nextCursor;
@@ -186,26 +295,38 @@ function BoardTimeline({ game }: { game: GameId }) {
     }
   }
 
-  if (!data && pending === "initial") {
+  if (!mobile && !data && pending === "initial") {
     return <AppPageLoading message="掲示板を読み込んでいます…" theme={gameThemes[game]} />;
   }
 
   return (
     <BoardLayout game={game} media={media}>
-      <div className="grid gap-2 [@media(max-width:767px)]:gap-1">
-        <Link to={catalog.lobbyPath} className={boardLinkClasses}>
-          {catalog.name}のロビーへ
-        </Link>
-        <h1 className="text-2xl font-bold [@media(max-width:767px)]:text-xl">
-          {catalog.name}の掲示板
-        </h1>
-      </div>
+      {mobile ? (
+        <>
+          <LobbyGameTitle game={game} onRules={() => setRulesOpen(true)} />
+          <MobileLobbyNavigation game={game} selected="posts" onLeave={saveDraft} />
+          {rulesOpen && <HowToPlayDialog game={game} onClose={() => setRulesOpen(false)} />}
+          {pending === "initial" && <p role="status">掲示板を読み込んでいます…</p>}
+        </>
+      ) : (
+        <div className="grid gap-2">
+          <Link to={catalog.lobbyPath} className={boardLinkClasses}>
+            {catalog.name}のロビーへ
+          </Link>
+          <h1 className="text-2xl font-bold">{catalog.name}の掲示板</h1>
+        </div>
+      )}
       {data && (
         <>
           <BoardComposer
             posting={data}
             returnTo={returnTo}
-            initialText={restored?.path === returnTo ? restored.boardDraft?.text : undefined}
+            initialText={draft.text}
+            submission={draft}
+            onTextChange={(text) => {
+              draft.changeText(text);
+              if (mobile && text) saveDraft();
+            }}
             attachmentEditor={{ game, value: attachment, onChange: changeAttachment }}
             placeholder={`${catalog.name}について投稿する`}
             busy={busy}
@@ -222,6 +343,7 @@ function BoardTimeline({ game }: { game: GameId }) {
                 "投稿を送信できませんでした。",
               );
               const { post } = boardPostResultSchema.parse(await response.json());
+              draft.finish(input.requestId);
               signal.throwIfAborted();
               const exists = post && data.posts.some(({ id }) => id === post.id);
               const first = data.posts[0];
@@ -246,6 +368,7 @@ function BoardTimeline({ game }: { game: GameId }) {
                 item={post}
                 game={game}
                 timeline
+                detailLink={detailLink}
                 serverTimeMs={data.serverTimeMs}
                 busy={busy}
                 write={board.write}
@@ -292,21 +415,35 @@ export function BoardDetailPage() {
   const path = boardPostPath(number);
   if (pathname.replace(/\/$/, "") !== path)
     return <Navigate to={{ pathname: path, search, hash }} state={state} replace />;
-  return <BoardDetail key={`${number}:${viewer}`} number={number} />;
+  return <BoardDetail key={`${number}:${viewer}`} number={number} viewer={viewer} />;
 }
 
-function BoardDetail({ number }: { number: number }) {
+function BoardDetail({ number, viewer }: { number: number; viewer: string }) {
   const navigate = useNavigate();
   const [media] = useState(createBoardMedia);
-  const { pathname } = useLocation();
+  const { pathname, state } = useLocation();
   const path = boardPostPath(number);
   const restored = useRegistrationRestore();
+  const sourceGame: unknown = state?.boardTimelineGame;
+  const sourceEntry: unknown = state?.boardTimelineEntry;
+  const timelineVisit = isGameId(sourceGame)
+    ? readTimelineVisit(`${sourceGame}:${viewer}`, sourceEntry)
+    : undefined;
   const readFirst = useCallback(
     async (signal: AbortSignal) => {
-      const firstPage = await readDetail(number, signal);
-      return { ...firstPage, firstPage };
+      try {
+        const firstPage = await readDetail(number, signal);
+        signal.throwIfAborted();
+        if (firstPage.post.status === "deleted" && firstPage.post.gameId === sourceGame)
+          syncTimelineVisit(timelineVisit, number, firstPage.post);
+        return { ...firstPage, firstPage };
+      } catch (error) {
+        if (!signal.aborted && error instanceof BoardRequestError && error.status === 404)
+          syncTimelineVisit(timelineVisit, number, null);
+        throw error;
+      }
     },
-    [number],
+    [number, sourceGame, timelineVisit],
   );
   const board = useBoardData(readFirst);
   const { data, pending, failure } = board;
@@ -350,9 +487,16 @@ function BoardDetail({ number }: { number: number }) {
       signal.throwIfAborted();
       if (!next) {
         updatePageMetadata(pathname, undefined, undefined, undefined, undefined, null);
-        void navigate(boardTimelinePath(data.post.gameId), { replace: true });
+        const timeline = boardTimelinePath(data.post.gameId);
+        const visit = data.post.gameId === sourceGame ? timelineVisit : undefined;
+        syncTimelineVisit(visit, number, null);
+        void navigate(visit?.to ?? timeline, {
+          replace: true,
+          state: visit ? timelineVisitState(visit) : undefined,
+        });
         return;
       }
+      if (next.post.gameId === sourceGame) syncTimelineVisit(timelineVisit, number, next.post);
       const removed = removedReplies.current;
       removedReplies.current = new Set();
       board.change((current) => ({
@@ -401,8 +545,10 @@ function BoardDetail({ number }: { number: number }) {
   const game = post.gameId;
   const timeline = boardTimelinePath(game);
   const catalog = gameCatalog[game];
+  const visit = game === sourceGame ? timelineVisit : undefined;
 
   function updateLike(likedId: string, like: Pick<BoardReply, "liked" | "likeCount">) {
+    if (post.id === likedId) syncTimelineVisit(visit, number, likePost(post, likedId, like));
     board.change((current) => ({
       ...current,
       post: likePost(current.post, likedId, like),
@@ -427,7 +573,8 @@ function BoardDetail({ number }: { number: number }) {
       </nav>
       <div className="flex items-center gap-2">
         <AppButtonLink
-          to={timeline}
+          to={visit?.to ?? timeline}
+          state={visit ? timelineVisitState(visit) : { scrollToTop: true }}
           aria-label={`${catalog.name}の掲示板へ`}
           appearance="quiet"
           size="compact"

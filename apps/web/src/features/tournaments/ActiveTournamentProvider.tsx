@@ -89,7 +89,9 @@ export function ActiveTournamentProvider({ children }: { children: ReactNode }) 
         )
       : [];
   return (
-    <ActiveTournamentsContext value={{ tournaments, serverNowMs }}>
+    <ActiveTournamentsContext
+      value={{ tournaments, upcoming: snapshot?.data.upcoming ?? [], serverNowMs }}
+    >
       {children}
     </ActiveTournamentsContext>
   );

@@ -1,6 +1,7 @@
 import { scanBoardLinks } from "@tetraboard/protocol/board";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
+import type { BoardDetailLink } from "./BoardEntry";
 import { BoardLinkCard } from "./BoardLinkCard";
 import { useBoardMediaNear } from "./boardMedia";
 
@@ -39,7 +40,15 @@ function useClampedBody(text: string, clamp: boolean) {
   };
 }
 
-export function BoardBody({ text, detailPath }: { text: string; detailPath?: string }) {
+export function BoardBody({
+  text,
+  detailPath,
+  detailLink,
+}: {
+  text: string;
+  detailPath?: string;
+  detailLink?: BoardDetailLink;
+}) {
   const clamp = detailPath !== undefined;
   const { ref, overflow } = useClampedBody(text, clamp);
   const origin = window.location.origin;
@@ -82,7 +91,7 @@ export function BoardBody({ text, detailPath }: { text: string; detailPath?: str
         )}
       </div>
       {detailPath && overflow && (
-        <Link to={detailPath} className={`relative z-10 w-fit ${boardLinkClasses}`}>
+        <Link to={detailPath} {...detailLink} className={`relative z-10 w-fit ${boardLinkClasses}`}>
           続きを読む
         </Link>
       )}

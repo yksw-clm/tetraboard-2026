@@ -122,7 +122,6 @@ test("ゲーム別の大会一覧は公開ルーム・ランキング・最近�
     isSubmitting: null,
     message: null,
     renderRooms: () => <section aria-label="公開ルーム検証" />,
-    rankings: <section aria-label="ランキング検証" />,
     onNameChange() {},
     onRoomCodeChange() {},
     onModeChange() {},
@@ -135,7 +134,7 @@ test("ゲーム別の大会一覧は公開ルーム・ランキング・最近�
   respondList("four-shogi");
   await flush();
   const rooms = view.querySelector('[aria-label="公開ルーム検証"]')!;
-  const rankings = view.querySelector('[aria-label="ランキング検証"]')!;
+  const rankings = view.querySelector('[aria-labelledby="lobby-rankings-title"]')!;
   const recent = view.querySelector('[aria-labelledby="recent-matches-title"]')!;
   const list = view.querySelector('[aria-labelledby="tournament-list-four-shogi-title"]')!;
   before(rooms, rankings);

@@ -18,11 +18,18 @@ import { BoardAttachmentPicker } from "./BoardAttachmentPicker";
 import { BoardLinkDialog } from "./BoardLinkDialog";
 import type { BoardWrite } from "./useBoardData";
 
+export type BoardSubmission = { id: string; attachmentKey: string };
+
 type Props = {
   posting: { acceptingPosts: boolean; postingStopped: boolean };
   returnTo: string;
   placeholder: string;
   initialText?: string;
+  onTextChange?: (text: string) => void;
+  submission?: {
+    getSubmission: () => BoardSubmission | null;
+    setSubmission: (submission: BoardSubmission | null) => void;
+  };
   reply?: boolean;
   busy: boolean;
   write: BoardWrite;
@@ -39,6 +46,8 @@ export function BoardComposer({
   returnTo,
   placeholder,
   initialText = "",
+  onTextChange,
+  submission,
   reply,
   busy,
   write,
@@ -55,7 +64,12 @@ export function BoardComposer({
   const [error, setError] = useState<string | null>(null);
   const [pickerAttachmentKey, setPickerAttachmentKey] = useState<string | null>(null);
   const [attachmentRevision, setAttachmentRevision] = useState(0);
-  const request = useRef<{ id: string; attachmentKey: string } | null>(null);
+  const localSubmission = useRef<BoardSubmission | null>(null);
+  const getSubmission = () => (submission ? submission.getSubmission() : localSubmission.current);
+  function setSubmission(value: BoardSubmission | null) {
+    if (submission) submission.setSubmission(value);
+    else localSubmission.current = value;
+  }
   const composing = useRef(false);
   const count = boardTextLength(text);
   const canSubmit = count > 0 && count <= boardTextLimit;
@@ -103,15 +117,19 @@ export function BoardComposer({
       setPending(true);
       setError(null);
       try {
-        if (request.current?.attachmentKey !== attachmentKey)
-          request.current = { attachmentKey, id: createUuid() };
+        let request = getSubmission();
+        if (request?.attachmentKey !== attachmentKey) {
+          request = { attachmentKey, id: createUuid() };
+          setSubmission(request);
+        }
         await onSubmit(
-          { text, requestId: request.current.id, ...(attachment ? { attachment } : {}) },
+          { text, requestId: request.id, ...(attachment ? { attachment } : {}) },
           signal,
         );
         if (signal.reason?.name === "AbortError") return;
         setText("");
-        request.current = null;
+        onTextChange?.("");
+        setSubmission(null);
         if (attachment) attachmentEditor?.onChange(null);
       } catch (error) {
         setError(mutationError(error, `${reply ? "返信" : "投稿"}を送信できませんでした。`));
@@ -163,8 +181,9 @@ export function BoardComposer({
             value={text}
             readOnly={pending}
             onChange={(event) => {
-              request.current = null;
+              setSubmission(null);
               setText(event.currentTarget.value);
+              onTextChange?.(event.currentTarget.value);
             }}
             onCompositionStart={() => {
               composing.current = true;
@@ -203,7 +222,7 @@ export function BoardComposer({
                 size="compact"
                 isDisabled={busy || pending}
                 onPress={() => {
-                  request.current = null;
+                  setSubmission(null);
                   attachmentEditor.onChange(null);
                 }}
               >
