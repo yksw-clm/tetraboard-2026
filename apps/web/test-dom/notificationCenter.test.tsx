@@ -22,8 +22,8 @@ import {
   type Request,
 } from "./harness";
 
-const listUrl = "/api/notifications";
-const unreadUrl = "/api/account/notifications/unread";
+const listUrl = "/api/notifications?replies=1";
+const unreadUrl = "/api/account/notifications/unread?replies=1";
 const readUrl = "/api/account/notifications/read";
 const announcement = (id = 1): Notification => ({
   id,
@@ -63,6 +63,14 @@ function take(url: string) {
 }
 async function reply(url: string, body: unknown, status = 200) {
   take(url).respond(body, status);
+  if (status === 200 && url.startsWith("/api/notifications?")) await flushPage();
+  else await flush();
+}
+async function flushPage() {
+  // 先読みには API の応答に加えて、表示を整えるモジュールの読み込みも含まれます。
+  await act(async () => {
+    await import("../src/features/notifications/notificationResponses");
+  });
   await flush();
 }
 function Header() {
@@ -146,9 +154,49 @@ test("先読み途中で開いた操作と更新を同じ取得にまとめ、�
   expect(dialog().textContent).toContain("お知らせを読み込んでいます");
   expect(requests.filter((r) => r.url === listUrl)).toHaveLength(1);
   fetching.respond(page([announcement()]));
-  await flush();
+  await flushPage();
   expect(dialog().textContent).toContain("更新情報1");
   expect(dialog().textContent).not.toContain("お知らせを読み込んでいます");
+});
+
+test("返信の一覧は本文を30文字にまとめ、詳細では全文と親の投稿へのリンクを表示する", async () => {
+  const text = `  こんにちは\n\t  ${"😀".repeat(24)}続きの本文  `;
+  const entry: Notification = {
+    id: 1,
+    createdAtMs: 1780000000000,
+    kind: "reply",
+    read: false,
+    legacy: false,
+    reply: {
+      postId: "parent/id?#",
+      replyId: "reply-id",
+      gameId: "reversi",
+      authorName: "返信者",
+      text,
+    },
+  };
+  const title = `返信者さんから返信: こんにちは ${"😀".repeat(24)}…`;
+  const exactLength = `${"あ".repeat(29)}🇯🇵`;
+  const entries = [{ ...entry, id: 2, reply: { ...entry.reply, text: exactLength } }, entry];
+  await warm(entries);
+  act(() => bell().click());
+  const row = dialog().querySelector('[data-notification-id="1"]')!;
+  expect(Array.from(row.querySelectorAll("span"), (span) => span.textContent)).toContain("返信");
+  expect(row.textContent).toContain(title);
+  const exactRow = dialog().querySelector('[data-notification-id="2"]')!;
+  expect(exactRow.lastElementChild?.textContent).toBe(`返信者さんから返信: ${exactLength}`);
+  await flush();
+  await settleOpen(entries);
+  select();
+  expect(dialog().querySelector("article h2")?.textContent).toBe(title);
+  expect(dialog().textContent).toContain("リバーシの掲示板");
+  expect(dialog().querySelector("p.whitespace-pre-wrap")?.textContent).toBe(text);
+  const link = dialog().querySelector("article a");
+  expect(link?.textContent).toBe("投稿を見る");
+  expect(link?.getAttribute("href")).toBe("/posts/parent%2Fid%3F%23");
+  expect(requests.some((r) => r.url === listUrl)).toBe(true);
+  expect(requests.some((r) => r.url === unreadUrl)).toBe(true);
+  await reply(readUrl, { ok: true });
 });
 
 test("裏の再取得中も詳細をすぐ開け、一覧の本文を使ってから既読を記録する", async () => {
@@ -158,7 +206,7 @@ test("裏の再取得中も詳細をすぐ開け、一覧の本文を使って�
   const oldStatus = take(unreadUrl);
   select();
   expect(dialog().textContent).toContain("お知らせの本文");
-  expect(requests.some((r) => /^\/api\/notifications\/\d+$/.test(r.url))).toBe(false);
+  expect(requests.some((r) => r.url.startsWith("/api/notifications/"))).toBe(false);
   await flush();
   const read = take(readUrl);
   expect(JSON.parse(String(read.init.body))).toEqual({ id: 1 });
@@ -241,11 +289,11 @@ test("追加取得失敗でも既存項目を残し、まとめて既読は取�
   await settleOpen([announcement(30)], "30", 30);
   press(dialog(), "もっと見る");
   await flush();
-  await reply(`${listUrl}?cursor=30`, {}, 503);
+  await reply("/api/notifications?cursor=30&replies=1", {}, 503);
   expect(dialog().textContent).toContain("更新情報30");
   press(dialog(), "再試行");
   await flush();
-  await reply(`${listUrl}?cursor=30`, page([announcement(29)], null, 31));
+  await reply("/api/notifications?cursor=30&replies=1", page([announcement(29)], null, 31));
   press(dialog(), "すべて既読にする");
   await flush();
   const readAll = take("/api/account/notifications/read-all");
@@ -290,6 +338,77 @@ test("非公開になった通知は再取得で除外し、既読保存で404�
   expect(dialog().textContent).not.toContain("更新情報1");
   await reply(listUrl, page([]));
   expect(dialog().textContent).toContain("お知らせはありません");
+});
+
+test("詳細の返信が裏の再取得で消えると一覧へ戻り、削除された見出しと本文を隠す", async () => {
+  const entry: Notification = {
+    id: 2,
+    createdAtMs: 1780000000000,
+    kind: "reply",
+    read: false,
+    legacy: false,
+    reply: {
+      postId: "parent-id",
+      replyId: "reply-id",
+      gameId: "reversi",
+      authorName: "返信者",
+      text: "消える返信の1行目\n消える返信の2行目",
+    },
+  };
+  const entries = [entry, announcement()];
+  await warm(entries);
+  await openList();
+  await settleOpen(entries);
+  select(2);
+  await flush();
+  expect(dialog().querySelector("article h2")?.textContent).toContain("返信者さんから返信");
+  expect(dialog().querySelector("article")?.textContent).toContain(entry.reply.text);
+  await reply(readUrl, { ok: true });
+  await reply(unreadUrl, { hasUnread: true, upperBound: 2 });
+
+  clock.advance(30_000);
+  await flush();
+  await reply(unreadUrl, { hasUnread: true, upperBound: 3 });
+  await reply(listUrl, {}, 503);
+  expect(dialog().querySelector("article")?.textContent).toContain(entry.reply.text);
+
+  clock.advance(30_000);
+  await flush();
+  await reply(unreadUrl, { hasUnread: true, upperBound: 3 });
+  await reply(listUrl, page([announcement(3), announcement()]));
+  expect(dialog().querySelector("article")).toBeNull();
+  expect(dialog().querySelector('[role="status"]')?.textContent).toBe(
+    "このお知らせは表示できなくなりました。",
+  );
+  expect(dialog().textContent).not.toContain("返信者さんから返信");
+  expect(dialog().textContent).not.toContain("消える返信");
+  expect(dialog().textContent).toContain("更新情報1");
+  expect(dialog().textContent).not.toContain("更新情報3");
+  expect(document.activeElement?.getAttribute("aria-label")).toBe("お知らせを更新");
+  select(1);
+  expect(dialog().textContent).not.toContain("このお知らせは表示できなくなりました。");
+});
+
+test("更新は最新ページの範囲で消えた通知を外し、もっと見るで取得した古い通知を残す", async () => {
+  const entries = [announcement(12), announcement(11), announcement(10)];
+  await warm(entries, "10");
+  await openList();
+  await settleOpen(entries, "10");
+  press(dialog(), "もっと見る");
+  await flush();
+  await reply("/api/notifications?cursor=10&replies=1", page([announcement(9), announcement(8)]));
+  const ids = () =>
+    Array.from(dialog().querySelectorAll("[data-notification-id]"), (row) =>
+      row.getAttribute("data-notification-id"),
+    );
+
+  act(() => dialog().querySelector<HTMLButtonElement>('[aria-label="お知らせを更新"]')!.click());
+  await reply(listUrl, {}, 503);
+  expect(ids()).toEqual(["12", "11", "10", "9", "8"]);
+  press(dialog(), "再試行");
+  await flush();
+  await reply(listUrl, page([announcement(13), announcement(12), announcement(10)], "10"));
+  expect(ids()).toEqual(["13", "12", "10", "9", "8"]);
 });
 
 function authShell(
@@ -459,7 +578,7 @@ test("記事詳細の直接閲覧は取得済み本文の確認後に既読に�
     date: "2026-11-07",
     kind: "feature",
   });
-  await reply(`${listUrl}?announcementId=article-2`, page([announcement(2)]));
+  await reply("/api/notifications?announcementId=article-2&replies=1", page([announcement(2)]));
   const read = take(readUrl);
   expect(JSON.parse(String(read.init.body))).toEqual({ id: 2 });
 });

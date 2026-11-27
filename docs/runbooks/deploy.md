@@ -90,6 +90,13 @@ bun run --cwd apps/worker preview:production
 - マイグレーションは旧コードでも動く追加変更を基本とし、破壊的な変更は段階を分けて別途承認します。マイグレーション失敗時は公開されません。適用済みの変更は公開失敗やスキップ時にも残るため、自動でDBを巻き戻しません。
 - 公開後に不具合があれば、修正またはrevertのPRをCI成功後にマージして再デプロイします。DBやDurable Objectの保存形式に変更がある場合は旧コードとの互換性を確認し、互換性がなければ修正を前進適用します。
 - TB-75 で migration を `0058_baseline.sql` にまとめる前のコードへ戻すときは、本番と開発の D1 はそのままで動きます。どちらも `d1_migrations` に 0001〜0057 の行が残っているので、戻した古い migration はすべて適用済みとして扱われます。基準だけで作った D1（ローカル、新しい環境）は 0001 から当てようとして失敗するので、作り直します。
+- TB-221（掲示板の返信の通知）より前のコードへ戻すときは、`0061_board_reply_notifications.sql` はそのまま残します（種類の CHECK を広げただけで、旧コードも読み書きできます）。ただし旧 Worker は返信の通知（`kind='reply'`）を検証できず、その行が 1 件でもある受取人のベルの一覧を 503 にします。戻す前に、戻す環境の D1 で返信の通知の行を消します。
+
+  ```sh
+  mise exec -- bun run --cwd apps/worker wrangler d1 execute APP_DB --env production --remote --command "DELETE FROM notification_events WHERE kind='reply'"
+  ```
+
+  開発環境では `--env development` にします。消えるのは返信の通知と、その個別既読（`ON DELETE CASCADE`）だけです。既存の 3 種類の通知、個別既読、全体既読の基準は残ります。消した返信の通知は、新しいコードへ戻しても作り直されません。また、新しい Web を開いたままのタブは一覧の取得に `replies=1` を付けるので、旧 Worker では 400 になり、再読み込みするまでベルを取得できません。
 - Actionsの実行履歴とCloudflareのWorkerログで障害を確認します。デプロイ時にはWebSocketが切断されるため、公開後に再接続も確認します。
 - 本番ドメインは `tetraboard.net` です。Worker・D1・R2の名前とIDを維持します。旧workers.dev URLは同じパス・クエリで308転送します。転送を静的アセットより先に処理するため `run_worker_first: true` と `ASSETS` を設定し、`/api` と `/api/*` はHono、画面・画像は `ASSETS.fetch` へ渡します。
 - 旧版の `/profile` は `/account`、`/games/game-…` と `/guest/name` は `/games/four-reversi` へ302転送します。旧ルーム・棋譜は移行しません。旧ルームの取得失敗は既存のエラー画面からロビーへ戻れます。ログイン状態とオリジン別の `sessionStorage` は移行せず、再ログイン・再入室します。

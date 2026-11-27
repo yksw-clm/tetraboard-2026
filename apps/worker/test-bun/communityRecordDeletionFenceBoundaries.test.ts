@@ -36,6 +36,7 @@ const boundaries: Record<string, [file: string, ...terms: string[]][]> = {
   "INSERT notification_events": [
     [announcements, "a . published = 1"],
     ["adapters/community/badgeEvents.ts", '${accountNotDeletedSql("awards.account_id")}'],
+    ["adapters/community/boardPosting.ts", "${liveParentSql}"],
     ["adapters/tournament/finalization.ts", '${notificationRecipientAllowedSql("?2")}'],
   ],
   "UPDATE notification_events": [[notifications, '${notificationRecipientAllowedSql("?1")}']],

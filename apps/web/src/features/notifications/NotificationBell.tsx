@@ -8,31 +8,27 @@ import {
   type SetStateAction,
 } from "react";
 import { Link } from "react-router";
-import { badgeDefinitions, getBadgeIds, type Notification } from "@tetraboard/protocol";
-import { gameCatalog } from "@tetraboard/protocol/games";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { AppIcon } from "../../shared/ui/AppIcon";
-import { BadgeImage } from "../badges/BadgeImage";
-import { badgeToastTitle } from "../badges/badgeNotificationPresentation";
 import { createAccountSelection } from "../account/useAccountSelection";
 import { useNotificationCenter, type NotificationCenter } from "./NotificationContext";
+import type { DisplayNotification, DisplayNotificationList } from "./notificationResponses";
 
-function title(n: Notification) {
-  if (n.kind === "announcement") return n.announcement.title;
-  if (n.kind === "badge") return badgeToastTitle(n.badge);
-  return `${n.tournament.name}で${n.tournament.tied ? "同率" : ""}${n.tournament.rank === 1 ? "優勝" : "準優勝"}しました！`;
+function firstCoveredId(page: DisplayNotificationList) {
+  // API は通知番号の降順で返します。
+  return page.nextCursor === null ? 0 : (page.notifications.at(-1)?.id ?? Infinity);
 }
-const labels = { announcement: "運営からのお知らせ", tournament: "大会結果", badge: "バッジ" };
+
 function NotificationDetails({
   notification: n,
   center,
   setRows,
   onClose,
 }: {
-  notification: Notification;
+  notification: DisplayNotification;
   center: NotificationCenter;
-  setRows: Dispatch<SetStateAction<Notification[]>>;
+  setRows: Dispatch<SetStateAction<DisplayNotification[]>>;
   onClose: () => void;
 }) {
   const [error, setError] = useState(false);
@@ -67,43 +63,20 @@ function NotificationDetails({
         このお知らせは現在表示できません。一覧を更新してください。
       </p>
     );
-  const target =
-    n.kind === "announcement"
-      ? `/updates/${n.announcement.id}`
-      : n.kind === "tournament"
-        ? `/tournaments/${n.tournament.id}`
-        : "/account";
   return (
     <article className="space-y-4 wrap-anywhere">
-      <h2 className="text-lg font-bold">{title(n)}</h2>
-      {n.kind === "announcement" ? (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{n.announcement.body}</p>
-      ) : n.kind === "tournament" ? (
-        <p className="text-sm">
-          {n.tournament.name}の結果が確定しました。{n.tournament.tied ? "同率" : ""}
-          {n.tournament.rank === 1 ? "優勝" : "準優勝"}おめでとうございます！
+      <h2 className="text-lg font-bold">{n.presentation.title}</h2>
+      {n.presentation.subtitle && <p className="text-sm">{n.presentation.subtitle}</p>}
+      {n.presentation.body !== undefined && (
+        <p
+          className={
+            n.kind === "tournament" ? "text-sm" : "whitespace-pre-wrap text-sm leading-relaxed"
+          }
+        >
+          {n.presentation.body}
         </p>
-      ) : (
-        <>
-          <p className="text-sm">{gameCatalog[n.badge.game].name}</p>
-          <div className="flex flex-wrap gap-4">
-            {getBadgeIds(n.badge.game)
-              .flatMap((id) => n.badge.badges.filter((b) => b.id === id))
-              .map((b) => (
-                <div key={b.id} className="flex flex-col items-center gap-1 text-sm">
-                  <BadgeImage game={n.badge.game} {...b} size={56} />
-                  <span>
-                    {badgeDefinitions[b.id].name}・星{b.tier}
-                  </span>
-                  <span>
-                    累計{b.value}
-                    {badgeDefinitions[b.id].unit}
-                  </span>
-                </div>
-              ))}
-          </div>
-        </>
       )}
+      {n.presentation.badgeDetails}
       {error && (
         <div role="alert" className="space-y-2 text-sm">
           <p>既読を保存できませんでした。</p>
@@ -114,7 +87,7 @@ function NotificationDetails({
       )}
       <Link
         className="inline-flex min-h-11 items-center text-sm text-brand underline"
-        to={target}
+        to={n.presentation.path}
         state={
           n.kind === "badge"
             ? { accountSelection: createAccountSelection(n.badge.game) }
@@ -122,11 +95,7 @@ function NotificationDetails({
         }
         onClick={onClose}
       >
-        {n.kind === "announcement"
-          ? "元の記事へ"
-          : n.kind === "tournament"
-            ? "大会結果へ"
-            : "マイページでバッジを見る"}
+        {n.presentation.linkLabel}
       </Link>
     </article>
   );
@@ -138,14 +107,18 @@ function NotificationDialog({
   center: NotificationCenter;
   onClose: () => void;
 }) {
-  const [rows, setRows] = useState<Notification[]>(() => center.cachedPage?.notifications ?? []);
+  const [rows, setRows] = useState<DisplayNotification[]>(
+    () => center.cachedPage?.notifications ?? [],
+  );
   const [cursor, setCursor] = useState<string | null>(() => center.cachedPage?.nextCursor ?? null);
   const [upperBound, setUpperBound] = useState(() => center.cachedPage?.upperBound ?? 0);
   const [loaded, setLoaded] = useState(() => center.cachedPage !== null);
   const [pending, setPending] = useState(false);
   const [pendingSource, setPendingSource] = useState("initial");
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Notification | null>(null);
+  const [selection, setSelection] = useState<DisplayNotification | "removed" | null>(null);
+  const selected = selection === "removed" ? null : selection;
+  const refreshButton = useRef<HTMLButtonElement>(null);
   const mounted = useRef(true);
   const requestVersion = useRef(0);
   const scroll = useRef<HTMLDivElement>(null);
@@ -153,6 +126,23 @@ function NotificationDialog({
   useLayoutEffect(() => {
     if (selected && scroll.current) scroll.current.scrollTop = 0;
   }, [selected]);
+  useLayoutEffect(() => {
+    if (selection === "removed") refreshButton.current?.focus();
+  }, [selection]);
+  const { subscribeLatest } = center;
+  useLayoutEffect(
+    () =>
+      subscribeLatest((page) => {
+        const lowerBound = firstCoveredId(page);
+        const ids = new Set(page.notifications.map((n) => n.id));
+        const stillVisible = (n: DisplayNotification) => n.id < lowerBound || ids.has(n.id);
+        setRows((previous) => previous.filter(stillVisible));
+        setSelection((previous) =>
+          previous && previous !== "removed" && !stillVisible(previous) ? "removed" : previous,
+        );
+      }),
+    [subscribeLatest],
+  );
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -168,11 +158,15 @@ function NotificationDialog({
     try {
       const page = await center.list(next);
       if (!mounted.current || version !== requestVersion.current) return;
-      setRows((previous) =>
-        next
-          ? [...previous, ...page.notifications.filter((n) => !previous.some((p) => p.id === n.id))]
-          : page.notifications,
-      );
+      const lowerBound = firstCoveredId(page);
+      setRows((previous) => {
+        if (!next) return [...page.notifications, ...previous.filter((n) => n.id < lowerBound)];
+        return [
+          ...previous,
+          ...page.notifications.filter((n) => !previous.some((p) => p.id === n.id)),
+        ].sort((a, b) => b.id - a.id);
+      });
+      if (!next) setSelection((previous) => (previous === "removed" ? null : previous));
       setCursor(page.nextCursor);
       setUpperBound(page.upperBound);
       setLoaded(true);
@@ -189,12 +183,12 @@ function NotificationDialog({
     // 先読み結果を表示しながら再確認し、詳細から戻るときは一覧を保持します。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  function open(notification: Notification) {
+  function open(notification: DisplayNotification) {
     requestVersion.current++;
     scrollTop.current = scroll.current?.scrollTop ?? 0;
     setPending(false);
     setError(null);
-    setSelected(notification);
+    setSelection(notification);
   }
   async function allRead() {
     setPendingSource("read-all");
@@ -225,7 +219,7 @@ function NotificationDialog({
             className="size-9 min-h-9 min-w-9 p-0"
             onPress={() => {
               const id = selected.id;
-              setSelected(null);
+              setSelection(null);
               requestAnimationFrame(() => {
                 const body = scroll.current;
                 body
@@ -256,6 +250,7 @@ function NotificationDialog({
         <>
           <div className="mb-3 flex flex-wrap gap-2">
             <AppButton
+              ref={refreshButton}
               appearance="secondary"
               size="compact"
               isIconOnly
@@ -278,6 +273,11 @@ function NotificationDialog({
               すべて既読にする
             </AppButton>
           </div>
+          {selection === "removed" && (
+            <p role="status" className="mb-3 text-sm">
+              このお知らせは表示できなくなりました。
+            </p>
+          )}
           {pending && !loaded && <p role="status">お知らせを読み込んでいます…</p>}
           {error && (
             <div role="alert" className="mb-3 text-sm">
@@ -307,13 +307,13 @@ function NotificationDialog({
                 className="flex w-full flex-col gap-2 border-0 bg-transparent px-1 py-4 text-left text-ink hover:bg-surface-muted focus-visible:outline-[3px] focus-visible:outline-focus disabled:cursor-wait"
               >
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-                  <span>{labels[n.kind]}</span>
+                  <span>{n.presentation.label}</span>
                   <time dateTime={new Date(n.createdAtMs).toISOString()}>
                     {new Date(n.createdAtMs).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   </time>
                   {!n.read && <span className="text-danger font-bold">未読</span>}
                 </span>
-                <span className="text-sm font-bold wrap-anywhere">{title(n)}</span>
+                <span className="text-sm font-bold wrap-anywhere">{n.presentation.title}</span>
               </button>
             ))}
           </div>

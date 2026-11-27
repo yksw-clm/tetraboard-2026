@@ -66,6 +66,17 @@ function replayStatement(db: D1Database, accountId: string, requestId: string) {
     .bind(accountId, requestId);
 }
 
+function insertReplyNotification(db: D1Database, id: string) {
+  return db
+    .prepare(`INSERT INTO notification_events(kind,source_id,account_id,created_at_ms,payload_json)
+ SELECT 'reply',reply.id,parent.account_id,reply.posted_at_ms,'{}'
+ FROM board_posts reply JOIN board_posts parent ON parent.id=reply.parent_id
+ WHERE reply.id=? AND ${liveParentSql} AND parent.account_id IS NOT NULL
+ AND parent.account_id<>reply.account_id
+ ON CONFLICT DO NOTHING`)
+    .bind(id);
+}
+
 function rejectionStatement(db: D1Database, accountId: string, parentId: string | null) {
   return db
     .prepare(`SELECT ${boardPostingStateColumns},${boardEligibleAccountExistsSql} AS eligible,
@@ -107,14 +118,15 @@ export class D1BoardWriter implements BoardWriter {
       }
     }
     const id = crypto.randomUUID();
-    // 投稿と投稿時刻を同じ batch で確定し、再送の内容もその時点の状態から返します。
-    const [, , , replay, rejection] = await db.batch([
+    // 投稿・投稿時刻・返信通知を同じ batch で確定し、再送もその時点の状態から返します。
+    const [, , , , replay, rejection] = await db.batch([
       ensureBoardSender(db, accountId),
       insertPost(db, attempt, id, lastPostByMs),
       db
         .prepare(`UPDATE board_senders SET last_posted_at_ms=? WHERE account_id=?
  AND EXISTS(SELECT 1 FROM board_posts WHERE id=?)`)
         .bind(postedAtMs, accountId, id),
+      insertReplyNotification(db, id),
       replayQuery,
       rejectionQuery,
     ]);
