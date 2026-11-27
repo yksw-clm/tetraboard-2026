@@ -14,7 +14,6 @@ import { AppHeader } from "../../shared/ui/AppHeader";
 import { AppPageLoading, AppPageState } from "../../shared/ui/AppPageState";
 import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { appPageWidthClasses } from "../../shared/ui/pageLayout";
-import { useAccount } from "../account/useAccount";
 import { boardLinkClasses } from "./BoardBody";
 import { BoardComposer } from "./BoardComposer";
 import { BoardEntry } from "./BoardEntry";
@@ -31,6 +30,7 @@ import {
   readTimeline,
 } from "./boardApi";
 import { boardPageMetadata } from "./boardPageMetadata";
+import { useViewerKey } from "./boardViewer";
 import { useBoardData } from "./useBoardData";
 
 function BoardLayout({
@@ -105,11 +105,6 @@ function mergeReplies(current: BoardReply[], next: BoardReply[]) {
 
 function likePost(post: BoardPost, id: string, like: Pick<BoardReply, "liked" | "likeCount">) {
   return post.id === id && post.status === "published" ? { ...post, ...like } : post;
-}
-
-function useViewerKey() {
-  const { user } = useAccount();
-  return JSON.stringify([user?.profileId ?? user?.username, user?.isGuest, user?.profileCompleted]);
 }
 
 function readAttachment(search: URLSearchParams) {

@@ -1,7 +1,6 @@
-import { boardLikeResultSchema, type BoardPost, type BoardReply } from "@tetraboard/protocol/board";
+import type { BoardPost, BoardReply } from "@tetraboard/protocol/board";
 import type { GameId } from "@tetraboard/protocol/games";
-import { lazy, Suspense, useState } from "react";
-import { Link } from "react-router";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
@@ -10,14 +9,13 @@ import { gameThemes } from "../../shared/ui/appTheme";
 import { useAccount } from "../account/useAccount";
 import { formatMatchDate } from "../matches/matchDatePresentation";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
-import { BoardBody, boardLinkClasses } from "./BoardBody";
+import { BoardBody } from "./BoardBody";
 import { BoardAttachment } from "./BoardAttachment";
+import { BoardLikeButton, BoardReplyCount, type BoardLike } from "./BoardReactions";
 import type { BoardWrite } from "./useBoardData";
 import { boardPostPath, boardRequest, mutationError } from "./boardApi";
 
 const BoardReportDialog = lazy(() => import("./BoardReportDialog"));
-
-type Like = Pick<BoardReply, "liked" | "likeCount">;
 
 const exactTime = new Intl.DateTimeFormat("ja-JP", {
   year: "numeric",
@@ -43,28 +41,27 @@ function BoardTime({ ms, relativeTo }: { ms: number; relativeTo?: number }) {
 type EntryActions = {
   busy: boolean;
   write: BoardWrite;
-  onLike: (id: string, like: Like) => void;
+  onLike: (id: string, like: BoardLike) => void;
   onRemove: (id: string, signal: AbortSignal) => Promise<void>;
 };
 
 function BoardEntryActions({
   item,
   reply,
+  replies,
   game,
   busy,
   write,
   onLike,
   onRemove,
-}: EntryActions & { item: BoardReply; reply: boolean; game: GameId }) {
+}: EntryActions & { item: BoardReply; reply: boolean; replies: ReactNode; game: GameId }) {
   const account = useAccount();
-  const [optimistic, setOptimistic] = useState<Like | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportNotice, setReportNotice] = useState<string | null>(null);
-  const { liked, likeCount } = optimistic ?? item;
   const path = boardPostPath(item.id);
   const type = reply ? "返信" : "投稿";
 
@@ -73,39 +70,6 @@ function BoardEntryActions({
     setError(reason);
     setReportNotice(null);
     if (!reason) setReportOpen(true);
-  }
-
-  function toggleLike() {
-    if (busy || optimistic) return;
-    const reason =
-      account.error ??
-      (!account.user
-        ? "いいねするにはログインしてください。"
-        : account.user.isGuest
-          ? "いいねにはアカウント登録が必要です。"
-          : !account.user.profileCompleted
-            ? "プロフィールの初回設定を完了するといいねできます。"
-            : null);
-    setError(reason);
-    if (reason) return;
-    void write(async (signal) => {
-      const fallback = "いいねを更新できませんでした。";
-      setOptimistic({ liked: !liked, likeCount: Math.max(0, likeCount + (liked ? -1 : 1)) });
-      try {
-        const response = await boardRequest(
-          path + "/like",
-          { method: liked ? "DELETE" : "PUT", signal },
-          fallback,
-        );
-        const like = boardLikeResultSchema.parse(await response.json());
-        signal.throwIfAborted();
-        onLike(item.id, like);
-      } catch (error) {
-        setError(mutationError(error, fallback));
-      } finally {
-        setOptimistic(null);
-      }
-    });
   }
 
   function remove() {
@@ -130,17 +94,8 @@ function BoardEntryActions({
   return (
     <div className="grid gap-1">
       <div className="flex flex-wrap items-center gap-2">
-        <AppButton
-          appearance={liked ? "secondary" : "quiet"}
-          size="compact"
-          aria-label="いいね"
-          aria-pressed={liked}
-          aria-disabled={busy || undefined}
-          onPress={toggleLike}
-        >
-          <span aria-hidden="true">{liked ? "♥" : "♡"}</span>
-          {likeCount}
-        </AppButton>
+        <BoardLikeButton item={item} busy={busy} write={write} onLike={onLike} onError={setError} />
+        {replies}
         {item.own && (
           <AppButton
             appearance="quiet"
@@ -242,15 +197,7 @@ export function BoardEntry({
   const time = (
     <BoardTime ms={item.postedAtMs} relativeTo={timeline || !post ? serverTimeMs : undefined} />
   );
-  const replies =
-    post &&
-    (detailPath ? (
-      <Link to={detailPath} className={boardLinkClasses}>
-        返信 {post.replyCount}
-      </Link>
-    ) : (
-      <span className="text-sm text-muted">返信 {post.replyCount}</span>
-    ));
+  const replies = post && <BoardReplyCount count={post.replyCount} to={detailPath} />;
 
   return (
     <article className="min-w-0">
@@ -281,8 +228,13 @@ export function BoardEntry({
             </header>
             <BoardBody text={item.text} detailPath={detailPath} />
             {item.attachment && <BoardAttachment {...item.attachment} />}
-            {replies}
-            <BoardEntryActions {...actions} item={item} game={game} reply={!post} />
+            <BoardEntryActions
+              {...actions}
+              item={item}
+              game={game}
+              reply={!post}
+              replies={replies}
+            />
           </>
         )}
       </AppCard>

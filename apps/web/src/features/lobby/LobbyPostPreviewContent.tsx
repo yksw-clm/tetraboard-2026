@@ -1,19 +1,45 @@
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { BoardPublishedPost } from "@tetraboard/protocol/board";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppCard } from "../../shared/ui/AppCard";
 import { boardPostPath } from "../board/boardApi";
+import { BoardLikeButton, BoardReplyCount, type BoardLike } from "../board/BoardReactions";
+import type { BoardWrite } from "../board/useBoardData";
 import { formatMatchDate } from "../matches/matchDatePresentation";
 
-function PostPreview({ post, nowMs }: { post: BoardPublishedPost; nowMs: number }) {
+function PostPreview({
+  post,
+  nowMs,
+  onLike,
+}: {
+  post: BoardPublishedPost;
+  nowMs: number;
+  onLike: (id: string, like: BoardLike) => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const active = useRef<AbortController | null>(null);
+  useEffect(() => () => active.current?.abort(), []);
+
+  const write: BoardWrite = async (operation) => {
+    if (active.current) return;
+    const controller = new AbortController();
+    active.current = controller;
+    try {
+      await operation(AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]));
+    } finally {
+      active.current = null;
+    }
+  };
+
   const date = new Date(post.postedAtMs);
   const iso = Number.isNaN(date.getTime()) ? undefined : date.toISOString();
   return (
-    <Link
-      to={boardPostPath(post.id)}
-      className="block rounded-panel no-underline focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
-    >
-      <AppCard density="compact" className="min-w-0 hover:bg-surface-hover">
+    <AppCard density="compact" className="relative min-w-0 hover:bg-surface-hover">
+      <Link
+        to={boardPostPath(post.id)}
+        className="grid gap-2 text-ink no-underline before:absolute before:inset-0 before:rounded-panel focus-visible:outline-none focus-visible:before:outline-3 focus-visible:before:outline-focus focus-visible:before:outline-offset-2"
+      >
         <div className="flex min-w-0 items-center gap-2">
           <AppAvatar src={post.author.avatarUrl} />
           <span className="min-w-0 truncate text-sm font-bold">{post.author.name}</span>
@@ -24,24 +50,41 @@ function PostPreview({ post, nowMs }: { post: BoardPublishedPost; nowMs: number 
           )}
         </div>
         <p className="line-clamp-3 whitespace-pre-wrap wrap-anywhere text-sm">{post.text}</p>
-        <div className="flex items-center gap-3 text-xs text-muted">
-          <span>♡ {post.likeCount}</span>
-          <span>返信 {post.replyCount}</span>
-        </div>
-      </AppCard>
-    </Link>
+      </Link>
+      <div className="flex items-center gap-2">
+        <BoardLikeButton
+          item={post}
+          write={write}
+          onLike={onLike}
+          onError={setError}
+          className="relative z-10"
+        />
+        <BoardReplyCount count={post.replyCount} />
+      </div>
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+    </AppCard>
   );
 }
 
 export function LobbyPostPreviewContent({
   acceptingPosts,
-  posts,
+  posts: initialPosts,
   nowMs,
 }: {
   acceptingPosts: boolean;
   posts: BoardPublishedPost[];
   nowMs: number;
 }) {
+  const [posts, setPosts] = useState(initialPosts);
+
+  function updateLike(id: string, like: BoardLike) {
+    setPosts((current) => current.map((post) => (post.id === id ? { ...post, ...like } : post)));
+  }
+
   if (!posts.length) {
     return (
       <AppCard className="gap-1 text-sm text-muted">
@@ -55,7 +98,7 @@ export function LobbyPostPreviewContent({
     <ul className="m-0 grid list-none gap-2 p-0">
       {posts.map((post) => (
         <li key={post.id} className="min-w-0">
-          <PostPreview post={post} nowMs={nowMs} />
+          <PostPreview post={post} nowMs={nowMs} onLike={updateLike} />
         </li>
       ))}
     </ul>
