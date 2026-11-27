@@ -222,7 +222,7 @@ export function BoardEntry({
   ) : (
     time
   );
-  const replies = post && <BoardReplyCount count={post.replyCount} />;
+  const replies = post && <BoardReplyCount count={post.replyCount} detailPath={detailPath} />;
 
   return (
     <article className="min-w-0">

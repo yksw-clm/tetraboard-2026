@@ -34,6 +34,7 @@ function PostPreview({
 
   const date = new Date(post.postedAtMs);
   const iso = Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+  const detailPath = boardPostPath(post.id);
   return (
     <AppCard density="compact" className="relative isolate min-w-0">
       <header className="flex min-w-0 items-center gap-2">
@@ -45,14 +46,14 @@ function PostPreview({
         )}
       </header>
       <Link
-        to={boardPostPath(post.id)}
+        to={detailPath}
         className="min-w-0 text-ink no-underline before:absolute before:inset-0 before:z-[1] before:rounded-panel focus-visible:outline-none focus-visible:before:outline-3 focus-visible:before:outline-focus focus-visible:before:outline-offset-2"
       >
         <p className="line-clamp-3 whitespace-pre-wrap wrap-anywhere text-sm">{post.text}</p>
         {post.attachment && <p className="mt-1 text-xs text-muted">棋譜付き</p>}
       </Link>
       <div className="flex items-center gap-2">
-        <BoardReplyCount count={post.replyCount} />
+        <BoardReplyCount count={post.replyCount} detailPath={detailPath} />
         <BoardLikeButton
           item={post}
           write={write}

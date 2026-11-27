@@ -1,5 +1,6 @@
 import { boardLikeResultSchema, type BoardReply } from "@tetraboard/protocol/board";
-import { useState } from "react";
+import { useState, type PointerEvent } from "react";
+import { Link } from "react-router";
 import { useAccount } from "../account/useAccount";
 import { boardPostPath, boardRequest, mutationError } from "./boardApi";
 import type { BoardWrite } from "./useBoardData";
@@ -7,9 +8,30 @@ import type { BoardWrite } from "./useBoardData";
 export type BoardLike = Pick<BoardReply, "liked" | "likeCount">;
 
 const reactionClasses = "inline-flex items-center gap-1 text-xs";
+const reactionControlClasses = `${reactionClasses} group/reaction -my-1 min-h-11 min-w-11 cursor-pointer justify-center rounded-control px-2 focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2`;
 const iconPaths = {
   heart: "M12 20 4.5 12.5a4.5 4.5 0 0 1 6.4-6.4L12 7.2l1.1-1.1a4.5 4.5 0 0 1 6.4 6.4L12 20Z",
   reply: "M21 11a8 8 0 0 1-8 8H8l-5 3V11a9 9 0 0 1 18 0Z",
+};
+
+type ReactionPointerEvent = PointerEvent<HTMLButtonElement | HTMLAnchorElement>;
+
+function clearTouchPress({ currentTarget, pointerId }: ReactionPointerEvent) {
+  if (currentTarget.dataset.touchPressed === String(pointerId)) {
+    delete currentTarget.dataset.touchPressed;
+  }
+}
+
+const reactionTouchHandlers = {
+  onPointerDown({ currentTarget, isPrimary, pointerId, pointerType }: ReactionPointerEvent) {
+    // タッチの :active に頼らず、押下表示をポインターの寿命に合わせます。
+    if (pointerType === "touch" && isPrimary)
+      currentTarget.dataset.touchPressed = String(pointerId);
+  },
+  onPointerUp: clearTouchPress,
+  onPointerCancel: clearTouchPress,
+  onLostPointerCapture: clearTouchPress,
+  onPointerLeave: clearTouchPress,
 };
 
 function ReactionIcon({
@@ -21,7 +43,7 @@ function ReactionIcon({
 }) {
   return (
     <svg
-      className="size-5 shrink-0 align-middle"
+      className="pointer-events-none size-5 shrink-0 align-middle motion-safe:transition-transform motion-safe:duration-100 motion-safe:group-hover/reaction:scale-110 motion-safe:group-active/reaction:scale-90 motion-safe:group-data-[touch-pressed]/reaction:scale-90"
       viewBox="0 0 24 24"
       fill={filled ? "currentColor" : "none"}
       stroke="currentColor"
@@ -91,10 +113,11 @@ export function BoardLikeButton({
   return (
     <button
       type="button"
-      className={`${reactionClasses} -my-1 min-h-11 min-w-11 justify-center rounded-control border-0 bg-transparent px-2 cursor-pointer focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2 aria-disabled:cursor-default ${liked ? "text-danger" : "text-ink-secondary"} ${className ?? ""}`}
+      className={`${reactionControlClasses} border-0 bg-transparent aria-disabled:cursor-default ${liked ? "text-danger" : "text-ink-secondary"} ${className ?? ""}`}
       aria-label="いいね"
       aria-pressed={liked}
       aria-disabled={pending || undefined}
+      {...reactionTouchHandlers}
       onClick={toggleLike}
     >
       <ReactionIcon name="heart" filled={liked} />
@@ -103,14 +126,23 @@ export function BoardLikeButton({
   );
 }
 
-export function BoardReplyCount({ count }: { count: number }) {
-  return (
-    <span className="inline-flex">
-      <span aria-hidden="true" className={`${reactionClasses} text-ink-secondary`}>
-        <ReactionIcon name="reply" />
-        {count}
-      </span>
+export function BoardReplyCount({ count, detailPath }: { count: number; detailPath?: string }) {
+  const content = (
+    <>
+      <ReactionIcon name="reply" />
+      <span aria-hidden="true">{count}</span>
       <span className="sr-only">返信 {count} 件</span>
-    </span>
+    </>
+  );
+  return detailPath ? (
+    <Link
+      to={detailPath}
+      className={`${reactionControlClasses} relative z-10 text-ink-secondary no-underline`}
+      {...reactionTouchHandlers}
+    >
+      {content}
+    </Link>
+  ) : (
+    <span className={`${reactionClasses} text-ink-secondary`}>{content}</span>
   );
 }

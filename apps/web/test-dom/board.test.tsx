@@ -186,10 +186,10 @@ const dialog = () => document.querySelector<HTMLElement>('[role="dialog"]')!;
 const requestInput = (request: Request) => JSON.parse(String(request.init.body)) as BoardPostInput;
 
 function expectDetailLink(entry: HTMLElement, path: string) {
-  const links = entry.querySelectorAll<HTMLAnchorElement>(`a[href="${path}"]`);
-  expect(links).toHaveLength(1);
-  const link = links[0]!;
-  const time = link.querySelector("time")!;
+  const times = entry.querySelectorAll<HTMLTimeElement>(`a[href="${path}"] > time`);
+  expect(times).toHaveLength(1);
+  const time = times[0]!;
+  const link = time.closest("a")!;
   expect(time.textContent).toMatch(/分前$/);
   expect(link.getAttribute("aria-label")).toBeNull();
   expect(link.textContent?.trim()).toBe(`投稿の詳細 ${time.textContent}`);
@@ -197,6 +197,21 @@ function expectDetailLink(entry: HTMLElement, path: string) {
   expect(link.classList.contains("before:inset-0")).toBe(true);
   expect(link.classList.contains("focus-visible:before:outline-focus")).toBe(true);
   return link;
+}
+
+function expectReplyLink(entry: HTMLElement, path: string, count: number) {
+  const link = [...entry.querySelectorAll<HTMLAnchorElement>(`a[href="${path}"]`)].find(
+    (candidate) => candidate.querySelector(".sr-only")?.textContent === `返信 ${count} 件`,
+  );
+  expect(link).toBeDefined();
+  expect(link!.parentElement?.closest("a")).toBeNull();
+  expect(link!.querySelector("a, button")).toBeNull();
+  expect(link!.querySelector('span[aria-hidden="true"]')?.textContent).toBe(String(count));
+  expect(link!.classList.contains("z-10")).toBe(true);
+  expect(link!.classList.contains("focus-visible:outline-focus")).toBe(true);
+  link!.focus();
+  expect(document.activeElement).toBe(link!);
+  return link!;
 }
 
 const { selfPlayerId: _reversiSelf, ...reversiMatch } = reversiArchive.detail;
@@ -843,6 +858,23 @@ test("タイムラインは更新ボタンを表示せず、追加取得で重�
   expect(view.querySelector("section[aria-labelledby] .border-l-2")).toBeNull();
 });
 
+test("タイムラインの返信リンクはカードと同じ投稿の詳細を開く", async () => {
+  const view = show();
+  const parent = post(1, "返信のある投稿", { replyCount: 2 });
+  await respond(timeline([parent]));
+  const [entry] = articles(view);
+  const detail = expectDetailLink(entry!, postPath);
+  const replies = expectReplyLink(entry!, postPath, 2);
+  expect(detail.contains(replies)).toBe(false);
+  expect(replies.nextElementSibling).toBe(like(entry!));
+  await act(async () => replies.click());
+  expect(latest().url).toBe(detailUrl);
+  await respond(thread(parent, [reply(2, "投稿への返信"), reply(3, "続く返信")]));
+  expect(view.querySelector("h1")?.textContent).toBe("投稿の詳細");
+  expect(view.textContent).toContain("投稿への返信");
+  expect(articles(view)[0]?.querySelector(`a[href="${postPath}"]`)).toBeNull();
+});
+
 test("タイムラインの再試行は失敗した添付と棋譜カードをまとめて再取得する", async () => {
   const view = show();
   const matchPath = `/matches/${reversiMatch.id}`;
@@ -1152,7 +1184,8 @@ test("タイムラインの返信数、いいね、通報は独立した操作�
   expect(button.querySelector("svg")?.classList.contains("size-5")).toBe(true);
   expect(button.classList.contains("min-h-11")).toBe(true);
   expect(button.classList.contains("min-w-11")).toBe(true);
-  expect(count.closest("a")).toBeNull();
+  expect(count.getAttribute("href")).toBe(postPath);
+  expect(count.parentElement?.closest("a")).toBeNull();
   expect(button.nextElementSibling).toBe(report);
   expect(button.closest("a")).toBeNull();
   expect(report.closest("a")).toBeNull();
@@ -1532,13 +1565,13 @@ test("タイムラインの削除は詳細の404で消し、200なら返信の�
   expect(placeholder?.textContent).not.toContain(gainsReply.author.name);
   expect(placeholder?.querySelector("button")).toBeNull();
   const deletedPath = `/posts/${gainsReply.id}`;
-  const detail = expectDetailLink(placeholder!, deletedPath);
-  expect(placeholder?.textContent).toContain("返信 2 件");
+  expectDetailLink(placeholder!, deletedPath);
+  const replies = expectReplyLink(placeholder!, deletedPath, 2);
   expect(preserved?.textContent).toContain(older.text);
   press(view, "もっと見る");
   expect(latest().url).toBe(`${timelineUrl}&before=${encodeURIComponent(cursor(older))}`);
   await respond(timeline([]));
-  await act(async () => detail.click());
+  await act(async () => replies.click());
   expect(latest().url).toBe(`/api${deletedPath}${detailQuery}`);
   await respond(thread(deleted({ ...gainsReply, replyCount: 1 }), [reply(4, "残った返信")]));
   expect(view.querySelector("h1")?.textContent).toBe("投稿の詳細");
@@ -1640,6 +1673,7 @@ test.each([false, true])(
     expect(placeholder?.textContent).not.toContain(parent.text);
     expect(placeholder?.textContent).not.toContain(parent.author.name);
     expect(placeholder?.querySelector("button")).toBeNull();
+    expect(placeholder?.querySelector("a")).toBeNull();
     expect(child?.textContent).toContain("残る返信");
     expect(view.textContent).toContain("削除された投稿には返信できません。");
     expect(input(view)).toBeNull();
