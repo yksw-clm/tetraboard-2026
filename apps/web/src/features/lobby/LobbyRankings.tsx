@@ -448,7 +448,7 @@ function AvailableLobbyRankings({
   const state = useRankings(game);
   if (!inline) return <LobbyRankingsView state={state} theme={theme} />;
   return (
-    <AppCard className="gap-3 p-3">
+    <AppCard className="gap-3 p-3 [@media(max-width:374px)]:[&_[aria-label='ランキングの集計項目']_[role=tab]]:px-2">
       <h2 className="text-lg font-bold">ランキング</h2>
       <RankingDetails
         state={state}
