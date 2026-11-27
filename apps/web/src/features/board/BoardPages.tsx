@@ -1,13 +1,14 @@
 import {
   boardPostResultSchema,
   boardReplyResultSchema,
+  type BoardAttachment,
   type BoardPost,
   type BoardReply,
 } from "@tetraboard/protocol/board";
 import { boardPostPath } from "@tetraboard/protocol/board-presentation";
 import { gameCatalog, isGameId, type GameId } from "@tetraboard/protocol/games";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router";
 import { updatePageMetadata } from "../../seo/pageMetadata";
 import { matchedBoardPostNumber } from "../../shared/siteNavigation";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
@@ -122,9 +123,11 @@ export function BoardTimelinePage() {
 function BoardTimeline({ game }: { game: GameId }) {
   const catalog = gameCatalog[game];
   const path = boardTimelinePath(game);
-  const [search, setSearch] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const latestLocation = useRef(location);
   const [media, setMedia] = useState(createBoardMedia);
-  const attachment = readBoardAttachmentSearch(search);
+  const attachment = readBoardAttachmentSearch(new URLSearchParams(location.search));
   const returnTo = boardTimelineReturnPath(path, attachment);
   const restored = useRegistrationRestore();
   const readFirst = useCallback((signal: AbortSignal) => readTimeline(game, signal), [game]);
@@ -132,15 +135,31 @@ function BoardTimeline({ game }: { game: GameId }) {
   const { data, pending, failure } = board;
   const busy = pending !== null;
 
+  useLayoutEffect(() => {
+    latestLocation.current = location;
+  }, [location]);
+
   function refresh() {
     void board.refresh(true, () => setMedia(refreshBoardMedia(media)));
   }
 
-  function clearAttachment() {
-    const next = new URLSearchParams(search);
-    next.delete("match");
-    next.delete("position");
-    setSearch(next, { replace: true });
+  function changeAttachment(value: BoardAttachment | null) {
+    const current = latestLocation.current;
+    const search = new URLSearchParams(current.search);
+    if (value) {
+      search.set("match", value.matchId);
+      search.set("position", String(value.position));
+    } else {
+      const saved = readBoardAttachmentSearch(search);
+      if (saved?.matchId !== attachment?.matchId || saved?.position !== attachment?.position)
+        return;
+      search.delete("match");
+      search.delete("position");
+    }
+    void navigate(
+      { pathname: current.pathname, search: search.toString(), hash: current.hash },
+      { replace: true, state: current.state, preventScrollReset: true },
+    );
   }
 
   const more = (retry = false) => {
@@ -187,8 +206,7 @@ function BoardTimeline({ game }: { game: GameId }) {
             posting={data}
             returnTo={returnTo}
             initialText={restored?.path === returnTo ? restored.boardDraft?.text : undefined}
-            attachment={attachment}
-            onClearAttachment={clearAttachment}
+            attachmentEditor={{ game, value: attachment, onChange: changeAttachment }}
             placeholder={`${catalog.name}について投稿する`}
             busy={busy}
             write={board.write}

@@ -10,14 +10,21 @@ import {
 } from "@tetraboard/protocol";
 import type { GameId } from "@tetraboard/protocol/games";
 
-function indexFrames<G extends GameId, F>(game: G, frames: F[]) {
-  return (position: number) => {
-    const frame = frames[position];
-    return frame ? { game, frame } : null;
+function indexFrames<G extends GameId, F extends { label: string; accessibleLabel?: string }>(
+  game: G,
+  frames: F[],
+) {
+  const positions: readonly { label: string; accessibleLabel?: string }[] = frames;
+  return {
+    positions,
+    frameAt(position: number) {
+      const frame = frames[position];
+      return frame ? { game, frame } : null;
+    },
   };
 }
 
-export async function loadAttachmentFrames(match: ReplayMatch, signal: AbortSignal) {
+async function loadAttachmentFrames(match: ReplayMatch, signal: AbortSignal) {
   if (isFourReversiMatch(match)) {
     const { replayFrames } = await import("../room/replayFrames");
     return indexFrames("four-reversi", replayFrames(match));
@@ -45,6 +52,14 @@ export async function loadAttachmentFrames(match: ReplayMatch, signal: AbortSign
   return assertNever(match);
 }
 
+export async function loadAttachmentPreview(match: ReplayMatch, signal: AbortSignal) {
+  const [frames, { BoardAttachmentBoard }] = await Promise.all([
+    loadAttachmentFrames(match, signal),
+    import("./BoardAttachmentBoard"),
+  ]);
+  return { ...frames, Board: BoardAttachmentBoard };
+}
+
 export type BoardAttachmentFrame = NonNullable<
-  ReturnType<Awaited<ReturnType<typeof loadAttachmentFrames>>>
+  ReturnType<Awaited<ReturnType<typeof loadAttachmentFrames>>["frameAt"]>
 >;

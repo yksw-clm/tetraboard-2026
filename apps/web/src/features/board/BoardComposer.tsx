@@ -4,6 +4,7 @@ import {
   type BoardAttachment as Attachment,
   type BoardPostInput,
 } from "@tetraboard/protocol/board";
+import type { GameId } from "@tetraboard/protocol/games";
 import { useId, useRef, useState, type FormEvent } from "react";
 import { createUuid } from "../../shared/createUuid";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
@@ -13,6 +14,7 @@ import type { RegistrationDestination } from "../account/registrationReturn";
 import { useAccount } from "../account/useAccount";
 import { mutationError } from "./boardApi";
 import { BoardAttachment } from "./BoardAttachment";
+import { BoardAttachmentPicker } from "./BoardAttachmentPicker";
 import { BoardLinkDialog } from "./BoardLinkDialog";
 import type { BoardWrite } from "./useBoardData";
 
@@ -24,8 +26,11 @@ type Props = {
   reply?: boolean;
   busy: boolean;
   write: BoardWrite;
-  attachment?: Attachment | null;
-  onClearAttachment?: () => void;
+  attachmentEditor?: {
+    game: GameId;
+    value: Attachment | null;
+    onChange: (value: Attachment | null) => void;
+  };
   onSubmit: (input: BoardPostInput, signal: AbortSignal) => Promise<void>;
 };
 
@@ -37,8 +42,7 @@ export function BoardComposer({
   reply,
   busy,
   write,
-  attachment,
-  onClearAttachment,
+  attachmentEditor,
   onSubmit,
 }: Props) {
   const account = useAccount();
@@ -49,6 +53,8 @@ export function BoardComposer({
   const [linkDestination, setLinkDestination] = useState<RegistrationDestination | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pickerAttachmentKey, setPickerAttachmentKey] = useState<string | null>(null);
+  const [attachmentRevision, setAttachmentRevision] = useState(0);
   const request = useRef<{ id: string; attachmentKey: string } | null>(null);
   const composing = useRef(false);
   const count = boardTextLength(text);
@@ -63,6 +69,10 @@ export function BoardComposer({
     !account.error &&
     !checkingAccount &&
     !requiresSetup;
+  const attachment = attachmentEditor?.value ?? null;
+  const attachmentKey = JSON.stringify(attachment);
+  const pickerOpen = canCompose && !busy && !pending && pickerAttachmentKey === attachmentKey;
+  if (pickerAttachmentKey !== null && !pickerOpen) setPickerAttachmentKey(null);
   const activeLink =
     canCompose &&
     unlinked &&
@@ -75,7 +85,16 @@ export function BoardComposer({
 
   function submit(event?: FormEvent) {
     event?.preventDefault();
-    if (!canCompose || busy || pending || activeLink || composing.current || !canSubmit) return;
+    if (
+      !canCompose ||
+      busy ||
+      pending ||
+      activeLink ||
+      pickerOpen ||
+      composing.current ||
+      !canSubmit
+    )
+      return;
     if (unlinked) {
       setLinkDestination({ path: returnTo, boardDraft: { kind: reply ? "reply" : "post", text } });
       return;
@@ -84,16 +103,16 @@ export function BoardComposer({
       setPending(true);
       setError(null);
       try {
-        const attachmentKey = JSON.stringify(attachment ?? null);
         if (request.current?.attachmentKey !== attachmentKey)
           request.current = { attachmentKey, id: createUuid() };
         await onSubmit(
           { text, requestId: request.current.id, ...(attachment ? { attachment } : {}) },
           signal,
         );
+        if (signal.reason?.name === "AbortError") return;
         setText("");
         request.current = null;
-        if (attachment) onClearAttachment?.();
+        if (attachment) attachmentEditor?.onChange(null);
       } catch (error) {
         setError(mutationError(error, `${reply ? "返信" : "投稿"}を送信できませんでした。`));
       } finally {
@@ -167,20 +186,30 @@ export function BoardComposer({
             }}
           />
         </div>
-        {attachment && (
-          <div className="grid justify-items-start gap-2">
-            <BoardAttachment {...attachment} />
+        {attachment && <BoardAttachment key={attachmentRevision} {...attachment} />}
+        {attachmentEditor && (
+          <div className="flex flex-wrap items-center gap-2">
             <AppButton
-              appearance="quiet"
+              appearance="secondary"
               size="compact"
               isDisabled={busy || pending}
-              onPress={() => {
-                request.current = null;
-                onClearAttachment?.();
-              }}
+              onPress={() => setPickerAttachmentKey(attachmentKey)}
             >
-              添付を外す
+              {attachment ? "変更" : "棋譜を添付"}
             </AppButton>
+            {attachment && (
+              <AppButton
+                appearance="quiet"
+                size="compact"
+                isDisabled={busy || pending}
+                onPress={() => {
+                  request.current = null;
+                  attachmentEditor.onChange(null);
+                }}
+              >
+                添付を外す
+              </AppButton>
+            )}
           </div>
         )}
         {error && (
@@ -203,6 +232,20 @@ export function BoardComposer({
   return (
     <AppCard className="min-w-0 gap-3 text-sm">
       {controls}
+      {attachmentEditor && pickerOpen && (
+        <BoardAttachmentPicker
+          game={attachmentEditor.game}
+          attachment={attachment}
+          hasHistory={!!account.user}
+          onClose={() => setPickerAttachmentKey(null)}
+          onConfirm={(next) => {
+            attachmentEditor.onChange(next);
+            // 同じ対局を再確定した場合も、取得済みの盤面を読み直します。
+            setAttachmentRevision((revision) => revision + 1);
+            setPickerAttachmentKey(null);
+          }}
+        />
+      )}
       {activeLink && (
         <BoardLinkDialog destination={activeLink} onClose={() => setLinkDestination(null)} />
       )}

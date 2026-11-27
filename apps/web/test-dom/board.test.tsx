@@ -26,6 +26,7 @@ import {
   useLocation,
 } from "react-router";
 import reversiArchive from "../../../test-fixtures/matches/reversi-doubles-normal.json";
+import reversiSinglesArchive from "../../../test-fixtures/matches/reversi-singles-normal.json";
 import shogiArchive from "../../../test-fixtures/matches/shogi-singles.json";
 import {
   readRegistrationReturn,
@@ -248,6 +249,17 @@ function expectReplyLink(entry: HTMLElement, path: string, count: number) {
 const { selfPlayerId: _reversiSelf, ...reversiMatch } = reversiArchive.detail;
 const { selfPlayerId: _shogiSelf, ...shogiMatch } = shogiArchive.detail;
 const timelineWithPosition = `${timelinePath}?match=${shogiMatch.id}&position=0`;
+const reversiBoardPath = "/games/four-reversi/posts";
+const reversiMatchPath = `/matches/${reversiMatch.id}`;
+
+function loadAttachmentUrl(url: string) {
+  enter(dialog().querySelector("input")!, url);
+  press(dialog(), "読み込む");
+}
+
+function attachmentPosition() {
+  return dialog().querySelector("select")!;
+}
 
 async function respond(body: unknown, status?: number) {
   latest().respond(body, status);
@@ -542,6 +554,232 @@ test("クエリから投稿欄に盤面を表示し、送信成功で投稿欄�
   ]);
 });
 
+test("未ログインでも公開棋譜URLから添付でき、URL・対局・局面を検証する", async () => {
+  const view = show(reversiBoardPath, null);
+  await respond(timeline([]));
+  enter(input(view), "局面について");
+  expect(requests).toHaveLength(1);
+  press(view, "棋譜を添付");
+  expect(dialog().closest(".app-modal")).not.toBeNull();
+  const origin = window.location.origin;
+  for (const url of [
+    `https://outside.test${reversiMatchPath}`,
+    `${origin}/account${reversiMatchPath}`,
+    `${origin}${reversiMatchPath}/replay`,
+    `${origin}/matches/invalid`,
+  ]) {
+    loadAttachmentUrl(url);
+    expect(dialog().querySelector("[role=alert]")?.textContent).toContain("公開棋譜のURL");
+  }
+  expect(requests).toHaveLength(1);
+  loadAttachmentUrl(`${origin}/matches/${shogiMatch.id}`);
+  await flush();
+  expect(latest().url).toBe(`/api/matches/${shogiMatch.id}`);
+  await respond({ match: shogiMatch });
+  expect(dialog().querySelector("[role=alert]")?.textContent).toContain("同じゲーム");
+  press(dialog(), "この局面を添付");
+  expect(view.querySelector("form a[href^='/matches/']")).toBeNull();
+
+  press(dialog(), "戻る");
+  loadAttachmentUrl(`${origin}${reversiMatchPath}?position=37&ref=link#replay`);
+  await flush();
+  expect(latest().url).toBe("/api" + reversiMatchPath);
+  await respond({ match: reversiMatch });
+  expect(attachmentPosition().selectedOptions[0]?.textContent).toBe("黒 パス");
+  expect(dialog().querySelector('[aria-label="四人リバーシの盤面"]')).not.toBeNull();
+  press(dialog(), "この局面を添付");
+  await flush();
+  expect(view.querySelector(`form a[href="${reversiMatchPath}?position=37"]`)?.textContent).toBe(
+    "黒 パス",
+  );
+  expect(input(view).value).toBe("局面について");
+});
+
+test("ゲストの本人履歴をモード別に選び、選択した対局を公開棋譜で開く", async () => {
+  const view = show(reversiBoardPath, { ...user, isGuest: true });
+  await respond(timeline([]));
+  press(view, "棋譜を添付");
+  clock.advance(0);
+  expect(latest().url).toContain("/api/account/matches?mode=singles");
+  await respond({ matches: [], nextCursor: null });
+  expect(dialog().textContent).toContain("まだ対局履歴がありません");
+  press(dialog(), "ダブルス");
+  clock.advance(0);
+  expect(latest().url).toContain("/api/account/matches?mode=doubles");
+  const { id, startedAtMs, endedAtMs, participants } = reversiMatch;
+  await respond({
+    matches: [
+      {
+        id,
+        startedAtMs,
+        endedAtMs,
+        participants,
+        game: "four-reversi",
+        mode: "doubles",
+        result: reversiMatch.game.result,
+        moveCount: reversiMatch.game.moveNumber,
+      },
+    ],
+    nextCursor: null,
+  });
+  const candidate = dialog().querySelector("time")!;
+  expect(candidate.textContent).toBe(formatMatchDate(startedAtMs));
+  expect(candidate.closest("button")?.textContent).toContain(participants[0]!.name);
+  act(() => candidate.closest("button")!.click());
+  await flush();
+  expect(latest().url).toBe("/api" + reversiMatchPath);
+  await respond({ match: reversiMatch });
+  expect(attachmentPosition().selectedIndex).toBe(attachmentPosition().options.length - 1);
+  press(dialog(), "この局面を添付");
+  await flush();
+  expect(view.querySelector("form a[href^='/matches/']")).not.toBeNull();
+});
+
+test("アカウント切替で以前の本人履歴を破棄し、取得に失敗してもURLに切り替えられる", async () => {
+  const accountBoard = (viewer: AccountProfile) =>
+    wrap(
+      viewer,
+      timelinePath,
+    )(
+      <Routes>
+        <Route path="/games/:gameId/posts" element={<BoardTimelinePage />} />
+      </Routes>,
+    );
+  const view = render(accountBoard(user));
+  await respond(timeline([]));
+  press(view, "棋譜を添付");
+  expect(dialog().closest(`.${appThemeClasses["four-shogi"]}`)).not.toBeNull();
+  clock.advance(0);
+  const previous = latest();
+  expect(previous.url).toContain("/api/account/matches?");
+  expect(previous.url).toContain("game=four-shogi");
+
+  rerender(view, accountBoard({ ...user, username: "another" }));
+  expect(dialog()).toBeNull();
+  expect(previous.init.signal?.aborted).toBe(true);
+  await respond(timeline([]));
+  press(view, "棋譜を添付");
+  clock.advance(0);
+  previous.respond({
+    matches: [
+      {
+        id: shogiMatch.id,
+        startedAtMs: shogiMatch.startedAtMs,
+        endedAtMs: shogiMatch.endedAtMs,
+        participants: shogiMatch.participants,
+        game: "four-shogi",
+        mode: "singles",
+        result: shogiMatch.game.result,
+      },
+    ],
+    nextCursor: null,
+  });
+  await respond({}, 503);
+  expect(dialog().querySelector("[role=alert]")?.textContent).toContain("対局履歴を取得");
+  expect(dialog().querySelector("time")).toBeNull();
+  press(dialog(), "URLを貼る");
+  expect(dialog().querySelector('input[type="url"]')).not.toBeNull();
+});
+
+test("添付の変更中に届いた古い棋譜を捨て、確定済みの添付と本文は送信成功まで保持する", async () => {
+  const { selfPlayerId: _, ...replacement } = reversiSinglesArchive.detail;
+  const routeState = { source: "別の画面" };
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/games/:gameId/posts",
+        element: (
+          <AccountContext.Provider
+            value={{ user, loading: false, error: null, refresh: async () => {}, update: () => {} }}
+          >
+            <BoardTimelinePage />
+          </AccountContext.Provider>
+        ),
+      },
+    ],
+    {
+      initialEntries: [
+        {
+          pathname: reversiBoardPath,
+          search: `?view=all&match=${reversiMatch.id}&position=36`,
+          hash: "#compose",
+          state: routeState,
+        },
+      ],
+    },
+  );
+  const view = render(<RouterProvider router={router} />);
+  await respond(timeline([]));
+  await respond({ match: reversiMatch });
+  enter(input(view), "変更する本文");
+  press(view, "変更");
+  await flush();
+  await respond({ match: reversiMatch });
+  expect(attachmentPosition().value).toBe("36");
+  press(dialog(), "戻る");
+  press(dialog(), "URLを貼る");
+  loadAttachmentUrl(`${window.location.origin}/matches/${uuid(90)}`);
+  await flush();
+  await respond({}, 404);
+  expect(dialog().querySelector("[role=alert]")?.textContent).toContain("公開棋譜が見つかりません");
+  press(dialog(), "戻る");
+  loadAttachmentUrl(`${window.location.origin}/matches/${uuid(91)}`);
+  await flush();
+  const older = latest();
+  press(dialog(), "戻る");
+  loadAttachmentUrl(`${window.location.origin}${reversiMatchPath}?position=9999`);
+  await flush();
+  expect(older.init.signal?.aborted).toBe(true);
+  older.respond({}, 404);
+  await respond({ match: reversiMatch });
+  const position = attachmentPosition();
+  expect(position.selectedIndex).toBe(position.options.length - 1);
+  press(dialog(), "キャンセル");
+  expect(view.querySelector("form a[href^='/matches/']")?.textContent).toBe("36: 青H5");
+
+  press(view, "変更");
+  await flush();
+  await respond({ match: reversiMatch });
+  press(dialog(), "戻る");
+  press(dialog(), "URLを貼る");
+  loadAttachmentUrl(`${window.location.origin}/matches/${replacement.id}`);
+  await flush();
+  await respond({ match: replacement });
+  act(() => {
+    attachmentPosition().value = "0";
+    attachmentPosition().dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  press(dialog(), "この局面を添付");
+  expect(router.state.location).toMatchObject({
+    search: `?view=all&match=${replacement.id}&position=0`,
+    hash: "#compose",
+    state: routeState,
+  });
+  expect(input(view).value).toBe("変更する本文");
+  press(view, "投稿する");
+  const postInput = requestInput(latest());
+  expect(postInput).toMatchObject({
+    text: "変更する本文",
+    attachment: { matchId: replacement.id, position: 0 },
+  });
+  await respond({}, 503);
+  expect(view.querySelector("form [role=alert]")?.textContent).toContain("投稿を送信できません");
+  expect(view.querySelector("form a[href^='/matches/']")?.textContent).toBe("開始局面");
+  expect(input(view).value).toBe("変更する本文");
+  press(view, "投稿する");
+  expect(requestInput(latest())).toEqual(postInput);
+  await respond({
+    post: post(1, "変更する本文", { gameId: "four-reversi", attachment: postInput.attachment }),
+    availableAtMs: 0,
+  });
+  expect(input(view).value).toBe("");
+  expect(router.state.location).toMatchObject({
+    search: "?view=all",
+    hash: "#compose",
+    state: routeState,
+  });
+});
+
 test.each([
   "?match=bad&position=0",
   `?match=${shogiMatch.id}&position=1e0`,
@@ -739,12 +977,20 @@ test.each([
         ? "/account/setup"
         : "/account";
     const draft = "  入力中の本文👨‍👩‍👧‍👦\n";
-    const initialPath = setup
-      ? `/games/four-reversi/posts?position=36&match=${reversiMatch.id}`
-      : path;
+    const initialPath = setup ? reversiBoardPath : path;
     const initial = show(initialPath, setup ? guest : null);
     await respond(response);
     enter(input(initial), draft);
+    if (setup) {
+      press(initial, "棋譜を添付");
+      press(dialog(), "URLを貼る");
+      loadAttachmentUrl(`${window.location.origin}${reversiMatchPath}?position=36`);
+      await flush();
+      await respond({ match: reversiMatch });
+      press(dialog(), "この局面を添付");
+      await flush();
+      expect(initial.querySelector("form")?.textContent).toContain("36: 青H5");
+    }
     press(initial, label);
     const assign = spyOn(window.location, "assign").mockImplementation(() => {
       expect(readRegistrationReturn()).toMatchObject({

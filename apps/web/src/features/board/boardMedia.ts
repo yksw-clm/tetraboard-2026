@@ -2,16 +2,21 @@ import { createContext, useContext, useEffect, useState, type RefObject } from "
 
 function cacheRequest<K, T>(read: (key: K) => Promise<T>) {
   const requests = new Map<K, Promise<T>>();
-  return (key: K) => {
+  const cachedRead = (key: K) => {
     const cached = requests.get(key);
     if (cached) return cached;
     const request = read(key).catch((error: unknown) => {
-      requests.delete(key);
+      if (requests.get(key) === request) requests.delete(key);
       throw error;
     });
     requests.set(key, request);
     return request;
   };
+  return Object.assign(cachedRead, {
+    remember(key: K, data: T) {
+      requests.set(key, Promise.resolve(data));
+    },
+  });
 }
 
 const mediaRequestLimit = 3;
@@ -60,13 +65,11 @@ export function createBoardMedia(schedule = createRequestQueue()) {
       }),
     ),
     attachment: cacheRequest(async (id: string) => {
-      const [record, { loadAttachmentFrames }, { BoardAttachmentBoard }] = await Promise.all([
+      const [record, { loadAttachmentPreview }] = await Promise.all([
         match(id),
         import("./boardAttachmentFrames"),
-        import("./BoardAttachmentBoard"),
       ]);
-      const frameAt = await enqueue((signal) => loadAttachmentFrames(record, signal));
-      return { frameAt, Board: BoardAttachmentBoard };
+      return enqueue((signal) => loadAttachmentPreview(record, signal));
     }),
   };
 }
