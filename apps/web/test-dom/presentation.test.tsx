@@ -58,35 +58,26 @@ test("戦績の表示値・率・モード別項目・0件を取得結果から�
   expect(requests).toHaveLength(1);
   await flush();
 });
-test("登録者の将棋戦績は集計範囲の注記の上にレートを表示し、更新で再取得する", async () => {
+test("将棋戦績の更新は戦績を再取得し、戦績内でレートを取得・表示しない", async () => {
   const view = render(
     <MemoryRouter>
-      <AccountStats game="shogi" mode="singles" registered />
+      <AccountStats game="shogi" mode="singles" />
     </MemoryRouter>,
   );
   clock.advance(0);
-  const rating = () => requests.filter(({ url }) => url.endsWith("/shogi/rating")).at(-1)!;
-  requests
-    .find(({ url }) => url.includes("/account/stats"))!
-    .respond({
-      total: 1,
-      wins: 1,
-      losses: 0,
-      draws: 0,
-    });
-  const first = rating();
-  first.respond({ status: "rated", rating: 1542.4 });
+  const stats = () => requests.filter(({ url }) => url === "/api/account/stats?game=shogi");
+  stats()[0]!.respond({ total: 1, wins: 1, losses: 0, draws: 0 });
   await flush();
-  const note = [...view.querySelectorAll("p")].find(
-    (node) => node.textContent === "対人戦/レート戦を集計",
-  )!;
-  expect(note.previousElementSibling?.textContent).toBe("レート戦のレート1542");
+  const table = view.querySelector('table[aria-label="戦績"]')!;
+  expect(table.textContent).toContain("対局数1");
   press(view, "更新");
   await flush();
-  expect(rating()).not.toBe(first);
-  rating().respond({ status: "rated", rating: 1551 });
+  expect(stats()).toHaveLength(2);
+  stats()[1]!.respond({ total: 2, wins: 1, losses: 1, draws: 0 });
   await flush();
-  expect(note.previousElementSibling?.textContent).toBe("レート戦のレート1551");
+  expect(table.textContent).toContain("対局数2");
+  expect(view.textContent).not.toContain("レート戦のレート");
+  expect(requests).toHaveLength(2);
 });
 
 test("棋譜カードは同順位・CPU・日時・チーム結果・本人棋譜リンクを表示", () => {

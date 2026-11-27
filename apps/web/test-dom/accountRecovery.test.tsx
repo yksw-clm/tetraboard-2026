@@ -3,6 +3,7 @@ import { expect, spyOn, test } from "bun:test";
 import { StrictMode } from "react";
 import { createMemoryRouter, Outlet, RouterProvider, useLoaderData } from "react-router";
 import { gameIds, type GameId } from "@tetraboard/protocol/games";
+import type { LobbyGameRatings } from "@tetraboard/protocol/general-lobby";
 import { reversiArchives } from "../../../test-fixtures/matches";
 import { AccountLayout } from "../src/features/account/AccountSession";
 import { ProfilePage, LoginPage } from "../src/features/account/AccountPages";
@@ -21,6 +22,21 @@ const sessions = () => requests.filter((r) => r.url === "/api/account/session");
 const statsRequests = () => requests.filter((r) => r.url.startsWith("/api/account/stats"));
 const historyRequests = () => requests.filter((r) => r.url.startsWith("/api/account/matches?"));
 const replayRequests = () => requests.filter((r) => r.url.startsWith("/api/account/matches/"));
+const ratingRequests = () => requests.filter((r) => r.url === "/api/lobby/game-ratings");
+const gameButtons = (view: HTMLElement) => [
+  ...view.querySelectorAll<HTMLButtonElement>('[aria-label="プロフィールのゲーム"] button'),
+];
+function gameRatings(user = profile): LobbyGameRatings {
+  return {
+    viewer: { profileId: user.profileId ?? null, username: user.username },
+    games: {
+      "four-reversi": { enabled: true, summary: { status: "rated", rating: 1661 } },
+      "four-shogi": { enabled: true, summary: { status: "placement", games: 2 } },
+      reversi: { enabled: false, summary: { status: "rated", rating: 1528 } },
+      shogi: { enabled: true, summary: { status: "placement", games: 0 } },
+    },
+  };
+}
 const stats = {
   singles: { total: 12, first: 4, second: 2, third: 6, fourth: 0 },
   doubles: { total: 6, wins: 3, losses: 2, draws: 1 },
@@ -374,6 +390,81 @@ test("取得済みの戦績・履歴・編集ダイアログは別アカウン�
   expect(m.view.querySelector(`a[href="/account/matches/${match(1).id}"]`)).toBeNull();
   expect(statsRequests()).toHaveLength(2);
   expect(historyRequests()).toHaveLength(2);
+});
+
+test("マイページは未選択ゲームと受付停止中のレートも一度に表示し、戦績更新で更新する", async () => {
+  const m = mount();
+  await signIn(m);
+  await seed();
+  expect(gameButtons(m.view).every((button) => !button.querySelector("strong"))).toBe(true);
+  expect(ratingRequests()).toHaveLength(1);
+  ratingRequests()[0]!.respond(gameRatings());
+  await flush();
+  const labels = () =>
+    gameButtons(m.view).map((button) => button.querySelector("strong")?.textContent);
+  expect(labels()).toEqual(["1661", "認定戦 2/5", "1528", "認定戦 0/5", undefined, undefined]);
+  const stats = m.view.querySelector<HTMLElement>('[aria-labelledby="account-stats-title"]')!;
+  expect(stats.textContent).toContain("対局数12");
+  expect(stats.textContent).not.toContain("1661");
+  act(() =>
+    [...m.view.querySelectorAll<HTMLElement>('[role="tab"]')]
+      .find((tab) => tab.textContent?.includes("ダブルス"))!
+      .click(),
+  );
+  await flush();
+  expect(stats.textContent).toContain("対局数6");
+  act(() =>
+    gameButtons(m.view)
+      .find((button) => button.textContent === "リバーシ1528")!
+      .click(),
+  );
+  await flush();
+  clock.advance(0);
+  statsRequests().at(-1)!.respond({ total: 2, wins: 1, losses: 1, draws: 0 });
+  await flush();
+  expect(ratingRequests()).toHaveLength(1);
+  expect(
+    gameButtons(m.view).find((button) => button.getAttribute("aria-pressed") === "true")
+      ?.textContent,
+  ).toBe("リバーシ1528");
+
+  press(stats, "更新");
+  await flush();
+  expect(ratingRequests()).toHaveLength(2);
+  ratingRequests()[1]!.respond({}, 503);
+  await flush();
+  expect(labels().every((label) => label === undefined)).toBe(true);
+  expect(stats.textContent).toContain("対局数2");
+});
+
+test("マイページのアカウント交代時に取得済みレートと遅い旧応答を破棄する", async () => {
+  const m = mount();
+  await signIn(m);
+  await seed();
+  ratingRequests()[0]!.respond(gameRatings());
+  await flush();
+  expect(m.view.textContent).toContain("1661");
+  press(m.view.querySelector<HTMLElement>('[aria-labelledby="account-stats-title"]')!, "更新");
+  const previous = ratingRequests().at(-1)!;
+  const other = {
+    ...profile,
+    profileId: "20000000-0000-4000-8000-000000000002",
+    username: "other",
+  };
+  act(() => m.account.update(other));
+  clock.advance(0);
+  expect(previous.init.signal?.aborted).toBe(true);
+  previous.respond(gameRatings());
+  await flush();
+  expect(gameButtons(m.view).every((button) => !button.querySelector("strong"))).toBe(true);
+  const next = gameRatings(other);
+  next.games["four-reversi"].summary = { status: "rated", rating: 1580 };
+  next.games.reversi.summary = { status: "error" };
+  ratingRequests().at(-1)!.respond(next);
+  await flush();
+  expect(m.view.textContent).toContain("1580");
+  expect(m.view.textContent).not.toContain("1661");
+  expect(m.view.textContent).not.toContain("1528");
 });
 
 test("正常な再確認後の旧401は再確認を起動せず、未取得データを現行世代で取得し直す", async () => {

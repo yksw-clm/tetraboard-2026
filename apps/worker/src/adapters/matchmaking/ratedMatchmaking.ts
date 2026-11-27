@@ -3,7 +3,9 @@ import {
   matchmakingQueues,
   shogiRatingSummarySchema,
   reversiRatingSummarySchema,
+  type GameRatingSummary,
   type MatchmakingGame,
+  type RatedMatchmakingGame,
 } from "@tetraboard/protocol";
 import { aiServiceConfigured } from "../room/ai/aiService";
 import { reversiAiEnabled } from "../room/ai/reversiAi";
@@ -97,4 +99,19 @@ const shellPolicies = {
 };
 export function ratedMatchmakingPolicy(game: MatchmakingGame) {
   return shellPolicies[game];
+}
+
+export async function readGameRatingSummary(
+  db: D1Database,
+  game: RatedMatchmakingGame,
+  accountId: string,
+): Promise<GameRatingSummary> {
+  try {
+    const summary = await ratedMatchmakingPolicy(game).readSummary(db, accountId);
+    return summary.status === "rated"
+      ? { status: "rated", rating: Math.round(summary.rating) }
+      : { status: "placement", games: summary.games };
+  } catch {
+    return { status: "error" };
+  }
 }

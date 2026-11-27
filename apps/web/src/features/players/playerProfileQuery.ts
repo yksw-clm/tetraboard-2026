@@ -2,14 +2,18 @@ import { getPlayerProfileContract, type PlayerProfileTarget } from "@tetraboard/
 import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import type { RoomMode } from "@tetraboard/protocol";
 
-export function playerProfileApiUrl(target: PlayerProfileTarget, game: GameId) {
+export function playerProfileApiUrl(
+  target: PlayerProfileTarget,
+  game: GameId,
+  { includeRating = true } = {},
+) {
   const query = new URLSearchParams({
     ...target,
     game,
     includeBadges: "1",
     includeStats: "1",
     includeDetails: "1",
-    includeRating: "1",
+    ...(includeRating ? { includeRating: "1" } : {}),
   });
   return `/api${getPlayerProfileContract.path}?${query}`;
 }

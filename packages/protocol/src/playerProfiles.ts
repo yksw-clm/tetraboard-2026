@@ -7,7 +7,12 @@ import { rankingEntrySchema } from "./rankings";
 import { accountStatsSchema } from "./matches";
 import { badgeIds } from "./badges";
 import { profileDetailsSchema } from "./profileDetails";
-import { publicReversiRatingSchema, publicShogiRatingSchema } from "./matchmaking";
+import {
+  gameRatingSummarySchema,
+  publicReversiRatingSchema,
+  publicShogiRatingSchema,
+  ratedMatchmakingGameIds,
+} from "./matchmaking";
 
 export const profileRatingSchema = z.union([
   z.strictObject({
@@ -127,6 +132,15 @@ export const getPlayerProfileContract = {
   path: "/player-profile",
   query: playerProfileQuerySchema,
   response: playerProfileSchema,
+} as const;
+export const getPlayerGameRatingsContract = {
+  method: "GET",
+  path: "/players/:profileId/game-ratings",
+  params: z.strictObject({ profileId: z.uuid() }),
+  response: z.strictObject({
+    profileId: z.uuid(),
+    games: z.record(z.enum(ratedMatchmakingGameIds), gameRatingSummarySchema).nullable(),
+  }),
 } as const;
 export const previewRoomSchema = roomPublicMetadataSchema.safeExtend({
   profileTarget: playerProfileTargetSchema.optional().nullable(),

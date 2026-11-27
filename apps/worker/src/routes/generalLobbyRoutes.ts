@@ -11,7 +11,10 @@ import {
 } from "@tetraboard/protocol/general-lobby";
 import { ratedMatchmakingGameIds } from "@tetraboard/protocol";
 import { accountIdentity } from "../adapters/account/auth";
-import { ratedMatchmakingPolicy } from "../adapters/matchmaking/ratedMatchmaking";
+import {
+  ratedMatchmakingPolicy,
+  readGameRatingSummary,
+} from "../adapters/matchmaking/ratedMatchmaking";
 import { listGeneralRooms, listLobbyRoomCards } from "../adapters/room/roomIndexRead";
 import { participantProfiles } from "../adapters/record/matchProfiles";
 import { readStoredMatch } from "../adapters/record/matchDataContracts";
@@ -28,24 +31,11 @@ generalLobbyRoutes.get("/lobby/game-ratings", async (c) => {
   const registered = user && !user.isAnonymous ? user : null;
   const entries = await Promise.all(
     ratedMatchmakingGameIds.map(async (game) => {
-      const policy = ratedMatchmakingPolicy(game);
-      const enabled = policy.enabled(c.env);
-      if (!registered) return [game, { enabled, summary: null }];
-      try {
-        const summary = await policy.readSummary(c.env.APP_DB, registered.id);
-        return [
-          game,
-          {
-            enabled,
-            summary:
-              summary.status === "rated"
-                ? { status: "rated", rating: Math.round(summary.rating) }
-                : { status: "placement", games: summary.games },
-          },
-        ];
-      } catch {
-        return [game, { enabled, summary: { status: "error" } }];
-      }
+      const enabled = ratedMatchmakingPolicy(game).enabled(c.env);
+      const summary = registered
+        ? await readGameRatingSummary(c.env.APP_DB, game, registered.id)
+        : null;
+      return [game, { enabled, summary }];
     }),
   );
   return c.json(

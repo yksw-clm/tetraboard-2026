@@ -5,7 +5,7 @@ export type PublicPlayerRequest<T> = { status: "loading" | "error" } | { status:
 export function usePublicPlayerRequest<T>(
   url: string,
   schema: { parse(value: unknown): T },
-  onUnavailable: () => void,
+  onUnavailable?: () => void,
 ) {
   const [request, setRequest] = useState({ url });
   if (request.url !== url) setRequest({ url });
@@ -22,7 +22,7 @@ export function usePublicPlayerRequest<T>(
       try {
         const reply = await fetch(request.url, { cache: "no-store", signal: controller.signal });
         if (controller.signal.aborted) return;
-        if (reply.status === 404) onUnavailable();
+        if (reply.status === 404 && onUnavailable) onUnavailable();
         else if (!reply.ok) complete({ status: "error" });
         else complete({ status: "ready", data: schema.parse(await reply.json()) });
       } catch {
@@ -32,6 +32,6 @@ export function usePublicPlayerRequest<T>(
     return () => controller.abort();
   }, [request, schema, onUnavailable]);
   const result: PublicPlayerRequest<T> =
-    response?.request === request ? response.result : { status: "loading" };
+    request.url === url && response?.request === request ? response.result : { status: "loading" };
   return { result, retry: () => setRequest({ url }) };
 }

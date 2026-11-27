@@ -11,7 +11,7 @@ type RatingsState = {
   error: boolean;
 };
 
-export function useLobbyGameRatings() {
+export function useLobbyGameRatings(enabled = true) {
   const account = useAccount();
   const registered = Boolean(account.user && !account.user.isGuest);
   const profileId = account.user?.profileId ?? null;
@@ -24,7 +24,7 @@ export function useLobbyGameRatings() {
     error: false,
   });
   const request = useRef<AbortController | null>(null);
-  const ready = !account.loading && !account.error;
+  const ready = enabled && !account.loading && !account.error;
   const load = useCallback(async () => {
     if (!ready || document.visibilityState === "hidden" || request.current) return;
     const controller = new AbortController();
@@ -60,6 +60,7 @@ export function useLobbyGameRatings() {
     }
   }, [ready, scope, registered, profileId, username]);
   useEffect(() => {
+    if (!enabled) return;
     const timer = window.setTimeout(() => void load(), 0);
     const onVisibility = () => {
       if (document.visibilityState === "visible") void load();
@@ -75,7 +76,7 @@ export function useLobbyGameRatings() {
       request.current?.abort();
       request.current = null;
     };
-  }, [load]);
+  }, [enabled, load]);
   const current = state.scope === scope ? state : null;
   const data = ready ? (current?.data ?? null) : null;
   return {

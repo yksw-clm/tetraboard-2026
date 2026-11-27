@@ -9,7 +9,7 @@ import { ensureGuestAccount } from "../src/features/account/guestAccount";
 import { useRoomEntry } from "../src/features/lobby/useRoomEntry";
 import { profile } from "../test/fixtures/account";
 import { guestProfile } from "./guestAccountFixtures";
-import { act, enter, flush, press, render, renderHook, requests, wrap } from "./harness";
+import { act, clock, enter, flush, press, render, renderHook, requests, wrap } from "./harness";
 
 test("名前設定済みのゲストは再入力せず、未設定フラグなら自動名でも入力を求める", async () => {
   const user = guestProfile("ゲスト12345");
@@ -83,6 +83,9 @@ test("ゲストは連携ボタンがあるマイページから共通ダイア�
   const user = guestProfile();
   requests.find((request) => request.url === "/api/account/session")!.respond({ user });
   await flush();
+  clock.advance(0);
+  expect(requests.some((request) => request.url === "/api/lobby/game-ratings")).toBe(false);
+  expect(view.querySelector('[aria-label="プロフィールのゲーム"] strong')).toBeNull();
   const card = view.querySelector('[data-testid="account-profile-card"]')!;
   expect(card.querySelector("input")).toBeNull();
   expect(card.textContent).toContain("Cookie");
