@@ -87,7 +87,7 @@ export function LobbyPostPreview({ game }: { game: GameId }) {
         description={`${name}の掲示板の新しい投稿です。`}
       >
         {state.status === "ready" && state.data.acceptingPosts && (
-          <AppButtonLink size="compact" appearance="quiet" className="px-2" to={timelinePath}>
+          <AppButtonLink appearance="primary" to={timelinePath}>
             投稿する
           </AppButtonLink>
         )}

@@ -134,7 +134,8 @@ function timeline(posts: BoardPost[], acceptingPosts = true) {
 }
 
 test.each([...gameIds])("%s のロビーはそのゲームのタイムラインを1回だけ取得する", async (game) => {
-  const section = preview(show(game));
+  const view = show(game);
+  const section = preview(view);
   expect(section.textContent).toContain(`${gameCatalog[game].name}の掲示板の新しい投稿です。`);
   expectTimelineLink(section, game);
   await flush();
@@ -148,6 +149,11 @@ test.each([...gameIds])("%s のロビーはそのゲームのタイムライン�
   ]);
   clock.advance(60_000);
   expect(timelineRequests(game)).toHaveLength(1);
+
+  const postLink = section.firstElementChild?.querySelector<HTMLAnchorElement>("a.bg-primary");
+  expect(postLink?.textContent).toBe("投稿する");
+  await act(async () => postLink!.click());
+  expect(view.querySelector('[aria-label="現在のパス"]')?.textContent).toBe(timelinePath(game));
 });
 
 test.each([
