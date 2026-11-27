@@ -1,4 +1,3 @@
-import { RatedLaunchAnnouncement } from "../matchmaking/RatedLaunchAnnouncement";
 import { TournamentEntrance } from "../tournaments/TournamentEntrance";
 import { TournamentList } from "../tournaments/TournamentList";
 import { LobbyFooter } from "./LobbyFooter";
@@ -242,18 +241,6 @@ export function LobbyView(props: Props) {
           </LobbyFooter>
         </main>
       </div>
-      {isRatedMatchmakingGame(props.game) && (
-        <RatedLaunchAnnouncement
-          game={props.game}
-          blocked={
-            dialog !== null ||
-            Boolean(props.registrationDraft) ||
-            createRequested ||
-            Boolean(location.state?.friendRoomNonce) ||
-            creatingFromResult
-          }
-        />
-      )}
       {dialog?.type === "entry" && (
         <RoomEntryDialog
           game={props.game}

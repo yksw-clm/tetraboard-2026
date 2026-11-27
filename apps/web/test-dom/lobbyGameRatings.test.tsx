@@ -35,7 +35,7 @@ function visibility(value: string) {
   act(() => document.dispatchEvent(new Event("visibilitychange")));
 }
 
-test("ホームから1回の取得で4ゲームのレート・認定進捗と受付状態を表示する", async () => {
+test("総合ロビーは開幕ダイアログなしで4ゲームのレートを表示する", async () => {
   visibility("visible");
   const view = render(wrap(user)(<GeneralLobbyPage />));
   clock.advance(0);
@@ -54,6 +54,8 @@ test("ホームから1回の取得で4ゲームのレート・認定進捗と受
     expect(card(view, game).textContent).not.toContain("レート");
   clock.advance(30000);
   expect(requests.filter(({ url }) => url === path)).toHaveLength(1);
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(localStorage.getItem("tetraboard:rated-launch:seen")).toBeNull();
   visibility("hidden");
   visibility("visible");
   const refreshed = result();
