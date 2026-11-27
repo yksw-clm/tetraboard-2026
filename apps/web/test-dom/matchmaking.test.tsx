@@ -3,6 +3,10 @@ import { createMemoryRouter, matchRoutes, RouterProvider, useLocation } from "re
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import type { AccountProfile, RatedMatchmakingGame } from "@tetraboard/protocol";
 import { readRegistrationReturn } from "../src/features/account/registrationReturn";
+import { FourReversiLobbyPage } from "../src/features/lobby/FourReversiLobbyPage";
+import { FourShogiLobbyPage } from "../src/features/lobby/FourShogiLobbyPage";
+import { ReversiLobbyPage } from "../src/features/lobby/ReversiLobbyPage";
+import { ShogiLobbyPage } from "../src/features/lobby/ShogiLobbyPage";
 import { RatedMatchmakingDialog } from "../src/features/matchmaking/RatedMatchmakingDialog";
 import {
   readMatchmakingQueue,
@@ -31,6 +35,51 @@ const shogiCancelUrl = "/api/matchmaking/shogi/cancel";
 const shogiIdle = () => ({ status: "idle", enabled: true, serverNowMs: Date.now() });
 const dialogs = () => [...document.querySelectorAll<HTMLElement>('[role="dialog"]')];
 const activeDialog = () => dialogs().at(-1)!;
+
+test.each([
+  ["four-shogi", FourShogiLobbyPage],
+  ["four-reversi", FourReversiLobbyPage],
+  ["shogi", ShogiLobbyPage],
+  ["reversi", ReversiLobbyPage],
+] as const)("%s のロビーでレート戦ボタンを押すと連携案内が開く", async (game, Page) => {
+  Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+  const lobby = `/games/${game}`;
+  const router = createMemoryRouter([{ path: lobby, element: <Page /> }], {
+    initialEntries: [lobby],
+  });
+  const view = render(
+    <AccountContext
+      value={{ user: null, loading: false, error: null, refresh: async () => {}, update() {} }}
+    >
+      <RouterProvider router={router} />
+    </AccountContext>,
+  );
+  clock.advance(0);
+  await flush();
+
+  expect(dialogs()).toHaveLength(0);
+  expect(requests.some(({ url }) => url === "/api/lobby/game-ratings")).toBe(false);
+  expect(localStorage.getItem("tetraboard:rated-launch:seen")).toBeNull();
+  const matchmakingUrl = `/api/matchmaking/${game}`;
+  const lobbyRequests = requests.filter(({ url }) => url.startsWith(matchmakingUrl));
+  if (game === "four-shogi" || game === "reversi") {
+    expect(lobbyRequests.map(({ url }) => url)).toEqual([matchmakingUrl]);
+    lobbyRequests[0]!.respond(shogiIdle());
+    await flush();
+  } else {
+    expect(lobbyRequests).toHaveLength(0);
+  }
+
+  press(view, "レート戦");
+  await flush();
+  expect(router.state.location.search).toBe("?matchmaking=1");
+  latest(`/api/matchmaking/${game}?`).respond(shogiIdle());
+  await flush();
+  expect(dialogs()).toHaveLength(1);
+  expect(activeDialog().textContent).toContain("アカウントを連携して、レート戦に挑戦！");
+  expect(latest(`/api/matchmaking/${game}/join`)).toBeUndefined();
+});
+
 function shogiPage(
   viewer: AccountProfile | null = user,
   rejoin = false,
@@ -452,6 +501,20 @@ test("受付停止中は準備中を表示し、連携へ誘導しない", async
   await flush();
   expect(activeDialog().textContent).toContain("将棋のレート戦は準備中です。");
   expect(activeDialog().textContent).not.toContain("Googleで続ける");
+});
+
+test("プロフィール未設定の登録者はレート戦から初回設定へ進める", async () => {
+  const router = shogiPage({ ...user, profileCompleted: false });
+  latest(shogiStatusUrl).respond(shogiIdle());
+  await flush();
+
+  const setup = [...activeDialog().querySelectorAll("a")].find(
+    (link) => link.textContent === "プロフィールを設定する",
+  );
+  expect(setup).toBeDefined();
+  await act(async () => setup!.click());
+  expect(router.state.location.pathname).toBe("/account/setup");
+  expect(latest(shogiJoinUrl)).toBeUndefined();
 });
 
 test.each(["shogi", "four-reversi"])(

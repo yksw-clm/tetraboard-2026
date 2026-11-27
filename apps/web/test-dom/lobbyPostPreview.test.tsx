@@ -1,11 +1,12 @@
 import { beforeAll, expect, mock, spyOn, test } from "bun:test";
 import { StrictMode } from "react";
-import { MemoryRouter, useLocation } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import type { AccountProfile } from "@tetraboard/protocol";
 import type { BoardPost, BoardPublishedPost } from "@tetraboard/protocol/board";
 import { gameCatalog, gameIds, type GameId } from "@tetraboard/protocol/games";
 import { readRegistrationReturn } from "../src/features/account/registrationReturn";
 import { AccountContext } from "../src/features/account/useAccount";
+import { BoardDetailPage } from "../src/features/board/BoardPages";
 import { LobbyView } from "../src/features/lobby/LobbyView";
 import * as previewImport from "../src/features/lobby/importLobbyPostPreview";
 import { preloadRecovery } from "../src/shared/preloadRecovery";
@@ -41,23 +42,31 @@ function lobby(game: GameId, user: AccountProfile | null, loading = false) {
           value={{ user, loading, error: null, refresh: async () => {}, update: () => {} }}
         >
           <CurrentPath />
-          <LobbyView
-            game={game}
-            name=""
-            roomCode=""
-            mode="singles"
-            cpuLevel={1}
-            timeControl={{ mainTimeMs: 60_000, byoyomiMs: 0 }}
-            isSubmitting={null}
-            message={null}
-            renderRooms={() => <section aria-label="公開ルーム">公開ルーム</section>}
-            onNameChange={() => {}}
-            onRoomCodeChange={() => {}}
-            onModeChange={() => {}}
-            onCpuLevelChange={() => {}}
-            onTimeControlChange={() => {}}
-            onClearMessage={() => {}}
-          />
+          <Routes>
+            <Route path="/posts/:id" element={<BoardDetailPage />} />
+            <Route
+              path="*"
+              element={
+                <LobbyView
+                  game={game}
+                  name=""
+                  roomCode=""
+                  mode="singles"
+                  cpuLevel={1}
+                  timeControl={{ mainTimeMs: 60_000, byoyomiMs: 0 }}
+                  isSubmitting={null}
+                  message={null}
+                  renderRooms={() => <section aria-label="公開ルーム">公開ルーム</section>}
+                  onNameChange={() => {}}
+                  onRoomCodeChange={() => {}}
+                  onModeChange={() => {}}
+                  onCpuLevelChange={() => {}}
+                  onTimeControlChange={() => {}}
+                  onClearMessage={() => {}}
+                />
+              }
+            />
+          </Routes>
         </AccountContext.Provider>
       </MemoryRouter>
     </StrictMode>
@@ -438,7 +447,49 @@ test("ロビーの返信リンクは投稿者リンクと独立してカード�
   const requestCount = requests.length;
   await act(async () => replies!.click());
   expect(view.querySelector('[aria-label="現在のパス"]')?.textContent).toBe(detailPath);
-  expect(requests).toHaveLength(requestCount);
+  expect(
+    requests
+      .slice(requestCount)
+      .filter(({ init }) => !init.signal?.aborted)
+      .map(({ url }) => url),
+  ).toEqual([`/api${detailPath}?includeAttachments=1&includeIndexable=1`]);
+});
+
+test("運営の開幕案内をロビーの投稿プレビューから詳細で読める", async () => {
+  const announcement = {
+    ...post(1),
+    author: { name: "TetraBoard運営", avatarUrl: null, profileTarget: null },
+    text: "レート戦が開幕しました！\n四人将棋のロビーから参加できます。",
+    replyCount: 0,
+  };
+  const {
+    view,
+    cards: [card],
+  } = await showPosts(null, announcement);
+  const detailPath = `/posts/${announcement.publicNumber}`;
+  const link = card!.querySelector<HTMLAnchorElement>(`a[href="${detailPath}"]`)!;
+  expect(link.textContent).toContain(announcement.text);
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+  await act(async () => link.click());
+  expect(view.querySelector('[aria-label="現在のパス"]')?.textContent).toBe(detailPath);
+  const request = requests.find(
+    ({ url, init }) =>
+      url === `/api${detailPath}?includeAttachments=1&includeIndexable=1` && !init.signal?.aborted,
+  )!;
+  request.respond({
+    post: announcement,
+    replies: [],
+    nextCursor: null,
+    acceptingPosts: true,
+    postingStopped: false,
+    availableAtMs: 0,
+    serverTimeMs: Date.now(),
+  });
+  await flush();
+  expect(view.querySelector("h1")?.textContent).toBe("投稿の詳細");
+  expect(view.querySelector("article")?.textContent).toContain(announcement.text);
+  expect(view.querySelector("article")?.textContent).toContain(announcement.author.name);
 });
 
 test("ロビーのいいねは詳細へ移らず、即時表示して応答で数を確定する", async () => {

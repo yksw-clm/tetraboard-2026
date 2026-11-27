@@ -496,6 +496,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
   - 退会の受付と毎時の再処理は `boardDeletion.ts` の `withdrawBoardStatements`（本人の投稿と返信の削除と、再送識別子・本文のハッシュの消去、本人のいいねの削除）、退会の完了は `deleteAccountBoardStatements`（アカウント参照を NULL）です。読み取りでも `deleted_accounts` の投稿者を削除扱いにします。
   - `POST /api/posts/:id/reports` は `boardRoutes.ts` から community の `use-cases/boardReports.ts` を呼び、`board_reports` に証拠を写します。`boardCleanup.ts` が毎時、7 日を過ぎた証拠の削除と退会者の匿名化を行います。
   - 管理の入口は `routes/boardAdminRoutes.ts`（`/api/admin/board`）と `apps/admin/src/Board.tsx` です。
+  - 初回の公開案内は `features/lobby/BoardLaunchAnnouncement.tsx` が担当します。ゲームロビーの投稿プレビューから受付状態を受け取ります。未連携の利用者が登録を始めると、共通の `useSocialSignIn` にそのゲームの掲示板を復帰先として渡します。画面の文言・導線は [初回の公開案内](specs/board.md#初回の公開案内) に従います。
 
 ## マッチングの入口
 
@@ -1248,14 +1249,6 @@ Webの `useMatchHistoryFilter` は本人の公開識別子と選択をブラウ�
 番号は内部予約と公開索引へ保存し、索引のrevision・instanceId照合と通常ルームへの再利用時の消去を維持します。`GET /api/lobby/rooms?view=cards&includeMatchSequence=1` の要求時だけ省略可能な正整数 `matchSequence` を返します。カード以外の指定と不正値は400です。未採番の部屋は省略し、一覧取得で採番しません。旧公開メタ情報RPC、既存APIの省略時応答、WebSocket・保存済み棋譜の形式は維持します。
 
 新Webは `includeMatchKind=1` とともに要求し、共通カードが名前を整形します。新Webには対応Workerが必要で、旧Workerへの自動再取得は行いません。反映順はmigration→Worker→Webとし、Workerを切り戻す場合は対応するWebも戻します。
-
-## レート戦開幕ダイアログ
-
-仕様の正本は[開幕の案内](specs/matchmaking.md#レート戦開幕の案内)です。`RatedLaunchAnnouncement` が総合ロビーと対応4ゲームの共通 `LobbyView` に入り、固定キー `tetraboard:rated-launch:seen` を受付情報の取得前に確認します。`ratedLaunch.ts` に既読確認・表示直前の保存・目的付き遷移の判定を集約します。保存不可では自動表示を見送り、既読は本人の切替やデプロイで消去しません。
-
-総合ロビーは既存 `useLobbyGameRatings` の結果を渡し、ゲーム別は未読かつ目的付き遷移でないときだけ同じAPIを取得します。読み込み・非表示・停止・失敗では既読にしません。表示待ち中のpointerdown・keydown・wheel、別ダイアログの出現、別タブの既読を監視し、利用者の操作を優先します。破棄時に取得・タイマー・イベント・Observerを解除します。
-
-`RatedLaunchDialog` は受付確認済みのゲーム一覧を受け、既存 `AppDialog`・`SocialSignInButtons`・`useSocialSignIn` を使います。選択ゲームを既存の登録復帰先へ保存し、OAuth／初回設定後はそのゲームの `?matchmaking=1` へ戻します。認証開始の計測も既存のrated-matchを利用し、新API・保存テーブル・依存や受付フラグ変更はありません。参加者の検索開始は既存画面の操作に残します。
 
 ## ゲーム別のランキング
 

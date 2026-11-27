@@ -1,4 +1,3 @@
-import { RatedLaunchAnnouncement } from "../matchmaking/RatedLaunchAnnouncement";
 import { TournamentEntrance } from "../tournaments/TournamentEntrance";
 import { TournamentList } from "../tournaments/TournamentList";
 import { LobbyFooter } from "./LobbyFooter";
@@ -155,7 +154,13 @@ export function LobbyView(props: Props) {
     ),
     matches: <RecentMatches key={`matches:${props.game}`} game={props.game} />,
     rankings: props.rankings && <Fragment key="rankings">{props.rankings}</Fragment>,
-    posts: <LobbyPostPreview key={`posts:${props.game}`} game={props.game} />,
+    posts: (
+      <LobbyPostPreview
+        key={`posts:${props.game}`}
+        game={props.game}
+        launchBlocked={dialog !== null || props.isSubmitting !== null || createRequested}
+      />
+    ),
     tournaments: (
       <div
         key={`tournaments:${props.game}`}
@@ -242,18 +247,6 @@ export function LobbyView(props: Props) {
           </LobbyFooter>
         </main>
       </div>
-      {isRatedMatchmakingGame(props.game) && (
-        <RatedLaunchAnnouncement
-          game={props.game}
-          blocked={
-            dialog !== null ||
-            Boolean(props.registrationDraft) ||
-            createRequested ||
-            Boolean(location.state?.friendRoomNonce) ||
-            creatingFromResult
-          }
-        />
-      )}
       {dialog?.type === "entry" && (
         <RoomEntryDialog
           game={props.game}

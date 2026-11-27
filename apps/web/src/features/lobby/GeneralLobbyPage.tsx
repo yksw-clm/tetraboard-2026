@@ -1,4 +1,3 @@
-import { RatedLaunchAnnouncement } from "../matchmaking/RatedLaunchAnnouncement";
 import { matchmakingPath } from "../matchmaking/paths";
 
 import { useState, useSyncExternalStore } from "react";
@@ -145,7 +144,6 @@ export function GeneralLobbyPage() {
           </LobbyFooter>
         </main>
       </div>
-      <RatedLaunchAnnouncement ratings={ratings} blocked={selectingGame || selected !== null} />
       {selectingGame && (
         <AppDialog title="ゲームを選択" onClose={() => setSelectingGame(false)}>
           <LobbyGameGrid create />

@@ -8,6 +8,7 @@ import { useAccount } from "../account/useAccount";
 import { useViewerKey } from "../board/boardViewer";
 import { useBoardPreviewView } from "./boardPreviewView";
 import { importLobbyPostPreview } from "./importLobbyPostPreview";
+import { BoardLaunchAnnouncement } from "./BoardLaunchAnnouncement";
 
 type PreviewModule = Awaited<ReturnType<typeof importLobbyPostPreview>>;
 type PreviewResult =
@@ -79,7 +80,13 @@ function PostPreviewSkeleton() {
   );
 }
 
-export function LobbyPostPreview({ game }: { game: GameId }) {
+export function LobbyPostPreview({
+  game,
+  launchBlocked,
+}: {
+  game: GameId;
+  launchBlocked: boolean;
+}) {
   // 初回 JS に含まれるため、コンパイラが付加するメモ化コードを抑えます。
   "use no memo";
 
@@ -128,6 +135,17 @@ export function LobbyPostPreview({ game }: { game: GameId }) {
       {state.status === "ready" && (
         <state.Posts key={previewKey} data={state.data} change={change} refresh={refresh} />
       )}
+      <BoardLaunchAnnouncement
+        game={game}
+        blocked={launchBlocked}
+        acceptingPosts={
+          state.status === "ready"
+            ? state.data.acceptingPosts
+            : state.status === "loading"
+              ? null
+              : false
+        }
+      />
       <AppButtonLink appearance="secondary" className="mt-2 w-full" to={timelinePath}>
         掲示板をすべて見る
       </AppButtonLink>
