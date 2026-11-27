@@ -9,9 +9,9 @@ function readFailure(source: ReadAction, error: unknown): ReadFailure {
   return { source, notFound: error instanceof BoardRequestError && error.status === 404 };
 }
 
-export function useBoardData<T>(readFirst: (signal: AbortSignal) => Promise<T>) {
-  const [data, setData] = useState<T | null>(null);
-  const [pending, setPending] = useState<Pending | null>("initial");
+export function useBoardData<T>(readFirst: (signal: AbortSignal) => Promise<T>, initialData?: T) {
+  const [data, setData] = useState<T | null>(initialData ?? null);
+  const [pending, setPending] = useState<Pending | null>(initialData ? null : "initial");
   const [failure, setFailure] = useState<ReadFailure | null>(null);
   // 書き込み中に取得結果で投稿が上書きされたり、削除した投稿が再表示されたりするのを防ぎます。
   const active = useRef<AbortController | null>(null);
@@ -53,12 +53,12 @@ export function useBoardData<T>(readFirst: (signal: AbortSignal) => Promise<T>) 
   useEffect(() => {
     // 表示中の掲示板と閲覧者に対して初回の取得を行います。
     // eslint-disable-next-line react/set-state-in-effect
-    void run("initial", (signal) => replace(signal, "initial"));
+    if (!initialData) void run("initial", (signal) => replace(signal, "initial"));
     return () => {
       active.current?.abort();
       active.current = null;
     };
-  }, [replace, run]);
+  }, [initialData, replace, run]);
 
   return {
     data,

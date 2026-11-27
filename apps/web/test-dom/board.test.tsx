@@ -39,6 +39,7 @@ import { AccountLayout } from "../src/features/account/AccountSession";
 import { AccountContext } from "../src/features/account/useAccount";
 import { BoardAttachmentBoard } from "../src/features/board/BoardAttachmentBoard";
 import { BoardDetailPage, BoardTimelinePage } from "../src/features/board/BoardPages";
+import { MobileLobbyNavigation } from "../src/features/lobby/MobileLobbyNavigation";
 import { BoardLikeButton } from "../src/features/board/BoardReactions";
 import { formatMatchDate } from "../src/features/matches/matchDatePresentation";
 import { startPageMetadata } from "../src/seo/pageMetadata";
@@ -55,6 +56,7 @@ import {
   enter,
   flush,
   press,
+  mockMobileLobby,
   render,
   requests,
   rerender,
@@ -1484,6 +1486,213 @@ test("タイムラインは更新ボタンを表示せず、追加取得で重�
   expect(view.querySelector("h2")).toBeNull();
   expect(view.querySelector("section[aria-labelledby] .border-l-2")).toBeNull();
 });
+
+function mobileBoard(entry: string, viewer = user) {
+  const media = mockMobileLobby();
+  const { pathname, search } = new URL(entry, "https://example.test");
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/games/four-shogi",
+        element: <MobileLobbyNavigation game="four-shogi" selected="play" />,
+      },
+      { path: "/games/:gameId/posts", Component: BoardTimelinePage },
+      { path: "/posts/:id", Component: BoardDetailPage },
+    ],
+    { initialEntries: [{ pathname, search, key: crypto.randomUUID() }] },
+  );
+  const page = (account: AccountProfile) => (
+    <AccountContext
+      value={{ user: account, loading: false, error: null, refresh: async () => {}, update() {} }}
+    >
+      <RouterProvider router={router} />
+    </AccountContext>
+  );
+  const view = render(page(viewer));
+  const clickTab = async (name: string) => {
+    const tabs = view.querySelector('nav[aria-label="ゲームロビー"]')!;
+    const link = [...tabs.querySelectorAll("a")].find((link) => link.textContent === name)!;
+    await act(async () => link.click());
+  };
+  return {
+    view,
+    router,
+    clickTab,
+    setViewer: (next: AccountProfile) => rerender(view, page(next)),
+    dispose() {
+      router.dispose();
+      media.mockRestore();
+    },
+  };
+}
+
+test("スマホの投稿は添付と本文をタブ往復で保持し、成功後は履歴からも下書きを復活させない", async () => {
+  const { view, router, clickTab, dispose } = mobileBoard(timelineWithPosition);
+  try {
+    expect(view.querySelector("h1")?.textContent).toBe("四人将棋");
+    expect(
+      view.querySelector('nav[aria-label="ゲームロビー"] [aria-current="page"]')?.textContent,
+    ).toBe("投稿");
+    await respond(timeline([]));
+    await respond({}, 404);
+    enter(input(view), "タブを往復する下書き");
+    await clickTab("対局");
+    await clickTab("投稿");
+    expect(router.state.location.pathname).toBe(timelinePath);
+    expect(router.state.location.search).toContain("position=0");
+    expect(router.state.location.search).not.toContain("下書き");
+    await respond(timeline([]));
+    await respond({}, 404);
+    expect(input(view).value).toBe("タブを往復する下書き");
+    expect(view.querySelector("form")?.textContent).toContain("添付を外す");
+    await clickTab("対局");
+    await clickTab("投稿");
+    await respond(timeline([]));
+    await respond({}, 404);
+    press(view, "投稿する");
+    expect(requestInput(latest())).toMatchObject({
+      text: "タブを往復する下書き",
+      attachment: { matchId: shogiMatch.id, position: 0 },
+    });
+    await respond({ post: post(1, "投稿できた下書き"), availableAtMs: 0 });
+    expect(input(view).value).toBe("");
+    expect(router.state.location.search).toBe("");
+    await act(async () => router.navigate(-1));
+    await act(async () => router.navigate(-1));
+    await respond(timeline([]));
+    expect(router.state.location.search).toBe("");
+    expect(input(view).value).toBe("");
+    expect(view.querySelector("form")?.textContent).not.toContain("添付を外す");
+    await clickTab("対局");
+    await clickTab("投稿");
+    await respond(timeline([]));
+    expect(input(view).value).toBe("");
+    expect(view.querySelector("form")?.textContent).not.toContain("添付を外す");
+  } finally {
+    dispose();
+  }
+});
+
+test("別ゲーム・別の閲覧者へ下書きを渡さず、明示された棋譜と連携復帰の本文を優先する", async () => {
+  const { view, router, clickTab, setViewer, dispose } = mobileBoard(timelineWithPosition);
+  try {
+    await respond(timeline([]));
+    await respond({}, 404);
+    enter(input(view), "以前の下書き");
+    await clickTab("対局");
+    await act(async () => router.navigate("/games/gomoku/posts"));
+    await respond(timeline([]));
+    expect(input(view).value).toBe("");
+    expect(view.querySelector("form")?.textContent).not.toContain("添付を外す");
+
+    const explicit = timelineWithPosition.replace("position=0", "position=1");
+    await act(async () =>
+      router.navigate(explicit, {
+        state: {
+          registrationReturn: {
+            path: explicit,
+            createdAt: Date.now(),
+            oauthStarted: true,
+            boardDraft: { kind: "post", text: "連携から復元した本文" },
+          },
+        },
+      }),
+    );
+    await respond(timeline([]));
+    await respond({}, 404);
+    expect(input(view).value).toBe("連携から復元した本文");
+    expect(router.state.location.search).toContain("position=1");
+    await clickTab("対局");
+    setViewer({ ...user, username: "another-owner" });
+    await clickTab("投稿");
+    await respond(timeline([]));
+    expect(input(view).value).toBe("");
+    expect(router.state.location.search).toBe("");
+    expect(view.querySelector("form")?.textContent).not.toContain("添付を外す");
+  } finally {
+    dispose();
+  }
+});
+
+test.each(["ブラウザーの戻る", "掲示板へ戻る"] as const)(
+  "スマホで詳細から%sと追加読込済みの投稿とスクロール位置を復元する",
+  async (method) => {
+    const { view, router, dispose } = mobileBoard(timelinePath);
+    const scroll = spyOn(window, "scrollTo");
+    const scrollY = Object.getOwnPropertyDescriptor(window, "scrollY");
+    try {
+      const first = post(1, "最初のページ");
+      const second = post(2, "次のページ");
+      await respond(timeline([first], cursor(first)));
+      press(view, "もっと見る");
+      await respond(timeline([second]));
+      Object.defineProperty(window, "scrollY", { configurable: true, value: 812 });
+      await act(async () => expectDetailLink(articles(view)[1]!, "/posts/1002").click());
+      await respond(thread(second));
+      if (method === "ブラウザーの戻る") {
+        await act(async () => router.navigate(-1));
+      } else {
+        await act(async () =>
+          view.querySelector<HTMLAnchorElement>('a[aria-label="四人将棋の掲示板へ"]')!.click(),
+        );
+      }
+      expect(articles(view)).toHaveLength(2);
+      expect(articles(view)[1]?.textContent).toContain("次のページ");
+      expect(scroll).toHaveBeenCalledWith(0, 812);
+      expect(requests.filter(({ url }) => url === timelineUrl)).toHaveLength(1);
+    } finally {
+      if (scrollY) Object.defineProperty(window, "scrollY", scrollY);
+      else Reflect.deleteProperty(window, "scrollY");
+      scroll.mockRestore();
+      dispose();
+    }
+  },
+);
+
+test.each(["削除枠", "404"] as const)(
+  "詳細の初回取得が%sなら、戻った一覧を再取得せず該当する投稿だけ同期する",
+  async (result) => {
+    const { view, router, dispose } = mobileBoard(timelinePath);
+    const scroll = spyOn(window, "scrollTo");
+    const scrollY = Object.getOwnPropertyDescriptor(window, "scrollY");
+    try {
+      const first = post(1, "削除された元の本文");
+      const second = post(2, "追加読込で取得した本文");
+      await respond(timeline([first], cursor(first)));
+      press(view, "もっと見る");
+      await respond(timeline([second]));
+      Object.defineProperty(window, "scrollY", { configurable: true, value: 185 });
+      await act(async () => expectDetailLink(articles(view)[1]!, "/posts/1002").click());
+      await respond(thread(second));
+      await act(async () =>
+        view.querySelector<HTMLAnchorElement>('a[aria-label="四人将棋の掲示板へ"]')!.click(),
+      );
+      Object.defineProperty(window, "scrollY", { configurable: true, value: 208 });
+      await act(async () => expectDetailLink(articles(view)[0]!, postPath).click());
+      if (result === "404") await respond({}, 404);
+      else await respond(thread(deleted({ ...first, replyCount: 1 })));
+      await act(async () => router.navigate(-1));
+
+      expect(view.textContent).not.toContain(first.text);
+      expect(view.textContent).toContain(second.text);
+      expect(articles(view)).toHaveLength(result === "404" ? 1 : 2);
+      if (result === "削除枠") expect(articles(view)[0]?.textContent).toContain("削除された投稿");
+      expect(scroll).toHaveBeenCalledWith(0, 208);
+      await act(async () => router.navigate(-1));
+      await respond(thread(second));
+      await act(async () => router.navigate(-1));
+      expect(view.textContent).not.toContain(first.text);
+      expect(articles(view)).toHaveLength(result === "404" ? 1 : 2);
+      expect(scroll).toHaveBeenLastCalledWith(0, 185);
+      expect(requests.filter(({ url }) => url.startsWith(timelineUrl))).toHaveLength(2);
+    } finally {
+      if (scrollY) Object.defineProperty(window, "scrollY", scrollY);
+      else Reflect.deleteProperty(window, "scrollY");
+      scroll.mockRestore();
+      dispose();
+    }
+  },
+);
 
 test("タイムラインの返信リンクはカードと同じ投稿の詳細を開く", async () => {
   const view = show();

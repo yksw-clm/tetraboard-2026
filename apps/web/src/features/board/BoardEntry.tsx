@@ -2,7 +2,7 @@ import type { BoardPost, BoardPublishedPost, BoardReply } from "@tetraboard/prot
 import { boardPostPath } from "@tetraboard/protocol/board-presentation";
 import type { GameId } from "@tetraboard/protocol/games";
 import { lazy, Suspense, useState, type ReactNode } from "react";
-import { Link } from "react-router";
+import { Link, type LinkProps } from "react-router";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { gameThemes } from "../../shared/ui/appTheme";
@@ -145,16 +145,20 @@ function BoardEntryActions({
   );
 }
 
+export type BoardDetailLink = Pick<LinkProps, "state" | "onClick">;
+
 export function BoardEntry({
   item,
   game,
   timeline = false,
+  detailLink,
   serverTimeMs,
   ...actions
 }: EntryActions & {
   item: BoardPost | BoardReply;
   game: GameId;
   timeline?: boolean;
+  detailLink?: BoardDetailLink;
   serverTimeMs: number;
 }) {
   const post = "status" in item ? item : null;
@@ -165,6 +169,7 @@ export function BoardEntry({
   const timestamp = detailPath ? (
     <Link
       to={detailPath}
+      {...detailLink}
       className="no-underline before:absolute before:inset-0 before:z-[1] before:rounded-panel focus-visible:outline-none focus-visible:before:outline-3 focus-visible:before:outline-focus focus-visible:before:outline-offset-2"
     >
       <span className="sr-only">投稿の詳細 </span>
@@ -173,7 +178,9 @@ export function BoardEntry({
   ) : (
     time
   );
-  const replies = post && <BoardReplyCount count={post.replyCount} detailPath={detailPath} />;
+  const replies = post && (
+    <BoardReplyCount count={post.replyCount} detailPath={detailPath} detailLink={detailLink} />
+  );
 
   return (
     <article className="min-w-0">
@@ -195,7 +202,7 @@ export function BoardEntry({
               <BoardAuthor author={item.author} game={game} />
               {timestamp}
             </header>
-            <BoardBody text={item.text} detailPath={detailPath} />
+            <BoardBody text={item.text} detailPath={detailPath} detailLink={detailLink} />
             {item.attachment && <BoardAttachment {...item.attachment} />}
             <BoardEntryActions {...actions} item={item} game={game} replies={replies} />
           </>

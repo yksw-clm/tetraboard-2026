@@ -83,9 +83,11 @@ function PostPreviewSkeleton() {
 export function LobbyPostPreview({
   game,
   launchBlocked,
+  announcementOnly = false,
 }: {
   game: GameId;
   launchBlocked: boolean;
+  announcementOnly?: boolean;
 }) {
   // 初回 JS に含まれるため、コンパイラが付加するメモ化コードを抑えます。
   "use no memo";
@@ -94,61 +96,68 @@ export function LobbyPostPreview({
   const { loading, user } = useAccount();
   const previewKey = `${game}:${viewer}`;
   const { state, retry, change, refresh } = useLobbyPostPreview(game, previewKey, loading && !user);
-  const sectionRef = useBoardPreviewView(game);
+  const sectionRef = useBoardPreviewView(game, !announcementOnly);
   const { name, lobbyPath } = gameCatalog[game];
   const timelinePath = `${lobbyPath}/posts`;
   const headingId = "lobby-post-preview-title";
   const needsReload = state.status === "chunk-error";
 
+  const announcement = (
+    <BoardLaunchAnnouncement
+      game={game}
+      blocked={launchBlocked}
+      acceptingPosts={
+        state.status === "ready"
+          ? state.data.acceptingPosts
+          : state.status === "loading"
+            ? null
+            : false
+      }
+    />
+  );
   return (
-    <section
-      ref={sectionRef}
-      aria-labelledby={headingId}
-      className="min-w-0 [@media(min-width:768px)]:col-span-2 [@media(min-width:768px)]:col-start-1 [@media(min-width:768px)]:row-start-3"
-    >
-      <AppSectionHeading
-        id={headingId}
-        title="みんなの投稿"
-        description={`${name}の掲示板の新しい投稿です。`}
-      >
-        {state.status === "ready" && state.data.acceptingPosts && (
-          <AppButtonLink appearance="primary" to={timelinePath}>
-            投稿する
-          </AppButtonLink>
-        )}
-      </AppSectionHeading>
-      {state.status === "loading" && <PostPreviewSkeleton />}
-      {(needsReload || state.status === "api-error") && (
-        <div className="flex flex-col items-start gap-2">
-          <p role="alert" className="text-sm text-danger">
-            {state.message}
-          </p>
-          <AppButton
-            appearance="secondary"
-            size="compact"
-            onPress={needsReload ? () => preloadRecovery.reload() : retry}
+    <>
+      {!announcementOnly && (
+        <section
+          ref={sectionRef}
+          aria-labelledby={headingId}
+          className="min-w-0 [@media(min-width:768px)]:col-span-2 [@media(min-width:768px)]:col-start-1 [@media(min-width:768px)]:row-start-3"
+        >
+          <AppSectionHeading
+            id={headingId}
+            title="みんなの投稿"
+            description={`${name}の掲示板の新しい投稿です。`}
           >
-            {needsReload ? "再読み込み" : "再試行"}
-          </AppButton>
-        </div>
+            {state.status === "ready" && state.data.acceptingPosts && (
+              <AppButtonLink appearance="primary" to={timelinePath}>
+                投稿する
+              </AppButtonLink>
+            )}
+          </AppSectionHeading>
+          {state.status === "loading" && <PostPreviewSkeleton />}
+          {(needsReload || state.status === "api-error") && (
+            <div className="flex flex-col items-start gap-2">
+              <p role="alert" className="text-sm text-danger">
+                {state.message}
+              </p>
+              <AppButton
+                appearance="secondary"
+                size="compact"
+                onPress={needsReload ? () => preloadRecovery.reload() : retry}
+              >
+                {needsReload ? "再読み込み" : "再試行"}
+              </AppButton>
+            </div>
+          )}
+          {state.status === "ready" && (
+            <state.Posts key={previewKey} data={state.data} change={change} refresh={refresh} />
+          )}
+          <AppButtonLink appearance="secondary" className="mt-2 w-full" to={timelinePath}>
+            掲示板をすべて見る
+          </AppButtonLink>
+        </section>
       )}
-      {state.status === "ready" && (
-        <state.Posts key={previewKey} data={state.data} change={change} refresh={refresh} />
-      )}
-      <BoardLaunchAnnouncement
-        game={game}
-        blocked={launchBlocked}
-        acceptingPosts={
-          state.status === "ready"
-            ? state.data.acceptingPosts
-            : state.status === "loading"
-              ? null
-              : false
-        }
-      />
-      <AppButtonLink appearance="secondary" className="mt-2 w-full" to={timelinePath}>
-        掲示板をすべて見る
-      </AppButtonLink>
-    </section>
+      {announcement}
+    </>
   );
 }

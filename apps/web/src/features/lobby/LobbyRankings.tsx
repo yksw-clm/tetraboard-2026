@@ -231,95 +231,86 @@ function RankingContent({
   );
 }
 
-function RankingsDialog({
+function RankingDetails({
   state,
   initialMode,
   initialMetric,
-  onClose,
-  theme,
 }: {
   state: ReturnType<typeof useRankings>;
   initialMode: RoomMode;
   initialMetric: RankingMetric;
-  onClose: () => void;
-  theme: AppTheme;
 }) {
   const [mode, setMode] = useState(initialMode);
   const [metric, setMetric] = useState<RankingMetric>(initialMetric);
   const metrics = rankingMetrics(state.game, mode, state.rating.supported);
   return (
-    <AppDialog title="ランキング" onClose={onClose} theme={theme}>
-      <div className="flex flex-col gap-4">
-        <p className="text-xs text-muted">
-          {metric === "rating" ? "現在のレート" : statsScopeLabel(state.game, mode)}
-        </p>
-        <p className="text-xs text-muted">
-          {metric === "rating" ? (
-            "認定5局を終えたプレイヤーの現在のレートです。CPU補充のレート戦も反映します。"
-          ) : (
-            <>
-              {includesRatedStats(state.game, mode)
-                ? "対人戦とレート戦で、アカウントで参加した人の成績を集計します。CPU補充のレート戦も対象です。"
-                : "CPUを含まない対局で、アカウントで参加したユーザーの成績を集計します。"}
-              対戦相手にゲストがいても対象です。
-            </>
-          )}
-        </p>
-        <ModeTabs
-          withoutModes={!gameCatalog[state.game].hasModes}
-          mode={mode}
-          onChange={(next) => {
-            setMode(next);
-            setMetric(next === "singles" && state.rating.supported ? "rating" : "victories");
-          }}
-        >
-          <AppTabs
-            selectedKey={metric}
-            onSelectionChange={(key) => setMetric(key as RankingMetric)}
-          >
-            <AppTabs.List aria-label="ランキングの集計項目">
-              {metrics.map((tab) => (
-                <AppTabs.Tab key={tab} id={tab}>
-                  {rankingLabel(state.game, mode, tab)}
-                  <AppTabs.Indicator />
-                </AppTabs.Tab>
-              ))}
-            </AppTabs.List>
+    <div className="flex flex-col gap-4">
+      <p className="text-xs text-muted">
+        {metric === "rating" ? "現在のレート" : statsScopeLabel(state.game, mode)}
+      </p>
+      <p className="text-xs text-muted">
+        {metric === "rating" ? (
+          "認定5局を終えたプレイヤーの現在のレートです。CPU補充のレート戦も反映します。"
+        ) : (
+          <>
+            {includesRatedStats(state.game, mode)
+              ? "対人戦とレート戦で、アカウントで参加した人の成績を集計します。CPU補充のレート戦も対象です。"
+              : "CPUを含まない対局で、アカウントで参加したユーザーの成績を集計します。"}
+            対戦相手にゲストがいても対象です。
+          </>
+        )}
+      </p>
+      <ModeTabs
+        withoutModes={!gameCatalog[state.game].hasModes}
+        mode={mode}
+        onChange={(next) => {
+          setMode(next);
+          setMetric(next === "singles" && state.rating.supported ? "rating" : "victories");
+        }}
+      >
+        <AppTabs selectedKey={metric} onSelectionChange={(key) => setMetric(key as RankingMetric)}>
+          <AppTabs.List aria-label="ランキングの集計項目">
             {metrics.map((tab) => (
-              <AppTabs.Panel key={tab} id={tab} className="pt-4">
-                {tab === metric && (
-                  <RankingContent
-                    state={state}
-                    mode={mode}
-                    metric={tab}
-                    limit={10}
-                    source="dialog-retry"
-                  />
-                )}
-              </AppTabs.Panel>
+              <AppTabs.Tab key={tab} id={tab}>
+                {rankingLabel(state.game, mode, tab)}
+                <AppTabs.Indicator />
+              </AppTabs.Tab>
             ))}
-          </AppTabs>
-        </ModeTabs>
-        <AppButton
-          appearance="quiet"
-          size="compact"
-          isDisabled={state.loading || state.rating.loading}
-          isPending={
-            state.pendingSource === "dialog-refresh" ||
-            state.rating.pendingSource === "dialog-refresh"
-          }
-          onPress={() =>
-            void Promise.all([
-              state.refresh("dialog-refresh"),
-              state.rating.refresh("dialog-refresh"),
-            ])
-          }
-        >
-          <AppIcon name="refresh" />
-          更新
-        </AppButton>
-      </div>
-    </AppDialog>
+          </AppTabs.List>
+          {metrics.map((tab) => (
+            <AppTabs.Panel key={tab} id={tab} className="pt-4">
+              {tab === metric && (
+                <RankingContent
+                  state={state}
+                  mode={mode}
+                  metric={tab}
+                  limit={10}
+                  source="dialog-retry"
+                />
+              )}
+            </AppTabs.Panel>
+          ))}
+        </AppTabs>
+      </ModeTabs>
+      <AppButton
+        appearance="quiet"
+        size="compact"
+        isDisabled={state.loading || state.rating.loading}
+        isPending={
+          state.pendingSource === "dialog-refresh" ||
+          state.rating.pendingSource === "dialog-refresh"
+        }
+        onPress={() =>
+          void Promise.all([
+            state.refresh("dialog-refresh"),
+            state.rating.refresh("dialog-refresh"),
+          ])
+        }
+      >
+        <AppIcon name="refresh" />
+        更新
+      </AppButton>
+    </div>
   );
 }
 
@@ -437,29 +428,45 @@ function LobbyRankingsView({
         )}
       </AppCard>
       {open && (
-        <RankingsDialog
-          state={state}
-          initialMode="singles"
-          initialMetric={rotation.metric}
-          onClose={() => setOpen(false)}
-          theme={theme}
-        />
+        <AppDialog title="ランキング" onClose={() => setOpen(false)} theme={theme}>
+          <RankingDetails state={state} initialMode="singles" initialMetric={rotation.metric} />
+        </AppDialog>
       )}
     </section>
   );
 }
 
-function AvailableLobbyRankings({ theme, game }: { theme: AppTheme; game: MatchGame }) {
+function AvailableLobbyRankings({
+  theme,
+  game,
+  inline,
+}: {
+  theme: AppTheme;
+  game: MatchGame;
+  inline: boolean;
+}) {
   const state = useRankings(game);
-  return <LobbyRankingsView state={state} theme={theme} />;
+  if (!inline) return <LobbyRankingsView state={state} theme={theme} />;
+  return (
+    <AppCard className="gap-3 p-3 [@media(max-width:374px)]:[&_[aria-label='ランキングの集計項目']_[role=tab]]:px-2">
+      <h2 className="text-lg font-bold">ランキング</h2>
+      <RankingDetails
+        state={state}
+        initialMode="singles"
+        initialMetric={state.rating.supported ? "rating" : "victories"}
+      />
+    </AppCard>
+  );
 }
 
 export function LobbyRankings({
   game = "four-reversi",
   theme = "default",
+  inline = false,
 }: {
   game?: MatchGame;
   theme?: AppTheme;
+  inline?: boolean;
 }) {
-  return <AvailableLobbyRankings key={game} theme={theme} game={game} />;
+  return <AvailableLobbyRankings key={game} theme={theme} game={game} inline={inline} />;
 }

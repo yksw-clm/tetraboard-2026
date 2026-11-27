@@ -2,7 +2,6 @@ import { getRoomContract } from "@tetraboard/protocol";
 import { useNavigate, useNavigation } from "react-router";
 import { LobbyView } from "./LobbyView";
 import { LobbyList } from "./LobbyList";
-import { LobbyRankings } from "./LobbyRankings";
 import { useLobby } from "./useLobby";
 import { useRoomEntry } from "./useRoomEntry";
 
@@ -45,7 +44,6 @@ export function FourGomokuLobbyPage() {
           }
         />
       )}
-      rankings={<LobbyRankings game="four-gomoku" theme="gomoku" />}
       onNameChange={entry.setName}
       onRoomCodeChange={entry.setRoomCode}
       onModeChange={entry.setMode}

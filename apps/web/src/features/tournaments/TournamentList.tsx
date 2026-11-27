@@ -11,20 +11,33 @@ import { LobbyBoardPreview } from "../lobby/LobbyBoardPreview";
 import { tournamentListDate } from "./tournamentPresentation";
 import { useTournamentList } from "./useTournamentList";
 
+function sectionOrder(status: string) {
+  return status === "active" ? 0 : status === "upcoming" ? 1 : 2;
+}
+
 export function TournamentList({
   game,
   headingLevel: Heading = "h2",
+  lobbyEntranceIds,
 }: {
   game: GameId | "all";
   headingLevel?: "h1" | "h2";
+  lobbyEntranceIds?: ReadonlySet<number>;
 }) {
   const state = useTournamentList(game);
+  const tournaments = lobbyEntranceIds
+    ? state.tournaments
+        .filter(({ id }) => !lobbyEntranceIds.has(id))
+        .sort((a, b) => sectionOrder(a.status) - sectionOrder(b.status))
+    : state.tournaments;
   const list = useRef<HTMLUListElement>(null);
   const titleId = `tournament-list-${game}-title`;
   return (
     <section aria-labelledby={titleId} className="min-w-0">
       <Heading id={titleId} className="mb-4 text-xl font-bold">
-        大会一覧
+        {lobbyEntranceIds && tournaments.every(({ status }) => sectionOrder(status) === 2)
+          ? "大会結果"
+          : "大会一覧"}
       </Heading>
       {state.error && (
         <p role="alert" className="mb-3 text-sm text-danger">
@@ -57,10 +70,10 @@ export function TournamentList({
         <ul
           ref={list}
           aria-label="大会一覧の大会"
-          tabIndex={state.tournaments.length ? 0 : undefined}
+          tabIndex={tournaments.length ? 0 : undefined}
           className="m-0 flex w-full min-w-0 list-none flex-col gap-3 p-0 [@media(min-width:768px)]:flex-row [@media(min-width:768px)]:flex-nowrap [@media(min-width:768px)]:overflow-x-auto [@media(min-width:768px)]:pb-1"
         >
-          {state.tournaments.map((tournament) => (
+          {tournaments.map((tournament) => (
             <li
               key={tournament.id}
               className="min-w-0 [@media(min-width:768px)]:shrink-0 [@media(min-width:768px)]:[width:min(320px,100%)]"
@@ -98,6 +111,9 @@ export function TournamentList({
                   {tournament.status !== "finished" && (
                     <p className="flex flex-wrap items-baseline gap-x-1 text-xs text-muted">
                       {tournament.status === "active" && <span>開催中 · </span>}
+                      {lobbyEntranceIds && tournament.status === "upcoming" && (
+                        <span>受付中 · </span>
+                      )}
                       {tournament.status === "settling" && <span>結果集計中 · </span>}
                       <span>エントリー </span>
                       <strong className="text-base font-bold text-ink tabular-nums">
@@ -140,11 +156,7 @@ export function TournamentList({
           ))}
         </ul>
         <div className="hidden [@media(min-width:768px)]:block">
-          <AppHorizontalScrollButtons
-            scrollRef={list}
-            label="大会一覧"
-            contentKey={state.tournaments}
-          />
+          <AppHorizontalScrollButtons scrollRef={list} label="大会一覧" contentKey={tournaments} />
         </div>
       </div>
       {state.nextCursor && (

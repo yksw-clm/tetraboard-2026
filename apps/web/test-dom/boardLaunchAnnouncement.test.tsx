@@ -15,7 +15,7 @@ import { ReversiLobbyPage } from "../src/features/lobby/ReversiLobbyPage";
 import { ShogiLobbyPage } from "../src/features/lobby/ShogiLobbyPage";
 import { profile } from "../test/fixtures/account";
 import { guestProfile } from "./guestAccountFixtures";
-import { act, clock, flush, press, render, requests, rerender } from "./harness";
+import { act, clock, flush, mockMobileLobby, press, render, requests, rerender } from "./harness";
 
 const seenKey = "tetraboard:board-launch:seen";
 const title = "掲示板を公開しました！";
@@ -111,6 +111,25 @@ test.each([...gameIds])("%s はプレビューの応答から案内し、自分�
   await act(async () => link.click());
   expect(router.state.location.pathname).toBe(path);
   expect(announcement()).toBeUndefined();
+});
+
+test("スマホでは投稿プレビューを表示せず、初回告知から投稿タブのURLへ進める", async () => {
+  const media = mockMobileLobby();
+  try {
+    localStorage.setItem("tetraboard:rated-launch:seen", "1");
+    const { view, router } = showLobby("/games/shogi", profile);
+    await settle();
+    expect(view.querySelector('section[aria-labelledby="lobby-post-preview-title"]')).toBeNull();
+    expect(previewRequests()).toHaveLength(1);
+    previewRequests()[0]!.respond(timeline(true));
+    await settle();
+    const link = announcement()!.querySelector("a")!;
+    expect(link.textContent).toBe("さっそく投稿してみる");
+    await act(async () => link.click());
+    expect(router.state.location.pathname).toBe("/games/shogi/posts");
+  } finally {
+    media.mockRestore();
+  }
 });
 
 test("他のタブで表示済みになったら、受付確認中のタブと次のゲームロビーでは表示しない", async () => {

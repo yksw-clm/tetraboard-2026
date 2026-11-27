@@ -7,6 +7,7 @@ import { useAccount } from "../account/useAccount";
 import { boardPostApiPath, boardRequest, mutationError } from "./boardApi";
 import { boardTimelineReturnPath, readBoardAttachmentSearch } from "./boardAttachmentSearch";
 import { BoardLinkDialog } from "./BoardLinkDialog";
+import type { BoardDetailLink } from "./BoardEntry";
 import type { BoardWrite } from "./useBoardData";
 
 export type BoardLike = Pick<BoardReply, "liked" | "likeCount">;
@@ -145,7 +146,15 @@ export function BoardLikeButton({
   );
 }
 
-export function BoardReplyCount({ count, detailPath }: { count: number; detailPath?: string }) {
+export function BoardReplyCount({
+  count,
+  detailPath,
+  detailLink,
+}: {
+  count: number;
+  detailPath?: string;
+  detailLink?: BoardDetailLink;
+}) {
   const content = (
     <>
       <ReactionIcon name="reply" />
@@ -156,6 +165,7 @@ export function BoardReplyCount({ count, detailPath }: { count: number; detailPa
   return detailPath ? (
     <Link
       to={detailPath}
+      {...detailLink}
       className={`${reactionControlClasses} relative z-10 text-ink-secondary no-underline`}
       {...reactionTouchHandlers}
     >

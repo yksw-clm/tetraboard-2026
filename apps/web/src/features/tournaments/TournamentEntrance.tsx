@@ -118,8 +118,23 @@ function TournamentEntranceCard({
 }
 
 export function TournamentEntrance({ game = "four-shogi" }: { game?: GameId }) {
-  const account = useAccount();
   const state = useLobbyTournaments(game);
+  return <TournamentEntranceContent game={game} state={state} />;
+}
+
+export function TournamentEntranceContent({
+  game,
+  state,
+  activeAndUpcomingOnly = false,
+}: {
+  game: GameId;
+  state: ReturnType<typeof useLobbyTournaments>;
+  activeAndUpcomingOnly?: boolean;
+}) {
+  const account = useAccount();
+  const current = activeAndUpcomingOnly
+    ? state.current.filter(({ status }) => status === "active")
+    : state.current;
   if ((tournamentGameIds as readonly string[]).includes(game) && state.isInitialLoading) {
     return (
       <div>
@@ -130,7 +145,7 @@ export function TournamentEntrance({ game = "four-shogi" }: { game?: GameId }) {
       </div>
     );
   }
-  if (!state.current.length && !state.upcoming.length && !state.error) return null;
+  if (!current.length && !state.upcoming.length && !state.error) return null;
   return (
     <div className="space-y-4">
       {state.error && (
@@ -143,7 +158,7 @@ export function TournamentEntrance({ game = "four-shogi" }: { game?: GameId }) {
       )}
       {(
         [
-          { id: "current", title: "大会", tournaments: state.current },
+          { id: "current", title: "大会", tournaments: current },
           { id: "upcoming", title: "次回の大会", tournaments: state.upcoming },
         ] as const
       )

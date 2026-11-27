@@ -1,4 +1,4 @@
-import { afterEach, beforeEach } from "bun:test";
+import { afterEach, beforeEach, spyOn } from "bun:test";
 import { act, createElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { browserSettings } from "../src/shared/browserSettings";
@@ -9,6 +9,16 @@ export async function flush() {
   await act(async () => {
     for (let i = 0; i < 20; i++) await Promise.resolve();
   });
+}
+export function mockMobileLobby() {
+  const original = window.matchMedia.bind(window);
+  const list = Object.assign(new EventTarget(), {
+    media: "(max-width: 767px)",
+    matches: true,
+  }) as MediaQueryList;
+  return spyOn(window, "matchMedia").mockImplementation((query) =>
+    query === list.media ? list : original(query),
+  );
 }
 export function renderHook<P, T>(
   hook: (props: P) => T,

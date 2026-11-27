@@ -21,12 +21,13 @@ function sendBoardPreviewView(game: GameId) {
   }
 }
 
-export function useBoardPreviewView(game: GameId) {
+export function useBoardPreviewView(game: GameId, enabled: boolean) {
   const ref = useRef<HTMLElement>(null);
   const sent = useRef(false);
   useEffect(() => {
     const section = ref.current;
-    if (!section || sent.current || typeof window.IntersectionObserver !== "function") return;
+    if (!enabled || !section || sent.current || typeof window.IntersectionObserver !== "function")
+      return;
     let observing = true;
     const observer = new window.IntersectionObserver((entries) => {
       if (!observing || !entries.some((entry) => entry.isIntersecting)) return;
@@ -40,6 +41,6 @@ export function useBoardPreviewView(game: GameId) {
       if (observing) observer.disconnect();
       observing = false;
     };
-  }, [game]);
+  }, [enabled, game]);
   return ref;
 }
