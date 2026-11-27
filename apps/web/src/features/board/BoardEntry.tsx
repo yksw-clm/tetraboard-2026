@@ -11,6 +11,7 @@ import { useAccount } from "../account/useAccount";
 import { formatMatchDate } from "../matches/matchDatePresentation";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { BoardBody, boardLinkClasses } from "./BoardBody";
+import { BoardAttachment } from "./BoardAttachment";
 import type { BoardWrite } from "./useBoardData";
 import { boardPostPath, boardRequest, mutationError } from "./boardApi";
 
@@ -279,6 +280,7 @@ export function BoardEntry({
               {time}
             </header>
             <BoardBody text={item.text} detailPath={detailPath} />
+            {item.attachment && <BoardAttachment {...item.attachment} />}
             {replies}
             <BoardEntryActions {...actions} item={item} game={game} reply={!post} />
           </>

@@ -151,7 +151,7 @@ test("退会受付で投稿と返信の本文・添付・再送情報を消し�
     expect(JSON.stringify([placeholder, thread])).not.toContain(privateValue);
 
   // 本人確認の直後に退会した要求も、D1の書き込み条件と再送の照合で拒否します。
-  const writer = new D1BoardWriter(db);
+  const writer = new D1BoardWriter(db, async () => false);
   const write = (destination: BoardDestination, retryId: string) =>
     postToBoard(
       writer,

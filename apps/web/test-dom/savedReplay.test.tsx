@@ -118,10 +118,18 @@ for (const game of gameIds) {
 
       await act(() => router.navigate(`${path}?position=${index}`));
       expect(selectedLabel()).toBe(label);
+      const postLink = () =>
+        [...view.querySelectorAll("a")].find((link) => link.textContent === "この局面で投稿する");
+      expect(postLink()?.getAttribute("href")).toBe(
+        `/games/${game}/posts?match=${match.id}&position=${index}`,
+      );
       expect(back().disabled).toBe(false);
       expect(next().disabled).toBe(false);
       act(() => back().click());
       expect(selectedLabel()).not.toBe(label);
+      expect(postLink()?.getAttribute("href")).toBe(
+        `/games/${game}/posts?match=${match.id}&position=${index - 1}`,
+      );
       expect(router.state.location.search).toBe(`?position=${index}`);
 
       for (const search of ["?position=99999", "?position=1e0", ""]) {
@@ -180,9 +188,15 @@ for (const game of gameIds) {
 test("本人の棋譜には遊ぶ帯を出さず、ルーム情報からマイページへ戻れる", async () => {
   const match = fourReversiMatchDetailSchema.parse(reversiArchives[0]!.detail);
   const view = render(
-    wrap(null, `/account/matches/${match.id}`)(<FourReversiMatchReplayView match={match} />),
+    wrap(
+      null,
+      `/account/matches/${match.id}?position=1`,
+    )(<FourReversiMatchReplayView match={match} initialPosition="1" />),
   );
   expect(view.querySelector('[aria-label="このゲームを遊ぶ"]')).toBeNull();
+  expect(view.querySelector('[aria-label="棋譜の操作"] a')?.getAttribute("href")).toBe(
+    `/games/four-reversi/posts?match=${match.id}&position=1`,
+  );
   const roomTab = [...view.querySelectorAll<HTMLElement>('[role="tab"]')].find(
     (tab) => tab.textContent === "ルーム",
   )!;

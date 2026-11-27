@@ -13,6 +13,8 @@ import {
   boardReplyResultSchema,
   boardReportInputSchema,
   boardTimelineSchema,
+  type BoardPost,
+  type BoardReply,
 } from "@tetraboard/protocol/board";
 import { gameIds } from "@tetraboard/protocol/games";
 import { Hono, type Context, type MiddlewareHandler } from "hono";
@@ -23,6 +25,7 @@ import { D1BoardWriter } from "../adapters/community/boardPosting";
 import { D1BoardReader } from "../adapters/community/boardReads";
 import { D1BoardReports } from "../adapters/community/boardReports";
 import { digest } from "../crypto";
+import { canAttachPosition } from "../flows/boardAttachment";
 import { boardRepliesQuery, boardTimelineQuery, readBoardInput, readBoardJson } from "./boardInput";
 
 type BoardEnv = { Bindings: Env; Variables: { user: StoredProfile | null } };
@@ -53,6 +56,17 @@ function hasRepeatedQuery(c: Context<BoardEnv>) {
   return Object.values(c.req.queries()).some((values) => values.length !== 1);
 }
 
+function wantsAttachments(c: Context<BoardEnv>) {
+  const flags = c.req.queries("includeAttachments");
+  return flags?.length === 1 && flags[0] === "1";
+}
+
+function withoutAttachment(entry: BoardPost | BoardReply | null) {
+  if (!entry || !("attachment" in entry)) return entry;
+  const { attachment: _attachment, ...original } = entry;
+  return original;
+}
+
 boardRoutes.get(gamePath, async (c) => {
   const game = gameSchema.safeParse(c.req.param("gameId"));
   if (!game.success) return c.notFound();
@@ -65,7 +79,11 @@ boardRoutes.get(gamePath, async (c) => {
     limit,
     before,
   );
-  return c.json(boardTimelineSchema.parse(page));
+  return c.json(
+    boardTimelineSchema.parse(
+      query.data.includeAttachments ? page : { ...page, posts: page.posts.map(withoutAttachment) },
+    ),
+  );
 });
 
 boardRoutes.get("/posts/:id", async (c) => {
@@ -78,9 +96,16 @@ boardRoutes.get("/posts/:id", async (c) => {
   );
   if (!page) return c.notFound();
   const { indexable, ...detail } = page;
+  const response = wantsAttachments(c)
+    ? detail
+    : {
+        ...detail,
+        post: withoutAttachment(detail.post),
+        replies: detail.replies.map(withoutAttachment),
+      };
   return c.json(
     boardDetailSchema.parse({
-      ...detail,
+      ...response,
       ...(c.req.query("includeIndexable") === "1" && { indexable }),
     }),
   );
@@ -96,7 +121,14 @@ boardRoutes.get("/posts/:id/replies", async (c) => {
     c.get("user")?.id ?? null,
     query.data.after,
   );
-  return page ? c.json(boardRepliesSchema.parse(page)) : c.notFound();
+  if (!page) return c.notFound();
+  return c.json(
+    boardRepliesSchema.parse(
+      query.data.includeAttachments
+        ? page
+        : { ...page, replies: page.replies.map(withoutAttachment) },
+    ),
+  );
 });
 
 function loginRequired(c: Context<BoardEnv>) {
@@ -118,6 +150,10 @@ function ineligible(c: Context<BoardEnv>) {
   return c.json({ message: "掲示板を利用できるアカウントでログインしてください。" }, 403);
 }
 
+function invalidAttachment(c: Context<BoardEnv>) {
+  return c.json({ message: "添付した棋譜の局面が見つかりません。" }, 400);
+}
+
 async function submitPost(c: Context<BoardEnv>, destination: BoardDestination) {
   const user = c.get("user");
   if (!user) return loginRequired(c);
@@ -126,11 +162,13 @@ async function submitPost(c: Context<BoardEnv>, destination: BoardDestination) {
   const body = await readBoardInput(c.req.raw, c.env.APP_ORIGIN);
   if (body.status === "invalidBody")
     return c.json({ message: "本文は1,000文字以内で入力してください。" }, 400);
+  if (body.status === "invalidAttachment") return invalidAttachment(c);
   if (body.status === "invalidLink")
     return c.json({ message: "URLはTetraBoard内の公開棋譜、大会、ルームのみ投稿できます。" }, 400);
 
+  const db = c.env.APP_DB;
   const result = await postToBoard(
-    new D1BoardWriter(c.env.APP_DB),
+    new D1BoardWriter(db, (game, attachment) => canAttachPosition(db, game, attachment)),
     { ...destination, ...body.input, accountId: user.id },
     Date.now,
     digest,
@@ -138,15 +176,22 @@ async function submitPost(c: Context<BoardEnv>, destination: BoardDestination) {
   switch (result.status) {
     case "accepted": {
       const { post, reply, availableAtMs } = result;
+      const entry = destination.parentId === null ? post : reply;
+      const response = wantsAttachments(c) ? entry : withoutAttachment(entry);
       return destination.parentId === null
-        ? c.json(boardPostResultSchema.parse({ post, availableAtMs }))
-        : c.json(boardReplyResultSchema.parse({ reply, availableAtMs }));
+        ? c.json(boardPostResultSchema.parse({ post: response, availableAtMs }))
+        : c.json(boardReplyResultSchema.parse({ reply: response, availableAtMs }));
     }
     case "changedReplay":
       return c.json(
-        { message: "再送する本文か投稿先が変更されています。新しい投稿として送信してください。" },
+        {
+          message:
+            "再送する本文、添付、投稿先のいずれかが変更されています。新しい投稿として送信してください。",
+        },
         409,
       );
+    case "invalidAttachment":
+      return invalidAttachment(c);
     case "stopped":
       return c.json({ message: "現在、掲示板への投稿は停止されています。" }, 403);
     case "rateLimited":

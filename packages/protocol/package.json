@@ -11,6 +11,7 @@
     "./games": "./src/games.ts",
     "./room-sharing": "./src/roomSharing.ts",
     "./match-sharing": "./src/matchSharing.ts",
+    "./replay-positions": "./src/replayPositions.ts",
     "./tournament-pages": "./src/tournamentPages.ts",
     "./privacy": "./src/privacy.ts",
     "./visits": "./src/visits.ts",
