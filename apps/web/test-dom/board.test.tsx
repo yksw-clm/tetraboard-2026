@@ -199,6 +199,19 @@ const articles = (view: HTMLElement) => [...view.querySelectorAll("article")];
 const input = (view: HTMLElement) => view.querySelector("textarea")!;
 const like = (element: HTMLElement) =>
   element.querySelector<HTMLButtonElement>('button[aria-label="いいね"]')!;
+const postMenuTrigger = (entry: HTMLElement) =>
+  entry.querySelector<HTMLButtonElement>('button[aria-label="投稿メニュー"]')!;
+const postMenu = () =>
+  document.querySelector<HTMLElement>('[role="menu"][aria-label="投稿メニュー"]');
+const menuItems = () => [...postMenu()!.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+
+function choosePostMenu(entry: HTMLElement, label: string) {
+  act(() => postMenuTrigger(entry).click());
+  const item = menuItems().find((item) => item.textContent?.trim() === label);
+  expect(item).toBeDefined();
+  act(() => item!.click());
+}
+
 const dialog = () => document.querySelector<HTMLElement>('[role="dialog"]')!;
 const requestInput = (request: Request) => JSON.parse(String(request.init.body)) as BoardPostInput;
 
@@ -1255,7 +1268,7 @@ test("タイムラインの再試行は失敗した添付と棋譜カードを�
   expect(entry.textContent).toContain("棋譜を表示できません。");
   expect(entry.querySelectorAll(`a[href="${matchPath}"]`)).toHaveLength(1);
 
-  press(articles(view)[1]!, "削除");
+  choosePostMenu(articles(view)[1]!, "削除");
   press(dialog(), "削除する");
   await respond(null, 204);
   expect(latest().url).toBe(`/api/posts/${uuid(2)}${detailQuery}`);
@@ -1566,7 +1579,7 @@ test("タイムラインの返信数、いいね、通報は独立した操作�
   expect(report.closest("a")).toBeNull();
   expect(button.classList.contains("z-10")).toBe(true);
   expect(report.classList.contains("z-10")).toBe(true);
-  expect(report.classList.contains("ml-auto")).toBe(true);
+  expect(report.nextElementSibling).toBe(postMenuTrigger(card));
 
   act(() => button.click());
   expect(latest().url).toBe(postUrl + "/like");
@@ -1994,6 +2007,87 @@ test.each([
   },
 );
 
+test.each([
+  [user, true, ["リンクをコピー", "削除"]],
+  [user, false, ["リンクをコピー"]],
+  [null, false, ["リンクをコピー"]],
+] as const)(
+  "タイムラインの投稿メニューは閲覧者と本人の区別を反映する (%#)",
+  async (viewer, own, labels) => {
+    const view = show(timelinePath, viewer);
+    await respond(timeline([post(1, "公開中の投稿", { own })]));
+    const trigger = postMenuTrigger(articles(view)[0]!);
+    expect(trigger.closest("a")).toBeNull();
+    expect(trigger.matches(".relative.z-10.ml-auto.min-h-11.min-w-11")).toBe(true);
+    act(() => trigger.click());
+    expect(menuItems().map((item) => item.textContent?.trim())).toEqual([...labels]);
+    expect(requests).toHaveLength(1);
+  },
+);
+
+test("キーボードで投稿メニューを開閉し、コピーの失敗を知らせてから数字URLを再コピーできる", async () => {
+  const write = spyOn(navigator.clipboard, "writeText").mockRejectedValueOnce(new Error("denied"));
+  write.mockResolvedValue(undefined);
+  try {
+    const parent = post(1, "コピーする投稿");
+    const view = show(timelinePath + "?preview=1#top", null);
+    await respond(timeline([parent]));
+    const entry = articles(view)[0]!;
+    const trigger = postMenuTrigger(entry);
+    function key(target: Element, key: string, type = "keydown") {
+      act(() =>
+        target.dispatchEvent(
+          new KeyboardEvent(type, { key, code: key, bubbles: true, cancelable: true }),
+        ),
+      );
+    }
+
+    act(() => trigger.focus());
+    key(trigger, "ArrowDown");
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    const copy = menuItems()[0]!;
+    await flush();
+    expect(postMenu()!.parentElement!.contains(document.activeElement)).toBe(true);
+    key(copy, "Escape");
+    clock.advance(32);
+    expect(postMenu()).toBeNull();
+    expect(document.activeElement === trigger).toBe(true);
+
+    key(trigger, "ArrowDown");
+    const reopened = menuItems()[0]!;
+    act(() => reopened.focus());
+    key(reopened, "Enter");
+    key(reopened, "Enter", "keyup");
+    await flush();
+    expect(entry.querySelector('[aria-live="polite"]')?.textContent).toBe(
+      "リンクをコピーできませんでした。",
+    );
+    expect(postMenu()).toBeNull();
+    clock.advance(32);
+    expect(document.activeElement === trigger).toBe(true);
+
+    choosePostMenu(entry, "リンクをコピー");
+    await flush();
+    expect(entry.querySelector('[aria-live="polite"]')?.textContent).toBe(
+      "リンクをコピーしました。",
+    );
+    expect(write).toHaveBeenCalledTimes(2);
+    const url = new URL(write.mock.calls[1]![0]);
+    expect(url.href).toBe(window.location.origin + postPath);
+    expect(requests).toHaveLength(1);
+    expect(view.querySelector("h1")?.textContent).toBe("四人将棋の掲示板");
+
+    const detail = show(url.pathname, null);
+    expect(latest().url).toBe(detailUrl);
+    await respond(thread(parent));
+    expect(detail.querySelector("h1")?.textContent).toBe("投稿の詳細");
+    expect(articles(detail)[0]?.textContent).toContain(parent.text);
+    expect(postMenuTrigger(articles(detail)[0]!)).toBeTruthy();
+  } finally {
+    write.mockRestore();
+  }
+});
+
 test("タイムラインの削除は詳細の404で消し、200なら返信の枠に置き換える", async () => {
   const view = show();
   const gainsReply = post(3, "返信が増えた投稿", { own: true });
@@ -2004,18 +2098,19 @@ test("タイムラインの削除は詳細の404で消し、200なら返信の�
   await respond(timeline([older], cursor(older)));
 
   const [existing, empty] = articles(view);
-  const deleteButton = like(empty!).nextElementSibling!;
+  const trigger = postMenuTrigger(empty!);
   expect(like(empty!).previousElementSibling?.textContent).toContain("返信 4 件");
-  expect(deleteButton.textContent).toBe("削除");
-  expect(deleteButton.closest("a")).toBeNull();
-  expect(deleteButton.matches(".relative.z-10.ml-auto")).toBe(true);
-  press(empty!, "削除");
+  expect(like(empty!).nextElementSibling).toBe(trigger);
+  act(() => trigger.focus());
+  choosePostMenu(empty!, "削除");
   expect(dialog().textContent).toContain("投稿を削除しますか？");
   expect(dialog().textContent).toContain("削除すると元に戻せません。");
   press(dialog(), "キャンセル");
+  clock.advance(32);
+  expect(document.activeElement).toBe(trigger);
   expect(requests).toHaveLength(2);
   expect(articles(view)).toHaveLength(3);
-  press(empty!, "削除");
+  choosePostMenu(empty!, "削除");
   press(dialog(), "削除する");
   expect(latest().url).toBe(`/api/posts/${losesReplies.id}`);
   expect(latest().init.method).toBe("DELETE");
@@ -2031,7 +2126,7 @@ test("タイムラインの削除は詳細の404で消し、200なら返信の�
   expect(articles(view)).toHaveLength(2);
   expect(view.textContent).not.toContain(losesReplies.text);
 
-  press(existing!, "削除");
+  choosePostMenu(existing!, "削除");
   press(dialog(), "削除する");
   await respond(null, 204);
   expect(latest().url).toBe(`/api/posts/${gainsReply.id}${detailQuery}`);
@@ -2059,7 +2154,7 @@ test("タイムラインの削除後に詳細の取得が失敗すると表示�
   const view = show();
   const parent = post(1, "表示を保つ投稿", { own: true });
   await respond(timeline([parent]));
-  press(articles(view)[0]!, "削除");
+  choosePostMenu(articles(view)[0]!, "削除");
   press(dialog(), "削除する");
   await respond(null, 204);
   expect(latest().url).toBe(postUrl + detailQuery);
@@ -2093,7 +2188,7 @@ test("詳細で返信を削除すると読み直した数になり、投稿の�
   expect(articles(view)[1]?.textContent).toContain(remaining.text);
   expect(view.textContent).not.toContain("本人の返信");
   expect(view.textContent).not.toContain("もっと見る");
-  press(articles(view)[0]!, "削除");
+  choosePostMenu(articles(view)[0]!, "削除");
   press(dialog(), "削除する");
   await respond(null, 204);
   expect(latest().url).toBe(detailUrl);
@@ -2138,7 +2233,7 @@ test.each([false, true])(
       remove ? thread({ ...parent, replyCount: 0 }) : thread(deleted(parent), [survivingReply]),
     );
     if (remove) {
-      press(articles(view)[0]!, "削除");
+      choosePostMenu(articles(view)[0]!, "削除");
       press(dialog(), "削除する");
       await respond(null, 204);
       expect(latest().url).toBe(detailUrl);

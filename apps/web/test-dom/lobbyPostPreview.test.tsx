@@ -239,6 +239,132 @@ async function showPosts(user: AccountProfile | null, ...posts: BoardPublishedPo
   return { view, cards: [...preview(view).querySelectorAll("li")] };
 }
 
+const postMenuTrigger = (card: HTMLElement) =>
+  card.querySelector<HTMLButtonElement>('button[aria-label="投稿メニュー"]')!;
+const menuItems = () => [
+  ...document.querySelectorAll<HTMLElement>(
+    '[role="menu"][aria-label="投稿メニュー"] [role="menuitem"]',
+  ),
+];
+
+test("ロビーの未ログイン閲覧者はタッチで投稿メニューを開閉し、詳細へ移らずリンクをコピーできる", async () => {
+  const write = spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+  try {
+    const parent = post(1);
+    const {
+      view,
+      cards: [card],
+    } = await showPosts(null, parent);
+    const trigger = postMenuTrigger(card!);
+    const path = view.querySelector('[aria-label="現在のパス"]');
+    expect(trigger.closest("a")).toBeNull();
+    expect(trigger.matches(".relative.z-10.ml-auto.min-h-11.min-w-11")).toBe(true);
+    function tap(target: Element) {
+      act(() => {
+        for (const type of ["pointerdown", "pointerup", "click"]) {
+          target.dispatchEvent(
+            new PointerEvent(type, {
+              bubbles: true,
+              button: 0,
+              detail: 1,
+              isPrimary: true,
+              pointerId: 1,
+              pointerType: "touch",
+            }),
+          );
+        }
+      });
+    }
+
+    tap(trigger);
+    expect(menuItems().map((item) => item.textContent?.trim())).toEqual(["リンクをコピー"]);
+    tap(preview(view).querySelector("h2")!);
+    clock.advance(32);
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(trigger);
+
+    tap(trigger);
+    tap(menuItems()[0]!);
+    await flush();
+    expect(write).toHaveBeenCalledWith(`${window.location.origin}/posts/${parent.publicNumber}`);
+    expect(card!.querySelector('[aria-live="polite"]')?.textContent).toBe(
+      "リンクをコピーしました。",
+    );
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(path?.textContent).toBe(gameCatalog[game].lobbyPath);
+  } finally {
+    write.mockRestore();
+  }
+});
+
+test("ロビーの本人は削除を再試行でき、成功後の一覧の再取得が失敗しても削除した投稿は消える", async () => {
+  const parent = { ...post(1), own: true };
+  const other = post(2);
+  const {
+    view,
+    cards: [card],
+  } = await showPosts(viewer, parent, other);
+  const section = preview(view);
+  act(() => postMenuTrigger(card!).click());
+  const items = menuItems();
+  expect(items.map((item) => item.textContent?.trim())).toEqual(["リンクをコピー", "削除"]);
+  act(() => items[1]!.click());
+  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+  expect(dialog.textContent).toContain("投稿を削除しますか？");
+  expect(dialog.textContent).toContain("削除すると元に戻せません。");
+  expect(timelineRequests(game)).toHaveLength(1);
+  expect(view.querySelector('[aria-label="現在のパス"]')?.textContent).toBe(
+    gameCatalog[game].lobbyPath,
+  );
+  press(dialog, "削除する");
+  const failed = requests.at(-1)!;
+  expect(failed.url).toBe(`/api/posts/${parent.id}`);
+  expect(failed.init.method).toBe("DELETE");
+  failed.respond({ message: "削除できませんでした。" }, 503);
+  await flush();
+  expect(dialog.querySelector('[role="alert"]')?.textContent).toBe("削除できませんでした。");
+  expect(section.textContent).toContain(parent.text);
+  expect(timelineRequests(game)).toHaveLength(1);
+
+  press(dialog, "削除する");
+  const removed = requests.at(-1)!;
+  expect(removed).not.toBe(failed);
+  expect(removed.url).toBe(failed.url);
+  expect(removed.init.method).toBe("DELETE");
+  removed.respond(null, 204);
+  await flush();
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(section.textContent).not.toContain(parent.text);
+  expect(section.textContent).toContain(other.text);
+
+  expect(timelineRequests(game)).toHaveLength(2);
+  timelineRequests(game)[1]!.respond(null, 503);
+  await flush();
+  expect(section.querySelector('[role="alert"]')?.textContent).toBe("投稿を取得できませんでした。");
+  press(section, "再試行");
+  await flush();
+  const replacement = post(3);
+  const {
+    status: _,
+    own: _own,
+    text: _text,
+    author: _author,
+    liked: _liked,
+    likeCount: _likeCount,
+    attachment: _attachment,
+    ...placeholder
+  } = parent;
+  timelineRequests(game)[2]!.respond(
+    timeline([{ ...placeholder, status: "deleted" }, other, replacement], false),
+  );
+  await flush();
+  expect(section.querySelector('[role="alert"]')).toBeNull();
+  expect(section.textContent).not.toContain("削除された投稿");
+  expect(section.textContent).toContain(other.text);
+  expect(section.textContent).toContain(replacement.text);
+  expect(links(section).map(([label]) => label)).not.toContain("投稿する");
+});
+
 test("ロビーでは添付のある投稿だけに棋譜付きを表示し、ラベルを押すと投稿詳細に移る", async () => {
   const first = post(1);
   first.attachment = { matchId: post(4).id, position: 0 };

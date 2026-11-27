@@ -13,6 +13,7 @@ type PreviewModule = Awaited<ReturnType<typeof importLobbyPostPreview>>;
 type PreviewResult =
   | Awaited<ReturnType<PreviewModule["readLobbyPostPreview"]>>
   | { status: "chunk-error"; message: string };
+type PreviewData = Extract<PreviewResult, { status: "ready" }>["data"];
 
 type PreviewRequest = { key: string; waiting: boolean; result: PreviewResult | null };
 const loadingPreview = { status: "loading" } as const;
@@ -45,7 +46,24 @@ function useLobbyPostPreview(game: GameId, key: string, waiting: boolean) {
   function retry() {
     setRequest({ key, waiting: false, result: null });
   }
-  return { state: request.result ?? loadingPreview, retry };
+
+  function change(update: (current: PreviewData) => PreviewData) {
+    setRequest((current) =>
+      current.key === key && current.result?.status === "ready"
+        ? { ...current, result: { ...current.result, data: update(current.result.data) } }
+        : current,
+    );
+  }
+
+  async function refresh(signal: AbortSignal) {
+    const { readLobbyPostPreview } = await (previewModule.current ??= importLobbyPostPreview());
+    const result = await readLobbyPostPreview(game, signal);
+    signal.throwIfAborted();
+    if (result.status === "ready") change(() => result.data);
+    return result.status === "api-error" ? result.message : null;
+  }
+
+  return { state: request.result ?? loadingPreview, retry, change, refresh };
 }
 
 function PostPreviewSkeleton() {
@@ -68,7 +86,7 @@ export function LobbyPostPreview({ game }: { game: GameId }) {
   const viewer = useViewerKey();
   const { loading, user } = useAccount();
   const previewKey = `${game}:${viewer}`;
-  const { state, retry } = useLobbyPostPreview(game, previewKey, loading && !user);
+  const { state, retry, change, refresh } = useLobbyPostPreview(game, previewKey, loading && !user);
   const sectionRef = useBoardPreviewView(game);
   const { name, lobbyPath } = gameCatalog[game];
   const timelinePath = `${lobbyPath}/posts`;
@@ -107,7 +125,9 @@ export function LobbyPostPreview({ game }: { game: GameId }) {
           </AppButton>
         </div>
       )}
-      {state.status === "ready" && <state.Posts key={previewKey} {...state.data} />}
+      {state.status === "ready" && (
+        <state.Posts key={previewKey} data={state.data} change={change} refresh={refresh} />
+      )}
       <AppButtonLink appearance="secondary" className="mt-2 w-full" to={timelinePath}>
         掲示板をすべて見る
       </AppButtonLink>
