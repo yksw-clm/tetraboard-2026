@@ -35,12 +35,20 @@ function TournamentCard({ id, to }: { id: number; to: string }) {
   return result.status === "ready" ? <Card to={to}>{result.data}</Card> : null;
 }
 
-export function BoardLinkCard({ link, to }: { link: BoardLink; to: string }) {
+export function BoardLinkCard({
+  link,
+  to,
+  nearby,
+}: {
+  link: BoardLink;
+  to: string;
+  nearby: boolean;
+}) {
   switch (link.kind) {
     case "match":
-      return <MatchCard id={link.matchId} to={to} />;
+      return nearby ? <MatchCard id={link.matchId} to={to} /> : null;
     case "tournament":
-      return <TournamentCard id={link.tournamentId} to={to} />;
+      return nearby ? <TournamentCard id={link.tournamentId} to={to} /> : null;
     case "room":
       return <Card to={to}>ルーム {link.roomId}</Card>;
   }

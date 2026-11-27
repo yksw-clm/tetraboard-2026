@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { afterEach, beforeEach, expect, test } from "bun:test";
 import type { AccountProfile, TournamentDetail } from "@tetraboard/protocol";
 import type {
   BoardPost,
@@ -34,6 +34,7 @@ import { startPageMetadata } from "../src/seo/pageMetadata";
 // 遅延読み込みされるモジュールを先に評価し、act 内で描画を待てるようにします。
 import "../src/features/board/BoardAttachmentBoard";
 import "../src/features/board/boardAttachmentFrames";
+import "../src/features/board/boardMediaRequests";
 import "../src/features/room/fourShogiMatchReplay";
 import "../src/features/room/replayFrames";
 import { act, clock, enter, flush, press, render, requests, wrap, type Request } from "./harness";
@@ -53,6 +54,47 @@ const user: AccountProfile = {
   avatarUrl: null,
   profileCompleted: true,
 };
+
+const originalObserver = Object.getOwnPropertyDescriptor(window, "IntersectionObserver");
+beforeEach(() => {
+  Object.defineProperty(window, "IntersectionObserver", { configurable: true, value: undefined });
+});
+afterEach(() => {
+  if (originalObserver) Object.defineProperty(window, "IntersectionObserver", originalObserver);
+  else Reflect.deleteProperty(window, "IntersectionObserver");
+});
+
+function observeMedia() {
+  const targets = new Map<
+    Element,
+    { rootMargin?: string; intersect: (visible: boolean) => void }
+  >();
+  class Observer {
+    private target: Element | null = null;
+    private readonly callback: IntersectionObserverCallback;
+    private readonly rootMargin?: string;
+    constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+      this.callback = callback;
+      this.rootMargin = options?.rootMargin;
+    }
+    observe(target: Element) {
+      this.target = target;
+      targets.set(target, {
+        rootMargin: this.rootMargin,
+        intersect: (isIntersecting) =>
+          this.callback(
+            [{ target, isIntersecting } as IntersectionObserverEntry],
+            this as unknown as IntersectionObserver,
+          ),
+      });
+    }
+    disconnect() {
+      if (this.target) targets.delete(this.target);
+    }
+  }
+  Object.defineProperty(window, "IntersectionObserver", { configurable: true, value: Observer });
+  return targets;
+}
 
 function reply(id: number, text: string, overrides: Partial<BoardReply> = {}): BoardReply {
   return {
@@ -141,6 +183,61 @@ async function respond(body: unknown, status?: number) {
   latest().respond(body, status);
   await flush();
 }
+
+test("カードと添付が表示範囲に近づいた対局だけを取得する", async () => {
+  const observed = observeMedia();
+  const view = show("/games/four-reversi/posts");
+  const matchPath = `/matches/${reversiMatch.id}`;
+  const origin = window.location.origin;
+  const items = [
+    post(2, origin + `/matches/${shogiMatch.id}`, {
+      attachment: { matchId: shogiMatch.id, position: 0 },
+    }),
+    post(1, origin + matchPath, { attachment: { matchId: reversiMatch.id, position: 37 } }),
+  ];
+  await respond(timeline(items));
+  expect(requests).toHaveLength(1);
+  const nearPost = articles(view)[1]!;
+  expect(nearPost.querySelector(`a[href="${matchPath}"]`)?.textContent).toBe(origin + matchPath);
+  expect(observed.size).toBe(4);
+  const near = [...observed].filter(([element]) => nearPost.contains(element));
+  expect(near.map(([, target]) => target.rootMargin)).toEqual(["200px", "200px"]);
+  act(() => near.forEach(([, target]) => target.intersect(false)));
+  await flush();
+  expect(requests).toHaveLength(1);
+  act(() => near.forEach(([, target]) => target.intersect(true)));
+  await flush();
+  expect(requests.map(({ url }) => url)).toEqual([
+    "/api/games/four-reversi/posts" + includeAttachments,
+    "/api" + matchPath,
+  ]);
+  expect(observed.size).toBe(2);
+  await respond({ match: reversiMatch });
+  expect(nearPost.querySelector(`a[href="${matchPath}?position=37"]`)?.textContent).toBe("黒 パス");
+  expect(nearPost.querySelectorAll(`a[href="${matchPath}"]`)).toHaveLength(2);
+});
+
+test("対局と大会を合わせて同時に3件まで取得し、残りは順番に開始する", async () => {
+  show();
+  const paths = [
+    "/tournaments/21",
+    `/matches/${reversiMatch.id}`,
+    "/tournaments/22",
+    `/matches/${shogiMatch.id}`,
+    "/tournaments/23",
+  ];
+  const urls = () => requests.slice(1).map(({ url }) => url.slice(4));
+  await respond(timeline([post(1, paths.map((path) => window.location.origin + path).join("\n"))]));
+  expect(urls()).toEqual(paths.slice(0, 3));
+  requests[2]!.reject();
+  await flush();
+  expect(urls()).toEqual(paths.slice(0, 4));
+  requests[1]!.respond({}, 404);
+  await flush();
+  expect(urls()).toEqual(paths);
+  for (const request of requests.slice(3)) request.respond({}, 404);
+  await flush();
+});
 
 test("タイムラインで同じ対局の取得を共有し、自動パスの盤面と棋譜リンクを表示する", async () => {
   const view = show("/games/four-reversi/posts");
@@ -662,7 +759,7 @@ test("タイムラインの通信失敗は再試行でき、追加取得に失�
   expect(view.textContent).toContain("続き");
 });
 
-test("5行を超える本文だけに続きを読むを出し、TetraBoard内のURLをリンクにする", async () => {
+test("省略した投稿ではカードを取得せず、詳細では全文のリンクとカードを取得する", async () => {
   const prototype = HTMLElement.prototype;
   const original = Object.getOwnPropertyDescriptor(prototype, "scrollHeight");
   Object.defineProperty(prototype, "scrollHeight", {
@@ -676,16 +773,15 @@ test("5行を超える本文だけに続きを読むを出し、TetraBoard内の
   try {
     const view = show();
     const internal = window.location.origin + "/tournaments/21";
+    const hidden = window.location.origin + "/tournaments/22";
+    const longPost = post(2, `一\n二\n三\n四\n五\n${hidden}`);
     const external = "https://example.com/";
-    await respond(
-      timeline([
-        post(2, "一\n二\n三\n四\n五\n六"),
-        post(1, `${internal} と ${external}\n二\n三\n四\n五`),
-      ]),
-    );
+    await respond(timeline([longPost, post(1, `${internal} と ${external}\n二\n三\n四\n五`)]));
     const [long, short] = articles(view);
     const more = [...long!.querySelectorAll("a")].find((link) => link.textContent === "続きを読む");
     expect(more?.getAttribute("href")).toBe(`/posts/${uuid(2)}`);
+    expect(long?.querySelector('a[href="/tournaments/22"]')?.textContent).toBe(hidden);
+    expect(requests.map(({ url }) => url)).toEqual([timelineUrl, "/api/tournaments/21"]);
     expect(short?.textContent).not.toContain("続きを読む");
     const link = short?.querySelector('a[href="/tournaments/21"]');
     expect(link?.textContent).toBe(internal);
@@ -694,6 +790,11 @@ test("5行を超える本文だけに続きを読むを出し、TetraBoard内の
     expect(short?.querySelector('a[href*="example.com"]')).toBeNull();
     expect(short?.textContent).toContain(external);
     expect(short?.querySelector(`a[href="${postPath}"]`)?.textContent).toBe("返信 0");
+    act(() => more!.click());
+    await flush();
+    expect(latest().url).toBe(`/api/posts/${uuid(2)}${detailQuery}`);
+    await respond(thread(longPost));
+    expect(latest().url).toBe("/api/tournaments/22");
   } finally {
     if (original) Object.defineProperty(prototype, "scrollHeight", original);
     else Reflect.deleteProperty(prototype, "scrollHeight");

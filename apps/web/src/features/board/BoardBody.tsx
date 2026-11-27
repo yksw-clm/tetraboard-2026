@@ -2,12 +2,13 @@ import { scanBoardLinks } from "@tetraboard/protocol/board";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { BoardLinkCard } from "./BoardLinkCard";
+import { useBoardMediaNear } from "./boardMedia";
 
 export const boardLinkClasses = "text-brand underline underline-offset-2 wrap-anywhere";
 
 function useClampedBody(text: string, clamp: boolean) {
   const ref = useRef<HTMLParagraphElement>(null);
-  const [overflow, setOverflow] = useState(false);
+  const [measurement, setMeasurement] = useState<{ text: string; overflow: boolean } | null>(null);
   useLayoutEffect(() => {
     const element = ref.current;
     if (!clamp || !element) return;
@@ -18,7 +19,11 @@ function useClampedBody(text: string, clamp: boolean) {
       for (const link of element.querySelectorAll("a")) {
         link.inert = clipped && link.getBoundingClientRect().top >= bottom;
       }
-      setOverflow(clipped);
+      setMeasurement((current) =>
+        current?.text === text && current.overflow === clipped
+          ? current
+          : { text, overflow: clipped },
+      );
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -28,17 +33,24 @@ function useClampedBody(text: string, clamp: boolean) {
       for (const link of element.querySelectorAll("a")) link.inert = false;
     };
   }, [text, clamp]);
-  return { ref, overflow };
+  return {
+    ref,
+    overflow: clamp ? (measurement?.text === text ? measurement.overflow : null) : false,
+  };
 }
 
 export function BoardBody({ text, detailPath }: { text: string; detailPath?: string }) {
   const clamp = detailPath !== undefined;
   const { ref, overflow } = useClampedBody(text, clamp);
   const origin = window.location.origin;
+  const links = scanBoardLinks(text, origin);
+  const showCards = overflow === false && links.some(({ link }) => link !== null);
+  const cardsRef = useRef<HTMLSpanElement>(null);
+  const nearby = useBoardMediaNear(cardsRef, showCards);
   const parts: ReactNode[] = [];
   const cards: ReactNode[] = [];
   let end = 0;
-  for (const occurrence of scanBoardLinks(text, origin)) {
+  for (const occurrence of links) {
     if (!occurrence.link) continue;
     const { start, end: linkEnd, url, link } = occurrence;
     const to = url.slice(origin.length);
@@ -48,18 +60,27 @@ export function BoardBody({ text, detailPath }: { text: string; detailPath?: str
         {url}
       </Link>,
     );
-    cards.push(<BoardLinkCard key={start} link={link} to={to} />);
+    if (showCards) cards.push(<BoardLinkCard key={start} link={link} to={to} nearby={nearby} />);
     end = linkEnd;
   }
   parts.push(text.slice(end));
   return (
     <>
-      <p
-        ref={ref}
-        className={`whitespace-pre-wrap wrap-anywhere leading-relaxed ${clamp ? "line-clamp-5" : ""}`}
-      >
-        {parts}
-      </p>
+      <div className="relative">
+        <p
+          ref={ref}
+          className={`whitespace-pre-wrap wrap-anywhere leading-relaxed ${clamp ? "line-clamp-5" : ""}`}
+        >
+          {parts}
+        </p>
+        {showCards && (
+          <span
+            ref={cardsRef}
+            aria-hidden="true"
+            className="pointer-events-none absolute top-full left-0 size-px"
+          />
+        )}
+      </div>
       {detailPath && overflow && (
         <Link to={detailPath} className={boardLinkClasses}>
           続きを読む

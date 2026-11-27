@@ -18,7 +18,7 @@ import { useAccount } from "../account/useAccount";
 import { boardLinkClasses } from "./BoardBody";
 import { BoardComposer } from "./BoardComposer";
 import { BoardEntry } from "./BoardEntry";
-import { BoardMediaContext, createBoardMedia } from "./boardMedia";
+import { BoardMediaContext, createBoardMedia, refreshBoardMedia } from "./boardMedia";
 import {
   boardLoadError,
   boardMissing,
@@ -137,7 +137,7 @@ function BoardTimeline({ game }: { game: GameId }) {
   const busy = pending !== null;
 
   function refresh(retry = false) {
-    void board.refresh(retry, () => setMedia(createBoardMedia()));
+    void board.refresh(retry, () => setMedia(refreshBoardMedia(media)));
   }
 
   function clearAttachment() {

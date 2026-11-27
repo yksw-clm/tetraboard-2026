@@ -1,6 +1,10 @@
 import { env } from "cloudflare:workers";
 import { boardPostVisibility } from "@tetraboard/context-community";
-import { boardLikeResultSchema, boardRepliesSchema } from "@tetraboard/protocol/board";
+import {
+  boardDetailSchema,
+  boardLikeResultSchema,
+  boardRepliesSchema,
+} from "@tetraboard/protocol/board";
 import { afterEach, expect, test } from "vitest";
 import { accountFixture, origin } from "./accountFixtures";
 import {
@@ -85,6 +89,53 @@ test("詳細は削除済みの返信を除き、返信を日時とIDの昇順で
   expect(second.nextCursor).toBeNull();
   expect((await boardRequest(postPath(replies[4]!.id))).status).toBe(404);
   expect((await boardRequest(repliesPath(replies[4]!.id))).status).toBe(404);
+});
+
+test("タイムラインと返信一覧では未知の取得条件を無視し、既知の不正値と重複を拒否する", async () => {
+  const { id: accountId } = await accountFixture();
+  const post = boardPostFixture({ accountId });
+  await post.statement.run();
+  for (const [path, query] of [
+    [boardPath, "limit=1&includeAttachments=1"],
+    [repliesPath(post.id), "includeAttachments=1"],
+  ]) {
+    const response = await boardRequest(`${path}?${query}&source=board`);
+    expect(response.status).toBe(200);
+    expect((await boardRequest(`${path}?${query}&source=1&source=2`)).status).toBe(400);
+  }
+  for (const path of [
+    boardPath + "?limit=0&source=board",
+    boardPath + "?includeAttachments=2",
+    repliesPath(post.id) + "?after=invalid&source=board",
+    repliesPath(post.id) + "?includeAttachments=2",
+  ])
+    expect((await boardRequest(path)).status, path).toBe(400);
+});
+
+test("投稿詳細は取得条件を理由に拒否せず、指定された追加項目だけを返す", async () => {
+  const { id: accountId } = await accountFixture();
+  const post = boardPostFixture({ accountId });
+  await post.statement.run();
+  const path = postPath(post.id);
+  for (const query of [
+    "includeAttachments=0&includeIndexable=0",
+    "includeAttachments=2&includeIndexable=2",
+    "includeAttachments=0&includeAttachments=1&includeIndexable=0&includeIndexable=1",
+  ]) {
+    const response = await boardRequest(`${path}?${query}`);
+    expect(response.status).toBe(200);
+    const page = boardDetailSchema.parse(await response.json());
+    expect(page.post).not.toHaveProperty("attachment");
+    expect(page).not.toHaveProperty("indexable");
+  }
+  const enabled = await boardRequest(
+    `${path}?includeAttachments=1&includeIndexable=1&source=1&source=2`,
+  );
+  expect(enabled.status).toBe(200);
+  expect(boardDetailSchema.parse(await enabled.json())).toMatchObject({
+    post: { attachment: null },
+    indexable: false,
+  });
 });
 
 test("取得条件の不正は 400、読み取り失敗は no-store の 503", async () => {

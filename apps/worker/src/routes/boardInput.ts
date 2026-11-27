@@ -13,12 +13,12 @@ const boardPageCursor = boardCursorSchema.transform((cursor) => ({
 
 const timelineLimit = z.string().regex(/^\d+$/).transform(Number).pipe(z.int().min(1).max(20));
 const includeAttachments = z.literal("1").optional();
-export const boardTimelineQuery = z.strictObject({
+export const boardTimelineQuery = z.object({
   before: boardPageCursor.optional(),
   limit: timelineLimit.prefault("20"),
   includeAttachments,
 });
-export const boardRepliesQuery = z.strictObject({
+export const boardRepliesQuery = z.object({
   after: boardPageCursor.optional(),
   includeAttachments,
 });

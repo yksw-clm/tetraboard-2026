@@ -1,15 +1,23 @@
 import type { BoardAttachment as Attachment } from "@tetraboard/protocol/board";
+import { useRef } from "react";
 import { Link } from "react-router";
-import { useBoardMedia, useBoardMediaItem } from "./boardMedia";
+import { useBoardMedia, useBoardMediaItem, useBoardMediaNear } from "./boardMedia";
 
 const width = "w-56 max-w-full";
 
 export function BoardAttachment({ matchId, position }: Attachment) {
   const { attachment } = useBoardMedia();
-  const result = useBoardMediaItem(matchId, attachment);
+  const ref = useRef<HTMLDivElement>(null);
+  const nearby = useBoardMediaNear(ref);
+  const result = useBoardMediaItem(matchId, attachment, nearby);
   if (result.status === "loading")
     return (
-      <div role="status" aria-label="棋譜を読み込んでいます" className={`${width} grid gap-2`}>
+      <div
+        ref={ref}
+        role="status"
+        aria-label="棋譜を読み込んでいます"
+        className={`${width} grid gap-2`}
+      >
         <div className="aspect-square rounded-control bg-surface-muted" />
         <div className="h-5" />
       </div>

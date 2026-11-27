@@ -30,20 +30,19 @@ export function BoardAttachmentBoard({ game, frame }: BoardAttachmentFrame) {
     case "shogi":
     case "four-shogi":
       return (
-        <div className="size-full [container-type:size] [&>div]:[--shogi-board-width:73cqw] [&>div]:[--shogi-side-width:calc(13cqw-8px)] [&>div]:gap-0 [&>div]:py-0">
-          <FourShogiBoardLayout
-            standard={game === "shogi"}
-            game={frame.game}
-            viewerSide="south"
-            revision={frame.label}
-            eliminatedHands={game === "four-shogi" ? frame.eliminatedHands : undefined}
-            checkState={frame.checkState}
-            playerCards={{}}
-            legalActions={[]}
-            canPlay={false}
-            onAction={() => {}}
-          />
-        </div>
+        <FourShogiBoardLayout
+          compact
+          standard={game === "shogi"}
+          game={frame.game}
+          viewerSide="south"
+          revision={frame.label}
+          eliminatedHands={game === "four-shogi" ? frame.eliminatedHands : undefined}
+          checkState={frame.checkState}
+          playerCards={{}}
+          legalActions={[]}
+          canPlay={false}
+          onAction={() => {}}
+        />
       );
   }
 }

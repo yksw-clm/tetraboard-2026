@@ -1,7 +1,4 @@
-import { getPublicMatchContract, tournamentDetailSchema } from "@tetraboard/protocol";
-import { createContext, useContext, useEffect, useState } from "react";
-import { tournamentPath } from "../tournaments/tournamentApi";
-import { boardRequest } from "./boardApi";
+import { createContext, useContext, useEffect, useState, type RefObject } from "react";
 
 function cacheRequest<K, T>(read: (key: K) => Promise<T>) {
   const requests = new Map<K, Promise<T>>();
@@ -17,38 +14,72 @@ function cacheRequest<K, T>(read: (key: K) => Promise<T>) {
   };
 }
 
-export function createBoardMedia() {
-  const match = cacheRequest(async (id: string) => {
-    const response = await boardRequest(
-      getPublicMatchContract.pathFor(id),
-      { signal: AbortSignal.timeout(10_000) },
-      "棋譜を表示できません。",
-    );
-    return getPublicMatchContract.response.parse(await response.json()).match;
-  });
-  return {
-    match,
-    tournament: cacheRequest(async (id: number) => {
-      const response = await fetch(tournamentPath(id), {
-        cache: "no-store",
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!response.ok) throw new Error("Tournament unavailable");
-      return tournamentDetailSchema.parse(await response.json()).tournament.name;
+const mediaRequestLimit = 3;
+
+function createRequestQueue() {
+  let active = 0;
+  const waiting: (() => void)[] = [];
+  return function schedule<T>(read: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      function start() {
+        active++;
+        void read()
+          .then(resolve, reject)
+          .finally(() => {
+            active--;
+            waiting.shift()?.();
+          });
+      }
+      if (active < mediaRequestLimit) start();
+      else waiting.push(start);
+    });
+  };
+}
+
+export function createBoardMedia(schedule = createRequestQueue()) {
+  const controller = new AbortController();
+  const enqueue = <T>(read: (signal: AbortSignal) => Promise<T>) =>
+    schedule(async () => {
+      controller.signal.throwIfAborted();
+      return read(AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]));
+    });
+  const match = cacheRequest((id: string) =>
+    enqueue(async (signal) => {
+      const { readBoardMatch } = await import("./boardMediaRequests");
+      return readBoardMatch(id, signal);
     }),
+  );
+  return {
+    schedule,
+    cancel: () => controller.abort(),
+    match,
+    tournament: cacheRequest((id: number) =>
+      enqueue(async (signal) => {
+        const { readBoardTournamentName } = await import("./boardMediaRequests");
+        return readBoardTournamentName(id, signal);
+      }),
+    ),
     attachment: cacheRequest(async (id: string) => {
       const [record, { loadAttachmentFrames }, { BoardAttachmentBoard }] = await Promise.all([
         match(id),
         import("./boardAttachmentFrames"),
         import("./BoardAttachmentBoard"),
       ]);
-      const frameAt = await loadAttachmentFrames(record, AbortSignal.timeout(10_000));
+      const frameAt = await enqueue((signal) => loadAttachmentFrames(record, signal));
       return { frameAt, Board: BoardAttachmentBoard };
     }),
   };
 }
 
-export const BoardMediaContext = createContext<ReturnType<typeof createBoardMedia> | null>(null);
+type BoardMedia = ReturnType<typeof createBoardMedia>;
+
+export function refreshBoardMedia(media: BoardMedia) {
+  // 更新前の取得と更新後の取得にも同じ同時実行数の上限を使います。
+  media.cancel();
+  return createBoardMedia(media.schedule);
+}
+
+export const BoardMediaContext = createContext<BoardMedia | null>(null);
 
 export function useBoardMedia() {
   const media = useContext(BoardMediaContext);
@@ -56,13 +87,44 @@ export function useBoardMedia() {
   return media;
 }
 
+export function useBoardMediaNear(ref: RefObject<HTMLElement | null>, enabled = true) {
+  const media = useBoardMedia();
+  const [nearbyMedia, setNearbyMedia] = useState<BoardMedia | null>(null);
+  const nearby = nearbyMedia === media || typeof window.IntersectionObserver !== "function";
+  useEffect(() => {
+    const element = ref.current;
+    if (!enabled || nearby || !element) return;
+    let observing = true;
+    const observer = new window.IntersectionObserver(
+      (entries) => {
+        if (!observing || !entries.some((entry) => entry.isIntersecting)) return;
+        observing = false;
+        observer.disconnect();
+        setNearbyMedia(media);
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(element);
+    return () => {
+      if (observing) observer.disconnect();
+      observing = false;
+    };
+  }, [enabled, media, nearby, ref]);
+  return nearby;
+}
+
 type Resource<T> = { status: "loading" } | { status: "failed" } | { status: "ready"; data: T };
 
-export function useBoardMediaItem<K, T>(id: K, read: (id: K) => Promise<T>): Resource<T> {
+export function useBoardMediaItem<K, T>(
+  id: K,
+  read: (id: K) => Promise<T>,
+  enabled = true,
+): Resource<T> {
   const [result, setResult] = useState<{ id: K; read: typeof read; resource: Resource<T> } | null>(
     null,
   );
   useEffect(() => {
+    if (!enabled) return;
     let active = true;
     void read(id).then(
       (data) => {
@@ -75,7 +137,7 @@ export function useBoardMediaItem<K, T>(id: K, read: (id: K) => Promise<T>): Res
     return () => {
       active = false;
     };
-  }, [id, read]);
+  }, [enabled, id, read]);
   return result && result.id === id && result.read === read
     ? result.resource
     : { status: "loading" };
