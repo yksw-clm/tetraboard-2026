@@ -18,12 +18,29 @@ import { badgeToastTitle } from "../badges/badgeNotificationPresentation";
 import { createAccountSelection } from "../account/useAccountSelection";
 import { useNotificationCenter, type NotificationCenter } from "./NotificationContext";
 
+const replyCopy = {
+  label: "返信",
+  title({ authorName, text }: Extract<Notification, { kind: "reply" }>["reply"]) {
+    const characters = Array.from(text.replace(/\s+/g, " ").trim());
+    const preview = characters.slice(0, 30).join("");
+    return `${authorName}さんから返信: ${preview}${characters.length > 30 ? "…" : ""}`;
+  },
+  boardName: (gameName: string) => `${gameName}の掲示板`,
+  link: "投稿を見る",
+};
+
 function title(n: Notification) {
   if (n.kind === "announcement") return n.announcement.title;
   if (n.kind === "badge") return badgeToastTitle(n.badge);
+  if (n.kind === "reply") return replyCopy.title(n.reply);
   return `${n.tournament.name}で${n.tournament.tied ? "同率" : ""}${n.tournament.rank === 1 ? "優勝" : "準優勝"}しました！`;
 }
-const labels = { announcement: "運営からのお知らせ", tournament: "大会結果", badge: "バッジ" };
+const labels = {
+  announcement: "運営からのお知らせ",
+  tournament: "大会結果",
+  badge: "バッジ",
+  reply: replyCopy.label,
+};
 function NotificationDetails({
   notification: n,
   center,
@@ -72,12 +89,19 @@ function NotificationDetails({
       ? `/updates/${n.announcement.id}`
       : n.kind === "tournament"
         ? `/tournaments/${n.tournament.id}`
-        : "/account";
+        : n.kind === "reply"
+          ? `/posts/${n.reply.postId}`
+          : "/account";
   return (
     <article className="space-y-4 wrap-anywhere">
       <h2 className="text-lg font-bold">{title(n)}</h2>
       {n.kind === "announcement" ? (
         <p className="whitespace-pre-wrap text-sm leading-relaxed">{n.announcement.body}</p>
+      ) : n.kind === "reply" ? (
+        <>
+          <p className="text-sm">{replyCopy.boardName(gameCatalog[n.reply.gameId].name)}</p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">{n.reply.text}</p>
+        </>
       ) : n.kind === "tournament" ? (
         <p className="text-sm">
           {n.tournament.name}の結果が確定しました。{n.tournament.tied ? "同率" : ""}
@@ -126,7 +150,9 @@ function NotificationDetails({
           ? "元の記事へ"
           : n.kind === "tournament"
             ? "大会結果へ"
-            : "マイページでバッジを見る"}
+            : n.kind === "reply"
+              ? replyCopy.link
+              : "マイページでバッジを見る"}
       </Link>
     </article>
   );

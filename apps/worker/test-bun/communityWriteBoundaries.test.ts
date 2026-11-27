@@ -48,6 +48,7 @@ const boundaries = {
   "INSERT notification_events": [
     "adapters/community/announcements.ts",
     "adapters/community/badgeEvents.ts",
+    boardPosting,
     "adapters/tournament/finalization.ts",
   ],
   "UPDATE notification_events": ["adapters/community/notifications.ts"],

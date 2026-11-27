@@ -22,8 +22,8 @@ import {
   type Request,
 } from "./harness";
 
-const listUrl = "/api/notifications";
-const unreadUrl = "/api/account/notifications/unread";
+const listUrl = "/api/notifications?replies=1";
+const unreadUrl = "/api/account/notifications/unread?replies=1";
 const readUrl = "/api/account/notifications/read";
 const announcement = (id = 1): Notification => ({
   id,
@@ -151,6 +151,40 @@ test("先読み途中で開いた操作と更新を同じ取得にまとめ、�
   expect(dialog().textContent).not.toContain("お知らせを読み込んでいます");
 });
 
+test("返信の一覧は本文を30文字にまとめ、詳細では全文と親の投稿へのリンクを表示する", async () => {
+  const text = `  こんにちは\n\t  ${"😀".repeat(24)}続きの本文  `;
+  const entry: Notification = {
+    id: 1,
+    createdAtMs: 1780000000000,
+    kind: "reply",
+    read: false,
+    legacy: false,
+    reply: {
+      postId: "parent-id",
+      replyId: "reply-id",
+      gameId: "reversi",
+      authorName: "返信者",
+      text,
+    },
+  };
+  const title = `返信者さんから返信: こんにちは ${"😀".repeat(24)}…`;
+  await warm([entry]);
+  await openList();
+  await settleOpen([entry]);
+  const row = dialog().querySelector('[data-notification-id="1"]')!;
+  expect(Array.from(row.querySelectorAll("span"), (span) => span.textContent)).toContain("返信");
+  expect(row.textContent).toContain(title);
+  select();
+  expect(dialog().querySelector("article h2")?.textContent).toBe(title);
+  expect(dialog().textContent).toContain("リバーシの掲示板");
+  expect(dialog().querySelector("p.whitespace-pre-wrap")?.textContent).toBe(text);
+  const link = dialog().querySelector("a[href='/posts/parent-id']");
+  expect(link?.textContent).toBe("投稿を見る");
+  expect(requests.some((r) => r.url === listUrl)).toBe(true);
+  expect(requests.some((r) => r.url === unreadUrl)).toBe(true);
+  await reply(readUrl, { ok: true });
+});
+
 test("裏の再取得中も詳細をすぐ開け、一覧の本文を使ってから既読を記録する", async () => {
   await warm();
   await openList();
@@ -158,7 +192,7 @@ test("裏の再取得中も詳細をすぐ開け、一覧の本文を使って�
   const oldStatus = take(unreadUrl);
   select();
   expect(dialog().textContent).toContain("お知らせの本文");
-  expect(requests.some((r) => /^\/api\/notifications\/\d+$/.test(r.url))).toBe(false);
+  expect(requests.some((r) => r.url.startsWith("/api/notifications/"))).toBe(false);
   await flush();
   const read = take(readUrl);
   expect(JSON.parse(String(read.init.body))).toEqual({ id: 1 });
@@ -241,11 +275,11 @@ test("追加取得失敗でも既存項目を残し、まとめて既読は取�
   await settleOpen([announcement(30)], "30", 30);
   press(dialog(), "もっと見る");
   await flush();
-  await reply(`${listUrl}?cursor=30`, {}, 503);
+  await reply("/api/notifications?cursor=30&replies=1", {}, 503);
   expect(dialog().textContent).toContain("更新情報30");
   press(dialog(), "再試行");
   await flush();
-  await reply(`${listUrl}?cursor=30`, page([announcement(29)], null, 31));
+  await reply("/api/notifications?cursor=30&replies=1", page([announcement(29)], null, 31));
   press(dialog(), "すべて既読にする");
   await flush();
   const readAll = take("/api/account/notifications/read-all");
@@ -459,7 +493,7 @@ test("記事詳細の直接閲覧は取得済み本文の確認後に既読に�
     date: "2026-11-07",
     kind: "feature",
   });
-  await reply(`${listUrl}?announcementId=article-2`, page([announcement(2)]));
+  await reply("/api/notifications?announcementId=article-2&replies=1", page([announcement(2)]));
   const read = take(readUrl);
   expect(JSON.parse(String(read.init.body))).toEqual({ id: 2 });
 });

@@ -6,13 +6,14 @@ export type NotificationQuery = {
   after?: number;
   id?: number;
   announcementId?: string;
+  includeReplies?: boolean;
 };
 
 export interface NotificationStore {
   initializeReadState(accountId: string): Promise<void>;
   list(accountId: string, query: NotificationQuery): Promise<Notification[]>;
-  upperBound(accountId: string): Promise<number>;
-  hasUnread(accountId: string): Promise<boolean>;
+  upperBound(accountId: string, includeReplies?: boolean): Promise<number>;
+  hasUnread(accountId: string, includeReplies?: boolean): Promise<boolean>;
   insertRead(accountId: string, id: number): Promise<boolean>;
   issuedThrough(): Promise<number>;
   advanceReadAll(accountId: string, through: number): Promise<void>;
@@ -30,7 +31,7 @@ export async function listNotifications(
   accountId: string,
   query: NotificationQuery,
 ) {
-  const upperBound = await store.upperBound(accountId);
+  const upperBound = await store.upperBound(accountId, query.includeReplies);
   const rows = await store.list(accountId, query);
   const notifications = rows.slice(0, notificationPageSize);
   return {
@@ -44,17 +45,19 @@ export async function readNotification(
   store: Pick<NotificationStore, "list">,
   accountId: string,
   id: number,
+  includeReplies = false,
 ) {
-  return (await store.list(accountId, { id }))[0] ?? null;
+  return (await store.list(accountId, { id, includeReplies }))[0] ?? null;
 }
 
 export async function readNotificationStatus(
   store: Pick<NotificationStore, "hasUnread" | "upperBound">,
   accountId: string,
+  includeReplies = false,
 ) {
   return {
-    hasUnread: await store.hasUnread(accountId),
-    upperBound: await store.upperBound(accountId),
+    hasUnread: await store.hasUnread(accountId, includeReplies),
+    upperBound: await store.upperBound(accountId, includeReplies),
   };
 }
 
@@ -65,7 +68,7 @@ export async function markNotificationRead(
 ): Promise<boolean> {
   if (await store.insertRead(accountId, id)) return true;
   // 既読の再送は成功扱いにし、閲覧できない通知は見つからないものとして扱います。
-  return (await readNotification(store, accountId, id)) !== null;
+  return (await readNotification(store, accountId, id, true)) !== null;
 }
 
 export async function markAllNotificationsRead(

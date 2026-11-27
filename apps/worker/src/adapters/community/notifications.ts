@@ -5,13 +5,25 @@ import {
 } from "@tetraboard/context-community";
 import { notificationSchema, type Notification } from "@tetraboard/protocol";
 import { accountNotDeletedSql } from "../../db/deletionGuard";
+import { boardPublishedSql } from "./boardRows";
 
 export function notificationRecipientAllowedSql(accountId: string) {
   return `(${accountId}='' OR ${accountNotDeletedSql(accountId)})`;
 }
 
-const visibleNotificationSql = `((e.account_id=? AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=e.account_id)) OR (e.account_id='' AND EXISTS(
-  SELECT 1 FROM announcements a WHERE a.id=e.source_id AND a.published=1)))`;
+const notificationFromSql = `FROM notification_events e
+  LEFT JOIN board_posts reply ON e.kind='reply' AND reply.id=e.source_id
+  LEFT JOIN board_posts parent ON parent.id=reply.parent_id
+  LEFT JOIN user author ON author.id=reply.account_id`;
+const visibleNotificationSql = (includeReplies: boolean) =>
+  `((e.account_id=? AND ${accountNotDeletedSql("e.account_id")}) OR (e.account_id='' AND EXISTS(
+    SELECT 1 FROM announcements a WHERE a.id=e.source_id AND a.published=1)))
+  AND (e.kind<>'reply'${
+    includeReplies
+      ? ` OR (e.account_id<>'' AND parent.id IS NOT NULL AND author.id IS NOT NULL
+        AND ${boardPublishedSql("reply")} AND ${boardPublishedSql("parent")})`
+      : ""
+  })`;
 const readSql = `(e.legacy=1 OR e.seq<=COALESCE(s.read_all_seq,0)
   OR (e.account_id='' AND e.seq<=COALESCE(s.baseline_seq,0))
   OR EXISTS(SELECT 1 FROM account_notification_reads r WHERE r.account_id=? AND r.notification_seq=e.seq))`;
@@ -23,31 +35,89 @@ export async function initializeNotifications(db: D1Database, accountId: string)
     .bind(accountId)
     .run();
 }
-export async function notificationUpperBound(db: D1Database, accountId: string) {
+export async function notificationUpperBound(
+  db: D1Database,
+  accountId: string,
+  includeReplies = false,
+) {
   const row = await db
-    .prepare(`SELECT COALESCE(MAX(e.seq),0) AS upperBound FROM notification_events e
-    WHERE ${visibleNotificationSql}`)
+    .prepare(`SELECT COALESCE(MAX(e.seq),0) AS upperBound ${notificationFromSql}
+    WHERE ${visibleNotificationSql(includeReplies)}`)
     .bind(accountId || null)
     .first<{ upperBound: number }>();
   return row!.upperBound;
 }
-export async function hasUnreadNotifications(db: D1Database, accountId: string) {
+export async function hasUnreadNotifications(
+  db: D1Database,
+  accountId: string,
+  includeReplies = false,
+) {
   return Boolean(
     await db
-      .prepare(`SELECT 1 FROM notification_events e
+      .prepare(`SELECT 1 ${notificationFromSql}
     LEFT JOIN account_notification_state s ON s.account_id=?
-    WHERE ${visibleNotificationSql} AND NOT ${readSql} LIMIT 1`)
+    WHERE ${visibleNotificationSql(includeReplies)} AND NOT ${readSql} LIMIT 1`)
       .bind(accountId, accountId, accountId)
       .first(),
   );
 }
+
+type NotificationRow = {
+  seq: number;
+  kind: string;
+  created_at_ms: number;
+  legacy: number;
+  is_read: number;
+  source_id: string;
+  payload_json: string;
+  title: string | null;
+  body: string | null;
+  date: string | null;
+  postId: string | null;
+  gameId: string | null;
+  authorName: string | null;
+  replyText: string | null;
+};
+
+function notificationFromRow(row: NotificationRow): Notification {
+  const common = {
+    id: row.seq,
+    kind: row.kind,
+    createdAtMs: row.created_at_ms,
+    legacy: Boolean(row.legacy),
+    read: Boolean(row.is_read),
+  };
+  switch (row.kind) {
+    case "announcement":
+      return notificationSchema.parse({
+        ...common,
+        announcement: { id: row.source_id, title: row.title, body: row.body, date: row.date },
+      });
+    case "reply":
+      return notificationSchema.parse({
+        ...common,
+        reply: {
+          postId: row.postId,
+          replyId: row.source_id,
+          gameId: row.gameId,
+          authorName: row.authorName,
+          text: row.replyText,
+        },
+      });
+    case "badge":
+      return notificationSchema.parse({ ...common, badge: JSON.parse(row.payload_json) });
+    default:
+      return notificationSchema.parse({ ...common, tournament: JSON.parse(row.payload_json) });
+  }
+}
+
 export async function readNotifications(
   db: D1Database,
   accountId: string,
   options: NotificationQuery = {},
 ): Promise<Notification[]> {
-  const { before, after, id, announcementId } = options;
-  const conditions = [visibleNotificationSql];
+  const { before, after, id, announcementId, includeReplies = false } = options;
+  const conditions = [visibleNotificationSql(includeReplies)];
   const values: (string | number | null)[] = [accountId || null];
   if (before !== undefined) {
     conditions.push("e.seq<?");
@@ -66,37 +136,14 @@ export async function readNotifications(
     values.push(announcementId);
   }
   const rows = await db
-    .prepare(`SELECT e.*,${readSql} AS is_read,a.title,a.body,a.published_on AS date
-    FROM notification_events e LEFT JOIN account_notification_state s ON s.account_id=?
+    .prepare(`SELECT e.*,${readSql} AS is_read,a.title,a.body,a.published_on AS date,
+      reply.parent_id AS postId,reply.game_id AS gameId,author.name AS authorName,reply.body AS replyText
+    ${notificationFromSql} LEFT JOIN account_notification_state s ON s.account_id=?
     LEFT JOIN announcements a ON e.kind='announcement' AND a.id=e.source_id
     WHERE ${conditions.join(" AND ")} ORDER BY e.seq DESC LIMIT ${notificationPageSize + 1}`)
     .bind(accountId, accountId, ...values)
-    .all<{
-      seq: number;
-      kind: string;
-      created_at_ms: number;
-      legacy: number;
-      is_read: number;
-      source_id: string;
-      title: string;
-      body: string;
-      date: string;
-      payload_json: string;
-    }>();
-  return rows.results.map((row) =>
-    notificationSchema.parse({
-      id: row.seq,
-      kind: row.kind,
-      createdAtMs: row.created_at_ms,
-      legacy: Boolean(row.legacy),
-      read: Boolean(row.is_read),
-      ...(row.kind === "announcement"
-        ? { announcement: { id: row.source_id, title: row.title, body: row.body, date: row.date } }
-        : row.kind === "badge"
-          ? { badge: JSON.parse(row.payload_json) }
-          : { tournament: JSON.parse(row.payload_json) }),
-    }),
-  );
+    .all<NotificationRow>();
+  return rows.results.map(notificationFromRow);
 }
 
 export function notificationRequestStore(db: D1Database): NotificationStore {
@@ -109,13 +156,14 @@ export function notificationRequestStore(db: D1Database): NotificationStore {
       initializedAccountId = accountId;
     },
     list: (accountId, query) => readNotifications(db, accountId, query),
-    upperBound: (accountId) => notificationUpperBound(db, accountId),
-    hasUnread: (accountId) => hasUnreadNotifications(db, accountId),
+    upperBound: (accountId, includeReplies) =>
+      notificationUpperBound(db, accountId, includeReplies),
+    hasUnread: (accountId, includeReplies) => hasUnreadNotifications(db, accountId, includeReplies),
     async insertRead(accountId, id) {
       const result = await db
         .prepare(`INSERT OR IGNORE INTO account_notification_reads(account_id,notification_seq)
-    SELECT ?1,e.seq FROM notification_events e
-    WHERE e.seq=? AND ${visibleNotificationSql} AND ${accountNotDeletedSql("?1")}
+    SELECT ?1,e.seq ${notificationFromSql}
+    WHERE e.seq=? AND ${visibleNotificationSql(true)} AND ${accountNotDeletedSql("?1")}
     RETURNING notification_seq`)
         .bind(accountId, id, accountId)
         .first();
