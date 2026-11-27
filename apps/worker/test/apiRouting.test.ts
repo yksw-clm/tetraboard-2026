@@ -4,6 +4,7 @@ import { createRoomContract, getRoomContract, roomSocketContract } from "@tetrab
 import { expect, test, vi } from "vitest";
 import worker from "../src/worker";
 import { env } from "cloudflare:workers";
+import { accountFixture } from "./accountFixtures";
 
 test("撤去した四人将棋AIのAPIは利用できない", async () => {
   for (const [path, method] of [
@@ -21,6 +22,38 @@ test("撤去した四人将棋AIのAPIは利用できない", async () => {
         {} as ExecutionContext,
       );
       expect(response.status).toBe(404);
+    }
+  }
+});
+
+test("旧総合ロビーのタブが履歴・投稿・通報を要求しても404を返す", async () => {
+  const assets = { fetch: async () => new Response("asset") } as unknown as Fetcher;
+  const origin = "https://tetraboard.net";
+  const { cookie } = await accountFixture();
+  const headers = { Cookie: cookie, Origin: origin };
+  const body = JSON.stringify({
+    text: "旧画面からの投稿",
+    requestId: crypto.randomUUID(),
+  });
+  for (const ASSETS of [undefined, assets]) {
+    for (const prefix of ["", "/api"]) {
+      for (const [path, init] of [
+        ["/lobby/chat?limit=50", { headers }],
+        ["/lobby/chat", { method: "POST", headers, body }],
+        ["/lobby/chat/reports", { headers }],
+        [
+          "/lobby/chat/reports",
+          { method: "POST", headers, body: JSON.stringify({ messageId: crypto.randomUUID() }) },
+        ],
+        ["/lobby/chat/reports", { method: "POST" }],
+      ] satisfies [string, RequestInit][]) {
+        const response = await worker.fetch(
+          new Request(`${origin}${prefix}${path}`, init),
+          { ...env, APP_ORIGIN: origin, ASSETS },
+          {} as ExecutionContext,
+        );
+        expect(response.status, `${init.method ?? "GET"} ${prefix}${path}`).toBe(404);
+      }
     }
   }
 });

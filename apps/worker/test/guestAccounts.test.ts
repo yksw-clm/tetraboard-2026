@@ -11,6 +11,7 @@ import { createGuestAccount, guestTokenHash, guestLifetimeMs } from "../src/rout
 import { humanFixtureRecord, fixtureRecord } from "./matchFixtures";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { request, guest } from "./guestAccountsFixtures";
+import { publishedChatTournament } from "./tournamentChatFixtures";
 
 test("閲覧・観戦ではゲストを作らず、名前・Origin・同意を検証して確定時だけ作る", async () => {
   const count = async () =>
@@ -304,13 +305,22 @@ test("ゲストの対人戦績・ランキング・公開カードを表示し�
       })
     ).status,
   ).toBe(401);
+});
+
+test("名前設定済みゲストは大会へのエントリーを確定してから投稿できる", async () => {
+  const id = 74205;
+  const tournament = await publishedChatTournament(env.APP_DB, id);
+  const g = await guest();
+  const post = () =>
+    request(tournament.path, {
+      method: "POST",
+      headers: g.headers,
+      body: JSON.stringify({ text: "応援しています", requestId: crypto.randomUUID() }),
+    });
+
+  expect((await post()).status).toBe(403);
   expect(
-    (
-      await request("/lobby/chat", {
-        method: "POST",
-        headers: g.headers,
-        body: JSON.stringify({ text: "投稿", requestId: crypto.randomUUID() }),
-      })
-    ).status,
+    (await request(`/tournaments/${id}/entries`, { method: "POST", headers: g.headers })).status,
   ).toBe(200);
+  expect((await post()).status).toBe(200);
 });

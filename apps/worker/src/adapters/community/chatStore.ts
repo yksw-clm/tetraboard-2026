@@ -59,26 +59,22 @@ export class D1ChatStore implements ChatWriter {
           .prepare("SELECT stopped,last_sent_at_ms FROM lobby_chat_senders WHERE account_id=?")
           .bind(viewer),
       );
-    if (tournamentId !== null)
-      queries.push(
-        db
-          .prepare(`SELECT t.chat_accepting,t.finalized_at_ms,
+    queries.push(
+      db
+        .prepare(`SELECT t.chat_accepting,t.finalized_at_ms,
      EXISTS(SELECT 1 FROM tournament_entries e WHERE e.tournament_key=t.key AND e.account_id=? AND e.deleted=0) AS entered
      FROM tournaments t WHERE t.public_id=? AND t.published=1`)
-          .bind(viewer ?? null, tournamentId),
-      );
+        .bind(viewer ?? null, tournamentId),
+    );
     const results = await db.batch(queries);
     const rows = results[0]!.results as Row[];
     const settings = results[1]!.results[0] as { accepting: number } | undefined;
     const sender = viewer
       ? (results[2]!.results[0] as { stopped: number; last_sent_at_ms: number } | undefined)
       : undefined;
-    const tournament =
-      tournamentId === null
-        ? undefined
-        : (results[viewer ? 3 : 2]!.results[0] as
-            | { chat_accepting: number; finalized_at_ms: number | null; entered: number }
-            | undefined);
+    const tournament = results[viewer ? 3 : 2]!.results[0] as
+      | { chat_accepting: number; finalized_at_ms: number | null; entered: number }
+      | undefined;
     return {
       messages: rows.map((row) => publicMessage(row, viewer)),
       accepting: Boolean(settings?.accepting),
@@ -118,9 +114,9 @@ export class D1ChatStore implements ChatWriter {
  AND (COALESCE(u.isAnonymous,0)=0 OR u.guestNameCustomized=1)
  AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=u.id)
  AND (SELECT accepting FROM lobby_chat_settings WHERE id=1)=1
- AND (? IS NULL OR EXISTS(SELECT 1 FROM tournaments t JOIN tournament_entries e ON e.tournament_key=t.key
+ AND EXISTS(SELECT 1 FROM tournaments t JOIN tournament_entries e ON e.tournament_key=t.key
    WHERE t.public_id=? AND t.published=1 AND t.chat_accepting=1
-   AND (t.finalized_at_ms IS NULL OR t.finalized_at_ms>?) AND e.account_id=u.id AND e.deleted=0))
+   AND (t.finalized_at_ms IS NULL OR t.finalized_at_ms>?) AND e.account_id=u.id AND e.deleted=0)
  AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)
  AND NOT EXISTS(SELECT 1 FROM lobby_chat_requests r WHERE r.account_id=u.id AND r.request_id=?)`)
         .bind(
@@ -132,7 +128,6 @@ export class D1ChatStore implements ChatWriter {
           tournamentId,
           accountId,
           lastPostByMs,
-          tournamentId,
           tournamentId,
           finalizedAfterMs,
           requestId,
@@ -172,7 +167,7 @@ export class D1ChatStore implements ChatWriter {
       }>();
   }
 
-  async readMessage(id: string, viewer: string, tournamentId: number | null, afterMs: number) {
+  async readMessage(id: string, viewer: string, tournamentId: number, afterMs: number) {
     const row = await this.db
       .prepare(`SELECT ${lobbyMessageColumns} ${lobbyVisible} AND m.id=? AND m.tournament_id IS ?`)
       .bind(afterMs, id, tournamentId)

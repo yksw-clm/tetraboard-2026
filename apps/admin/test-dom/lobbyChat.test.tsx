@@ -18,20 +18,15 @@ test("運営画面は通報・停止を表示し、操作失敗を残して再�
     .find((r) => r.url === "/api/admin/lobby-chat")!
     .respond({
       acceptingPosts: true,
-      reports: [report],
+      reports: [report, { ...report, id: crypto.randomUUID(), tournamentId: 3 }],
       stoppedSenders: [{ senderId: "public", senderName: "停止中" }],
     });
-  requests
-    .find((r) => r.url.startsWith("/api/lobby/chat"))!
-    .respond({
-      messages: [],
-      nextCursor: null,
-      acceptingPosts: true,
-      postingStopped: false,
-      availableAtMs: 0,
-      serverTimeMs: 1,
-    });
   await flush();
+  expect(requests.map((r) => r.url)).toEqual(["/api/admin/lobby-chat"]);
+  expect(view.querySelector("h1")?.textContent).toBe("大会チャット");
+  expect(view.textContent).not.toContain("現在の公開投稿");
+  expect(view.textContent).toContain("旧総合ロビー");
+  expect(view.querySelector('a[href="/tournaments/3"]')).not.toBeNull();
   expect(view.textContent).toContain("通報された本文");
   expect(view.textContent).toContain("停止中");
   const opener = [...view.querySelectorAll("button")].find(
@@ -69,7 +64,7 @@ test("運営画面は通報・停止を表示し、操作失敗を残して再�
   press(document.body, "実行");
   requests.at(-1)!.respond({ message: "変更しました" });
   await flush();
-  expect(requests.filter((r) => r.url === "/api/admin/lobby-chat").length).toBe(4);
+  expect(requests.map((r) => r.url)).toEqual(Array(4).fill("/api/admin/lobby-chat"));
 });
 test("大会管理は対象大会の履歴と通報を表示し、大会だけの受付停止を送信する", async () => {
   const view = render(<LobbyChat tournamentId={3} />);
@@ -83,7 +78,17 @@ test("大会管理は対象大会の履歴と通報を表示し、大会だけ�
   requests
     .find((r) => r.url === "/api/tournaments/3/chat?limit=500")!
     .respond({
-      messages: [],
+      messages: [
+        {
+          id,
+          senderId: "public",
+          senderName: "投稿者",
+          text: "大会の発言",
+          avatarUrl: null,
+          sentAtMs: 1,
+          own: false,
+        },
+      ],
       nextCursor: null,
       acceptingPosts: true,
       postingStopped: false,
@@ -94,6 +99,7 @@ test("大会管理は対象大会の履歴と通報を表示し、大会だけ�
     });
   await flush();
   expect(view.textContent).toContain("大会 #3 のチャット管理");
+  expect(view.textContent).toContain("大会の発言");
   expect(view.querySelector('a[href="/tournaments/3"]')).not.toBeNull();
   press(view, "投稿受付を停止");
   press(document.body, "実行");

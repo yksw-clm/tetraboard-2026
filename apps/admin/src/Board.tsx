@@ -193,7 +193,7 @@ export function Board() {
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold">掲示板</h1>
-      <p className="text-sm text-muted-foreground">掲示板の投稿停止は公開チャットとは別です。</p>
+      <p className="text-sm text-muted-foreground">掲示板の投稿停止は大会チャットとは別です。</p>
       {page.error && <p role="alert">{page.error}</p>}
       {page.loading && <p role="status">読み込んでいます…</p>}
       <Button disabled={disabled} onClick={page.refresh}>

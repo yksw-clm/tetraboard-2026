@@ -10,6 +10,8 @@ import { accountFixture } from "./accountFixtures";
 import { humanFixtureRecord } from "./matchFixtures";
 import { humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
 
+import { publishedChatTournament } from "./tournamentChatFixtures";
+
 const bindings = env as typeof env & {
   COMMUNITY_BATCHES_TEST_DB: D1Database;
   TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1];
@@ -85,11 +87,15 @@ test("チャットの投稿と送信時刻、再送台帳、件数制限を同�
   const { db, batches } = batchFixture();
   const { id: accountId } = await account();
 
+  const tournamentId = 74204;
+  const tournament = await publishedChatTournament(database, tournamentId);
+  await tournament.enroll(accountId);
+
   await new D1ChatStore(db).insertEligiblePost(
     {
       accountId,
       requestId: "fixture-chat-request",
-      tournamentId: null,
+      tournamentId,
       text: "対局募集",
       bodyHash: "fixture-hash",
       sentAtMs: 20_000,

@@ -9,10 +9,12 @@ import { humanFixtureRecord } from "./matchFixtures";
 import { writeMatch } from "../src/flows/matchSave/snapshot";
 import { requestDeletion } from "../src/flows/accountPurge/requestDeletion";
 import worker from "../src/worker";
-import { lobbyChatSchema, lobbyPostResultSchema } from "@tetraboard/protocol/general-lobby";
+import { tournamentChatSchema, lobbyPostResultSchema } from "@tetraboard/protocol/general-lobby";
 import { cleanupLobbyChat } from "../src/adapters/community/chatCleanup";
 import { badgeEventStatement } from "../src/adapters/community/badgeEvents";
 import { guest, link, request, trackGuestAccountRooms } from "./guestAccountsFixtures";
+
+import { publishedChatTournament } from "./tournamentChatFixtures";
 
 const createdRooms = trackGuestAccountRooms();
 
@@ -141,13 +143,21 @@ test("ゲスト統合はfeedbackを1回だけ更新し、本人の投稿だけ�
   }
 });
 
-test("ゲストの公開チャットは統合後も非表示用ID・再送・投稿停止・通報を保ち、退会で削除する", async () => {
+test("ゲストの大会チャットは統合後も非表示用ID・再送・投稿停止・通報を保ち、退会で削除する", async () => {
   const g = await guest(),
     other = await accountFixture();
+  const tournament = await publishedChatTournament(env.APP_DB, 74201);
+  const otherTournament = await publishedChatTournament(env.APP_DB, 74206);
+  await tournament.enroll(g.id);
+  await tournament.enroll(other.id);
   const post = (headers: HeadersInit, text: string, requestId = crypto.randomUUID()) =>
-    request("/lobby/chat", { method: "POST", headers, body: JSON.stringify({ text, requestId }) });
+    request(tournament.path, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ text, requestId }),
+    });
   const report = (headers: HeadersInit, messageId: string) =>
-    request("/lobby/chat/reports", {
+    request(`${tournament.path}/reports`, {
       method: "POST",
       headers,
       body: JSON.stringify({ messageId }),
@@ -184,7 +194,7 @@ test("ゲストの公開チャットは統合後も非表示用ID・再送・投
   );
   // 本人確認の後で本文を待たせ、統合より遅れてSQLが実行される要求を再現します。
   const delayedReport = worker.fetch(
-    new Request(`${origin}/api/lobby/chat/reports`, {
+    new Request(`${origin}/api${tournament.path}/reports`, {
       method: "POST",
       headers: g.headers,
       body: delayedBody,
@@ -195,7 +205,16 @@ test("ゲストの公開チャットは統合後も非表示用ID・再送・投
   await bodyRead;
   try {
     const linked = await link(g);
-    expect((await post(linked.target.headers, "登録者の投稿")).status).toBe(200);
+    await otherTournament.enroll(linked.target.id);
+    expect(
+      (
+        await request(otherTournament.path, {
+          method: "POST",
+          headers: linked.target.headers,
+          body: JSON.stringify({ text: "登録者の投稿", requestId: crypto.randomUUID() }),
+        })
+      ).status,
+    ).toBe(200);
     expect((await report(linked.target.headers, subject.id)).status).toBe(201);
     expect((await report(linked.target.headers, before.id)).status).toBe(201);
     await env.APP_DB.prepare("UPDATE lobby_chat_senders SET stopped=1 WHERE account_id=?")
@@ -211,8 +230,8 @@ test("ゲストの公開チャットは統合後も非表示用ID・再送・投
         .bind(g.id)
         .first(),
     ).toBeNull();
-    const page = lobbyChatSchema.parse(
-      await (await request("/lobby/chat", { headers: linked.target.headers })).json(),
+    const page = tournamentChatSchema.parse(
+      await (await request(tournament.path, { headers: linked.target.headers })).json(),
     );
     expect(page.messages.find((message) => message.id === before.id)).toMatchObject({
       own: true,

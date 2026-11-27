@@ -141,6 +141,25 @@ test("大会切替時に古い応答を破棄し、非表示中は更新を止�
   expect(currentGet().url).toBe("/api/tournaments/2/chat?limit=50");
 });
 
+test("本人切替後に届いた旧アカウントの送信応答を画面へ反映しない", async () => {
+  const hook = renderHook((id: string) => useLobbyChat(id, 1), "first");
+  clock.advance(0);
+  await respond();
+  let sent!: Promise<boolean>;
+  act(() => {
+    sent = hook.current.send("古い本人の本文");
+  });
+  const old = requests.at(-1)!;
+  hook.rerender("second");
+  clock.advance(0);
+  await respond({ ...chat, messages: [], entered: false });
+  old.respond({ message: { ...message, own: true }, availableAtMs: Date.now() + 10000 });
+  await flush();
+  expect(await sent).toBe(false);
+  expect(hook.current.messages).toHaveLength(0);
+  expect(hook.current.availableAtMs).toBe(0);
+});
+
 test("送信者の非表示と通報を大会の履歴に対して操作し、IME変換中は送信しない", async () => {
   const view = render(wrap(profile)(<LobbyChat tournament={options} />));
   clock.advance(0);
