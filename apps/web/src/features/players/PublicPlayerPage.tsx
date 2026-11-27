@@ -1,4 +1,5 @@
 import {
+  getPlayerGameRatingsContract,
   getPlayerProfileContract,
   listPlayerMatchesContract,
   type RoomMode,
@@ -95,7 +96,7 @@ function PublicPlayerContent({
   onUnavailable: () => void;
 }) {
   const profile = usePublicPlayerRequest(
-    playerProfileApiUrl({ source: "profile", profileId }, game),
+    playerProfileApiUrl({ source: "profile", profileId }, game, { includeRating: false }),
     getPlayerProfileContract.response,
     onUnavailable,
   );
@@ -104,8 +105,22 @@ function PublicPlayerContent({
     listPlayerMatchesContract.response,
     onUnavailable,
   );
+  const ratings = usePublicPlayerRequest(
+    `/api${getPlayerGameRatingsContract.path.replace(":profileId", encodeURIComponent(profileId))}`,
+    getPlayerGameRatingsContract.response,
+  );
   const account = profile.result.status === "ready" && profile.result.data;
   const player = account && account.kind === "account" && account.game === game ? account : null;
+  const [confirmedProfileId, setConfirmedProfileId] = useState<string | null>(null);
+  const playerProfileId = player && !player.isGuest ? player.profileId : null;
+  // 同じ公開参照のゲーム切替中は、照合済みの公開UUIDを使います。
+  const ratingProfileId =
+    profile.result.status === "loading" ? confirmedProfileId : playerProfileId;
+  if (ratingProfileId !== confirmedProfileId) setConfirmedProfileId(ratingProfileId);
+  const games =
+    ratings.result.status === "ready" && ratings.result.data.profileId === ratingProfileId
+      ? ratings.result.data.games
+      : null;
   return (
     <>
       <AppCard>
@@ -123,7 +138,11 @@ function PublicPlayerContent({
         )}
       </AppCard>
       <div className="flex flex-col gap-3">
-        <ProfileGameButtons game={game} onChange={onGameChange} />
+        <ProfileGameButtons
+          game={game}
+          onChange={onGameChange}
+          ratingForGame={(id) => games?.[id]}
+        />
         {gameCatalog[game].hasModes && (
           <div role="group" aria-label="プロフィールの対局モード" className="flex flex-wrap gap-2">
             {(["singles", "doubles"] as const).map((option) => (
@@ -149,12 +168,7 @@ function PublicPlayerContent({
             戦績
           </h2>
           {player ? (
-            <PublicPlayerStats
-              profile={player}
-              game={game}
-              mode={mode}
-              showRating={player.rating?.timing === "current"}
-            />
+            <PublicPlayerStats profile={player} game={game} mode={mode} showRating={false} />
           ) : (
             <PlayerRequestNotice loading={profile.result.status === "loading"} label="戦績" />
           )}

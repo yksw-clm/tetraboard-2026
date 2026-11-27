@@ -78,6 +78,11 @@ export const ratingSummarySchema = z.discriminatedUnion("status", [
   }),
   z.strictObject({ status: z.literal("rated"), rating: z.number() }),
 ]);
+export const gameRatingSummarySchema = z.union([
+  ratingSummarySchema,
+  z.strictObject({ status: z.literal("error") }),
+]);
+export type GameRatingSummary = z.infer<typeof gameRatingSummarySchema>;
 const duelSummarySchema = (placementGames: number) =>
   ratingSummarySchema.refine(
     (summary) => summary.status !== "placement" || summary.games < placementGames,

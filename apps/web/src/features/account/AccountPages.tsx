@@ -15,6 +15,7 @@ import { AppDialog } from "../../shared/ui/AppDialog";
 import type { AccountProfile, RoomMode } from "@tetraboard/protocol";
 import { cn } from "@heroui/react";
 import { ProfileGameButtons } from "../players/ProfileGameButtons";
+import { useLobbyGameRatings } from "../lobby/useLobbyGameRatings";
 import { AppTabs } from "../../shared/ui/AppTabs";
 import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { useAccountSelection } from "./useAccountSelection";
@@ -219,6 +220,8 @@ export function LoginPage() {
 export function ProfilePage({ setup = false }: { setup?: boolean }) {
   const { user, loading, error, sessionLost } = useAccount();
   const { game, mode, setGame, setMode } = useAccountSelection();
+  const showGameRatings = !setup && Boolean(user?.profileCompleted && !user.isGuest);
+  const ratings = useLobbyGameRatings(showGameRatings);
   const panelId = useId();
   // ファイル選択からの復帰による再確認では、編集中のフォームを取り外しません。
   if (!user && (loading || error))
@@ -247,7 +250,13 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
           profile={
             <AccountProfileCard key={user.profileId ?? user.username} user={user} game={game} />
           }
-          navigation={<ProfileGameButtons game={game} onChange={setGame} />}
+          navigation={
+            <ProfileGameButtons
+              game={game}
+              onChange={setGame}
+              ratingForGame={(id) => ratings.games?.[id].summary}
+            />
+          }
           modeTabs={
             <AppTabs.List
               aria-label="プロフィールの対局モード"
@@ -298,7 +307,11 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
               className="grid min-w-0 grid-cols-1 items-start gap-5 [@media(min-width:1024px)]:grid-cols-[560px_minmax(0,1fr)]"
             >
               <AppCard>
-                <AccountStats game={game} mode={mode} registered={!user.isGuest} />
+                <AccountStats
+                  game={game}
+                  mode={mode}
+                  onRefresh={showGameRatings ? ratings.retry : undefined}
+                />
               </AppCard>
               <MatchHistory game={game} mode={mode} />
             </div>
