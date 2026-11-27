@@ -202,7 +202,7 @@ test("読み込み中は3枠と1つの案内を出し、削除枠を除いて新
   expect(section.querySelector('[role="status"]')).toBeNull();
   const links = [...section.querySelectorAll<HTMLAnchorElement>('a[href^="/posts/"]')];
   expect(links.map((link) => link.getAttribute("href"))).toEqual(
-    [first, third, fourth].map(({ id }) => `/posts/${id}`),
+    [first, third, fourth].flatMap(({ id }) => [`/posts/${id}`, `/posts/${id}`]),
   );
   expect(links[0]!.textContent).toContain(first.text);
   const firstCard = links[0]!.closest("li")!;
@@ -250,6 +250,32 @@ test("ロビーでアバターと名前を押すと投稿のゲームの公開�
   const requestCount = requests.length;
   await act(async () => profile.click());
   expect(view.querySelector('[aria-label="現在のパス"]')?.textContent).toBe(playerPath);
+  expect(requests).toHaveLength(requestCount);
+});
+
+test("ロビーの返信リンクは投稿者リンクと独立してカードと同じ投稿の詳細を開く", async () => {
+  const first = post(1);
+  first.author.profileTarget = { source: "profile", profileId: post(2).id };
+  const {
+    view,
+    cards: [card],
+  } = await showPosts(viewer, first);
+  const detailPath = `/posts/${first.id}`;
+  const [detail, replies] = card!.querySelectorAll<HTMLAnchorElement>(`a[href="${detailPath}"]`);
+  expect(card!.querySelector("header a")?.textContent).toBe(first.author.name);
+  expect(detail?.textContent).toBe(first.text);
+  expect(replies?.querySelector(".sr-only")?.textContent).toBe("返信 2 件");
+  expect(replies?.querySelector('span[aria-hidden="true"]')?.textContent).toBe("2");
+  expect(replies?.parentElement?.closest("a")).toBeNull();
+  expect(replies?.querySelector("a, button")).toBeNull();
+  expect(replies?.nextElementSibling).toBe(like(card!));
+  expect(replies?.classList.contains("z-10")).toBe(true);
+  expect(replies?.classList.contains("focus-visible:outline-focus")).toBe(true);
+  replies!.focus();
+  expect(document.activeElement).toBe(replies!);
+  const requestCount = requests.length;
+  await act(async () => replies!.click());
+  expect(view.querySelector('[aria-label="現在のパス"]')?.textContent).toBe(detailPath);
   expect(requests).toHaveLength(requestCount);
 });
 
