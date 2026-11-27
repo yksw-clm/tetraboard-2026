@@ -14,6 +14,7 @@ import {
   detail,
   likePath,
   openBoard,
+  postNumber,
   postPath,
   repliesPath,
   resetBoard,
@@ -208,6 +209,7 @@ test("本人削除は冪等で、SQLのタイムラインと詳細は返信数�
   const placeholder = {
     status: "deleted",
     id: parent.id,
+    publicNumber: await postNumber(parent.id),
     gameId: "reversi",
     postedAtMs: parent.postedAtMs,
     replyCount: 1,

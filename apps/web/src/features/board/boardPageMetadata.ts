@@ -16,7 +16,7 @@ export function boardPageMetadata({
   replies: BoardReply[];
   indexable?: boolean;
 }) {
-  const path = boardPostPath(post.id);
+  const path = boardPostPath(post.publicNumber);
   const metadata = boardPostMetadata(publicOrigin, post);
   return {
     ...metadata,

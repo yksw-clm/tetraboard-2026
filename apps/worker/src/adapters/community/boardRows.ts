@@ -14,7 +14,7 @@ export const boardLikeColumns = `
  (SELECT COUNT(*) ${boardLikesSql}) AS likeCount,
  EXISTS(SELECT 1 ${boardLikesSql} AND l.account_id=?1) AS liked`;
 
-export const boardPostColumns = `p.id,p.game_id AS gameId,p.parent_id AS parentId,
+export const boardPostColumns = `p.id,n.number AS publicNumber,p.game_id AS gameId,p.parent_id AS parentId,
  p.posted_at_ms AS postedAtMs,COALESCE(p.deleted_at_ms,d.requested_at_ms) AS deletedAtMs,
  CASE WHEN u.id IS NOT NULL THEN p.body END AS text,
  CASE WHEN u.id IS NOT NULL THEN p.match_id END AS matchId,
@@ -22,11 +22,13 @@ export const boardPostColumns = `p.id,p.game_id AS gameId,p.parent_id AS parentI
  u.id AS accountId,u.name,u.avatarKey,u.avatarPresetId,u.publicProfileId,
  (SELECT COUNT(*) ${boardLiveRepliesSql}) AS replyCount,${boardLikeColumns}`;
 
-export const boardPostFrom = `FROM board_posts p LEFT JOIN deleted_accounts d ON d.id=p.account_id
+export const boardPostFrom = `FROM board_posts p LEFT JOIN board_post_numbers n ON n.post_id=p.id
+ LEFT JOIN deleted_accounts d ON d.id=p.account_id
  LEFT JOIN user u ON u.id=p.account_id AND p.deleted_at_ms IS NULL AND d.id IS NULL`;
 
 export type BoardRow = {
   id: string;
+  publicNumber: number | null;
   gameId: GameId;
   parentId: string | null;
   postedAtMs: number;
@@ -67,13 +69,11 @@ export function boardReply(row: BoardRow, viewer: string | null): BoardReply {
 }
 
 export function boardPost(row: BoardRow, viewer: string | null): BoardPost | null {
-  const { id, gameId, postedAtMs, replyCount } = row;
-  switch (boardPostVisibility(row.deletedAtMs, replyCount)) {
-    case "notFound":
-      return null;
-    case "placeholder":
-      return { status: "deleted", id, gameId, postedAtMs, replyCount };
-    case "published":
-      return { status: "published", ...boardReply(row, viewer), gameId, replyCount };
-  }
+  const { id, publicNumber, gameId, postedAtMs, replyCount } = row;
+  const visibility = boardPostVisibility(row.deletedAtMs, replyCount);
+  if (visibility === "notFound") return null;
+  if (publicNumber === null) throw new Error("Missing board post number");
+  return visibility === "placeholder"
+    ? { status: "deleted", id, publicNumber, gameId, postedAtMs, replyCount }
+    : { status: "published", ...boardReply(row, viewer), publicNumber, gameId, replyCount };
 }

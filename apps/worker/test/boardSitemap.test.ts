@@ -21,11 +21,21 @@ async function seedPosts(accountId: string, count: number, text: string, thirdTe
     .run();
 }
 
-async function sitemapIds(assets = assetFixture()) {
+async function sitemapNumbers(assets = assetFixture()) {
   const response = await assets.fetch(sitemapPath);
   expect(response.status).toBe(200);
   const xml = await response.text();
-  return [...xml.matchAll(/<loc>[^<]*-(\d{12})<\/loc>/g)].map(([, suffix]) => Number(suffix));
+  return [...xml.matchAll(/<loc>https:\/\/tetraboard\.net\/posts\/([1-9]\d*)<\/loc>/g)].map(
+    ([, number]) => Number(number),
+  );
+}
+
+async function numbersForIds(ids: number[]) {
+  const { results } = await env.APP_DB.prepare(
+    "SELECT post_id,number FROM board_post_numbers",
+  ).all<{ post_id: string; number: number }>();
+  const byId = new Map(results.map(({ post_id, number }) => [post_id, number]));
+  return ids.map((id) => byId.get(postId(id)));
 }
 
 test("候補が1,000件を超えても同じ投稿日時の投稿をID順にたどる", async () => {
@@ -33,7 +43,7 @@ test("候補が1,000件を超えても同じ投稿日時の投稿をID順にた�
   await seedPosts(accountId, 1002, "文".repeat(50), "❤️".repeat(49));
   // 最初のバッチの末尾にある n=3 は書記素の判定で落ちます。
   const expected = Array.from({ length: 1002 }, (_, i) => 1002 - i).filter((n) => n !== 3);
-  expect(await sitemapIds()).toEqual(expected);
+  expect(await sitemapNumbers()).toEqual(await numbersForIds(expected));
 });
 
 test("長い書記素を含む本文は1回数MBに収め、返信がある行には本文を含めない", async () => {
@@ -61,7 +71,35 @@ test("長い書記素を含む本文は1回数MBに収め、返信がある行�
       }),
     } as unknown as D1Database,
   });
-  expect(await sitemapIds(assets)).toEqual(Array.from({ length: count }, (_, i) => count - i));
+  const expected = Array.from({ length: count }, (_, i) => count - i);
+  expect(await sitemapNumbers(assets)).toEqual(await numbersForIds(expected));
   expect(batches.filter((bytes) => bytes > 2)).toHaveLength(2);
   expect(Math.max(...batches)).toBeLessThan(5 * 1024 * 1024);
+});
+
+test("サイトマップはGETとHEADだけを受け付け、読み取り障害時は503を返す", async () => {
+  const assets = assetFixture({ APP_DB: undefined });
+  const rejected = await assets.fetch(sitemapPath, { method: "POST" });
+  expect(rejected.status).toBe(405);
+  expect(rejected.headers.get("Allow")).toBe("GET, HEAD");
+  const response = await assets.fetch(sitemapPath);
+  expect(response.status).toBe(503);
+  expect(response.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
+  expect(response.headers.get("Cache-Control")).toBe("no-store");
+  expect(await response.text()).toBe("Service Unavailable");
+  const head = await assets.fetch(sitemapPath, { method: "HEAD" });
+  expect(head.status).toBe(503);
+  expect(head.body).toBeNull();
+});
+
+test("サイトマップの読み取りが期限を超えたら503を返す", async () => {
+  const assets = assetFixture({
+    APP_DB: {
+      prepare: () => ({ bind: () => ({ all: () => new Promise(() => {}) }) }),
+    } as unknown as D1Database,
+  });
+  const response = await assets.fetch(sitemapPath);
+  expect(response.status).toBe(503);
+  expect(response.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
+  expect(response.headers.get("Cache-Control")).toBe("no-store");
 });

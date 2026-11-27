@@ -54,11 +54,11 @@ function present(n: Notification): Presentation {
         badgeDetails: createElement(NotificationBadgeDetails, { award: n.badge }),
       };
     case "reply": {
-      const { authorName, text, postId, gameId } = n.reply;
+      const { authorName, text, postNumber, gameId } = n.reply;
       return {
         label: "返信",
         title: `${authorName}さんから返信: ${boardPostExcerpt(text, 30)}`,
-        path: boardPostPath(postId),
+        path: boardPostPath(postNumber),
         linkLabel: "投稿を見る",
         subtitle: `${gameCatalog[gameId].name}の掲示板`,
         body: text,

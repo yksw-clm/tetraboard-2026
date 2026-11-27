@@ -14,6 +14,7 @@ import {
   detail,
   likePath,
   openBoard,
+  postNumber,
   postPath,
   repliesPath,
   resetBoard,
@@ -133,6 +134,7 @@ test("退会受付で投稿と返信の本文・添付・再送情報を消し�
   expect(placeholder.post).toEqual({
     status: "deleted",
     id: parentId,
+    publicNumber: post!.publicNumber,
     gameId: "reversi",
     postedAtMs: post!.postedAtMs,
     replyCount: 1,
@@ -236,6 +238,7 @@ test("退会台帳だけが復元された場合も読み取りで隠し、毎�
     {
       status: "deleted",
       id: post.id,
+      publicNumber: await postNumber(post.id),
       gameId: "reversi",
       replyCount: 1,
       postedAtMs: post.postedAtMs,

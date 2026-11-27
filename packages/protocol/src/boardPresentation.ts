@@ -1,4 +1,4 @@
-export const boardPostPath = (id: string) => `/posts/${encodeURIComponent(id)}`;
+export const boardPostPath = (number: number) => `/posts/${number}`;
 
 const segmenter = new Intl.Segmenter("ja", { granularity: "grapheme" });
 

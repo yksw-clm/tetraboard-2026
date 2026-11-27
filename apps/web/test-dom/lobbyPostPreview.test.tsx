@@ -110,6 +110,7 @@ function post(index: number): BoardPublishedPost {
   return {
     id: `aaaaaaaa-aaaa-4aaa-8aaa-${String(index).padStart(12, "0")}`,
     status: "published",
+    publicNumber: 1000 + index,
     attachment: null,
     gameId: game,
     author: { name: `投稿者${index}`, avatarUrl: null, profileTarget: null },
@@ -194,11 +195,11 @@ test("読み込み中は3枠と1つの案内を出し、削除枠を除いて新
   const [first, third, fourth, fifth] = [post(1), post(3), post(4), post(5)];
   first.attachment = { matchId: first.id, position: 0 };
   first.text = `投稿1\n${window.location.origin}/rooms/12345`;
-  const { id, postedAtMs, gameId, replyCount } = post(2);
+  const { id, publicNumber, postedAtMs, gameId, replyCount } = post(2);
   timelineRequests(game)[0]!.respond(
     timeline([
       first,
-      { id, postedAtMs, gameId, replyCount, status: "deleted" },
+      { id, publicNumber, postedAtMs, gameId, replyCount, status: "deleted" },
       third,
       fourth,
       fifth,
@@ -209,7 +210,10 @@ test("読み込み中は3枠と1つの案内を出し、削除枠を除いて新
   expect(section.querySelector('[role="status"]')).toBeNull();
   const links = [...section.querySelectorAll<HTMLAnchorElement>('a[href^="/posts/"]')];
   expect(links.map((link) => link.getAttribute("href"))).toEqual(
-    [first, third, fourth].flatMap(({ id }) => [`/posts/${id}`, `/posts/${id}`]),
+    [first, third, fourth].flatMap(({ publicNumber }) => [
+      `/posts/${publicNumber}`,
+      `/posts/${publicNumber}`,
+    ]),
   );
   expect(links[0]!.textContent).toContain(first.text);
   const firstCard = links[0]!.closest("li")!;
@@ -247,7 +251,7 @@ test("ロビーでは添付のある投稿だけに棋譜付きを表示し、�
 
   const card = cards[0]!;
   const label = [...card.querySelectorAll("p")].find((node) => node.textContent === "棋譜付き");
-  const detailPath = `/posts/${first.id}`;
+  const detailPath = `/posts/${first.publicNumber}`;
   const [detail, replies] = card.querySelectorAll<HTMLAnchorElement>(`a[href="${detailPath}"]`);
   expect(detail?.textContent).toContain(first.text);
   expect(label?.closest("a")).toBe(detail);
@@ -270,7 +274,7 @@ test("ロビーでアバターと名前を押すと投稿のゲームの公開�
   } = await showPosts(viewer, first);
   const playerPath = `/players/${profileId}?game=four-reversi&mode=singles`;
   const profile = card!.querySelector<HTMLAnchorElement>(`a[href="${playerPath}"]`)!;
-  const detail = card!.querySelector<HTMLAnchorElement>(`a[href="/posts/${first.id}"]`)!;
+  const detail = card!.querySelector<HTMLAnchorElement>(`a[href="/posts/${first.publicNumber}"]`)!;
   expect(profile?.textContent).toBe(first.author.name);
   expect(profile.querySelector("svg")).not.toBeNull();
   expect(profile.parentElement?.closest("a")).toBeNull();
@@ -291,7 +295,7 @@ test("ロビーの返信リンクは投稿者リンクと独立してカード�
     view,
     cards: [card],
   } = await showPosts(viewer, first);
-  const detailPath = `/posts/${first.id}`;
+  const detailPath = `/posts/${first.publicNumber}`;
   const [detail, replies] = card!.querySelectorAll<HTMLAnchorElement>(`a[href="${detailPath}"]`);
   expect(card!.querySelector("header a")?.textContent).toBe(first.author.name);
   expect(detail?.textContent).toBe(first.text);
@@ -322,7 +326,7 @@ test("ロビーのいいねは詳細へ移らず、即時表示して応答で�
   expect(button.closest("a")).toBeNull();
   expect(button.previousElementSibling?.textContent).toContain("返信 2 件");
   expect(button.classList.contains("z-10")).toBe(true);
-  expect(link.getAttribute("href")).toBe(`/posts/${first.id}`);
+  expect(link.getAttribute("href")).toBe(`/posts/${first.publicNumber}`);
 
   act(() => button.click());
   const request = requests.at(-1)!;
@@ -348,7 +352,7 @@ test("ロビーのいいねは詳細へ移らず、即時表示して応答で�
   expect(path?.textContent).toBe(gameCatalog[game].lobbyPath);
   act(() => link.click());
   await flush();
-  expect(path?.textContent).toBe(`/posts/${first.id}`);
+  expect(path?.textContent).toBe(`/posts/${first.publicNumber}`);
 });
 
 test("ロビーのいいねを取り消すと即時表示し、失敗したときは元に戻して理由を示す", async () => {
@@ -521,9 +525,12 @@ test.each([true, false])(
   async (acceptingPosts) => {
     const section = preview(show(game));
     await flush();
-    const { id, postedAtMs, gameId, replyCount } = post(1);
+    const { id, publicNumber, postedAtMs, gameId, replyCount } = post(1);
     timelineRequests(game)[0]!.respond(
-      timeline([{ id, postedAtMs, gameId, replyCount, status: "deleted" }], acceptingPosts),
+      timeline(
+        [{ id, publicNumber, postedAtMs, gameId, replyCount, status: "deleted" }],
+        acceptingPosts,
+      ),
     );
     await flush();
     expect(section.textContent).toContain("まだ投稿はありません。");

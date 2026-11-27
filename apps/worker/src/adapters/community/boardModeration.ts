@@ -13,7 +13,8 @@ export async function readBoardModeration(db: D1Database, now: number) {
   const [settings, reports, stoppedSenders] = await db.batch([
     db.prepare("SELECT accepting FROM board_settings WHERE id=1"),
     db
-      .prepare(`SELECT r.id,r.post_id AS postId,r.parent_id AS parentId,r.game_id AS gameId,r.reason,
+      .prepare(`SELECT r.id,r.post_id AS postId,r.parent_id AS parentId,
+ n.number AS postNumber,r.game_id AS gameId,r.reason,
  CASE WHEN d.id IS NOT NULL THEN '退会したプレイヤー' ELSE r.author_name END AS authorName,
  r.body AS text,r.posted_at_ms AS postedAtMs,r.reported_at_ms AS reportedAtMs,r.status,
  r.moderator_deleted_at_ms AS moderatorDeletedAtMs,
@@ -23,6 +24,7 @@ export async function readBoardModeration(db: D1Database, now: number) {
  (d.id IS NULL AND COALESCE(s.stopped,0)=1) AS authorStopped,
  (d.id IS NOT NULL OR r.author_account_id IS NULL) AS authorWithdrawn
  FROM board_reports r LEFT JOIN board_posts p ON p.id=r.post_id
+ LEFT JOIN board_post_numbers n ON n.post_id=COALESCE(r.parent_id,r.post_id)
  LEFT JOIN deleted_accounts d ON d.id=r.author_account_id
  LEFT JOIN board_senders s ON s.account_id=r.author_account_id
  WHERE r.reported_at_ms>?1 ORDER BY r.reported_at_ms DESC,r.id DESC LIMIT 500`)
@@ -62,14 +64,22 @@ async function deleteBoardPost(db: D1Database, postId: string, now: number) {
 export async function moderateBoard(db: D1Database, input: BoardModeration, now: number) {
   switch (input.action) {
     case "delete":
-      return deleteBoardPost(db, input.postId, now);
     case "stop": {
+      const postId =
+        "postId" in input
+          ? input.postId
+          : await db
+              .prepare("SELECT post_id FROM board_post_numbers WHERE number=?")
+              .bind(input.postNumber)
+              .first<string>("post_id");
+      if (postId === null) return false;
+      if (input.action === "delete") return deleteBoardPost(db, postId, now);
       const result = await db
         .prepare(`INSERT INTO board_senders(account_id,stopped)
  SELECT p.account_id,? FROM board_posts p
  WHERE p.id=? AND p.account_id IS NOT NULL AND ${accountNotDeletedSql("p.account_id")}
  ON CONFLICT(account_id) DO UPDATE SET stopped=excluded.stopped`)
-        .bind(Number(input.stopped), input.postId)
+        .bind(Number(input.stopped), postId)
         .run();
       return Boolean(result.meta.changes);
     }

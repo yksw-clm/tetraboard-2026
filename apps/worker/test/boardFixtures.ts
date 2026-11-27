@@ -10,7 +10,7 @@ import worker from "../src/worker";
 import { origin } from "./accountFixtures";
 
 export const boardPath = "/games/reversi/posts";
-export const postPath = (id: string) => `/posts/${id}`;
+export const postPath = (id: string | number) => `/posts/${id}`;
 export const repliesPath = (id: string) => `${postPath(id)}/replies`;
 export const likePath = (id: string) => `${postPath(id)}/like`;
 
@@ -67,11 +67,19 @@ export async function timeline(suffix = "", cookie?: string) {
   return boardTimelineSchema.parse(await response.json());
 }
 
-export async function detail(id: string, cookie?: string) {
+export async function detail(id: string | number, cookie?: string) {
   const response = await boardRequest(postPath(id), { headers: cookie ? { Cookie: cookie } : {} });
   expect(response.status).toBe(200);
   expect(response.headers.get("Cache-Control")).toBe("no-store");
   return boardDetailSchema.parse(await response.json());
+}
+
+export async function postNumber(id: string) {
+  const number = await env.APP_DB.prepare("SELECT number FROM board_post_numbers WHERE post_id=?")
+    .bind(id)
+    .first<number>("number");
+  if (number === null) throw new Error(`Missing board post number for ${id}`);
+  return number;
 }
 
 export async function resetBoard() {

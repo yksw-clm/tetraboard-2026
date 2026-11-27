@@ -60,8 +60,8 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
     pages.push(document.head.innerHTML);
     stop();
     router.dispose();
-    updatePageMetadata("/posts/example", undefined, undefined, undefined, undefined, boardPageMetadata({
-      post: { id: "example", status: "published", gameId: "shogi", text: "開発の投稿" },
+    updatePageMetadata("/posts/413", undefined, undefined, undefined, undefined, boardPageMetadata({
+      post: { id: "example", publicNumber: 413, status: "published", gameId: "shogi", text: "開発の投稿" },
       replies: [],
       indexable: true,
     }));
@@ -115,7 +115,7 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
   expect(output.sitemap).not.toContain("<loc>");
   expect(output.sitemap).not.toContain("<lastmod>");
   expect(output.robotsText).toBe("User-agent: *\nAllow: /\n");
-  expect(output.boardHead).toContain(`href="${developmentOrigin}/posts/example"`);
+  expect(output.boardHead).toContain(`href="${developmentOrigin}/posts/413"`);
   expect(output.boardHead).toContain(`content="${developmentOrigin}/assets/ogp/shogi.png"`);
   for (const page of [
     output.home,

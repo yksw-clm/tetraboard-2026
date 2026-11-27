@@ -4,10 +4,12 @@ import {
   type BoardPost,
   type BoardReply,
 } from "@tetraboard/protocol/board";
+import { boardPostPath } from "@tetraboard/protocol/board-presentation";
 import { gameCatalog, isGameId, type GameId } from "@tetraboard/protocol/games";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { updatePageMetadata } from "../../seo/pageMetadata";
+import { matchedBoardPostNumber } from "../../shared/siteNavigation";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { AppPageLoading, AppPageState } from "../../shared/ui/AppPageState";
@@ -22,7 +24,7 @@ import { BoardMediaContext, createBoardMedia, refreshBoardMedia } from "./boardM
 import {
   boardLoadError,
   boardMissing,
-  boardPostPath,
+  boardPostApiPath,
   boardEntriesRequest,
   boardTimelinePath,
   readDetail,
@@ -264,23 +266,29 @@ function BoardTimeline({ game }: { game: GameId }) {
 }
 
 export function BoardDetailPage() {
-  const { id = "" } = useParams();
+  const { pathname, search, hash, state } = useLocation();
+  const { id } = useParams();
+  const number = matchedBoardPostNumber(pathname, id);
   const viewer = useViewerKey();
-  return <BoardDetail key={`${id}:${viewer}`} id={id} />;
+  if (number === null) return <Missing />;
+  const path = boardPostPath(number);
+  if (pathname.replace(/\/$/, "") !== path)
+    return <Navigate to={{ pathname: path, search, hash }} state={state} replace />;
+  return <BoardDetail key={`${number}:${viewer}`} number={number} />;
 }
 
-function BoardDetail({ id }: { id: string }) {
+function BoardDetail({ number }: { number: number }) {
   const navigate = useNavigate();
   const [media] = useState(createBoardMedia);
   const { pathname } = useLocation();
-  const path = boardPostPath(id);
+  const path = boardPostPath(number);
   const restored = useRegistrationRestore();
   const readFirst = useCallback(
     async (signal: AbortSignal) => {
-      const firstPage = await readDetail(id, signal);
+      const firstPage = await readDetail(number, signal);
       return { ...firstPage, firstPage };
     },
-    [id],
+    [number],
   );
   const board = useBoardData(readFirst);
   const { data, pending, failure } = board;
@@ -300,10 +308,10 @@ function BoardDetail({ id }: { id: string }) {
   const removedReplies = useRef(new Set<string>());
 
   const more = (retry = false) => {
-    const after = data?.nextCursor;
-    if (!after) return;
+    if (!data?.nextCursor) return;
+    const { nextCursor, post } = data;
     void board.more(async (signal) => {
-      const next = await readReplies(id, signal, after);
+      const next = await readReplies(post.id, signal, nextCursor);
       return (current) => ({
         ...current,
         nextCursor: next.nextCursor,
@@ -318,9 +326,9 @@ function BoardDetail({ id }: { id: string }) {
   ) {
     if (!data) return;
     const { removedId, reply } = change;
-    if (removedId && removedId !== id) removedReplies.current.add(removedId);
+    if (removedId && removedId !== data.post.id) removedReplies.current.add(removedId);
     try {
-      const next = await readDetailOrMissing(id, signal);
+      const next = await readDetailOrMissing(number, signal);
       signal.throwIfAborted();
       if (!next) {
         updatePageMetadata(pathname, undefined, undefined, undefined, undefined, null);
@@ -476,7 +484,7 @@ function BoardDetail({ id }: { id: string }) {
           write={board.write}
           onSubmit={async (input, signal) => {
             const response = await boardEntriesRequest(
-              path + "/replies",
+              `${boardPostApiPath(post.id)}/replies`,
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

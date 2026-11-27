@@ -7,7 +7,7 @@ export { boardPostPath };
 
 export function boardPostMetadata(origin: string, post: BoardPost) {
   const gameName = gameCatalog[post.gameId].name;
-  const canonical = new URL(boardPostPath(post.id), origin).href;
+  const canonical = new URL(boardPostPath(post.publicNumber), origin).href;
   const titleSuffix = `｜${gameName}の掲示板 | TetraBoard`;
   if (post.status === "deleted") {
     return {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { badgeNotificationSchema } from "./badgeNotifications";
+import { boardPostNumberSchema } from "./boardIds";
 import { gameIdSchema } from "./gameSchemas";
 
 export const notificationNumberSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -36,6 +37,7 @@ export const notificationSchema = z.discriminatedUnion("kind", [
     kind: z.literal("reply"),
     reply: z.object({
       postId: z.string(),
+      postNumber: boardPostNumberSchema,
       replyId: z.string(),
       gameId: gameIdSchema,
       authorName: z.string(),

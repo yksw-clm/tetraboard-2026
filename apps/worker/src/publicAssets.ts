@@ -1,4 +1,6 @@
 import { legalHtml } from "./routes/legalHtml";
+import { parseBoardPostNumber } from "@tetraboard/protocol/board";
+import { boardPostPath } from "@tetraboard/protocol/board-presentation";
 import { fourShogiRulesPath, gameCatalog, gameIds, isGameId } from "@tetraboard/protocol/games";
 import { serveRoomShareHtml } from "./roomShareHtml";
 import { serveMatchShareHtml } from "./matchSharing/html";
@@ -100,6 +102,17 @@ function redirectToPath(url: URL, path: string) {
   return Response.redirect(url.toString(), 308);
 }
 
+function serveBoardDetailAsset(request: Request, url: URL, assets: Fetcher, env?: Env) {
+  const id = boardDetailPath.exec(url.pathname)?.[1] ?? "";
+  // URL の区切り文字を展開せず、ASCII 数字の符号化だけを戻します。
+  const number = parseBoardPostNumber(id.replace(/%3([0-9])/g, "$1"));
+  if (number !== null) {
+    const path = boardPostPath(number);
+    if (url.pathname !== path) return redirectToPath(url, path);
+  }
+  return serveBoardHtml(request, assets, env, number);
+}
+
 export async function servePublicAssets(
   request: Request,
   assets: Fetcher,
@@ -118,8 +131,7 @@ export async function servePublicAssets(
     return isGameId(boardTimeline[1])
       ? html(await serveBoardHtml(request, assets, env))
       : serveNotFoundAsset(request, url, assets);
-  if (boardDetail && path.endsWith("/")) return redirectToPath(url, path.slice(0, -1));
-  if (boardDetail) return html(await serveBoardHtml(request, assets, env, boardDetail[1]));
+  if (boardDetail) return html(await serveBoardDetailAsset(request, url, assets, env));
   if (boardSitemap && env?.APP_ORIGIN === "https://tetraboard.net")
     return serveBoardSitemap(request, env);
   if (path === "/privacy" || path === "/terms")

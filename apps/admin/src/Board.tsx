@@ -2,9 +2,11 @@ import {
   boardAdminSchema,
   boardPostIdSchema,
   boardReportReasonLabels,
+  parseBoardPostNumber,
   type BoardAdminReport,
   type BoardModeration,
 } from "@tetraboard/protocol/board";
+import { boardPostPath } from "@tetraboard/protocol/board-presentation";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { useState } from "react";
 import { adminMutation } from "./api";
@@ -26,21 +28,28 @@ const parseBoard = (input: unknown) => boardAdminSchema.parse(input);
 
 type Operate = (input: BoardModeration, label: string) => void;
 
-function reportPostId(value: string) {
+function boardOperationTarget(value: string) {
   const trimmed = value.trim();
-  if (!trimmed.startsWith("/") && !/^https?:\/\//i.test(trimmed)) return trimmed;
-  try {
-    const url = new URL(trimmed, window.location.origin);
-    return url.pathname.match(/^\/posts\/([^/]+)$/)?.[1] ?? "";
-  } catch {
-    return "";
+  let id = trimmed;
+  if (trimmed.startsWith("/") || /^https?:\/\//i.test(trimmed)) {
+    try {
+      const url = new URL(trimmed, window.location.origin);
+      if (url.origin !== window.location.origin) return null;
+      id = url.pathname.match(/^\/posts\/([^/]+)\/?$/)?.[1] ?? "";
+    } catch {
+      return null;
+    }
   }
+  const postNumber = parseBoardPostNumber(id);
+  if (postNumber !== null) return { postNumber };
+  const parsed = boardPostIdSchema.safeParse(id);
+  return parsed.success ? { postId: parsed.data } : null;
 }
 
 function BoardOperationById({ operate, disabled }: { operate: Operate; disabled: boolean }) {
   const [value, setValue] = useState("");
-  const id = boardPostIdSchema.safeParse(reportPostId(value));
-  const invalid = value.trim().length > 0 && !id.success;
+  const target = boardOperationTarget(value);
+  const invalid = value.trim().length > 0 && target === null;
 
   return (
     <Card className="gap-3 p-5">
@@ -56,16 +65,15 @@ function BoardOperationById({ operate, disabled }: { operate: Operate; disabled:
       {invalid && <p role="alert">投稿の ID または URL を確認してください。</p>}
       <div className="flex flex-wrap gap-2">
         <Button
-          disabled={disabled || !id.success}
-          onClick={() => id.success && operate({ action: "delete", postId: id.data }, "投稿を削除")}
+          disabled={disabled || !target}
+          onClick={() => target && operate({ action: "delete", ...target }, "投稿を削除")}
         >
           削除
         </Button>
         <Button
-          disabled={disabled || !id.success}
+          disabled={disabled || !target}
           onClick={() =>
-            id.success &&
-            operate({ action: "stop", postId: id.data, stopped: true }, "投稿者を投稿停止")
+            target && operate({ action: "stop", ...target, stopped: true }, "投稿者を投稿停止")
           }
         >
           投稿者を投稿停止
@@ -84,8 +92,15 @@ function ReportRow({
   disabled: boolean;
   operate: Operate;
 }) {
-  const { postId, parentId, authorStopped, authorWithdrawn, postDeleted, moderatorDeletedAtMs } =
-    report;
+  const {
+    postId,
+    parentId,
+    postNumber,
+    authorStopped,
+    authorWithdrawn,
+    postDeleted,
+    moderatorDeletedAtMs,
+  } = report;
   const stopLabel = authorStopped ? "投稿停止を解除" : "投稿者を投稿停止";
   return (
     <article className="grid min-w-0 gap-2 border-b border-border py-3">
@@ -102,14 +117,16 @@ function ReportRow({
           ` · 運営が削除 ${new Date(moderatorDeletedAtMs).toLocaleString("ja")}`}
       </p>
       <p className="whitespace-pre-wrap wrap-anywhere">{report.text}</p>
-      <a
-        href={`/posts/${parentId ?? postId}`}
-        className="justify-self-start text-primary underline"
-        target="_blank"
-        rel="noreferrer"
-      >
-        公開ページを開く
-      </a>
+      {postNumber !== null && (
+        <a
+          href={boardPostPath(postNumber)}
+          className="justify-self-start text-primary underline"
+          target="_blank"
+          rel="noreferrer"
+        >
+          公開ページを開く
+        </a>
+      )}
       <div className="flex flex-wrap gap-2">
         {!postDeleted && (
           <Button

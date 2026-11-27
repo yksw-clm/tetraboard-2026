@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { BoardPublishedPost } from "@tetraboard/protocol/board";
 import { AppCard } from "../../shared/ui/AppCard";
-import { boardPostPath } from "../board/boardApi";
+import { boardPostPath } from "@tetraboard/protocol/board-presentation";
 import { BoardAuthor } from "../board/BoardAuthor";
 import { BoardLikeButton, BoardReplyCount, type BoardLike } from "../board/BoardReactions";
 import type { BoardWrite } from "../board/useBoardData";
@@ -34,7 +34,7 @@ function PostPreview({
 
   const date = new Date(post.postedAtMs);
   const iso = Number.isNaN(date.getTime()) ? undefined : date.toISOString();
-  const detailPath = boardPostPath(post.id);
+  const detailPath = boardPostPath(post.publicNumber);
   return (
     <AppCard density="compact" className="relative isolate min-w-0">
       <header className="flex min-w-0 items-center gap-2">

@@ -1,4 +1,4 @@
-import { boardPostIdSchema, scanBoardLinks, type BoardReply } from "@tetraboard/protocol/board";
+import { scanBoardLinks, type BoardReply } from "@tetraboard/protocol/board";
 import {
   boardPostMetadata,
   boardPostPath,
@@ -117,26 +117,34 @@ function rewriteBoardHtml(response: Response, page: BoardDetail, origin: string)
     .transform(response);
 }
 
-async function readBoardDetail(env: Env | undefined, id: string) {
-  if (!boardPostIdSchema.safeParse(id).success) return null;
+async function readBoardDetail(env: Env | undefined, number: number) {
   if (!env) return undefined;
   return readWithinDeadline(
     () =>
-      new D1BoardReader(env.APP_DB).detail(id, null, env.APP_ORIGIN === "https://tetraboard.net"),
+      new D1BoardReader(env.APP_DB).detail(
+        number,
+        null,
+        env.APP_ORIGIN === "https://tetraboard.net",
+      ),
     "Published board post unavailable",
   );
 }
 
-export async function serveBoardHtml(request: Request, assets: Fetcher, env?: Env, id?: string) {
+export async function serveBoardHtml(
+  request: Request,
+  assets: Fetcher,
+  env?: Env,
+  number?: number | null,
+) {
   const [asset, page] = await Promise.all([
     fetchUnconditionalAsset(request, assets, "/app.html"),
-    id === undefined ? null : readBoardDetail(env, id),
+    typeof number === "number" ? readBoardDetail(env, number) : null,
   ]);
   const headers = dynamicAssetHeaders(asset);
   if (asset.ok && page?.indexable) headers.delete("X-Robots-Tag");
   else headers.set("X-Robots-Tag", "noindex, follow");
   let status = asset.status;
-  if (asset.ok && id !== undefined && !page) status = page === null ? 404 : 503;
+  if (asset.ok && number !== undefined && !page) status = page === null ? 404 : 503;
   if (request.method === "HEAD") {
     await asset.body?.cancel();
     return new Response(null, { status, headers });
@@ -160,8 +168,8 @@ export async function serveBoardSitemap(request: Request, env: Env): Promise<Res
   }
   headers.set("Content-Type", "application/xml; charset=utf-8");
   if (request.method === "HEAD") return new Response(null, { headers });
-  const entries = posts.map(({ id, lastModifiedAtMs }) =>
-    sitemapEntry(env.APP_ORIGIN, boardPostPath(id), lastModifiedAtMs),
+  const entries = posts.map(({ publicNumber, lastModifiedAtMs }) =>
+    sitemapEntry(env.APP_ORIGIN, boardPostPath(publicNumber), lastModifiedAtMs),
   );
   return new Response(
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entries.join("")}</urlset>`,

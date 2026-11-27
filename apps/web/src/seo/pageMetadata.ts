@@ -1,7 +1,9 @@
+import { boardPostPath } from "@tetraboard/protocol/board-presentation";
 import { fourShogiRulesPath, type GameId } from "@tetraboard/protocol/games";
 import type { DataRouter } from "react-router";
 import type { RoomLoaderData } from "../features/room/roomLoader";
 import type { MatchReplayData } from "../features/room/matchReplayLoader";
+import { matchedBoardPostNumber } from "../shared/siteNavigation";
 import { howToPlayMetadata, howToPlayPath } from "./howToPlayMetadata";
 import {
   lobbyCanonical,
@@ -46,12 +48,18 @@ export function isInitialServerPage(path: string): boolean {
   return path === initialServerPagePath;
 }
 
+function metadataPath({ location, matches }: DataRouter["state"]): string {
+  // 履歴の正規化で同じ投稿の初期メタ情報を消さないようにします。
+  const number = matchedBoardPostNumber(location.pathname, matches.at(-1)?.params.id);
+  return number === null ? location.pathname.replace(/\/$/, "") : boardPostPath(number);
+}
+
 export function startPageMetadata(router: DataRouter, root?: HTMLElement): () => void {
-  let currentPath = router.state.location.pathname.replace(/\/$/, "");
+  let currentPath = metadataPath(router.state);
   initialServerPagePath = isServerPage(currentPath) ? currentPath : undefined;
   function syncMetadata(state: DataRouter["state"]) {
     const { pathname } = state.location;
-    const nextPath = pathname.replace(/\/$/, "");
+    const nextPath = metadataPath(state);
     if (nextPath !== currentPath) {
       document.head.querySelector('script[type="application/ld+json"]')?.remove();
       initialServerPagePath = undefined;

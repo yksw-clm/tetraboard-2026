@@ -13,6 +13,7 @@ import {
   boardReplyResultSchema,
   boardReportInputSchema,
   boardTimelineSchema,
+  parseBoardPostNumber,
   type BoardPost,
   type BoardReply,
 } from "@tetraboard/protocol/board";
@@ -87,10 +88,12 @@ boardRoutes.get(gamePath, async (c) => {
 });
 
 boardRoutes.get("/posts/:id", async (c) => {
-  const id = boardPostIdSchema.safeParse(c.req.param("id"));
-  if (!id.success) return c.notFound();
+  const param = c.req.param("id");
+  const pathId = new URL(c.req.url).pathname.split("/").at(-1) ?? "";
+  const id = parseBoardPostNumber(pathId) ?? boardPostIdSchema.safeParse(param).data;
+  if (id === undefined) return c.notFound();
   const page = await new D1BoardReader(c.env.APP_DB).detail(
-    id.data,
+    id,
     c.get("user")?.id ?? null,
     c.env.APP_ORIGIN === "https://tetraboard.net",
   );

@@ -29,6 +29,13 @@
       "when": 1795737722051,
       "tag": "0003_board_reply_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1795772765873,
+      "tag": "0004_board_post_numbers",
+      "breakpoints": true
     }
   ]
 }

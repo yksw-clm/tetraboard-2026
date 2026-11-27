@@ -3,7 +3,7 @@ import { boardDetailSchema } from "@tetraboard/protocol/board";
 import { gameIds } from "@tetraboard/protocol/games";
 import { afterEach, expect, test, vi } from "vitest";
 import { accountFixture } from "./accountFixtures";
-import { boardPostFixture, boardRequest, postPath, resetBoard } from "./boardFixtures";
+import { boardPostFixture, boardRequest, postNumber, postPath, resetBoard } from "./boardFixtures";
 import { assetFixture, visitMetaTag } from "./publicAssetFixtures";
 
 afterEach(async () => {
@@ -100,35 +100,52 @@ test("詳細のHTMLは公開中と返信の残った枠を200、それ以外を4
     ),
   ]);
   const assets = assetFixture();
-  await expectPage(assets, postPath(live.id), 200);
-  await expectPage(assets, postPath(thread.id), 200);
-  await expectPage(assets, postPath(empty.id), 404);
-  await expectPage(assets, postPath(crypto.randomUUID()), 404);
-  await expectPage(assets, postPath("not-a-uuid"), 404);
+  await expectPage(assets, postPath(await postNumber(live.id)), 200);
+  await expectPage(assets, postPath(await postNumber(thread.id)), 200);
+  await expectPage(assets, postPath(await postNumber(empty.id)), 404);
+  const number = await postNumber(live.id);
+  for (const invalid of [
+    live.id,
+    reply.id,
+    0,
+    -1,
+    "1.5",
+    "1e2",
+    `0${number}`,
+    `%30${number}`,
+    "9007199254740992",
+    "9007199254740991",
+    `${number}%2F`,
+    `${number}%3Fjunk`,
+    `${number}%23junk`,
+    `${number}%0A`,
+  ]) {
+    await expectPage(assets, postPath(invalid), 404);
+  }
 });
 
-test("投稿詳細の末尾スラッシュはIDの形にかかわらずクエリを保持して308で転送する", async () => {
+test("数字の投稿詳細は符号化と末尾スラッシュを正規化し、クエリを保持して308で転送する", async () => {
   const { id: accountId } = await accountFixture();
   const post = boardPostFixture({ accountId });
   await post.statement.run();
   const assets = assetFixture();
   const query = "?source=board&label=a%2Fb";
-  for (const [path, status] of [
-    [postPath(post.id), 200],
-    [postPath("not-a-uuid"), 404],
-  ] as const) {
+  const path = postPath(await postNumber(post.id));
+  const encoded = path.replace(/\d/, (digit) => `%3${digit}`);
+  for (const source of [encoded, `${encoded}/`, `${path}/`]) {
     for (const method of ["GET", "HEAD"]) {
-      const response = await assets.fetch(`${path}/${query}`, { method });
+      const response = await assets.fetch(source + query, { method });
       expect(response.status).toBe(308);
       expect(response.headers.get("Location")).toBe(`${origin}${path}${query}`);
     }
-    await expectPage(assets, path + query, status);
   }
+  await expectPage(assets, path + query, 200);
+  await expectPage(assets, postPath(post.id) + "/" + query, 404);
 });
 
 test("詳細がD1の読み取りに失敗しても再試行できるHTMLを503で返す", async () => {
   const assets = assetFixture({ APP_DB: undefined });
-  await expectPage(assets, postPath(crypto.randomUUID()), 503);
+  await expectPage(assets, postPath(1), 503);
 });
 
 test("詳細の読み取りが期限を超えたらHEADとGETを503で返す", async () => {
@@ -138,7 +155,7 @@ test("詳細の読み取りが期限を超えたらHEADとGETを503で返す", a
       batch: () => new Promise(() => {}),
     } as unknown as D1Database,
   });
-  await expectPage(assets, postPath(crypto.randomUUID()), 503);
+  await expectPage(assets, postPath(1), 503);
 }, 7000);
 
 test("検索対象の投稿はヘッド、全文、リンク、公開中の返信をHTMLと構造化データに出す", async () => {
@@ -180,7 +197,7 @@ test("検索対象の投稿はヘッド、全文、リンク、公開中の返�
     env.APP_DB.prepare("UPDATE user SET name=? WHERE id=?").bind('登録名 <"', author.id),
   ]);
 
-  const path = postPath(post.id);
+  const path = postPath(await postNumber(post.id));
   const canonical = origin + path;
   const assets = assetFixture();
   const response = await assets.fetch(path);
@@ -269,7 +286,7 @@ test("退会で枠が残る投稿は元の本文・投稿者・いいねを出�
     withdraw(departing.id, now),
     env.APP_DB.prepare("UPDATE user SET name=? WHERE id=?").bind("退会した親投稿者", departing.id),
   ]);
-  const response = await assetFixture().fetch(postPath(post.id));
+  const response = await assetFixture().fetch(postPath(await postNumber(post.id)));
   expect(response.status).toBe(200);
   expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
   const html = await response.text();
@@ -292,9 +309,9 @@ test("詳細APIはincludeIndexable=1を指定した場合だけindexableを返�
   const post = boardPostFixture({ accountId, postedAtMs: yesterday, text: "文".repeat(50) });
   await post.statement.run();
   const bindings: Env = { ...env, APP_ORIGIN: origin };
-  const path = postPath(post.id);
+  const path = postPath(await postNumber(post.id));
   const legacySchema = boardDetailSchema.omit({ indexable: true });
-  const legacy = await boardRequest(path, undefined, bindings);
+  const legacy = await boardRequest(postPath(post.id), undefined, bindings);
   expect(legacy.status).toBe(200);
   const detail = legacySchema.parse(await legacy.json());
   const disabled = await boardRequest(path + "?includeIndexable=0", undefined, bindings);
@@ -345,11 +362,15 @@ test("API・HTML・サイトマップの検索判定は削除状態、投稿の�
   expect(sitemap.status).toBe(200);
   const xml = await sitemap.text();
   expect(xml.match(/<loc>/g)).toHaveLength(3);
-  expect(xml.indexOf(postPath(fifty.id))).toBeLessThan(xml.indexOf(postPath(answered.id)));
-  expect(xml.indexOf(postPath(nul.id))).toBeLessThan(xml.indexOf(postPath(answered.id)));
+  expect(xml.indexOf(postPath(await postNumber(fifty.id)))).toBeLessThan(
+    xml.indexOf(postPath(await postNumber(answered.id))),
+  );
+  expect(xml.indexOf(postPath(await postNumber(nul.id)))).toBeLessThan(
+    xml.indexOf(postPath(await postNumber(answered.id))),
+  );
   for (const { id } of posts) {
     const indexable = id === fifty.id || id === answered.id || id === nul.id;
-    const path = postPath(id);
+    const path = postPath(await postNumber(id));
     const status = id === missing.id ? 404 : 200;
     const api = await boardRequest(path + indexableQuery, undefined, {
       ...env,
@@ -379,7 +400,7 @@ test("初期HTMLと構造化データの返信は古い順で最初の50件に�
     }),
   );
   await env.APP_DB.batch([post.statement, ...replies.map(({ statement }) => statement)]);
-  const response = await assetFixture().fetch(postPath(post.id));
+  const response = await assetFixture().fetch(postPath(await postNumber(post.id)));
   const html = await response.text();
   expect(structuredData(html).comment.map(({ text }: { text: string }) => text)).toEqual(
     replies.slice(0, 50).map(({ text }) => text),
@@ -412,8 +433,8 @@ test("サイトマップのlastmodは返信とその削除で進み、削除済�
     parentId: post.id,
   });
   const assets = assetFixture();
-  const entry = (date: string) =>
-    `<url><loc>${origin}${postPath(post.id)}</loc><lastmod>2026-11-${date}</lastmod></url>`;
+  const entry = (path: string, date: string) =>
+    `<url><loc>${origin}${path}</loc><lastmod>2026-11-${date}</lastmod></url>`;
   const read = async () => {
     const response = await assets.fetch(sitemapPath, { headers: { "If-None-Match": '"fixture"' } });
     expect(response.status).toBe(200);
@@ -422,16 +443,17 @@ test("サイトマップのlastmodは返信とその削除で進み、削除済�
     return response.text();
   };
   await post.statement.run();
+  const path = postPath(await postNumber(post.id));
   expect(await read()).toBe(
-    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entry("21")}</urlset>`,
+    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entry(path, "21")}</urlset>`,
   );
   await env.APP_DB.batch([reply.statement, withdrawn.statement]);
-  expect(await read()).toContain(entry("22"));
+  expect(await read()).toContain(entry(path, "22"));
   await removePost(reply.id, Date.UTC(2026, 10, 23, 23)).run();
-  expect(await read()).toContain(entry("23"));
+  expect(await read()).toContain(entry(path, "23"));
   await withdraw(departing.id, Date.UTC(2026, 10, 24, 23)).run();
   const afterWithdrawal = await read();
-  expect(afterWithdrawal).toContain(entry("24"));
+  expect(afterWithdrawal).toContain(entry(path, "24"));
   await withdraw(removedReplyAuthor.id, Date.UTC(2026, 10, 25, 23)).run();
   expect(await read()).toBe(afterWithdrawal);
   await addLike(post.id, accountId, Date.UTC(2026, 10, 26, 23)).run();
@@ -453,7 +475,7 @@ test("開発環境では条件を満たす投稿もnoindexで、サイトマッ�
   await post.statement.run();
   const APP_ORIGIN = "https://tetraboard-dev.chaossi-lab.workers.dev";
   const assets = assetFixture({ APP_ORIGIN });
-  const path = postPath(post.id);
+  const path = postPath(await postNumber(post.id));
   const api = await boardRequest(path + indexableQuery, undefined, { ...env, APP_ORIGIN });
   expect(boardDetailSchema.parse(await api.json()).indexable).toBe(false);
   await expectPage(
@@ -470,31 +492,4 @@ test("開発環境では条件を満たす投稿もnoindexで、サイトマッ�
   const head = await assets.fetch(sitemapPath, { method: "HEAD" });
   expect(head.status).toBe(404);
   expect(head.body).toBeNull();
-});
-
-test("サイトマップはGETとHEADだけを受け付け、読み取り障害時は503を返す", async () => {
-  const assets = assetFixture({ APP_DB: undefined });
-  const rejected = await assets.fetch(sitemapPath, { method: "POST" });
-  expect(rejected.status).toBe(405);
-  expect(rejected.headers.get("Allow")).toBe("GET, HEAD");
-  const response = await assets.fetch(sitemapPath);
-  expect(response.status).toBe(503);
-  expect(response.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
-  expect(response.headers.get("Cache-Control")).toBe("no-store");
-  expect(await response.text()).toBe("Service Unavailable");
-  const head = await assets.fetch(sitemapPath, { method: "HEAD" });
-  expect(head.status).toBe(503);
-  expect(head.body).toBeNull();
-});
-
-test("サイトマップの読み取りが期限を超えたら503を返す", async () => {
-  const assets = assetFixture({
-    APP_DB: {
-      prepare: () => ({ bind: () => ({ all: () => new Promise(() => {}) }) }),
-    } as unknown as D1Database,
-  });
-  const response = await assets.fetch(sitemapPath);
-  expect(response.status).toBe(503);
-  expect(response.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
-  expect(response.headers.get("Cache-Control")).toBe("no-store");
 });

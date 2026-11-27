@@ -3,16 +3,14 @@ import {
   boardDetailSchema,
   boardRepliesSchema,
 } from "@tetraboard/protocol/board";
-import { boardPostPath } from "@tetraboard/protocol/board-pages";
 import type { GameId } from "@tetraboard/protocol/games";
-
-export { boardPostPath };
 
 export const boardLoadError = "投稿を取得できませんでした。";
 export const boardMissing =
   "投稿が見つかりません。削除されたか、URL が間違っている可能性があります。";
 
 export const boardTimelinePath = (game: GameId) => `/games/${game}/posts`;
+export const boardPostApiPath = (id: string | number) => `/posts/${encodeURIComponent(id)}`;
 
 export class BoardRequestError extends Error {
   readonly status: number;
@@ -67,14 +65,14 @@ export async function readTimeline(game: GameId, signal: AbortSignal, before?: s
   return boardTimelineSchema.parse(await response.json());
 }
 
-export async function readDetail(id: string, signal: AbortSignal) {
-  const response = await boardEntriesRequest(boardPostPath(id), { signal }, boardLoadError, {
+export async function readDetail(id: string | number, signal: AbortSignal) {
+  const response = await boardEntriesRequest(boardPostApiPath(id), { signal }, boardLoadError, {
     includeIndexable: "1",
   });
   return boardDetailSchema.parse(await response.json());
 }
 
-export async function readDetailOrMissing(id: string, signal: AbortSignal) {
+export async function readDetailOrMissing(id: string | number, signal: AbortSignal) {
   try {
     return await readDetail(id, signal);
   } catch (error) {
@@ -85,7 +83,7 @@ export async function readDetailOrMissing(id: string, signal: AbortSignal) {
 
 export async function readReplies(id: string, signal: AbortSignal, after: string) {
   const response = await boardEntriesRequest(
-    `${boardPostPath(id)}/replies`,
+    `${boardPostApiPath(id)}/replies`,
     { signal },
     boardLoadError,
     { after },

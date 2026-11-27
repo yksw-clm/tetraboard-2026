@@ -54,8 +54,8 @@ const uniqueNames = new Set(
     .filter((name) => name !== undefined),
 );
 
-test("全 migration の 72 テーブルを適用します", () => {
-  expect(tableNames(migrated)).toHaveLength(72);
+test("全 migration の 73 テーブルを適用します", () => {
+  expect(tableNames(migrated)).toHaveLength(73);
   expect(tableNames(defined)).toEqual(tableNames(migrated));
 });
 
