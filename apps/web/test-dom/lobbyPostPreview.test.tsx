@@ -228,6 +228,27 @@ async function showPosts(user: AccountProfile | null, ...posts: BoardPublishedPo
   return { view, cards: [...preview(view).querySelectorAll("li")] };
 }
 
+test("ロビーでは添付のある投稿だけに棋譜付きを表示し、ラベルを押すと投稿詳細に移る", async () => {
+  const first = post(1);
+  first.attachment = { matchId: post(4).id, position: 0 };
+  const { view, cards } = await showPosts(null, first, post(2), {
+    ...post(3),
+    attachment: undefined,
+  });
+  expect(cards).toHaveLength(3);
+  expect(cards.map((card) => card.textContent?.includes("棋譜付き"))).toEqual([true, false, false]);
+
+  const card = cards[0]!;
+  const label = [...card.querySelectorAll("p")].find((node) => node.textContent === "棋譜付き");
+  const detailPath = `/posts/${first.id}`;
+  expect(label?.closest("a")?.getAttribute("href")).toBe(detailPath);
+  expect(card.querySelectorAll("a")).toHaveLength(1);
+  expect(requests.some(({ url }) => url.startsWith("/api/matches/"))).toBe(false);
+
+  await act(async () => label!.click());
+  expect(view.querySelector('[aria-label="現在のパス"]')?.textContent).toBe(detailPath);
+});
+
 test("ロビーでアバターと名前を押すと投稿のゲームの公開プレイヤーページに移る", async () => {
   const first = post(1);
   first.gameId = "four-reversi";
