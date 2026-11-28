@@ -286,7 +286,7 @@ function PublicPlayerContent({
             戦績
           </h2>
           {player ? (
-            <PublicPlayerStats profile={player} game={game} mode={mode} showRating={false} />
+            <PublicPlayerStats profile={player} game={game} mode={mode} />
           ) : (
             <PlayerRequestNotice loading={profile.result.status === "loading"} label="戦績" />
           )}

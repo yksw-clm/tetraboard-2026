@@ -1,14 +1,17 @@
 import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import { cn } from "@heroui/react";
+import type { ReactNode } from "react";
 import { LobbyBoardPreview } from "../lobby/LobbyBoardPreview";
 import { gameAccentClasses } from "../../shared/ui/appTheme";
 
 export function ProfileDetails({
   profileMessage,
   favoriteGames,
+  children,
 }: {
   profileMessage?: string;
   favoriteGames?: readonly GameId[];
+  children?: ReactNode;
 }) {
   return (
     <>
@@ -24,6 +27,7 @@ export function ProfileDetails({
           <p className="relative m-0 wrap-anywhere">{profileMessage}</p>
         </div>
       )}
+      {children}
       {favoriteGames && favoriteGames.length > 0 && (
         <section aria-label="お気に入りゲーム" className="flex min-w-0 flex-col gap-2">
           <p className="m-0 text-xs text-muted">お気に入りゲーム</p>
