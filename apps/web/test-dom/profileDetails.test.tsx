@@ -96,15 +96,19 @@ test("マイページで保存内容を表示し、取消で破棄、保存と�
   expect(card().querySelector('[aria-label="お気に入りゲーム"]')).toBeNull();
 });
 
-test.each([false, true])(
-  "狭いマイページの末尾で編集でき、幅をまたいでも下書きを保つ（ゲスト: %s）",
-  async (isGuest) => {
+test.each([
+  { isGuest: false, favoriteGames: ["gomoku" as const] },
+  { isGuest: false, favoriteGames: [] },
+  { isGuest: true, favoriteGames: [] },
+])(
+  "スマホ幅ではプロフィールカード内で編集でき、幅をまたいでも下書きを保つ (%j)",
+  async ({ isGuest, favoriteGames }) => {
     const viewport = (window as unknown as TestWindow).happyDOM;
     const originalWidth = window.innerWidth;
     const resize = (width: number) => act(() => viewport.setViewport({ width }));
     try {
       resize(390);
-      const user = { ...profile, isGuest, favoriteGames: [] };
+      const user = { ...profile, isGuest, favoriteGames: [...favoriteGames] };
       const view = render(wrap(user)(<ProfilePage />));
       const main = view.querySelector("main")!;
       const card = main.querySelector('[data-testid="account-profile-card"]')!;
@@ -112,9 +116,24 @@ test.each([false, true])(
         [...main.querySelectorAll("button")].filter(
           (button) => button.textContent === "プロフィールを編集",
         );
-      expect(editButtons()).toHaveLength(1);
-      expect(main.lastElementChild).toBe(editButtons()[0]);
-      expect(card.querySelector('[aria-label="お気に入りゲーム"]')).toBeNull();
+      const expectMobilePlacement = () => {
+        expect(editButtons()).toHaveLength(1);
+        const edit = editButtons()[0]!;
+        expect(card.contains(edit)).toBe(true);
+        const favorites = card.querySelector('[aria-label="お気に入りゲーム"]');
+        if (favoriteGames.length > 0) {
+          expect(favorites?.nextElementSibling).toBe(edit);
+        } else {
+          expect(favorites).toBeNull();
+        }
+        if (!isGuest) {
+          const deletion = main.querySelector('a[href="/account/deletion"]')!;
+          expect(edit.compareDocumentPosition(deletion) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+            Node.DOCUMENT_POSITION_FOLLOWING,
+          );
+        }
+      };
+      expectMobilePlacement();
       press(main, "プロフィールを編集");
       await flush();
       const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
@@ -122,11 +141,16 @@ test.each([false, true])(
       enter(input, "編集中");
 
       resize(650);
-      expect(editButtons()).toHaveLength(1);
-      expect(main.lastElementChild).toBe(editButtons()[0]);
+      expectMobilePlacement();
       resize(651);
       expect(editButtons()).toHaveLength(1);
       expect(card.contains(editButtons()[0]!)).toBe(true);
+      const favorites = card.querySelector('[aria-label="お気に入りゲーム"]');
+      if (favorites) {
+        expect(
+          editButtons()[0]!.compareDocumentPosition(favorites) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      }
       expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
       expect(document.querySelector('[role="dialog"]')).toBe(dialog);
       expect(input.value).toBe("編集中");
