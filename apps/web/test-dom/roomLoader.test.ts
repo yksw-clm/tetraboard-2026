@@ -154,6 +154,7 @@ test.each(["matched", "playing"] as const)(
       instanceId: room.instanceId,
     };
     const pending = roomLoader(args(`/rooms/12345?invite=${room.instanceId}`));
+    await flush();
     expect(new Headers(requests.at(-1)!.init.headers).get("X-Tournament-Controller")).toBe(
       tournamentDocumentController.getIdentity(),
     );
@@ -186,6 +187,7 @@ test("大会の失敗した旧ルームは通知を受け取れなくても大�
   };
   saveTournamentRoom(reference);
   const pending = roomLoader(args(`/rooms/12345?invite=${room.instanceId}`));
+  await flush();
   requests.at(-1)!.respond({
     entered: true,
     status: "waiting",
@@ -222,6 +224,7 @@ test.each([404, 410])(
       instanceId: room.instanceId,
     };
     const pending = roomLoader(args(`/rooms/12345?invite=${room.instanceId}`));
+    await flush();
     requests.at(-1)!.respond(participation);
     await flush();
     requests.at(-1)!.respond({ participation, token });
@@ -250,6 +253,7 @@ test("中断した大会room復旧のGET応答からは引継ぎPOSTを送らな
   });
   const abort = new AbortController();
   const pending = roomLoader(args(`/rooms/12345?invite=${room.instanceId}`, room.id, abort.signal));
+  await flush();
   abort.abort();
   requests
     .at(-1)!

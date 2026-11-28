@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useLocation } from "react-router";
 import type { TournamentLobbySections } from "@tetraboard/protocol";
 import { isGameViewPath } from "../../shared/siteNavigation";
-import { readLobbyTournaments } from "./tournamentApi";
+import { readLobbyTournaments } from "./tournamentLobbyApi";
 import { ActiveTournamentsContext } from "./useActiveTournaments";
 
 export function ActiveTournamentProvider({ children }: { children: ReactNode }) {
@@ -60,25 +60,29 @@ export function ActiveTournamentProvider({ children }: { children: ReactNode }) 
     };
   }, [enabled]);
 
-  useEffect(() => {
-    if (!enabled || !snapshot) return;
-    const serverNow = snapshot.data.serverTimeMs + performance.now() - snapshot.receivedAt;
-    const nextEnd = Math.min(
-      ...snapshot.data.current
-        .filter((tournament) => tournament.status === "active" && tournament.endsAtMs > serverNow)
-        .map((tournament) => tournament.endsAtMs - serverNow),
-    );
-    if (!Number.isFinite(nextEnd)) return;
-    const deadline = window.setTimeout(
-      () => setNow(performance.now()),
-      Math.min(nextEnd, 2147483647),
-    );
-    return () => window.clearTimeout(deadline);
-  }, [enabled, snapshot, now]);
-
   const serverNowMs = snapshot
     ? snapshot.data.serverTimeMs + Math.max(0, now - snapshot.receivedAt)
     : 0;
+  useEffect(() => {
+    if (!enabled || !snapshot) return;
+    let nextDeadline = Infinity;
+    for (const { startsAtMs, endsAtMs, status } of [
+      ...snapshot.data.upcoming,
+      ...snapshot.data.current,
+    ]) {
+      if (status === "settling" || status === "finished") continue;
+      const deadline = startsAtMs > serverNowMs ? startsAtMs : endsAtMs;
+      if (deadline > serverNowMs) nextDeadline = Math.min(nextDeadline, deadline);
+    }
+    if (!Number.isFinite(nextDeadline)) return;
+    const estimatedServerNow = snapshot.data.serverTimeMs + performance.now() - snapshot.receivedAt;
+    const deadline = window.setTimeout(
+      () => setNow(performance.now()),
+      Math.min(Math.max(0, Math.ceil(nextDeadline - estimatedServerNow)), 2147483647),
+    );
+    return () => window.clearTimeout(deadline);
+  }, [enabled, snapshot, serverNowMs]);
+
   const tournaments =
     enabled && snapshot
       ? snapshot.data.current.filter(
@@ -90,7 +94,7 @@ export function ActiveTournamentProvider({ children }: { children: ReactNode }) 
       : [];
   return (
     <ActiveTournamentsContext
-      value={{ tournaments, upcoming: snapshot?.data.upcoming ?? [], serverNowMs }}
+      value={{ tournaments, sections: enabled ? snapshot?.data : undefined, serverNowMs }}
     >
       {children}
     </ActiveTournamentsContext>

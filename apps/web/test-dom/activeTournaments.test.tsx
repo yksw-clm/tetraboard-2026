@@ -49,9 +49,7 @@ test("ヘッダーの大会リンクは大会ページの移動制御を通し�
       null,
       "/tournaments/1",
     )(
-      <ActiveTournamentsContext
-        value={{ tournaments: [tournament(2)], upcoming: [], serverNowMs: Date.now() }}
-      >
+      <ActiveTournamentsContext value={{ tournaments: [tournament(2)], serverNowMs: Date.now() }}>
         <AppHeader homeTo="/" homeLabel="ホーム" onNavigate={(to) => navigations.push(to)} />
       </ActiveTournamentsContext>,
     ),

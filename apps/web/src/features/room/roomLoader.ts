@@ -18,7 +18,6 @@ import {
 } from "@tetraboard/protocol";
 import { preloadBoardImage } from "@tetraboard/shogi-ui/board-image";
 import { redirect, type LoaderFunctionArgs } from "react-router";
-import { recoverTournamentRoom } from "../tournaments/tournamentRoomRecovery";
 import { readTournamentRoom } from "../tournaments/tournamentQueueStorage";
 import { fetchRoomMembership } from "../../shared/roomMembership";
 import { fetchRoom, invitationInstance } from "../../shared/roomAccess";
@@ -36,6 +35,11 @@ export type RoomLoaderDataFor<G extends GameId> = {
 };
 
 export type RoomLoaderData = { [G in GameId]: RoomLoaderDataFor<G> }[GameId];
+
+async function recoverTournamentRoom(id: string, instanceId: string, signal: AbortSignal) {
+  const { recoverTournamentRoom } = await import("../tournaments/tournamentRoomRecovery");
+  await recoverTournamentRoom(id, instanceId, signal);
+}
 
 export async function roomLoader({ params, request }: LoaderFunctionArgs): Promise<RoomLoaderData> {
   const code = roomCodeSchema.safeParse(params.id);

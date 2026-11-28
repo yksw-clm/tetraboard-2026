@@ -1,10 +1,10 @@
 import { createContext, useContext } from "react";
-import type { TournamentPublic } from "@tetraboard/protocol";
+import type { TournamentLobbySections, TournamentPublic } from "@tetraboard/protocol";
 
 export const ActiveTournamentsContext = createContext<{
   tournaments: TournamentPublic[];
-  upcoming: TournamentPublic[];
+  sections?: TournamentLobbySections;
   serverNowMs: number;
-}>({ tournaments: [], upcoming: [], serverNowMs: 0 });
+}>({ tournaments: [], serverNowMs: 0 });
 
 export const useActiveTournaments = () => useContext(ActiveTournamentsContext);

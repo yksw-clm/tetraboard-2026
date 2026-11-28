@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import type { TournamentLobbySections } from "@tetraboard/protocol";
 import type { GameId } from "@tetraboard/protocol/games";
 import { useAccount } from "../account/useAccount";
-import { readLobbyTournaments, readTournamentParticipation } from "./tournamentApi";
+import { readTournamentParticipation } from "./tournamentApi";
+import { readLobbyTournaments } from "./tournamentLobbyApi";
+import type { MobileLobbyTournaments } from "./useMobileLobbyTournaments";
 
 type Participation = { entered: boolean; ready: boolean; error: string | null };
 const unknownParticipation: Participation = { entered: false, ready: false, error: null };
 
-export function useLobbyTournaments(game: GameId) {
+export function useLobbyTournaments(game: GameId, mobileLobby?: MobileLobbyTournaments) {
   const account = useAccount();
   const identity = account.user?.profileCompleted
     ? (account.user.profileId ?? account.user.username)
@@ -25,6 +27,13 @@ export function useLobbyTournaments(game: GameId) {
   }>({ scope, entries: {} });
   const [revision, setRevision] = useState(0);
   const retry = useCallback(() => setRevision((value) => value + 1), []);
+  const participationIds = useEffectEvent((data: TournamentLobbySections) =>
+    mobileLobby
+      ? [...mobileLobby.active, ...mobileLobby.upcoming].map(({ id }) => id)
+      : [...data.current, ...data.upcoming]
+          .filter(({ status }) => status === "active" || status === "upcoming")
+          .map(({ id }) => id),
+  );
 
   useEffect(() => {
     let request: AbortController | null = null;
@@ -38,14 +47,12 @@ export function useLobbyTournaments(game: GameId) {
         if (disposed || controller.signal.aborted) return;
         // 本人状態を待たずに、大会名・人数・状態を先に表示します。
         setPublicState({ game, data, error: null });
-        const eligible = [...data.current, ...data.upcoming].filter(
-          (tournament) => tournament.status === "active" || tournament.status === "upcoming",
-        );
         if (identity && authAvailable) {
+          const eligible = participationIds(data);
           setParticipations((previous) => ({
             scope,
             entries: Object.fromEntries(
-              eligible.map(({ id }) => [
+              eligible.map((id) => [
                 id,
                 previous.scope === scope
                   ? (previous.entries[id] ?? unknownParticipation)
@@ -54,7 +61,7 @@ export function useLobbyTournaments(game: GameId) {
             ),
           }));
           await Promise.all(
-            eligible.map(async ({ id }) => {
+            eligible.map(async (id) => {
               try {
                 const participation = await readTournamentParticipation(id, controller.signal);
                 if (disposed || controller.signal.aborted) return;

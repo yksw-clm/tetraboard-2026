@@ -10,6 +10,7 @@ import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { LobbyBoardPreview } from "../lobby/LobbyBoardPreview";
 import { tournamentListDate } from "./tournamentPresentation";
 import { useTournamentList } from "./useTournamentList";
+import { mobileTournamentStage, type MobileLobbyTournaments } from "./useMobileLobbyTournaments";
 
 function sectionOrder(status: string) {
   return status === "active" ? 0 : status === "upcoming" ? 1 : 2;
@@ -18,16 +19,24 @@ function sectionOrder(status: string) {
 export function TournamentList({
   game,
   headingLevel: Heading = "h2",
-  lobbyEntranceIds,
+  mobileLobby,
 }: {
   game: GameId | "all";
   headingLevel?: "h1" | "h2";
-  lobbyEntranceIds?: ReadonlySet<number>;
+  mobileLobby?: MobileLobbyTournaments;
 }) {
   const state = useTournamentList(game);
-  const tournaments = lobbyEntranceIds
+  const tournaments = mobileLobby
     ? state.tournaments
-        .filter(({ id }) => !lobbyEntranceIds.has(id))
+        .flatMap((tournament) => {
+          const stage = mobileLobby.stages.get(tournament.id);
+          if (stage === "active" || stage === "upcoming") return [];
+          if (tournament.status === "finished") return [tournament];
+          const status = stage
+            ? "settling"
+            : mobileTournamentStage(tournament, mobileLobby.serverNowMs ?? 0);
+          return [{ ...tournament, status }];
+        })
         .sort((a, b) => sectionOrder(a.status) - sectionOrder(b.status))
     : state.tournaments;
   const list = useRef<HTMLUListElement>(null);
@@ -35,7 +44,7 @@ export function TournamentList({
   return (
     <section aria-labelledby={titleId} className="min-w-0">
       <Heading id={titleId} className="mb-4 text-xl font-bold">
-        {lobbyEntranceIds && tournaments.every(({ status }) => sectionOrder(status) === 2)
+        {mobileLobby && tournaments.every(({ status }) => sectionOrder(status) === 2)
           ? "大会結果"
           : "大会一覧"}
       </Heading>
@@ -111,9 +120,7 @@ export function TournamentList({
                   {tournament.status !== "finished" && (
                     <p className="flex flex-wrap items-baseline gap-x-1 text-xs text-muted">
                       {tournament.status === "active" && <span>開催中 · </span>}
-                      {lobbyEntranceIds && tournament.status === "upcoming" && (
-                        <span>受付中 · </span>
-                      )}
+                      {mobileLobby && tournament.status === "upcoming" && <span>受付中 · </span>}
                       {tournament.status === "settling" && <span>結果集計中 · </span>}
                       <span>エントリー </span>
                       <strong className="text-base font-bold text-ink tabular-nums">
