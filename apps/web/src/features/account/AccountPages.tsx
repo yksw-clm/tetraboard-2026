@@ -40,7 +40,6 @@ export function AccountPageShell({
   profile,
   navigation,
   modeTabs,
-  footer,
 }: {
   children: ReactNode;
   layout?: "form" | "profile" | "login";
@@ -48,7 +47,6 @@ export function AccountPageShell({
   profile?: ReactNode;
   navigation?: ReactNode;
   modeTabs?: ReactNode;
-  footer?: ReactNode;
 }) {
   const { user } = useAccount();
   const profileLayout = layout === "profile";
@@ -105,7 +103,6 @@ export function AccountPageShell({
               </AppButtonLink>
             </div>
           )}
-          {footer}
         </main>
       </div>
     </div>
@@ -314,10 +311,10 @@ function AccountProfilePage({
             <AccountProfileCard
               user={user}
               notice={notice}
-              editButton={mobile ? null : editButton}
+              editButton={editButton}
+              mobile={mobile}
             />
           }
-          footer={mobile ? editButton : null}
           navigation={
             <ProfileGameButtons
               game={game}
@@ -410,10 +407,12 @@ function AccountProfileCard({
   user,
   notice,
   editButton,
+  mobile,
 }: {
   user: AccountProfile;
   notice: string | null;
   editButton: ReactNode;
+  mobile: boolean;
 }) {
   return (
     <AppCard data-testid="account-profile-card">
@@ -430,11 +429,12 @@ function AccountProfileCard({
             {user.isGuest && <span className="ml-2">ゲスト</span>}
           </p>
         </div>
-        {editButton}
+        {!mobile && editButton}
       </div>
       {!user.isGuest && (
         <ProfileDetails profileMessage={user.profileMessage} favoriteGames={user.favoriteGames} />
       )}
+      {mobile && editButton}
       {notice && (
         <p role="status" className="text-sm text-brand">
           {notice}
