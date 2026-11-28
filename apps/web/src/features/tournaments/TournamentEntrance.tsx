@@ -13,10 +13,12 @@ import { AppIcon } from "../../shared/ui/AppIcon";
 import { useAccount } from "../account/useAccount";
 import { TournamentStatus } from "./TournamentStatus";
 import { tournamentRemaining } from "./tournamentPresentation";
+import { useNextLobbyTournament } from "./useActiveTournaments";
 import { useLobbyTournaments } from "./useLobbyTournaments";
 
 function TournamentEntranceCard({
   tournament,
+  announced,
   entered,
   entryDisabled,
   guest,
@@ -25,6 +27,7 @@ function TournamentEntranceCard({
   serverTimeMs,
 }: {
   tournament: TournamentPublic;
+  announced: boolean;
   entered: boolean;
   entryDisabled: boolean;
   guest: boolean;
@@ -32,6 +35,7 @@ function TournamentEntranceCard({
   onRetry: () => void;
   serverTimeMs: number;
 }) {
+  const titleId = `tournament-${tournament.id}-entrance-title`;
   const ended = tournament.status === "settling" || tournament.status === "finished";
   const entryLabel = entered
     ? tournament.status === "upcoming"
@@ -43,50 +47,59 @@ function TournamentEntranceCard({
   return (
     <AppCard
       role="article"
-      aria-labelledby={`tournament-${tournament.id}-entrance-title`}
+      aria-label={announced ? tournament.name : undefined}
+      aria-labelledby={announced ? undefined : titleId}
       density="compact"
       className="flex flex-row flex-wrap items-center justify-between gap-x-5 gap-y-3"
     >
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        <span className="hidden size-10 shrink-0 place-items-center rounded-control bg-surface-muted text-brand sm:grid">
-          <AppIcon name="crown" />
-        </span>
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h3 id={`tournament-${tournament.id}-entrance-title`} className="text-sm font-bold">
-              {tournament.name}
-            </h3>
-            <TournamentStatus
-              stage={tournament.status}
-              game={getTournamentSettings(tournament).game}
-            />
-            {tournament.status !== "upcoming" && (
-              <span className="text-xs text-muted">
-                {tournamentSettingsDescription(getTournamentSettings(tournament))}
-              </span>
+      {(!announced || error) && (
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          {!announced && (
+            <span className="hidden size-10 shrink-0 place-items-center rounded-control bg-surface-muted text-brand sm:grid">
+              <AppIcon name="crown" />
+            </span>
+          )}
+          <div className="min-w-0">
+            {!announced && (
+              <>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <h3 id={titleId} className="text-sm font-bold">
+                    {tournament.name}
+                  </h3>
+                  <TournamentStatus
+                    stage={tournament.status}
+                    game={getTournamentSettings(tournament).game}
+                  />
+                  {tournament.status !== "upcoming" && (
+                    <span className="text-xs text-muted">
+                      {tournamentSettingsDescription(getTournamentSettings(tournament))}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted">
+                  {tournament.status === "finished"
+                    ? "大会の結果を公開しています。"
+                    : tournament.status === "settling"
+                      ? "対局と結果の保存を待っています。順位は暫定です。"
+                      : tournament.status === "active"
+                        ? tournamentRemaining(tournament, serverTimeMs)
+                        : tournamentDate(tournament.startsAtMs, tournament.endsAtMs, {
+                            showTimeZone: false,
+                          })}
+                </p>
+              </>
+            )}
+            {error && (
+              <p role="alert" className="text-xs text-danger">
+                {error}
+                <AppButton appearance="quiet" size="compact" onPress={onRetry}>
+                  再試行
+                </AppButton>
+              </p>
             )}
           </div>
-          <p className="text-xs text-muted">
-            {tournament.status === "finished"
-              ? "大会の結果を公開しています。"
-              : tournament.status === "settling"
-                ? "対局と結果の保存を待っています。順位は暫定です。"
-                : tournament.status === "active"
-                  ? tournamentRemaining(tournament, serverTimeMs)
-                  : tournamentDate(tournament.startsAtMs, tournament.endsAtMs, {
-                      showTimeZone: false,
-                    })}
-          </p>
-          {error && (
-            <p role="alert" className="text-xs text-danger">
-              {error}
-              <AppButton appearance="quiet" size="compact" onPress={onRetry}>
-                再試行
-              </AppButton>
-            </p>
-          )}
         </div>
-      </div>
+      )}
       <div className="flex w-full flex-wrap items-center justify-end gap-x-4 gap-y-2 sm:w-auto">
         <p className="inline-flex items-baseline gap-1 text-xs text-muted">
           <strong className="text-[30px] leading-none font-bold text-ink tabular-nums">
@@ -94,9 +107,11 @@ function TournamentEntranceCard({
           </strong>
           <span>{tournament.status === "active" ? "人が参加中" : "人がエントリー中"}</span>
         </p>
-        <AppButtonLink to={`/tournaments/${tournament.id}`} size="compact" className="min-h-11">
-          {tournament.status === "finished" ? "結果を見る" : "詳細へ"}
-        </AppButtonLink>
+        {!announced && (
+          <AppButtonLink to={`/tournaments/${tournament.id}`} size="compact" className="min-h-11">
+            {tournament.status === "finished" ? "結果を見る" : "詳細へ"}
+          </AppButtonLink>
+        )}
         {!ended &&
           (entryDisabled || (entered && tournament.status === "upcoming") ? (
             <AppButton isDisabled appearance="secondary" size="compact">
@@ -125,14 +140,16 @@ export function TournamentEntrance({ game = "four-shogi" }: { game?: GameId }) {
 export function TournamentEntranceContent({
   game,
   state,
-  activeAndUpcomingOnly = false,
+  mobile = false,
 }: {
   game: GameId;
   state: ReturnType<typeof useLobbyTournaments>;
-  activeAndUpcomingOnly?: boolean;
+  mobile?: boolean;
 }) {
   const account = useAccount();
-  const current = activeAndUpcomingOnly
+  const nextTournament = useNextLobbyTournament(game);
+  const announcedTournamentId = mobile ? nextTournament?.id : undefined;
+  const current = mobile
     ? state.current.filter(({ status }) => status === "active")
     : state.current;
   if ((tournamentGameIds as readonly string[]).includes(game) && state.isInitialLoading) {
@@ -178,6 +195,7 @@ export function TournamentEntranceContent({
                 <TournamentEntranceCard
                   key={tournament.id}
                   tournament={tournament}
+                  announced={tournament.id === announcedTournamentId}
                   entered={participation.entered}
                   entryDisabled={state.authUnavailable || !participation.ready}
                   guest={!account.user}

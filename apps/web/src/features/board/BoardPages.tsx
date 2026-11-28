@@ -25,8 +25,7 @@ import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 import { useAccount } from "../account/useAccount";
 import { HowToPlayDialog } from "../lobby/HowToPlayDialog";
-import { LobbyGameTitle } from "../lobby/LobbyGameTitle";
-import { MobileLobbyNavigation } from "../lobby/MobileLobbyNavigation";
+import { MobileLobbyHeader } from "../lobby/MobileLobbyHeader";
 import { useMobileLobby } from "../lobby/useMobileLobby";
 import { useRegistrationRestore } from "../account/useRegistrationRestore";
 import { boardTimelineReturnPath, readBoardAttachmentSearch } from "./boardAttachmentSearch";
@@ -226,6 +225,11 @@ function BoardTimeline({ game, scope, mobile }: { game: GameId; scope: string; m
     rememberTimelineDraft(draft, attachment, latestLocation.current.key);
   }
 
+  function saveVisit() {
+    saveDraft();
+    if (data) rememberTimelineVisit(scope, location, data, attachmentOwner);
+  }
+
   function changeAttachment(value: BoardAttachment | null) {
     const current = latestLocation.current;
     const search = new URLSearchParams(current.search);
@@ -265,8 +269,7 @@ function BoardTimeline({ game, scope, mobile }: { game: GameId; scope: string; m
               event.shiftKey
             )
               return;
-            saveDraft();
-            rememberTimelineVisit(scope, location, data, attachmentOwner);
+            saveVisit();
           },
         }
       : undefined;
@@ -303,8 +306,13 @@ function BoardTimeline({ game, scope, mobile }: { game: GameId; scope: string; m
     <BoardLayout game={game} media={media}>
       {mobile ? (
         <>
-          <LobbyGameTitle game={game} onRules={() => setRulesOpen(true)} />
-          <MobileLobbyNavigation game={game} selected="posts" onLeave={saveDraft} />
+          <MobileLobbyHeader
+            game={game}
+            selected="posts"
+            onRules={() => setRulesOpen(true)}
+            onLeave={saveDraft}
+            onTournamentLeave={saveVisit}
+          />
           {rulesOpen && <HowToPlayDialog game={game} onClose={() => setRulesOpen(false)} />}
           {pending === "initial" && <p role="status">掲示板を読み込んでいます…</p>}
         </>

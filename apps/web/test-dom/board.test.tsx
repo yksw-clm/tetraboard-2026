@@ -3,6 +3,7 @@ import {
   fourShogiPublicStateSchema,
   type AccountProfile,
   type TournamentDetail,
+  type TournamentPublic,
 } from "@tetraboard/protocol";
 import type {
   BoardPost,
@@ -39,7 +40,8 @@ import { AccountLayout } from "../src/features/account/AccountSession";
 import { AccountContext } from "../src/features/account/useAccount";
 import { BoardAttachmentBoard } from "../src/features/board/BoardAttachmentBoard";
 import { BoardDetailPage, BoardTimelinePage } from "../src/features/board/BoardPages";
-import { MobileLobbyNavigation } from "../src/features/lobby/MobileLobbyNavigation";
+import { MobileLobbyHeader } from "../src/features/lobby/MobileLobbyHeader";
+import { ActiveTournamentsContext } from "../src/features/tournaments/useActiveTournaments";
 import { BoardLikeButton } from "../src/features/board/BoardReactions";
 import { formatMatchDate } from "../src/features/matches/matchDatePresentation";
 import { startPageMetadata } from "../src/seo/pageMetadata";
@@ -1487,25 +1489,35 @@ test("タイムラインは更新ボタンを表示せず、追加取得で重�
   expect(view.querySelector("section[aria-labelledby] .border-l-2")).toBeNull();
 });
 
-function mobileBoard(entry: string, viewer = user) {
+function mobileBoard(
+  entry: string,
+  viewer = user,
+  {
+    initialKey = crypto.randomUUID(),
+    upcoming = [],
+  }: { initialKey?: string; upcoming?: TournamentPublic[] } = {},
+) {
   const media = mockMobileLobby();
   const { pathname, search } = new URL(entry, "https://example.test");
   const router = createMemoryRouter(
     [
       {
         path: "/games/four-shogi",
-        element: <MobileLobbyNavigation game="four-shogi" selected="play" />,
+        element: <MobileLobbyHeader game="four-shogi" selected="play" onRules={() => {}} />,
       },
       { path: "/games/:gameId/posts", Component: BoardTimelinePage },
       { path: "/posts/:id", Component: BoardDetailPage },
+      { path: "/tournaments/:id", element: <h1>大会詳細</h1> },
     ],
-    { initialEntries: [{ pathname, search, key: crypto.randomUUID() }] },
+    { initialEntries: [{ pathname, search, key: initialKey }] },
   );
   const page = (account: AccountProfile) => (
     <AccountContext
       value={{ user: account, loading: false, error: null, refresh: async () => {}, update() {} }}
     >
-      <RouterProvider router={router} />
+      <ActiveTournamentsContext value={{ tournaments: [], upcoming, serverNowMs: Date.now() }}>
+        <RouterProvider router={router} />
+      </ActiveTournamentsContext>
     </AccountContext>
   );
   const view = render(page(viewer));
@@ -1525,6 +1537,49 @@ function mobileBoard(entry: string, viewer = user) {
     },
   };
 }
+
+test.each([false, true])(
+  "直リンクの投稿から大会詳細を経由して下書きを復元する（棋譜添付: %s）",
+  async (withAttachment) => {
+    const nextTournament: TournamentPublic = {
+      id: 13,
+      name: "次回の大会",
+      description: "",
+      rulesDescription: "",
+      startsAtMs: Date.now() + 60_000,
+      endsAtMs: Date.now() + 120_000,
+      status: "upcoming",
+      entryCount: 0,
+      waitingCount: 0,
+      playingCount: 0,
+      pendingCount: 0,
+      completedCount: 0,
+      ruleVersion: 1,
+      finalizedAtMs: null,
+    };
+    const { view, router, dispose } = mobileBoard(
+      withAttachment ? timelineWithPosition : timelinePath,
+      { ...user, username: withAttachment ? "owner_attachment" : "owner_plain" },
+      { initialKey: "default", upcoming: [nextTournament] },
+    );
+    try {
+      await respond(timeline([post(1, "読み込み済みの投稿")]));
+      if (withAttachment) await respond({}, 404);
+      enter(input(view), "大会詳細を経由する下書き");
+      const link = view.querySelector<HTMLAnchorElement>('[aria-label="次回の大会案内"] a')!;
+      await act(async () => link.click());
+      expect(router.state.location.pathname).toBe("/tournaments/13");
+      await act(async () => router.navigate(-1));
+      expect(router.state.location.key).toBe("default");
+      expect(input(view)?.value).toBe("大会詳細を経由する下書き");
+      expect(articles(view)[0]?.textContent).toContain("読み込み済みの投稿");
+      expect(view.querySelector("form")?.textContent?.includes("添付を外す")).toBe(withAttachment);
+      expect(requests.filter(({ url }) => url === timelineUrl)).toHaveLength(1);
+    } finally {
+      dispose();
+    }
+  },
+);
 
 test("スマホの投稿は添付と本文をタブ往復で保持し、成功後は履歴からも下書きを復活させない", async () => {
   const { view, router, clickTab, dispose } = mobileBoard(timelineWithPosition);
