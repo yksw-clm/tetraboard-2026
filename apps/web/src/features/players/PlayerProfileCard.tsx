@@ -8,9 +8,9 @@ import type { ProfileState } from "./playerProfileStore";
 import { PlayerBadges } from "../badges/PlayerBadges";
 import { ProfileDetails } from "./ProfileDetails";
 import { statsScopeLabel } from "../account/statsPresentation";
-import { playerPagePath } from "./playerProfileQuery";
+import { PlayerPageLink } from "./PlayerPageLink";
 import { useId } from "react";
-import { Link, useMatch } from "react-router";
+import { useMatch } from "react-router";
 
 export type PublicAccountProfile = Extract<PlayerProfile, { kind: "account" }>;
 
@@ -139,19 +139,20 @@ function PlayerNameLink({
   return (
     <>
       <p className="m-0 font-bold wrap-anywhere">
-        <Link
-          to={playerPagePath(
-            { profileId: profile.profileId, username: profile.isGuest ? null : profile.username },
-            game,
-            mode,
-          )}
+        <PlayerPageLink
+          profile={{
+            profileId: profile.profileId,
+            username: profile.isGuest ? null : profile.username,
+          }}
+          game={game}
+          mode={mode}
           className="rounded-sm text-brand underline underline-offset-2 focus-visible:outline-[3px] focus-visible:outline-focus focus-visible:outline-offset-2"
           target={isRoom ? "_blank" : undefined}
           rel={isRoom ? "noopener noreferrer" : undefined}
           aria-describedby={isRoom ? descriptionId : undefined}
         >
           {profile.name}
-        </Link>
+        </PlayerPageLink>
       </p>
       {isRoom && (
         <p id={descriptionId} className="m-0 text-xs text-muted">

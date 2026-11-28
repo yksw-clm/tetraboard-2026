@@ -5,7 +5,7 @@ import { SocialSignInButtons } from "./SocialSignInButtons";
 import { gameCatalog, defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { MatchHistory } from "./MatchHistory";
 import { AccountStats } from "./AccountStats";
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Navigate, useSearchParams, useLocation } from "react-router";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { AppCard } from "../../shared/ui/AppCard";
@@ -40,6 +40,7 @@ export function AccountPageShell({
   profile,
   navigation,
   modeTabs,
+  footer,
 }: {
   children: ReactNode;
   layout?: "form" | "profile" | "login";
@@ -47,6 +48,7 @@ export function AccountPageShell({
   profile?: ReactNode;
   navigation?: ReactNode;
   modeTabs?: ReactNode;
+  footer?: ReactNode;
 }) {
   const { user } = useAccount();
   const profileLayout = layout === "profile";
@@ -103,6 +105,7 @@ export function AccountPageShell({
               </AppButtonLink>
             </div>
           )}
+          {footer}
         </main>
       </div>
     </div>
@@ -219,10 +222,8 @@ export function LoginPage() {
 }
 export function ProfilePage({ setup = false }: { setup?: boolean }) {
   const { user, loading, error, sessionLost } = useAccount();
-  const { game, mode, setGame, setMode } = useAccountSelection();
-  const showGameRatings = !setup && Boolean(user?.profileCompleted && !user.isGuest);
-  const ratings = useLobbyGameRatings(showGameRatings);
-  const panelId = useId();
+  const selection = useAccountSelection();
+  const { game, setGame } = selection;
   // ファイル選択からの復帰による再確認では、編集中のフォームを取り外しません。
   if (!user && (loading || error))
     return (
@@ -239,6 +240,68 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
   if (!setup && !user.profileCompleted) return <Navigate to="/account/setup" replace />;
   if (!setup)
     return (
+      <AccountProfilePage
+        key={user.profileId ?? user.username}
+        user={user}
+        selection={selection}
+        error={error}
+      />
+    );
+  return (
+    <AccountPageShell>
+      {error && <AccountStatus />}
+      <AppCard>
+        <AppCard.Header>
+          <h1 className="text-2xl font-bold">プロフィールを作成</h1>
+          <p className="text-sm text-muted">名前とIDを設定し、好きなアイコンを選んでください。</p>
+        </AppCard.Header>
+        <AppCard.Content>
+          <ProfileForm user={user} setup />
+        </AppCard.Content>
+      </AppCard>
+    </AccountPageShell>
+  );
+}
+
+const accountMobileQuery = "(max-width: 650px)";
+const isAccountMobile = () => window.matchMedia(accountMobileQuery).matches;
+
+function subscribeAccountMobile(onChange: () => void) {
+  const media = window.matchMedia(accountMobileQuery);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+function AccountProfilePage({
+  user,
+  selection: { game, mode, setGame, setMode },
+  error,
+}: {
+  user: AccountProfile;
+  selection: ReturnType<typeof useAccountSelection>;
+  error: string | null;
+}) {
+  const showGameRatings = !user.isGuest;
+  const ratings = useLobbyGameRatings(showGameRatings);
+  const panelId = useId();
+  const mobile = useSyncExternalStore(subscribeAccountMobile, isAccountMobile, () => false);
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const editButton = (
+    <AppButton
+      appearance="secondary"
+      className={mobile ? "self-end" : "col-start-3 row-start-1 self-start"}
+      onPress={() => {
+        setNotice(null);
+        setEditing(true);
+      }}
+    >
+      プロフィールを編集
+    </AppButton>
+  );
+  return (
+    <>
       <AppTabs
         selectedKey={mode}
         onSelectionChange={(key) => setMode(key as RoomMode)}
@@ -248,8 +311,13 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
           layout="profile"
           game={game}
           profile={
-            <AccountProfileCard key={user.profileId ?? user.username} user={user} game={game} />
+            <AccountProfileCard
+              user={user}
+              notice={notice}
+              editButton={mobile ? null : editButton}
+            />
           }
+          footer={mobile ? editButton : null}
           navigation={
             <ProfileGameButtons
               game={game}
@@ -302,10 +370,7 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
               />
             )}
           >
-            <div
-              key={user.profileId ?? user.username}
-              className="grid min-w-0 grid-cols-1 items-start gap-5 [@media(min-width:1024px)]:grid-cols-[560px_minmax(0,1fr)]"
-            >
+            <div className="grid min-w-0 grid-cols-1 items-start gap-5 [@media(min-width:1024px)]:grid-cols-[560px_minmax(0,1fr)]">
               <AppCard>
                 <AccountStats
                   game={game}
@@ -318,63 +383,6 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
           </AppTabs.Panel>
         </AccountPageShell>
       </AppTabs>
-    );
-  return (
-    <AccountPageShell>
-      {error && <AccountStatus />}
-      <AppCard>
-        <AppCard.Header>
-          <h1 className="text-2xl font-bold">プロフィールを作成</h1>
-          <p className="text-sm text-muted">名前とIDを設定し、好きなアイコンを選んでください。</p>
-        </AppCard.Header>
-        <AppCard.Content>
-          <ProfileForm user={user} setup />
-        </AppCard.Content>
-      </AppCard>
-    </AccountPageShell>
-  );
-}
-function AccountProfileCard({ user, game }: { user: AccountProfile; game: GameId }) {
-  const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  return (
-    <>
-      <AppCard data-testid="account-profile-card">
-        <div className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-x-4 gap-y-5 [@media(min-width:651px)]:grid-cols-[64px_minmax(0,1fr)_auto]">
-          <AppButton
-            appearance="secondary"
-            className="col-span-2 row-start-1 justify-self-end [@media(min-width:651px)]:col-span-1 [@media(min-width:651px)]:col-start-3 [@media(min-width:651px)]:self-start"
-            onPress={() => {
-              setNotice(null);
-              setEditing(true);
-            }}
-          >
-            プロフィールを編集
-          </AppButton>
-          <AppAvatar
-            src={user.avatarUrl}
-            label="プロフィールアイコン"
-            className="col-start-1 row-start-2 size-16 [&_svg]:size-7 [@media(min-width:651px)]:row-start-1"
-          />
-          <div className="col-start-2 row-start-2 min-w-0 [@media(min-width:651px)]:row-start-1">
-            <h1 className="text-xl font-bold [overflow-wrap:anywhere]">{user.name}</h1>
-            <p className="mt-1 text-sm text-muted [overflow-wrap:anywhere]">
-              {user.username && `@${user.username}`}
-              {user.isGuest && <span className="ml-2">ゲスト</span>}
-            </p>
-          </div>
-        </div>
-        {!user.isGuest && (
-          <ProfileDetails profileMessage={user.profileMessage} favoriteGames={user.favoriteGames} />
-        )}
-        {notice && (
-          <p role="status" className="text-sm text-brand">
-            {notice}
-          </p>
-        )}
-        {user.isGuest && <GuestAccountControls />}
-      </AppCard>
       {editing && (
         <AppDialog
           title="プロフィールを編集"
@@ -395,5 +403,44 @@ function AccountProfileCard({ user, game }: { user: AccountProfile; game: GameId
         </AppDialog>
       )}
     </>
+  );
+}
+
+function AccountProfileCard({
+  user,
+  notice,
+  editButton,
+}: {
+  user: AccountProfile;
+  notice: string | null;
+  editButton: ReactNode;
+}) {
+  return (
+    <AppCard data-testid="account-profile-card">
+      <div className="grid grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-x-4 [@media(max-width:650px)]:grid-cols-[64px_minmax(0,1fr)]">
+        <AppAvatar
+          src={user.avatarUrl}
+          label="プロフィールアイコン"
+          className="col-start-1 row-start-1 size-16 [&_svg]:size-7"
+        />
+        <div className="col-start-2 row-start-1 min-w-0">
+          <h1 className="text-xl font-bold [overflow-wrap:anywhere]">{user.name}</h1>
+          <p className="mt-1 text-sm text-muted [overflow-wrap:anywhere]">
+            {user.username && `@${user.username}`}
+            {user.isGuest && <span className="ml-2">ゲスト</span>}
+          </p>
+        </div>
+        {editButton}
+      </div>
+      {!user.isGuest && (
+        <ProfileDetails profileMessage={user.profileMessage} favoriteGames={user.favoriteGames} />
+      )}
+      {notice && (
+        <p role="status" className="text-sm text-brand">
+          {notice}
+        </p>
+      )}
+      {user.isGuest && <GuestAccountControls />}
+    </AppCard>
   );
 }

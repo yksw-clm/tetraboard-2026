@@ -9,7 +9,7 @@ import {
 } from "@tetraboard/protocol";
 import { defaultGameId, gameCatalog, isGameId, type GameId } from "@tetraboard/protocol/games";
 import { useCallback, useEffect, useState } from "react";
-import { Navigate, useLocation, useParams, useSearchParams } from "react-router";
+import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppHeader } from "../../shared/ui/AppHeader";
@@ -40,6 +40,7 @@ function publicPlayerTarget(profileId?: string, handle?: string): PublicPlayerTa
 export function PublicPlayerPage() {
   const { profileId, handle } = useParams();
   const { state } = useLocation();
+  const navigate = useNavigate();
   const target = publicPlayerTarget(profileId, handle);
   const expectedProfileId =
     target?.source === "username" && typeof state?.expectedProfileId === "string"
@@ -51,6 +52,12 @@ export function PublicPlayerPage() {
       : profileId;
   const [search, setSearch] = useSearchParams();
   const { user, loading } = useAccount();
+  const backSteps =
+    typeof state?.profileBackSteps === "number" &&
+    Number.isSafeInteger(state.profileBackSteps) &&
+    state.profileBackSteps > 0
+      ? state.profileBackSteps
+      : null;
   const [accountChecked, setAccountChecked] = useState(!loading);
   const [unavailableProfiles, setUnavailableProfiles] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -62,6 +69,12 @@ export function PublicPlayerPage() {
   const game = isGameId(selectedGame) ? selectedGame : defaultGameId;
   const mode =
     gameCatalog[game].hasModes && search.get("mode") === "doubles" ? "doubles" : "singles";
+  const changeSelection = (nextGame: GameId, nextMode: RoomMode) => {
+    // ゲーム・モードの履歴を残しながら、遷移元までの距離を引き継ぎます。
+    setSearch(playerGameQuery(nextGame, nextMode), {
+      state: backSteps === null ? state : { ...state, profileBackSteps: backSteps + 1 },
+    });
+  };
 
   if (!accountChecked && !loading) setAccountChecked(true);
   if (target?.source === "profile" && user?.profileId === target.profileId)
@@ -76,6 +89,18 @@ export function PublicPlayerPage() {
       <AppHeader homeTo="/" homeLabel="TetraBoard ロビー" theme={theme} />
       <div className={`lobby-background flex-1 text-ink ${appThemeClasses[theme]}`}>
         <main className={`${appPageWidthClasses} flex flex-col gap-5 py-6 sm:py-8`}>
+          {target &&
+            backSteps !== null &&
+            (!expectedProfileId || user?.profileId !== expectedProfileId) && (
+              <AppButton
+                appearance="secondary"
+                size="compact"
+                className="self-start"
+                onPress={() => void navigate(-backSteps)}
+              >
+                戻る
+              </AppButton>
+            )}
           {!target || (targetKey && unavailableProfiles.has(targetKey)) ? (
             <UnavailablePlayerCard />
           ) : (
@@ -85,8 +110,8 @@ export function PublicPlayerPage() {
               expectedProfileId={expectedProfileId}
               game={game}
               mode={mode}
-              onGameChange={(next) => setSearch(playerGameQuery(next, "singles"), { state })}
-              onModeChange={(next) => setSearch(playerGameQuery(game, next), { state })}
+              onGameChange={(next) => changeSelection(next, "singles")}
+              onModeChange={(next) => changeSelection(game, next)}
               onUnavailable={markUnavailable}
             />
           )}
@@ -188,9 +213,10 @@ function PublicPlayerContent({
   if (player && redirectToCanonical)
     return (
       <Navigate
-        to={{ pathname: canonicalPath, search: location.search }}
+        to={{ pathname: canonicalPath, search: location.search, hash: location.hash }}
         replace
         state={{
+          ...location.state,
           expectedProfileId: target.source === "profile" ? player.profileId : expectedProfileId,
         }}
       />
