@@ -4,10 +4,11 @@ import type { PlayerProfile, ProfileRating, RoomMode } from "@tetraboard/protoco
 import { PlayerAvatar } from "../room/PlayerAvatar";
 import { formatPlayerStatsSummary } from "./playerStatsSummary";
 import { AppButton } from "../../shared/ui/AppButton";
+import { AppIcon } from "../../shared/ui/AppIcon";
 import type { ProfileState } from "./playerProfileStore";
 import { PlayerBadges } from "../badges/PlayerBadges";
 import { ProfileDetails } from "./ProfileDetails";
-import { statsScopeLabel } from "../account/statsPresentation";
+import { includesRatedStats, statsScopeLabel } from "../account/statsPresentation";
 import { PlayerPageLink } from "./PlayerPageLink";
 import { useId } from "react";
 import { useMatch } from "react-router";
@@ -77,17 +78,17 @@ export function PlayerProfileCard({
       )}
       {profile.kind === "account" ? (
         <>
-          {!profile.isGuest && (
-            <ProfileDetails
-              profileMessage={profile.profileMessage}
-              favoriteGames={profile.favoriteGames}
-            />
-          )}
+          <ProfileDetails
+            profileMessage={profile.isGuest ? undefined : profile.profileMessage}
+            favoriteGames={profile.isGuest ? undefined : profile.favoriteGames}
+          >
+            {showRating && profile.rating && <ProfileRatingLabel rating={profile.rating} />}
+          </ProfileDetails>
           <PublicPlayerStats
             profile={profile}
             game={game}
             mode={mode}
-            showRating={showRating}
+            hideRatedScope
             gameLabel={
               gameCatalog[game].name +
               (gameCatalog[game].hasModes
@@ -98,12 +99,12 @@ export function PlayerProfileCard({
         </>
       ) : (
         <>
-          <p className="m-0 text-sm text-muted">
-            {profile.kind === "guest" ? "ゲスト／ID・戦績なし" : "戦績集計対象外"}
-          </p>
           {showRating && profile.kind === "cpu" && profile.rating && (
             <ProfileRatingLabel rating={profile.rating} />
           )}
+          <p className="m-0 text-sm text-muted">
+            {profile.kind === "guest" ? "ゲスト／ID・戦績なし" : "戦績集計対象外"}
+          </p>
           {localProfile && state.loading && (
             <p role="status" className="m-0 text-sm">
               プレイヤー情報を読み込んでいます…
@@ -176,25 +177,25 @@ export function PublicPlayerStats({
   profile,
   game,
   mode,
-  showRating,
   gameLabel,
+  hideRatedScope = false,
 }: {
   profile: PublicAccountProfile;
   game: GameId;
   mode: RoomMode;
-  showRating: boolean;
   gameLabel?: string;
+  hideRatedScope?: boolean;
 }) {
+  const showScope = !hideRatedScope || !includesRatedStats(game, mode);
   return (
     <div className="flex flex-col gap-3">
       <div>
         {gameLabel && <p className="m-0 text-xs font-semibold">{gameLabel}</p>}
-        <p className="m-0 text-xs text-muted">{statsScopeLabel(game, mode)}</p>
+        {showScope && <p className="m-0 text-xs text-muted">{statsScopeLabel(game, mode)}</p>}
       </div>
       <p className="m-0 text-xs tabular-nums wrap-anywhere">
         {formatPlayerStatsSummary(profile.stats, mode)}
       </p>
-      {showRating && profile.rating && <ProfileRatingLabel rating={profile.rating} />}
       {gameCatalog[game].hasModes && mode === "singles" && (
         <PlayerBadges game={game} badges={profile.badges} />
       )}
@@ -210,15 +211,16 @@ function ProfileRatingLabel({ rating }: { rating: ProfileRating }) {
         ? "基準レート"
         : "対局前レート";
   return (
-    <div className="text-sm">
-      <p className="m-0 font-semibold tabular-nums">
-        {label}{" "}
+    <p className="m-0 flex min-w-0 items-center gap-1.5 text-sm font-semibold tabular-nums">
+      <AppIcon name="trophy" className="size-4" />
+      <span className="sr-only">{label} </span>
+      <span className="min-w-0 wrap-anywhere">
         {rating.status === "rated"
           ? Math.round(rating.rating)
           : rating.status === "placement"
             ? "認定中"
             : "記録なし"}
-      </p>
-    </div>
+      </span>
+    </p>
   );
 }

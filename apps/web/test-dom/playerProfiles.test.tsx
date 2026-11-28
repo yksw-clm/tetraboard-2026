@@ -115,19 +115,44 @@ test.each([
   expect(region()!.querySelector("a")).toBeNull();
 });
 
-test("プレイヤー情報に現在レートを表示し、元のトリガーの名前は維持する", async () => {
-  const view = render(wrap(trigger()));
-  act(() => view.querySelector<HTMLButtonElement>("button")!.click());
-  await flush();
-  requests[0]!.respond({
-    ...profile,
-    rating: { timing: "current", status: "rated", rating: 1550.4, humanPlayed: false },
-  });
-  await flush();
-  expect(region()?.textContent).toContain("現在のレート 1550");
-  expect(region()?.textContent).not.toContain("対人戦未経験");
-  expect(view.querySelector("button")?.textContent).toBe("プレイヤー");
-});
+test.each(["対局よろしくお願いします", ""])(
+  "ひとことが「%s」のカードでお気に入りの前に現在レートを表示する",
+  async (profileMessage) => {
+    const view = render(wrap(trigger()));
+    act(() => view.querySelector<HTMLButtonElement>("button")!.click());
+    await flush();
+    const query = new URL(requests[0]!.url, "http://localhost").searchParams;
+    expect(query.get("game")).toBe("four-reversi");
+    expect(query.get("includeRating")).toBe("1");
+    requests[0]!.respond({
+      ...profile,
+      profileMessage,
+      favoriteGames: ["shogi"],
+      rating: { timing: "current", status: "rated", rating: 1400.4, humanPlayed: false },
+    });
+    await flush();
+    const card = region()!;
+    const message = card.querySelector('[aria-label="ひとこと"]');
+    const favorites = card.querySelector('[aria-label="お気に入りゲーム"]')!;
+    const rating = [...card.querySelectorAll("p")].find(
+      (node) => node.textContent === "現在のレート 1400",
+    )!;
+    expect(rating).toBeDefined();
+    expect(rating.nextElementSibling === favorites).toBe(true);
+    if (profileMessage) {
+      expect(message?.textContent).toBe(profileMessage);
+      expect(rating.previousElementSibling === message).toBe(true);
+    } else {
+      expect(message).toBeNull();
+    }
+    expect(rating.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+    expect(rating.querySelector(".sr-only")?.textContent?.trim()).toBe("現在のレート");
+    expect(rating.querySelector("span:not(.sr-only)")?.textContent).toBe("1400");
+    expect(card.textContent).not.toContain("対人戦/レート戦を集計");
+    expect(card.textContent).not.toContain("対人戦未経験");
+    expect(view.querySelector("button")?.textContent).toBe("プレイヤー");
+  },
+);
 
 test.each([
   { timing: "before", status: "rated", rating: 1549.6, text: "対局前レート 1550" },
@@ -135,6 +160,8 @@ test.each([
   { timing: "before", status: "unavailable", text: "対局前レート 記録なし" },
   { timing: "reference", status: "rated", rating: 1552, text: "基準レート 1552" },
   { timing: "current", status: "placement", text: "現在のレート 認定中" },
+  { timing: "current", status: "rated", rating: 999, text: "現在のレート 999" },
+  { timing: "before", status: "rated", rating: 10000, text: "対局前レート 10000" },
 ] as const)("レートの時点と公開状態を区別する（$text）", ({ text, ...rating }) => {
   const current: PlayerProfile = {
     ...profile,
@@ -152,7 +179,7 @@ test.each([
       />,
     ),
   );
-  expect(view.textContent).toContain(text);
+  expect([...view.querySelectorAll("p")].some((node) => node.textContent === text)).toBe(true);
   expect(view.textContent).not.toContain("ランク");
 });
 
@@ -346,6 +373,10 @@ test("全ゲームの戦績をモードに応じたコンパクトな文章で�
           : "20局 12勝7敗1分 (.600)",
       );
       expect(view.querySelector("dl")).toBeNull();
+      if (game === "four-reversi" && mode === "doubles") {
+        expect(view.textContent).toContain("対人戦のみ集計");
+      }
+      if (game === "gomoku") expect(view.textContent).not.toContain("レート");
     }
   }
 });
