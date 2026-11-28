@@ -13,12 +13,13 @@ import { AppIcon } from "../../shared/ui/AppIcon";
 import { useAccount } from "../account/useAccount";
 import { TournamentStatus } from "./TournamentStatus";
 import { tournamentRemaining } from "./tournamentPresentation";
-import { useNextLobbyTournament } from "./useActiveTournaments";
+import type { MobileLobbyTournaments } from "./useMobileLobbyTournaments";
 import { useLobbyTournaments } from "./useLobbyTournaments";
 
 function TournamentEntranceCard({
   tournament,
   announced,
+  entryCount,
   entered,
   entryDisabled,
   guest,
@@ -28,6 +29,7 @@ function TournamentEntranceCard({
 }: {
   tournament: TournamentPublic;
   announced: boolean;
+  entryCount: number;
   entered: boolean;
   entryDisabled: boolean;
   guest: boolean;
@@ -103,7 +105,7 @@ function TournamentEntranceCard({
       <div className="flex w-full flex-wrap items-center justify-end gap-x-4 gap-y-2 sm:w-auto">
         <p className="inline-flex items-baseline gap-1 text-xs text-muted">
           <strong className="text-[30px] leading-none font-bold text-ink tabular-nums">
-            {tournament.entryCount}
+            {entryCount}
           </strong>
           <span>{tournament.status === "active" ? "人が参加中" : "人がエントリー中"}</span>
         </p>
@@ -140,19 +142,24 @@ export function TournamentEntrance({ game = "four-shogi" }: { game?: GameId }) {
 export function TournamentEntranceContent({
   game,
   state,
-  mobile = false,
+  mobileLobby,
 }: {
   game: GameId;
   state: ReturnType<typeof useLobbyTournaments>;
-  mobile?: boolean;
+  mobileLobby?: MobileLobbyTournaments;
 }) {
   const account = useAccount();
-  const nextTournament = useNextLobbyTournament(game);
-  const announcedTournamentId = mobile ? nextTournament?.id : undefined;
-  const current = mobile
-    ? state.current.filter(({ status }) => status === "active")
-    : state.current;
-  if ((tournamentGameIds as readonly string[]).includes(game) && state.isInitialLoading) {
+  const current = mobileLobby?.active ?? state.current;
+  const upcoming = mobileLobby?.upcoming ?? state.upcoming;
+  const announcedTournamentId = mobileLobby?.announcedId;
+  const entryCounts =
+    mobileLobby &&
+    new Map([...state.current, ...state.upcoming].map(({ id, entryCount }) => [id, entryCount]));
+  if (
+    (tournamentGameIds as readonly string[]).includes(game) &&
+    state.isInitialLoading &&
+    mobileLobby?.serverNowMs === undefined
+  ) {
     return (
       <div>
         <p role="status" className="sr-only">
@@ -162,7 +169,7 @@ export function TournamentEntranceContent({
       </div>
     );
   }
-  if (!current.length && !state.upcoming.length && !state.error) return null;
+  if (!current.length && !upcoming.length && !state.error) return null;
   return (
     <div className="space-y-4">
       {state.error && (
@@ -176,7 +183,7 @@ export function TournamentEntranceContent({
       {(
         [
           { id: "current", title: "大会", tournaments: current },
-          { id: "upcoming", title: "次回の大会", tournaments: state.upcoming },
+          { id: "upcoming", title: "次回の大会", tournaments: upcoming },
         ] as const
       )
         .filter(({ tournaments }) => tournaments.length)
@@ -196,12 +203,13 @@ export function TournamentEntranceContent({
                   key={tournament.id}
                   tournament={tournament}
                   announced={tournament.id === announcedTournamentId}
+                  entryCount={entryCounts?.get(tournament.id) ?? tournament.entryCount}
                   entered={participation.entered}
                   entryDisabled={state.authUnavailable || !participation.ready}
                   guest={!account.user}
                   error={participation.error}
                   onRetry={state.retry}
-                  serverTimeMs={state.serverTimeMs}
+                  serverTimeMs={mobileLobby?.serverNowMs ?? state.serverTimeMs}
                 />
               );
             })}

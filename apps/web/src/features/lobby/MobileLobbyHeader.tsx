@@ -1,12 +1,11 @@
 import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import { useLayoutEffect, useRef, type MouseEvent } from "react";
 import { Link, useLocation, useNavigationType } from "react-router";
-import { getTournamentSettings } from "@tetraboard/protocol";
 import { tournamentDate } from "@tetraboard/protocol/tournament-pages";
 import { AppButtonLink } from "../../shared/ui/AppButton";
 import { LobbyGameTitle } from "./LobbyGameTitle";
 import { lobbyTabParam } from "./useMobileLobby";
-import { useActiveTournaments, useNextLobbyTournament } from "../tournaments/useActiveTournaments";
+import type { MobileLobbyTournaments } from "../tournaments/useMobileLobbyTournaments";
 
 const tabs = [
   { id: "play", label: "対局" },
@@ -19,12 +18,14 @@ type LobbyTab = (typeof tabs)[number]["id"];
 export function MobileLobbyHeader({
   game,
   selected,
+  tournaments,
   onRules,
   onLeave,
   onTournamentLeave,
 }: {
   game: GameId;
   selected: LobbyTab;
+  tournaments?: Pick<MobileLobbyTournaments, "active" | "upcoming">;
   onRules: () => void;
   onLeave?: () => void;
   onTournamentLeave?: () => void;
@@ -32,13 +33,8 @@ export function MobileLobbyHeader({
   const location = useLocation();
   const navigationType = useNavigationType();
   const activeLink = useRef<HTMLAnchorElement>(null);
-  const { tournaments } = useActiveTournaments();
-  const nextTournament = useNextLobbyTournament(game);
-  const status = tournaments.some((item) => getTournamentSettings(item).game === game)
-    ? "開催中"
-    : nextTournament
-      ? "受付中"
-      : null;
+  const nextTournament = tournaments?.upcoming[0];
+  const status = tournaments?.active.length ? "開催中" : nextTournament ? "受付中" : null;
 
   useLayoutEffect(() => {
     if (navigationType !== "PUSH" || location.state?.lobbyTabNavigation !== true) return;

@@ -1,7 +1,6 @@
 import {
   tournamentControllerResponseSchema,
   tournamentDetailSchema,
-  tournamentLobbySectionsSchema,
   tournamentListSchema,
   tournamentParticipationSchema,
   tournamentStandingsSchema,
@@ -9,32 +8,15 @@ import {
 import type { GameId } from "@tetraboard/protocol/games";
 import { accountRequest } from "../account/accountApi";
 import { legalVersion } from "@tetraboard/protocol/privacy";
+import { parseTournamentData, requestSignal } from "./tournamentRequest";
 
 export const tournamentPath = (id: number) => `/api/tournaments/${id}`;
-function parseTournamentData<T>(schema: { parse: (body: unknown) => T }, body: unknown): T {
-  try {
-    return schema.parse(body);
-  } catch {
-    throw new Error("大会情報の応答を確認できません。もう一度お試しください。");
-  }
-}
-function requestSignal(signal?: AbortSignal) {
-  const timeout = AbortSignal.timeout(10_000);
-  return signal ? AbortSignal.any([signal, timeout]) : timeout;
-}
 export async function readTournament(id: number, signal?: AbortSignal) {
   return parseTournamentData(
     tournamentDetailSchema,
     await accountRequest(`${tournamentPath(id)}?includeProfiles=1`, {
       signal: requestSignal(signal),
     }),
-  );
-}
-export async function readLobbyTournaments(game: GameId | "all", signal?: AbortSignal) {
-  const query = new URLSearchParams({ view: "sections", game });
-  return parseTournamentData(
-    tournamentLobbySectionsSchema,
-    await accountRequest(`/api/tournaments/lobby?${query}`, { signal: requestSignal(signal) }),
   );
 }
 export async function readTournamentList(

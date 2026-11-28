@@ -1503,7 +1503,14 @@ function mobileBoard(
     [
       {
         path: "/games/four-shogi",
-        element: <MobileLobbyHeader game="four-shogi" selected="play" onRules={() => {}} />,
+        element: (
+          <MobileLobbyHeader
+            game="four-shogi"
+            selected="play"
+            tournaments={{ active: [], upcoming: [] }}
+            onRules={() => {}}
+          />
+        ),
       },
       { path: "/games/:gameId/posts", Component: BoardTimelinePage },
       { path: "/posts/:id", Component: BoardDetailPage },
@@ -1515,7 +1522,13 @@ function mobileBoard(
     <AccountContext
       value={{ user: account, loading: false, error: null, refresh: async () => {}, update() {} }}
     >
-      <ActiveTournamentsContext value={{ tournaments: [], upcoming, serverNowMs: Date.now() }}>
+      <ActiveTournamentsContext
+        value={{
+          tournaments: [],
+          sections: { current: [], upcoming, serverTimeMs: Date.now() },
+          serverNowMs: Date.now(),
+        }}
+      >
         <RouterProvider router={router} />
       </ActiveTournamentsContext>
     </AccountContext>

@@ -26,6 +26,7 @@ import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 import { useAccount } from "../account/useAccount";
 import { HowToPlayDialog } from "../lobby/HowToPlayDialog";
 import { MobileLobbyHeader } from "../lobby/MobileLobbyHeader";
+import { useMobileLobbyTournaments } from "../tournaments/useMobileLobbyTournaments";
 import { useMobileLobby } from "../lobby/useMobileLobby";
 import { useRegistrationRestore } from "../account/useRegistrationRestore";
 import { boardTimelineReturnPath, readBoardAttachmentSearch } from "./boardAttachmentSearch";
@@ -150,6 +151,7 @@ export function BoardTimelinePage() {
 
 function BoardTimeline({ game, scope, mobile }: { game: GameId; scope: string; mobile: boolean }) {
   const catalog = gameCatalog[game];
+  const mobileTournaments = useMobileLobbyTournaments(game, mobile);
   const path = boardTimelinePath(game);
   const location = useLocation();
   const navigationType = useNavigationType();
@@ -309,6 +311,7 @@ function BoardTimeline({ game, scope, mobile }: { game: GameId; scope: string; m
           <MobileLobbyHeader
             game={game}
             selected="posts"
+            tournaments={mobileTournaments}
             onRules={() => setRulesOpen(true)}
             onLeave={saveDraft}
             onTournamentLeave={saveVisit}

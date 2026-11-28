@@ -179,7 +179,11 @@ test("スマホでは開催中と受付中を区別し、参加への入口を�
         value={{ user: null, loading: false, error: null, refresh: async () => {}, update() {} }}
       >
         <ActiveTournamentsContext
-          value={{ tournaments: [current], upcoming: [upcoming], serverNowMs: Date.now() }}
+          value={{
+            tournaments: [current],
+            sections: { current: [current], upcoming: [upcoming], serverTimeMs: Date.now() },
+            serverNowMs: Date.now(),
+          }}
         >
           <RouterProvider router={router} />
         </ActiveTournamentsContext>
@@ -271,7 +275,11 @@ test("スマホの案内と大会本文は区分取得の遅延・失敗・先�
         path,
       )(
         <ActiveTournamentsContext
-          value={{ tournaments: [], upcoming: [announced], serverNowMs: Date.now() }}
+          value={{
+            tournaments: [],
+            sections: { current: [], upcoming: [announced, other], serverTimeMs: Date.now() },
+            serverNowMs: Date.now(),
+          }}
         >
           <LobbyView {...lobbyProps(game)} />
         </ActiveTournamentsContext>,
@@ -311,7 +319,7 @@ test("スマホの案内と大会本文は区分取得の遅延・失敗・先�
       .filter(({ url }) => url === sections.url)
       .at(-1)!
       .respond({
-        current: [{ ...announced, status: "active", startsAtMs: Date.now() }],
+        current: [{ ...announced, entryCount: 42, status: "active", startsAtMs: Date.now() }],
         upcoming: [other],
         serverTimeMs: Date.now(),
       });
@@ -327,13 +335,172 @@ test("スマホの案内と大会本文は区分取得の遅延・失敗・先�
         });
     }
     await flush();
-    expect(links().map((link) => link.textContent)).toEqual(["大会詳細", "大会に参加"]);
+    expect(links().map((link) => link.textContent)).toEqual(["大会詳細"]);
     expect(view.querySelector('main [role="article"] h3')?.textContent).toBe(other.name);
-    expect(view.textContent).toContain("人が参加中");
+    expect(
+      view.querySelector(`main [role="article"][aria-label="${announced.name}"]`)?.textContent,
+    ).toBe("42人がエントリー中エントリー済み");
   } finally {
     media.mockRestore();
   }
 });
+
+test("共通取得の初回失敗時だけゲーム別の参加操作を使い、一覧の重複を除く", async () => {
+  const media = mockMobileLobby();
+  const game = "four-shogi";
+  const upcoming = tournament(23, "upcoming");
+  const { id, name, status, startsAtMs, endsAtMs, entryCount } = upcoming;
+  const path = `${gameCatalog[game].lobbyPath}?lobbyTab=tournaments`;
+  const request = (url: string) => requests.filter((request) => request.url === url).at(-1)!;
+  const shared = () => request("/api/tournaments/lobby?view=sections&game=all");
+  try {
+    const view = render(
+      wrap(
+        profile,
+        path,
+      )(
+        <ActiveTournamentProvider>
+          <LobbyView {...lobbyProps(game)} />
+        </ActiveTournamentProvider>,
+      ),
+    );
+    const notice = () => view.querySelector('main [aria-label="次回の大会案内"]');
+    const links = () =>
+      [...view.querySelectorAll(`main a[href="/tournaments/${id}"]`)].map(
+        (link) => link.textContent,
+      );
+    clock.advance(0);
+    shared().reject();
+    request("/api/tournaments/lobby?view=sections&game=four-shogi").respond({
+      current: [],
+      upcoming: [upcoming],
+      serverTimeMs: Date.now(),
+    });
+    request("/api/tournaments?game=four-shogi").respond({
+      tournaments: [{ id, name, status, startsAtMs, endsAtMs, entryCount, game, winners: [] }],
+      nextCursor: null,
+      serverTimeMs: Date.now(),
+    });
+    await flush();
+    request(`/api/tournaments/${id}/participation`).respond({
+      entered: false,
+      status: "idle",
+      controller: "none",
+      controllerVersion: 0,
+    });
+    await flush();
+    expect(notice()).toBeNull();
+    expect(links()).toEqual(["詳細へ", "エントリー"]);
+
+    clock.advance(5000);
+    shared().respond({ current: [], upcoming: [], serverTimeMs: Date.now() });
+    await flush();
+    expect(notice()).toBeNull();
+    expect(view.querySelector("#four-shogi-upcoming-tournaments-title")).toBeNull();
+    expect(links()).toEqual(["詳細へ"]);
+  } finally {
+    media.mockRestore();
+  }
+});
+
+test.each(["upcoming", "finished"] as const)(
+  "共通時計で開始と終了を切り替え、区分取得失敗や先行更新でも参加表示を残さない（一覧: %s）",
+  async (listStatus) => {
+    const media = mockMobileLobby();
+    const game = "four-shogi";
+    const startsAtMs = Date.now() + 6500;
+    const endsAtMs = startsAtMs + 2000;
+    const upcoming = { ...tournament(24, "upcoming"), startsAtMs, endsAtMs };
+    const path = `${gameCatalog[game].lobbyPath}?lobbyTab=tournaments`;
+    const request = (url: string) => requests.filter((request) => request.url === url).at(-1)!;
+    const shared = () => request("/api/tournaments/lobby?view=sections&game=all");
+    const sections = () => request("/api/tournaments/lobby?view=sections&game=four-shogi");
+    const list = () => request("/api/tournaments?game=four-shogi");
+    function respondList(status: typeof listStatus) {
+      list().respond({
+        tournaments: [
+          {
+            id: upcoming.id,
+            name: upcoming.name,
+            game,
+            startsAtMs,
+            endsAtMs,
+            status,
+            entryCount: upcoming.entryCount,
+            winners: [],
+          },
+        ],
+        nextCursor: null,
+        serverTimeMs: Date.now(),
+      });
+    }
+    try {
+      const view = render(
+        wrap(
+          profile,
+          path,
+        )(
+          <ActiveTournamentProvider>
+            <LobbyView {...lobbyProps(game)} />
+          </ActiveTournamentProvider>,
+        ),
+      );
+      const notice = () => view.querySelector('main [aria-label="次回の大会案内"]');
+      const status = () =>
+        view.querySelector('nav[aria-label="ゲームロビー"] a[aria-current]')?.textContent;
+      const links = () =>
+        [...view.querySelectorAll(`main a[href="/tournaments/${upcoming.id}"]`)].map(
+          (link) => link.textContent,
+        );
+      clock.advance(0);
+      shared().respond({ current: [], upcoming: [upcoming], serverTimeMs: Date.now() });
+      sections().respond({ current: [], upcoming: [upcoming], serverTimeMs: Date.now() });
+      respondList("upcoming");
+      await flush();
+      request("/api/tournaments/24/participation").respond({
+        entered: true,
+        status: "idle",
+        controller: "none",
+        controllerVersion: 0,
+      });
+      await flush();
+      expect(notice()?.textContent).toContain("受付中");
+      expect(links()).toEqual(["大会詳細"]);
+      expect(view.textContent).toContain("エントリー済み");
+
+      clock.advance(5000);
+      shared().reject();
+      if (listStatus === "upcoming") sections().reject();
+      else {
+        sections().respond({
+          current: [{ ...upcoming, status: "finished" }],
+          upcoming: [],
+          serverTimeMs: endsAtMs,
+        });
+      }
+      respondList(listStatus);
+      await flush();
+      clock.advance(1499);
+      expect(status()).toBe("大会受付中");
+      clock.advance(1);
+      expect(notice()).toBeNull();
+      expect(status()).toBe("大会開催中");
+      expect(view.querySelector("#four-shogi-upcoming-tournaments-title")).toBeNull();
+      expect(view.textContent).toContain("人が参加中");
+      expect(links()).toEqual(["詳細へ", "大会に参加"]);
+      clock.advance(1999);
+      expect(links()).toContain("大会に参加");
+      clock.advance(1);
+      expect(status()).toBe("大会");
+      expect(view.querySelector("#four-shogi-current-tournaments-title")).toBeNull();
+      expect(view.textContent).not.toContain("人が参加中");
+      expect(links()).toEqual([listStatus === "finished" ? "結果を見る" : "詳細へ"]);
+      if (listStatus === "upcoming") expect(view.textContent).toContain("結果集計中");
+    } finally {
+      media.mockRestore();
+    }
+  },
+);
 
 test("投稿の直アクセスでは対象ゲームの次回案内を開始時刻ごとに切り替える", async () => {
   const media = mockMobileLobby();

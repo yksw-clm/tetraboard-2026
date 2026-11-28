@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useLocation } from "react-router";
 import type { TournamentLobbySections } from "@tetraboard/protocol";
 import { isGameViewPath } from "../../shared/siteNavigation";
-import { readLobbyTournaments } from "./tournamentApi";
+import { readLobbyTournaments } from "./tournamentLobbyApi";
 import { ActiveTournamentsContext } from "./useActiveTournaments";
 
 export function ActiveTournamentProvider({ children }: { children: ReactNode }) {
@@ -65,13 +65,15 @@ export function ActiveTournamentProvider({ children }: { children: ReactNode }) 
     : 0;
   useEffect(() => {
     if (!enabled || !snapshot) return;
-    const nextDeadline = Math.min(
-      ...snapshot.data.current
-        .filter((tournament) => tournament.status === "active" && tournament.endsAtMs > serverNowMs)
-        .map((tournament) => tournament.endsAtMs),
-      snapshot.data.upcoming.find((tournament) => tournament.startsAtMs > serverNowMs)
-        ?.startsAtMs ?? Infinity,
-    );
+    let nextDeadline = Infinity;
+    for (const { startsAtMs, endsAtMs, status } of [
+      ...snapshot.data.upcoming,
+      ...snapshot.data.current,
+    ]) {
+      if (status === "settling" || status === "finished") continue;
+      const deadline = startsAtMs > serverNowMs ? startsAtMs : endsAtMs;
+      if (deadline > serverNowMs) nextDeadline = Math.min(nextDeadline, deadline);
+    }
     if (!Number.isFinite(nextDeadline)) return;
     const estimatedServerNow = snapshot.data.serverTimeMs + performance.now() - snapshot.receivedAt;
     const deadline = window.setTimeout(
@@ -92,7 +94,7 @@ export function ActiveTournamentProvider({ children }: { children: ReactNode }) 
       : [];
   return (
     <ActiveTournamentsContext
-      value={{ tournaments, upcoming: snapshot?.data.upcoming ?? [], serverNowMs }}
+      value={{ tournaments, sections: enabled ? snapshot?.data : undefined, serverNowMs }}
     >
       {children}
     </ActiveTournamentsContext>

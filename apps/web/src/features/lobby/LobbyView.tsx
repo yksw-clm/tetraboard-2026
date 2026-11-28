@@ -7,7 +7,7 @@ import { LobbyRankings } from "./LobbyRankings";
 import { MobileLobbyHeader } from "./MobileLobbyHeader";
 import { readLobbyTab, useMobileLobby } from "./useMobileLobby";
 import { useLobbyTournaments } from "../tournaments/useLobbyTournaments";
-import { useNextLobbyTournament } from "../tournaments/useActiveTournaments";
+import { useMobileLobbyTournaments } from "../tournaments/useMobileLobbyTournaments";
 import { LobbyPostPreview } from "./LobbyPostPreview";
 import { AppButton } from "../../shared/ui/AppButton";
 
@@ -89,14 +89,18 @@ export function LobbyView(props: Props) {
   const showTournaments = !mobile || tab === "tournaments";
   const rankingsTarget = useRef<HTMLDivElement>(null);
   const tournamentTarget = useRef<HTMLDivElement>(null);
-  const tournaments = useLobbyTournaments(props.game);
-  const nextTournament = useNextLobbyTournament(props.game);
-  const entranceIds = new Set(
-    [...tournaments.current, ...tournaments.upcoming]
-      .filter(({ status }) => status === "active" || status === "upcoming")
-      .map(({ id }) => id),
-  );
-  if (mobile && nextTournament) entranceIds.add(nextTournament.id);
+  const sharedTournaments = useMobileLobbyTournaments(props.game, mobile);
+  const tournaments = useLobbyTournaments(props.game, sharedTournaments);
+  let mobileLobby = sharedTournaments;
+  if (mobile && !mobileLobby) {
+    const active = tournaments.current.filter(({ status }) => status === "active");
+    const { upcoming } = tournaments;
+    mobileLobby = {
+      active,
+      upcoming,
+      stages: new Map([...active, ...upcoming].map(({ id, status }) => [id, status])),
+    };
+  }
   useLayoutEffect(() => {
     if (mobile) return;
     const target =
@@ -171,6 +175,7 @@ export function LobbyView(props: Props) {
             <MobileLobbyHeader
               game={props.game}
               selected={tab}
+              tournaments={sharedTournaments}
               onRules={() => setDialog({ type: "rules" })}
             />
           )}
@@ -215,7 +220,11 @@ export function LobbyView(props: Props) {
             )}
             <LobbyAnnouncement game={props.game} />
             {showTournaments && (
-              <TournamentEntranceContent game={props.game} state={tournaments} mobile={mobile} />
+              <TournamentEntranceContent
+                game={props.game}
+                state={tournaments}
+                mobileLobby={mobileLobby}
+              />
             )}
             <div className="grid grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] items-start gap-5 [@media(max-width:767px)]:grid-cols-1 [@media(max-width:767px)]:gap-[18px]">
               {play && (
@@ -240,11 +249,7 @@ export function LobbyView(props: Props) {
                   ref={tournamentTarget}
                   className="min-w-0 [@media(min-width:768px)]:col-span-2 [@media(min-width:768px)]:col-start-1 [@media(min-width:768px)]:row-start-4"
                 >
-                  <TournamentList
-                    key={props.game}
-                    game={props.game}
-                    lobbyEntranceIds={mobile ? entranceIds : undefined}
-                  />
+                  <TournamentList key={props.game} game={props.game} mobileLobby={mobileLobby} />
                 </div>
               )}
             </div>
