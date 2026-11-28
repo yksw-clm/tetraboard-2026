@@ -83,6 +83,7 @@ function open(initialEntry = pagePath, sameUrlLink = false) {
     avatarUrl: null,
     profileTarget: { source: "profile" as const, profileId: playerId },
   };
+  const publicAuthor = { ...author, username: "public_player" };
   const router = createMemoryRouter(
     [
       {
@@ -107,7 +108,12 @@ function open(initialEntry = pagePath, sameUrlLink = false) {
           },
           {
             path: "/posts/:id",
-            element: <BoardAuthor author={author} game="four-shogi" />,
+            element: (
+              <>
+                <BoardAuthor author={author} game="four-shogi" />
+                <BoardAuthor author={publicAuthor} game="four-shogi" />
+              </>
+            ),
           },
           { path: "/players/:profileId", element: <PublicPlayerPage /> },
           {
@@ -115,12 +121,7 @@ function open(initialEntry = pagePath, sameUrlLink = false) {
             element: (
               <>
                 <PublicPlayerPage />
-                {sameUrlLink && (
-                  <BoardAuthor
-                    author={{ ...author, username: "public_player" }}
-                    game="four-shogi"
-                  />
-                )}
+                {sameUrlLink && <BoardAuthor author={publicAuthor} game="four-shogi" />}
               </>
             ),
           },
@@ -139,6 +140,45 @@ function open(initialEntry = pagePath, sameUrlLink = false) {
 const backButton = (view: HTMLElement) =>
   [...view.querySelectorAll("main button")].find((button) => button.textContent === "戻る");
 
+test.each(["/lobby", boardSource, `${usernamePath}?game=four-shogi&mode=singles`])(
+  "%s から通常の公開IDを開くと現在の所有者を表示する",
+  async (source) => {
+    const { view, router } = open(source);
+    const direct = source.startsWith(usernamePath);
+    session().respond({ user: { ...signedIn, profileId: playerId } });
+    await flush();
+    if (source === "/lobby") {
+      press(view, "カードの名前");
+      await flush();
+      profiles()[0]!.respond(player("four-shogi"));
+      await flush();
+    }
+    if (!direct) {
+      act(() => document.querySelector<HTMLAnchorElement>(`a[href^="${usernamePath}?"]`)!.click());
+      await flush();
+    }
+
+    const currentOwner = {
+      ...player("four-shogi", otherId),
+      username: "public_player",
+      name: "現在の所有者",
+    };
+    profiles().at(-1)!.respond(currentOwner);
+    await flush();
+    expect(view.querySelector("h1")?.textContent).toBe(currentOwner.name);
+    expect(histories()[0]!.url).toStartWith(`/api${otherPath}/matches?`);
+    expect(ratings()[0]!.url).toBe(`/api${otherPath}/game-ratings`);
+    if (direct) {
+      expect(backButton(view)).toBeUndefined();
+    } else {
+      press(view, "戻る");
+      await flush();
+      const { pathname, search, hash } = router.state.location;
+      expect(pathname + search + hash).toBe(source);
+    }
+  },
+);
+
 test("ロビーの名前リンクから開き、モード・ゲーム切替後も元のURLと履歴stateへ戻る", async () => {
   const source = "/lobby?lobbyTab=rankings#ranking";
   const { view, router } = open(source);
@@ -153,10 +193,17 @@ test("ロビーの名前リンクから開き、モード・ゲーム切替後�
   await flush();
   act(() => document.querySelector<HTMLAnchorElement>(`a[href^="${usernamePath}?"]`)!.click());
   await flush();
+  expect(router.state.historyAction).toBe(NavigationType.Push);
   profiles()[1]!.respond(player("four-shogi"));
   await flush();
   expect(backButton(view)).toBe(view.querySelector("main")!.firstElementChild!);
   press(view, "シングルス");
+  await flush();
+  expect(router.state.historyAction).toBe(NavigationType.Push);
+  press(view, "シングルス");
+  press(view, "リバーシ");
+  await flush();
+  expect(router.state.historyAction).toBe(NavigationType.Push);
   press(view, "リバーシ");
   await flush();
   expect(router.state.location.search).toBe("?game=reversi");
@@ -186,11 +233,12 @@ test("投稿者リンクは旧URLと同じURLの置換後も本人照合と掲�
   const { view, router } = open(boardSource, true);
   session().respond({ user: null });
   await flush();
-  const clickAuthor = () =>
-    act(() => view.querySelector<HTMLAnchorElement>('a[href*="game=four-shogi"]')!.click());
-  clickAuthor();
+  const clickAuthor = (path: string) =>
+    act(() => view.querySelector<HTMLAnchorElement>(`a[href^="${path}?"]`)!.click());
+  clickAuthor(pagePath);
   await flush();
   expect(router.state.location.pathname).toBe(pagePath);
+  expect(router.state.location.state?.expectedProfileId).toBeUndefined();
   profiles()[0]!.respond(player("four-shogi"));
   await flush();
   expect(router.state.location.pathname).toBe(usernamePath);
@@ -198,11 +246,14 @@ test("投稿者リンクは旧URLと同じURLの置換後も本人照合と掲�
   expect(router.state.location.state.expectedProfileId).toBe(playerId);
   profiles()[1]!.respond(player("four-shogi"));
   await flush();
-  clickAuthor();
+  press(view, "ダブルス");
+  await flush();
+  press(view, "シングルス");
+  await flush();
+  clickAuthor(usernamePath);
   await flush();
   expect(router.state.historyAction).toBe(NavigationType.Replace);
   expect(router.state.location.state.expectedProfileId).toBe(playerId);
-  press(view, "ダブルス");
   press(view, "リバーシ");
   await flush();
   profiles()

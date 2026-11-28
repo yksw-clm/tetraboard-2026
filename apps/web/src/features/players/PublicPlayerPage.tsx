@@ -8,7 +8,7 @@ import {
   type RoomMode,
 } from "@tetraboard/protocol";
 import { defaultGameId, gameCatalog, isGameId, type GameId } from "@tetraboard/protocol/games";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
@@ -70,8 +70,9 @@ export function PublicPlayerPage() {
   const mode =
     gameCatalog[game].hasModes && search.get("mode") === "doubles" ? "doubles" : "singles";
   const changeSelection = (nextGame: GameId, nextMode: RoomMode) => {
-    // ゲーム・モードの履歴を残しながら、遷移元までの距離を引き継ぎます。
+    // 履歴を1項目追加するので、遷移元までの距離も1つ増やします。
     setSearch(playerGameQuery(nextGame, nextMode), {
+      replace: false,
       state: backSteps === null ? state : { ...state, profileBackSteps: backSteps + 1 },
     });
   };
@@ -83,31 +84,34 @@ export function PublicPlayerPage() {
     return <AppPageLoading message="ログイン状態を確認しています…" />;
 
   const theme = gameThemes[game];
+  const backButton =
+    target && backSteps !== null ? (
+      <AppButton
+        appearance="secondary"
+        size="compact"
+        className="self-start"
+        onPress={() => void navigate(-backSteps)}
+      >
+        戻る
+      </AppButton>
+    ) : null;
 
   return (
     <div className="app-theme flex min-h-dvh flex-col text-ink">
       <AppHeader homeTo="/" homeLabel="TetraBoard ロビー" theme={theme} />
       <div className={`lobby-background flex-1 text-ink ${appThemeClasses[theme]}`}>
         <main className={`${appPageWidthClasses} flex flex-col gap-5 py-6 sm:py-8`}>
-          {target &&
-            backSteps !== null &&
-            (!expectedProfileId || user?.profileId !== expectedProfileId) && (
-              <AppButton
-                appearance="secondary"
-                size="compact"
-                className="self-start"
-                onPress={() => void navigate(-backSteps)}
-              >
-                戻る
-              </AppButton>
-            )}
           {!target || (targetKey && unavailableProfiles.has(targetKey)) ? (
-            <UnavailablePlayerCard />
+            <>
+              {backButton}
+              <UnavailablePlayerCard />
+            </>
           ) : (
             <PublicPlayerContent
               key={targetKey}
               target={target}
               expectedProfileId={expectedProfileId}
+              backButton={backButton}
               game={game}
               mode={mode}
               onGameChange={(next) => changeSelection(next, "singles")}
@@ -141,6 +145,7 @@ function OwnPlayerPage({ game, mode }: { game: GameId; mode: RoomMode }) {
 function PublicPlayerContent({
   target,
   expectedProfileId,
+  backButton,
   game,
   mode,
   onGameChange,
@@ -149,6 +154,7 @@ function PublicPlayerContent({
 }: {
   target: PublicPlayerTarget;
   expectedProfileId?: string;
+  backButton: ReactNode;
   game: GameId;
   mode: RoomMode;
   onGameChange: (game: GameId) => void;
@@ -209,7 +215,13 @@ function PublicPlayerContent({
       ? ratings.result.data.games
       : null;
   if (ownProfile) return <OwnPlayerPage game={game} mode={mode} />;
-  if (unexpectedOwner) return <UnavailablePlayerCard />;
+  if (unexpectedOwner)
+    return (
+      <>
+        {backButton}
+        <UnavailablePlayerCard />
+      </>
+    );
   if (player && redirectToCanonical)
     return (
       <Navigate
@@ -221,8 +233,14 @@ function PublicPlayerContent({
         }}
       />
     );
+  const checkingOwnProfile =
+    user &&
+    target.source === "username" &&
+    profile.result.status === "loading" &&
+    confirmedProfileId === null;
   return (
     <>
+      {!checkingOwnProfile && backButton}
       <AppCard>
         {player ? (
           <PlayerIdentity profile={player} />

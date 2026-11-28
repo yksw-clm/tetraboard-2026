@@ -18,11 +18,8 @@ export function PlayerPageLink({
   const location = useLocation();
   const path = useResolvedPath(to);
   // 同じURLへのリンクは履歴を置き換えるため、その項目の遷移元を維持します。
+  const replace = createPath(location) === createPath(path);
   const state =
-    target === "_blank"
-      ? undefined
-      : createPath(location) === createPath(path)
-        ? location.state
-        : { profileBackSteps: 1, expectedProfileId: profile.profileId };
-  return <Link {...props} to={to} target={target} state={state} />;
+    target === "_blank" ? undefined : replace ? location.state : { profileBackSteps: 1 };
+  return <Link {...props} to={to} target={target} replace={replace} state={state} />;
 }
