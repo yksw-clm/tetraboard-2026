@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import type { Window as TestWindow } from "happy-dom";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { ProfileForm } from "../src/features/account/ProfileForm";
 import { ProfilePage } from "../src/features/account/AccountPages";
@@ -94,6 +95,63 @@ test("マイページで保存内容を表示し、取消で破棄、保存と�
   expect(card().textContent).not.toContain("遊ぼう");
   expect(card().querySelector('[aria-label="お気に入りゲーム"]')).toBeNull();
 });
+
+test.each([false, true])(
+  "狭いマイページの末尾で編集でき、幅をまたいでも下書きを保つ（ゲスト: %s）",
+  async (isGuest) => {
+    const viewport = (window as unknown as TestWindow).happyDOM;
+    const originalWidth = window.innerWidth;
+    const resize = (width: number) => act(() => viewport.setViewport({ width }));
+    try {
+      resize(390);
+      const user = { ...profile, isGuest, favoriteGames: [] };
+      const view = render(wrap(user)(<ProfilePage />));
+      const main = view.querySelector("main")!;
+      const card = main.querySelector('[data-testid="account-profile-card"]')!;
+      const editButtons = () =>
+        [...main.querySelectorAll("button")].filter(
+          (button) => button.textContent === "プロフィールを編集",
+        );
+      expect(editButtons()).toHaveLength(1);
+      expect(main.lastElementChild).toBe(editButtons()[0]);
+      expect(card.querySelector('[aria-label="お気に入りゲーム"]')).toBeNull();
+      press(main, "プロフィールを編集");
+      await flush();
+      const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+      const input = dialog.querySelector<HTMLInputElement>('input[name="name"]')!;
+      enter(input, "編集中");
+
+      resize(650);
+      expect(editButtons()).toHaveLength(1);
+      expect(main.lastElementChild).toBe(editButtons()[0]);
+      resize(651);
+      expect(editButtons()).toHaveLength(1);
+      expect(card.contains(editButtons()[0]!)).toBe(true);
+      expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+      expect(document.querySelector('[role="dialog"]')).toBe(dialog);
+      expect(input.value).toBe("編集中");
+      resize(650);
+      act(() => dialog.querySelector<HTMLButtonElement>('[aria-label="閉じる"]')!.click());
+      await flush();
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+      press(main, "プロフィールを編集");
+      await flush();
+      const reopened = document.querySelector<HTMLElement>('[role="dialog"]')!;
+      const reopenedName = reopened.querySelector<HTMLInputElement>('input[name="name"]')!;
+      expect(reopenedName.value).toBe(user.name);
+      enter(reopenedName, "保存した名前");
+      press(reopened, "保存");
+      const save = requests.find((request) => request.init.method === "PATCH")!;
+      expect(save.url).toBe(isGuest ? "/api/account/guest/name" : "/api/account/profile");
+      save.respond({ ...user, name: "保存した名前" });
+      await flush();
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+      expect(card.textContent).toContain("プロフィールを保存しました。");
+    } finally {
+      resize(originalWidth);
+    }
+  },
+);
 
 test("公開カードは通常テキストとゲーム名を表示し、未設定項目は表示しない", async () => {
   const store = new PlayerProfileStore();
