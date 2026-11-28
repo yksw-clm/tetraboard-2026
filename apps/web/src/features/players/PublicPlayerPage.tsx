@@ -8,8 +8,8 @@ import {
   type RoomMode,
 } from "@tetraboard/protocol";
 import { defaultGameId, gameCatalog, isGameId, type GameId } from "@tetraboard/protocol/games";
-import { useCallback, useEffect, useState } from "react";
-import { Navigate, useLocation, useParams, useSearchParams } from "react-router";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppHeader } from "../../shared/ui/AppHeader";
@@ -40,6 +40,7 @@ function publicPlayerTarget(profileId?: string, handle?: string): PublicPlayerTa
 export function PublicPlayerPage() {
   const { profileId, handle } = useParams();
   const { state } = useLocation();
+  const navigate = useNavigate();
   const target = publicPlayerTarget(profileId, handle);
   const expectedProfileId =
     target?.source === "username" && typeof state?.expectedProfileId === "string"
@@ -51,6 +52,12 @@ export function PublicPlayerPage() {
       : profileId;
   const [search, setSearch] = useSearchParams();
   const { user, loading } = useAccount();
+  const backSteps =
+    typeof state?.profileBackSteps === "number" &&
+    Number.isSafeInteger(state.profileBackSteps) &&
+    state.profileBackSteps > 0
+      ? state.profileBackSteps
+      : null;
   const [accountChecked, setAccountChecked] = useState(!loading);
   const [unavailableProfiles, setUnavailableProfiles] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -62,6 +69,13 @@ export function PublicPlayerPage() {
   const game = isGameId(selectedGame) ? selectedGame : defaultGameId;
   const mode =
     gameCatalog[game].hasModes && search.get("mode") === "doubles" ? "doubles" : "singles";
+  const changeSelection = (nextGame: GameId, nextMode: RoomMode) => {
+    // 履歴を1項目追加するので、遷移元までの距離も1つ増やします。
+    setSearch(playerGameQuery(nextGame, nextMode), {
+      replace: false,
+      state: backSteps === null ? state : { ...state, profileBackSteps: backSteps + 1 },
+    });
+  };
 
   if (!accountChecked && !loading) setAccountChecked(true);
   if (target?.source === "profile" && user?.profileId === target.profileId)
@@ -70,6 +84,17 @@ export function PublicPlayerPage() {
     return <AppPageLoading message="ログイン状態を確認しています…" />;
 
   const theme = gameThemes[game];
+  const backButton =
+    target && backSteps !== null ? (
+      <AppButton
+        appearance="secondary"
+        size="compact"
+        className="self-start"
+        onPress={() => void navigate(-backSteps)}
+      >
+        戻る
+      </AppButton>
+    ) : null;
 
   return (
     <div className="app-theme flex min-h-dvh flex-col text-ink">
@@ -77,16 +102,20 @@ export function PublicPlayerPage() {
       <div className={`lobby-background flex-1 text-ink ${appThemeClasses[theme]}`}>
         <main className={`${appPageWidthClasses} flex flex-col gap-5 py-6 sm:py-8`}>
           {!target || (targetKey && unavailableProfiles.has(targetKey)) ? (
-            <UnavailablePlayerCard />
+            <>
+              {backButton}
+              <UnavailablePlayerCard />
+            </>
           ) : (
             <PublicPlayerContent
               key={targetKey}
               target={target}
               expectedProfileId={expectedProfileId}
+              backButton={backButton}
               game={game}
               mode={mode}
-              onGameChange={(next) => setSearch(playerGameQuery(next, "singles"), { state })}
-              onModeChange={(next) => setSearch(playerGameQuery(game, next), { state })}
+              onGameChange={(next) => changeSelection(next, "singles")}
+              onModeChange={(next) => changeSelection(game, next)}
               onUnavailable={markUnavailable}
             />
           )}
@@ -116,6 +145,7 @@ function OwnPlayerPage({ game, mode }: { game: GameId; mode: RoomMode }) {
 function PublicPlayerContent({
   target,
   expectedProfileId,
+  backButton,
   game,
   mode,
   onGameChange,
@@ -124,6 +154,7 @@ function PublicPlayerContent({
 }: {
   target: PublicPlayerTarget;
   expectedProfileId?: string;
+  backButton: ReactNode;
   game: GameId;
   mode: RoomMode;
   onGameChange: (game: GameId) => void;
@@ -184,19 +215,32 @@ function PublicPlayerContent({
       ? ratings.result.data.games
       : null;
   if (ownProfile) return <OwnPlayerPage game={game} mode={mode} />;
-  if (unexpectedOwner) return <UnavailablePlayerCard />;
+  if (unexpectedOwner)
+    return (
+      <>
+        {backButton}
+        <UnavailablePlayerCard />
+      </>
+    );
   if (player && redirectToCanonical)
     return (
       <Navigate
-        to={{ pathname: canonicalPath, search: location.search }}
+        to={{ pathname: canonicalPath, search: location.search, hash: location.hash }}
         replace
         state={{
+          ...location.state,
           expectedProfileId: target.source === "profile" ? player.profileId : expectedProfileId,
         }}
       />
     );
+  const checkingOwnProfile =
+    user &&
+    target.source === "username" &&
+    profile.result.status === "loading" &&
+    confirmedProfileId === null;
   return (
     <>
+      {!checkingOwnProfile && backButton}
       <AppCard>
         {player ? (
           <PlayerIdentity profile={player} />
